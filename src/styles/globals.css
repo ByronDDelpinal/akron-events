@@ -1,0 +1,97 @@
+/* ─── DESIGN TOKENS ─── */
+:root {
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body:    'DM Sans', system-ui, sans-serif;
+
+  --bg-page:       #FAF6EF;
+  --bg-card:       #FFFFFF;
+  --bg-secondary:  #F0EAE0;
+  --bg-nav:        #1D2B1F;
+
+  --text-primary:   #17200F;
+  --text-secondary: #3A4E30;
+  --text-muted:     #7A9068;
+
+  --amber:          #D4922A;
+  --amber-hover:    #BC7E20;
+  --amber-pale:     #FDF2DC;
+  --amber-border:   rgba(212,146,42,0.25);
+
+  --green-deep:     #1D2B1F;
+  --green-mid:      #3A6B4A;
+
+  --coral:          #C4532A;
+  --coral-pale:     #FAEAE4;
+
+  --border:         #E0D9CA;
+  --border-mid:     #C8BFA8;
+
+  --chip-bg:        #EBE4D5;
+  --chip-text:      #5A6E50;
+  --chip-active-bg: #D4922A;
+  --chip-active-txt:#FFFFFF;
+
+  --shadow-card:  0 1px 3px rgba(25,35,15,0.06), 0 4px 14px rgba(25,35,15,0.07);
+  --shadow-hover: 0 4px 8px rgba(25,35,15,0.07), 0 14px 36px rgba(25,35,15,0.13);
+
+  --tag-music-bg:     #E4F0E6; --tag-music-txt:     #1A5428;
+  --tag-art-bg:       #F2E8FA; --tag-art-txt:       #621A80;
+  --tag-nonprofit-bg: #FDF2DC; --tag-nonprofit-txt: #7A4E08;
+  --tag-community-bg: #E4EEF8; --tag-community-txt: #1A3E70;
+  --tag-food-bg:      #FAE8E4; --tag-food-txt:      #882810;
+  --tag-fitness-bg:   #E4F2EE; --tag-fitness-txt:   #0C5438;
+  --tag-education-bg: #EAF0FA; --tag-education-txt: #1A3060;
+  --tag-other-bg:     #F0F0F0; --tag-other-txt:     #555555;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; scroll-behavior: smooth; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; }
+button { font-family: inherit; }
+
+/* ════════════════════════════════
+   GRADIENT THUMBNAILS
+════════════════════════════════ */
+.g-jazz    { background: linear-gradient(140deg,#162806 0%,#2A5C18 55%,#D4922A 100%); }
+.g-art     { background: linear-gradient(140deg,#180A26 0%,#481870 55%,#9848E0 100%); }
+.g-market  { background: linear-gradient(140deg,#082010 0%,#186030 50%,#68AF78 100%); }
+.g-gala    { background: linear-gradient(140deg,#180808 0%,#501828 50%,#D4922A 100%); }
+.g-openmic { background: linear-gradient(140deg,#100828 0%,#2E1060 45%,#8050D0 100%); }
+.g-run     { background: linear-gradient(140deg,#081828 0%,#1040A0 50%,#60B8E8 100%); }
+.g-default { background: linear-gradient(140deg,#1D2B1F 0%,#3A6B4A 55%,#D4922A 100%); }
+
+/* ════════════════════════════════
+   EVENT TAGS
+════════════════════════════════ */
+.event-tag {
+  font-family: var(--font-display);
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 3px 8px;
+  border-radius: 5px;
+}
+.tag-music     { background: var(--tag-music-bg);     color: var(--tag-music-txt); }
+.tag-art       { background: var(--tag-art-bg);       color: var(--tag-art-txt); }
+.tag-nonprofit { background: var(--tag-nonprofit-bg); color: var(--tag-nonprofit-txt); }
+.tag-community { background: var(--tag-community-bg); color: var(--tag-community-txt); }
+.tag-food      { background: var(--tag-food-bg);      color: var(--tag-food-txt); }
+.tag-fitness   { background: var(--tag-fitness-bg);   color: var(--tag-fitness-txt); }
+.tag-education { background: var(--tag-education-bg); color: var(--tag-education-txt); }
+.tag-other     { background: var(--tag-other-bg);     color: var(--tag-other-txt); }
+
+/* ════════════════════════════════
+   UTILITY
+════════════════════════════════ */
+.content {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
