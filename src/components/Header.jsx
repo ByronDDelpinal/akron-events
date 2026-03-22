@@ -43,9 +43,10 @@ export default function Header() {
         </Link>
 
         <nav className="nav-links">
-          <Link to="/"       className={`nav-link ${isActive('/')       ? 'active' : ''}`}>Browse Events</Link>
-          <Link to="/submit" className={`nav-link ${isActive('/submit') ? 'active' : ''}`}>Submit an Event</Link>
-          <Link to="/about"  className={`nav-link ${isActive('/about')  ? 'active' : ''}`}>About</Link>
+          <Link to="/"        className={`nav-link ${isActive('/')        ? 'active' : ''}`}>Browse Events</Link>
+          <Link to="/venues"  className={`nav-link ${isActive('/venues')  ? 'active' : ''}`}>Venues</Link>
+          <Link to="/submit"  className={`nav-link ${isActive('/submit')  ? 'active' : ''}`}>Submit an Event</Link>
+          <Link to="/about"   className={`nav-link ${isActive('/about')   ? 'active' : ''}`}>About</Link>
         </nav>
 
         <Link to="/submit" className="btn-nav-cta">+ Submit Event</Link>
@@ -63,6 +64,7 @@ export default function Header() {
       {menuOpen && (
         <div className="mobile-menu open">
           <button className={`mobile-nav-link ${isActive('/')       ? 'active' : ''}`} onClick={() => navTo('/')}>Browse Events</button>
+          <button className={`mobile-nav-link ${isActive('/venues') ? 'active' : ''}`} onClick={() => navTo('/venues')}>Venues</button>
           <button className={`mobile-nav-link ${isActive('/submit') ? 'active' : ''}`} onClick={() => navTo('/submit')}>Submit an Event</button>
           <button className={`mobile-nav-link ${isActive('/about')  ? 'active' : ''}`} onClick={() => navTo('/about')}>About</button>
           <button className="mobile-menu-cta" onClick={() => navTo('/submit')}>+ Submit Event</button>

@@ -6,6 +6,8 @@ import EventPage from '@/pages/EventPage'
 import SubmitPage from '@/pages/SubmitPage'
 import AboutPage     from '@/pages/AboutPage'
 import TechnicalPage from '@/pages/TechnicalPage'
+import VenuesPage      from '@/pages/VenuesPage'
+import VenueDetailPage from '@/pages/VenueDetailPage'
 import '@/styles/globals.css'
 
 function ScrollToTop() {
@@ -33,6 +35,8 @@ function AppInner() {
           <Route path="/submit"     element={<SubmitPage />} />
           <Route path="/about"      element={<AboutPage />} />
           <Route path="/technical"  element={<TechnicalPage />} />
+          <Route path="/venues"     element={<VenuesPage />} />
+          <Route path="/venues/:id" element={<VenueDetailPage />} />
           <Route path="*"           element={<NotFound />} />
         </Routes>
       </main>

@@ -163,6 +163,122 @@ export function useEvents({
 }
 
 /**
+ * Fetch all venues, ordered by name.
+ * Returns { venues, loading, error }
+ */
+export function useVenues() {
+  const [venues,  setVenues]  = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function fetchVenues() {
+      setLoading(true)
+      setError(null)
+
+      const { data, error: fetchError } = await supabase
+        .from('venues')
+        .select('id, name, address, city, state, zip, website, parking_type, parking_notes, lat, lng')
+        .order('name', { ascending: true })
+
+      if (!cancelled) {
+        if (fetchError) setError(fetchError.message)
+        else setVenues(data ?? [])
+        setLoading(false)
+      }
+    }
+
+    fetchVenues()
+    return () => { cancelled = true }
+  }, [])
+
+  return { venues, loading, error }
+}
+
+/**
+ * Fetch a single venue by ID.
+ * Returns { venue, loading, error }
+ */
+export function useVenue(id) {
+  const [venue,   setVenue]   = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState(null)
+
+  useEffect(() => {
+    if (!id) return
+    let cancelled = false
+
+    async function fetchVenue() {
+      setLoading(true)
+      setError(null)
+
+      const { data, error: fetchError } = await supabase
+        .from('venues')
+        .select('id, name, address, city, state, zip, website, parking_type, parking_notes, lat, lng')
+        .eq('id', id)
+        .single()
+
+      if (!cancelled) {
+        if (fetchError) setError(fetchError.message)
+        else setVenue(data)
+        setLoading(false)
+      }
+    }
+
+    fetchVenue()
+    return () => { cancelled = true }
+  }, [id])
+
+  return { venue, loading, error }
+}
+
+/**
+ * Fetch all upcoming published events at a given venue.
+ * Returns { events, loading, error }
+ */
+export function useVenueEvents(venueId) {
+  const [events,  setEvents]  = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState(null)
+
+  useEffect(() => {
+    if (!venueId) return
+    let cancelled = false
+
+    async function fetchVenueEvents() {
+      setLoading(true)
+      setError(null)
+
+      const { data, error: fetchError } = await supabase
+        .from('events')
+        .select(`
+          id, title, start_at, end_at, category,
+          price_min, price_max, image_url, ticket_url,
+          age_restriction, status, featured,
+          organizer:organizers ( id, name )
+        `)
+        .eq('venue_id', venueId)
+        .eq('status', 'published')
+        .gte('start_at', new Date(Date.now() - 3 * 3600_000).toISOString())
+        .order('start_at', { ascending: true })
+
+      if (!cancelled) {
+        if (fetchError) setError(fetchError.message)
+        else setEvents(data ?? [])
+        setLoading(false)
+      }
+    }
+
+    fetchVenueEvents()
+    return () => { cancelled = true }
+  }, [venueId])
+
+  return { events, loading, error }
+}
+
+/**
  * Fetch a single published event by ID, with venue + organizer joined.
  */
 export function useEvent(id) {
