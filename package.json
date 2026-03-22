@@ -9,7 +9,14 @@
     "preview": "vite preview",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "ingest:eventbrite": "node scripts/fetch-eventbrite.js",
-    "ingest:ticketmaster": "node scripts/fetch-ticketmaster.js"
+    "ingest:ticketmaster": "node scripts/fetch-ticketmaster.js",
+    "scrape:summit-artspace": "node scripts/scrape-summit-artspace.js",
+    "scrape:nightlight": "node scripts/scrape-nightlight.js",
+    "scrape:library": "node scripts/scrape-akron-library.js",
+    "scrape:jillys": "node scripts/scrape-jillys.js",
+    "scrape:blu-jazz": "node scripts/scrape-blu-jazz.js",
+    "scrape:all": "node scripts/scrape-summit-artspace.js && node scripts/scrape-nightlight.js && node scripts/scrape-akron-library.js && node scripts/scrape-jillys.js && node scripts/scrape-blu-jazz.js",
+    "health": "node scripts/check-scraper-health.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.0",

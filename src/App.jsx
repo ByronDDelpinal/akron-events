@@ -4,7 +4,8 @@ import Footer   from '@/components/Footer'
 import HomePage  from '@/pages/HomePage'
 import EventPage from '@/pages/EventPage'
 import SubmitPage from '@/pages/SubmitPage'
-import AboutPage  from '@/pages/AboutPage'
+import AboutPage     from '@/pages/AboutPage'
+import TechnicalPage from '@/pages/TechnicalPage'
 import '@/styles/globals.css'
 
 function ScrollToTop() {
@@ -31,6 +32,7 @@ function AppInner() {
           <Route path="/events/:id" element={<EventPage />} />
           <Route path="/submit"     element={<SubmitPage />} />
           <Route path="/about"      element={<AboutPage />} />
+          <Route path="/technical"  element={<TechnicalPage />} />
           <Route path="*"           element={<NotFound />} />
         </Routes>
       </main>

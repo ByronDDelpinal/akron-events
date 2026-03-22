@@ -3,6 +3,8 @@
  * Each source maps its raw data into this common shape before upsert.
  */
 
+import { supabaseAdmin } from './supabase-admin.js'
+
 // Eventbrite category ID → our category enum
 export const EVENTBRITE_CATEGORY_MAP = {
   '103': 'music',        // Music
@@ -44,8 +46,78 @@ export function parseEventbritePrice(ticketClasses = [], isFree = false) {
 }
 
 /**
- * Log a summary of an upsert result.
+ * Log a summary of an upsert result to the console AND write a row to
+ * the scraper_runs table for health monitoring.
+ *
+ * @param {string}  source      - scraper identifier (e.g. 'summit_artspace')
+ * @param {number}  inserted    - new rows created
+ * @param {number}  updated     - existing rows updated
+ * @param {number}  skipped     - rows that failed or were intentionally skipped
+ * @param {object}  [opts]
+ * @param {string}  [opts.status='success'] - 'success' | 'error'
+ * @param {string}  [opts.errorMessage]     - set when status='error'
+ * @param {number}  [opts.durationMs]       - wall-clock ms for the full run
+ * @param {number}  [opts.eventsFound]      - total events seen from the source
+ *                                           (defaults to inserted + updated + skipped)
  */
-export function logUpsertResult(source, inserted, updated, skipped) {
-  console.log(`[${source}] ✓ ${inserted} inserted  ${updated} updated  ${skipped} skipped`)
+export async function logUpsertResult(source, inserted, updated, skipped, opts = {}) {
+  const {
+    status       = 'success',
+    errorMessage = null,
+    durationMs   = null,
+  } = opts
+
+  const eventsFound = opts.eventsFound ?? (inserted + updated + skipped)
+
+  // ── Console output ──────────────────────────────────────────────────────
+  const icon = status === 'error' ? '❌' : '✓'
+  console.log(
+    `[${source}] ${icon}  ${inserted} inserted  ${updated} updated  ${skipped} skipped` +
+    (eventsFound !== inserted + updated + skipped ? `  (${eventsFound} total from source)` : '') +
+    (durationMs != null ? `  [${(durationMs / 1000).toFixed(1)}s]` : '')
+  )
+
+  // ── Persist to scraper_runs ─────────────────────────────────────────────
+  try {
+    const { error } = await supabaseAdmin
+      .from('scraper_runs')
+      .insert({
+        scraper_name:    source,
+        status,
+        events_found:    eventsFound,
+        events_inserted: inserted,
+        events_updated:  updated,
+        events_skipped:  skipped,
+        error_message:   errorMessage,
+        duration_ms:     durationMs,
+      })
+
+    if (error) {
+      // Don't crash the scraper over a monitoring write failure — just warn
+      console.warn(`  ⚠ Health log write failed for ${source}:`, error.message)
+    }
+  } catch (err) {
+    console.warn(`  ⚠ Health log exception for ${source}:`, err.message)
+  }
+}
+
+/**
+ * Convenience wrapper: call at the top of each scraper's try/catch to log
+ * fatal errors to scraper_runs without crashing the process.
+ *
+ * Usage:
+ *   } catch (err) {
+ *     await logScraperError('my_scraper', err, startTime)
+ *     process.exit(1)
+ *   }
+ */
+export async function logScraperError(source, err, startMs = null) {
+  console.error(`\n❌  Fatal error [${source}]:`, err.message)
+  const durationMs = startMs != null ? Date.now() - startMs : null
+  await logUpsertResult(source, 0, 0, 0, {
+    status:       'error',
+    errorMessage: err.message,
+    durationMs,
+    eventsFound:  0,
+  })
 }

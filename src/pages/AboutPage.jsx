@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import './AboutPage.css'
 
 export default function AboutPage() {
@@ -34,6 +35,19 @@ export default function AboutPage() {
         <p className="about-p">
           If you spot an event with incorrect info, a duplicate, or something that shouldn't be listed, reach out and we'll get it fixed quickly.
         </p>
+
+        <div className="about-divider" />
+
+        <div className="about-technical-row">
+          <div>
+            <p className="about-p" style={{ marginBottom: 0 }}>
+              Curious how the data pipeline works? See every active data source, scraper method, live event counts, and health status.
+            </p>
+          </div>
+          <Link to="/technical" className="about-technical-btn">
+            Technical Details →
+          </Link>
+        </div>
       </div>
     </>
   )
