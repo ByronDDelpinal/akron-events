@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { format, isToday, isTomorrow } from 'date-fns'
+import { Link } from 'react-router-dom'
 import { useEvents, PAGE_SIZE } from '@/hooks/useEvents'
 import EventCard from '@/components/EventCard'
 import FilterBar from '@/components/FilterBar'
@@ -122,7 +123,7 @@ export default function HomePage() {
         <div className="hero-glow" />
         <p className="hero-eyebrow">Summit County, Ohio</p>
         <h1>What's happening<br />in <span>Akron?</span></h1>
-        <p className="hero-sub">Concerts, galas, art shows, markets, and more — all in the 330.</p>
+        <p className="hero-sub">Concerts, galas, art shows, markets, and more — happening right now in Akron.</p>
         <div className="search-wrap">
           <SearchIcon />
           <input
@@ -187,29 +188,40 @@ export default function HomePage() {
 
           {(() => {
             let cardIdx = 0
-            return grouped.map(([dateKey, dayEvents]) => (
-              <div key={`${resultsKey}-${dateKey}`}>
-                <DateHeading dateKey={dateKey} />
-                <div className="cards-grid">
-                  {dayEvents.map((event, i) => {
-                    const delay = cardIdx++ * 28
-                    return (
-                      <div
-                        key={event.id}
-                        className="card-enter"
-                        style={{ animationDelay: `${delay}ms` }}
-                      >
-                        <EventCard
-                          event={event}
-                          featured={event.featured && i === 0}
-                        />
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            ))
+            let midPromoShown = false
+            const midThreshold = getMidPromoThreshold()
+            return grouped.map(([dateKey, dayEvents]) => {
+              const items = dayEvents.map((event, i) => {
+                const delay = cardIdx++ * 28
+                return (
+                  <div
+                    key={event.id}
+                    className="card-enter"
+                    style={{ animationDelay: `${delay}ms` }}
+                  >
+                    <EventCard
+                      event={event}
+                      featured={event.featured && i === 0}
+                    />
+                  </div>
+                )
+              })
+              const showMidPromo = !midPromoShown && cardIdx >= midThreshold
+              if (showMidPromo) midPromoShown = true
+              return (
+                <Fragment key={`${resultsKey}-${dateKey}`}>
+                  <div>
+                    <DateHeading dateKey={dateKey} />
+                    <div className="cards-grid">{items}</div>
+                  </div>
+                  {showMidPromo && <GridPromo />}
+                </Fragment>
+              )
+            })
           })()}
+
+          {/* End-of-grid promo — only when there's enough content to make it feel earned */}
+          {allEvents.length >= getMidPromoThreshold() && !hasMore && <GridPromo />}
 
           {/* Load more */}
           {allEvents.length > 0 && (
@@ -232,6 +244,61 @@ export default function HomePage() {
         </div>
       )}
     </>
+  )
+}
+
+// Inject after ~3 rows — count depends on how many columns are visible
+function getMidPromoThreshold() {
+  const w = window.innerWidth
+  if (w >= 900) return 9  // 3 cols × 3 rows
+  if (w >= 600) return 6  // 2 cols × 3 rows
+  return 3                // 1 col × 3 rows
+}
+
+function GridPromo() {
+  const [copied, setCopied] = useState(false)
+
+  const handleShare = async () => {
+    const shareData = {
+      title: 'Turnout — Akron Events',
+      text: "Check out Turnout — it's where I find everything happening in Akron & Summit County.",
+      url: window.location.origin,
+    }
+    if (navigator.share) {
+      try { await navigator.share(shareData) } catch { /* dismissed */ }
+    } else {
+      try {
+        await navigator.clipboard.writeText(window.location.origin)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2500)
+      } catch { /* clipboard unavailable */ }
+    }
+  }
+
+  return (
+    <div className="grid-promo">
+      <div className="grid-promo-inner">
+        <div className="grid-promo-col">
+          <span className="grid-promo-icon">📣</span>
+          <div className="grid-promo-text">
+            <strong>Got an event?</strong>
+            <p>Submit it and we'll add it to the grid.</p>
+          </div>
+          <Link to="/submit" className="grid-promo-btn">Submit an event →</Link>
+        </div>
+        <div className="grid-promo-divider" />
+        <div className="grid-promo-col">
+          <span className="grid-promo-icon">📤</span>
+          <div className="grid-promo-text">
+            <strong>Know an organizer?</strong>
+            <p>The more events on here, the better. Send them the link.</p>
+          </div>
+          <button className="grid-promo-btn" onClick={handleShare}>
+            {copied ? '✓ Link copied!' : 'Share Turnout →'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 

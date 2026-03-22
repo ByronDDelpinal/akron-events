@@ -39,7 +39,7 @@ export default function Header() {
       <div className="header-inner">
         <Link to="/" className="nav-logo">
           <div className="logo-dot" />
-          The <span className="amber">330</span>
+          Turn<span className="amber">out</span>
         </Link>
 
         <nav className="nav-links">

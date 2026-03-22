@@ -6,15 +6,15 @@ export default function Footer() {
     <footer>
       <div className="footer-logo">
         <div className="logo-dot" />
-        The <span className="amber">330</span>
+        Turn<span className="amber">out</span>
       </div>
-      <p className="footer-tagline">Akron &amp; Summit County events, all in one place.</p>
+      <p className="footer-tagline">Everything happening in Akron &amp; Summit County, all in one place.</p>
       <div className="footer-links">
         <Link to="/">Browse Events</Link>
         <Link to="/submit">Submit an Event</Link>
         <Link to="/about">About</Link>
       </div>
-      <p className="footer-copy">© {new Date().getFullYear()} The 330 · Made with ♥ in Akron, OH</p>
+      <p className="footer-copy">© {new Date().getFullYear()} Turnout · Made with ♥ in Akron, OH</p>
     </footer>
   )
 }

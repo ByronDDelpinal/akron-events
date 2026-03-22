@@ -52,9 +52,9 @@ function buildIcsContent(event) {
   const fmt  = (d) => new Date(d).toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z'
   const loc  = event.venue ? `${event.venue.name}\\, ${event.venue.address ?? ''}\\, ${event.venue.city}` : ''
   return [
-    'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//The330//AkronEvents//EN',
+    'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Turnout//AkronEvents//EN',
     'BEGIN:VEVENT',
-    `UID:${event.id}@the330.app`,
+    `UID:${event.id}@turnout.app`,
     `DTSTART:${fmt(event.start_at)}`,
     `DTEND:${event.end_at ? fmt(event.end_at) : fmt(event.start_at)}`,
     `SUMMARY:${event.title}`,

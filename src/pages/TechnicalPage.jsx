@@ -204,7 +204,7 @@ export default function TechnicalPage() {
       {/* ── Hero ── */}
       <div className="tp-hero">
         <div className="tp-hero__inner">
-          <p className="tp-hero__eyebrow">The 330 / Open Infrastructure</p>
+          <p className="tp-hero__eyebrow">Turnout / Open Infrastructure</p>
           <h2 className="tp-hero__title">Technical Details</h2>
           <p className="tp-hero__sub">
             A transparent look at how event data flows into this site — every source,
