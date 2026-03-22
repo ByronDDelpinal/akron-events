@@ -268,7 +268,7 @@ async function processEvents(rawEvents, organizerId) {
         price_min:       0,
         price_max:       null,
         age_restriction: 'not_specified',
-        image_url:       null,   // image filenames only — no reliable base URL
+        image_url:       ev.image ? `https://services.akronlibrary.org/images/events/akronlibrary/${ev.image}` : null,
         ticket_url:      sanitizeUrl(ev.url),
         source:          'akron_library',
         source_id:       String(ev.id),

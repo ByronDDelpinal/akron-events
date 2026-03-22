@@ -7,6 +7,7 @@ import './TechnicalPage.css'
 // logged a scraper_run. The `key` must match the scraper_name used in normalize.js.
 
 const DATA_SOURCES = [
+  // ── Public REST APIs ────────────────────────────────────────────────────
   {
     key:         'ticketmaster',
     label:       'Ticketmaster',
@@ -17,12 +18,97 @@ const DATA_SOURCES = [
     status:      'active',
   },
   {
+    key:         'rubberducks',
+    label:       'Akron RubberDucks',
+    method:      'REST API',
+    methodDetail:'MLB Stats API (statsapi.mlb.com) — teamId 402',
+    venue:       '7 17 Credit Union Park — 300 S Main St',
+    notes:       'Fetches the full season home-game schedule. Home games only (teamId=402). Promotion data (Fireworks Night, etc.) surfaced in descriptions.',
+    status:      'active',
+  },
+  {
+    key:         'uakron_calendar',
+    label:       'University of Akron',
+    method:      'REST API',
+    methodDetail:'LiveWhale calendar JSON API',
+    venue:       'University of Akron campus — multiple locations',
+    notes:       'Single endpoint returns 90 days of all campus events. Non-EJ-Thomas events use this source key. Includes lectures, exhibitions, athletics, and community programs.',
+    status:      'active',
+  },
+  {
+    key:         'ejthomas_hall',
+    label:       'E.J. Thomas Performing Arts Hall',
+    method:      'REST API',
+    methodDetail:'LiveWhale calendar JSON API — group filter gid=5',
+    venue:       'E.J. Thomas Hall — 198 Hill St',
+    notes:       'Filtered sub-source of the UAkron LiveWhale API (group_title = "EJ Thomas Hall"). Captures Akron Symphony, touring Broadway, and other major performances.',
+    status:      'active',
+  },
+
+  // ── The Events Calendar (Tribe) REST API ───────────────────────────────
+  {
     key:         'summit_artspace',
     label:       'Summit Artspace',
     method:      'REST API',
     methodDetail:'The Events Calendar (Tribe Events) REST',
     venue:       'Summit Artspace — 140 E Market St',
     notes:       'Paginated /wp-json/tribe/events/v1/events endpoint. Includes exhibitions, workshops, and openings.',
+    status:      'active',
+  },
+  {
+    key:         'summit_metro_parks',
+    label:       'Summit Metro Parks',
+    method:      'REST API',
+    methodDetail:'The Events Calendar (Tribe Events) REST',
+    venue:       '18+ park locations across Summit County',
+    notes:       'Tribe Events API returns 180 days, 264+ events. Per-event venue caching creates individual park records (Gorge Metro Park, Cascade Valley, etc.).',
+    status:      'active',
+  },
+  {
+    key:         'cvnp_conservancy',
+    label:       'Cuyahoga Valley National Park',
+    method:      'REST API',
+    methodDetail:'The Events Calendar (Tribe Events) REST',
+    venue:       'Cuyahoga Valley National Park — multiple trailheads',
+    notes:       'Conservancy for CVNP Tribe Events API. Per-event venue caching across park locations. 180-day window.',
+    status:      'active',
+  },
+  {
+    key:         'players_guild',
+    label:       'Players Guild Theatre',
+    method:      'REST API',
+    methodDetail:'The Events Calendar (Tribe Events) REST',
+    venue:       'Players Guild Theatre — 1001 Market Ave N, Canton',
+    notes:       'Canton-based community theatre. 365-day window since theatre seasons are planned well in advance.',
+    status:      'active',
+  },
+  {
+    key:         'missing_falls',
+    label:       'Missing Falls Brewery',
+    method:      'REST API',
+    methodDetail:'The Events Calendar (Tribe Events) REST',
+    venue:       'Missing Falls Brewery — 1250 Triplett Blvd',
+    notes:       'Same Tribe Events platform as Summit Artspace. This venue hosts fewer events — zero-event runs are normal between active periods.',
+    status:      'active',
+  },
+
+  // ── WordPress APIs ─────────────────────────────────────────────────────
+  {
+    key:         'jillys_music_room',
+    label:       "Jilly's Music Room",
+    method:      'Hybrid API',
+    methodDetail:'EventON AJAX + WP REST API',
+    venue:       "Jilly's Music Room — 111 N Main St",
+    notes:       "EventON's AJAX endpoint returns 6 months of events with UTC timestamps. WP REST API fills in images and descriptions.",
+    status:      'active',
+  },
+  {
+    key:         'akronym_brewing',
+    label:       'Akronym Brewing',
+    method:      'REST API',
+    methodDetail:'WordPress REST API (posts by category)',
+    venue:       'Akronym Brewing — 58 E Mill St',
+    notes:       'Events are WordPress posts filtered by category. Dates parsed from registered meta fields; falls back to post-published date.',
     status:      'active',
   },
   {
@@ -34,13 +120,69 @@ const DATA_SOURCES = [
     notes:       'Fetches 180 days of events in one call. ~400+ events per window: programs, classes, story times.',
     status:      'active',
   },
+
+  // ── HTML scrapers ──────────────────────────────────────────────────────
   {
-    key:         'jillys_music_room',
-    label:       "Jilly's Music Room",
-    method:      'Hybrid API',
-    methodDetail:'EventON AJAX + WP REST API',
-    venue:       "Jilly's Music Room — 111 N Main St",
-    notes:       "EventON's AJAX endpoint returns 6 months of events with UTC timestamps. WP REST API fills in images and descriptions.",
+    key:         'akron_art_museum',
+    label:       'Akron Art Museum',
+    method:      'HTML scrape',
+    methodDetail:'Museum Events plugin — /calendar/ page',
+    venue:       'Akron Art Museum — 1 S High St',
+    notes:       'Custom WordPress plugin with no REST API. Scraper fetches 6 monthly calendar pages and parses .me-event-list-item elements. Detail pages fetched for pricing.',
+    status:      'active',
+  },
+  {
+    key:         'akron_civic',
+    label:       'Akron Civic Theatre',
+    method:      'HTML scrape',
+    methodDetail:'Bolt CMS — /view-all-shows page',
+    venue:       'Akron Civic Theatre, The Knight Stage, Wild Oscar\'s — 182 S Main St',
+    notes:       'Bolt CMS renders a structured text listing. Parser extracts venue / date / title triplets and maps each sub-venue to its own record. Opening night used for date ranges.',
+    status:      'active',
+  },
+  {
+    key:         'akron_zoo',
+    label:       'Akron Zoo',
+    method:      'HTML scrape',
+    methodDetail:'Drupal (Views + Slick carousel) — /events page',
+    venue:       'Akron Zoo — 500 Edgewood Ave',
+    notes:       'Drupal Views renders event cards in a Slick carousel. Scraper tries 4 CSS selector patterns before falling back to text-line parsing. Zero-event runs produce a diagnostic warning.',
+    status:      'active',
+  },
+  {
+    key:         'downtown_akron',
+    label:       'Downtown Akron Partnership',
+    method:      'HTML scrape',
+    methodDetail:'CityInsight CMS (ctycms.com) — /calendar',
+    venue:       'Downtown Akron district — 49 blocks, multiple venues',
+    notes:       'Fetches current month + 2 ahead via ?month=YYYY-MM params. Extracts venue name from the "time / venue" line in each card. Surfaces events not listed elsewhere (The Nightlight Cinema, The Green Dragon Inn).',
+    status:      'active',
+  },
+  {
+    key:         'weathervane',
+    label:       'Weathervane Playhouse',
+    method:      'HTML scrape',
+    methodDetail:'Drupal 11 — /upcoming-shows season listing',
+    venue:       'Weathervane Playhouse — 1301 Weathervane Lane',
+    notes:       'Static season lineup page. Handles 5 date formats (ranges, single dates, cross-month ranges, named-day dates). Skips past shows and season header rows.',
+    status:      'active',
+  },
+  {
+    key:         'ohio_shakespeare',
+    label:       'Ohio Shakespeare Festival',
+    method:      'HTML scrape',
+    methodDetail:'Squarespace — homepage + individual show pages',
+    venue:       'Greystone Hall / Stan Hywet Hall & Gardens',
+    notes:       'Fetches homepage to discover show slugs, then each production page with 1s rate-limiting. Uses og:image/og:title meta. Venue detected from page content (Greystone Hall vs. Stan Hywet).',
+    status:      'active',
+  },
+  {
+    key:         'painting_twist',
+    label:       'Painting with a Twist — Fairlawn',
+    method:      'HTML scrape',
+    methodDetail:'Custom ASP.NET MVC — /studio/akron-fairlawn/calendar/',
+    venue:       'Painting with a Twist Fairlawn — 2955 W Market St',
+    notes:       'Finds /event/{id}/ links and extracts date/price/title from surrounding container HTML. Parses "Sun, Mar 22, 6:30 pm" format dates and "$34–$44" price ranges.',
     status:      'active',
   },
   {
@@ -61,33 +203,8 @@ const DATA_SOURCES = [
     notes:       'The INDY Cinema platform rewrites all /wp-json/ paths server-side and returns HTML for all API requests. Monitoring active; data currently unavailable.',
     status:      'degraded',
   },
-  {
-    key:         'missing_falls',
-    label:       'Missing Falls Brewery',
-    method:      'REST API',
-    methodDetail:'The Events Calendar (Tribe Events) REST',
-    venue:       'Missing Falls Brewery — 1250 Triplett Blvd',
-    notes:       'Same Tribe Events platform as Summit Artspace. This venue hosts fewer events — zero-event runs are normal between active periods.',
-    status:      'active',
-  },
-  {
-    key:         'akronym_brewing',
-    label:       'Akronym Brewing',
-    method:      'REST API',
-    methodDetail:'WordPress REST API (posts by category)',
-    venue:       'Akronym Brewing — 58 E Mill St',
-    notes:       'Events are WordPress posts filtered by category. Dates parsed from registered meta fields; falls back to post-published date.',
-    status:      'active',
-  },
-  {
-    key:         'akron_art_museum',
-    label:       'Akron Art Museum',
-    method:      'HTML scrape',
-    methodDetail:'Museum Events plugin — /calendar/ page',
-    venue:       'Akron Art Museum — 1 S High St',
-    notes:       'Custom WordPress plugin with no REST API. Scraper fetches 6 monthly calendar pages and parses .me-event-list-item elements. Detail pages fetched for pricing.',
-    status:      'active',
-  },
+
+  // ── Aggregators ────────────────────────────────────────────────────────
   {
     key:         'eventbrite',
     label:       'Eventbrite',
@@ -102,14 +219,26 @@ const DATA_SOURCES = [
 // ── Human-readable scraper name mapping ──────────────────────────────────────
 const SCRAPER_LABELS = {
   ticketmaster:       'Ticketmaster',
+  rubberducks:        'Akron RubberDucks',
+  uakron_calendar:    'University of Akron',
+  ejthomas_hall:      'E.J. Thomas Hall',
   summit_artspace:    'Summit Artspace',
-  akron_library:      'Akron Library',
+  summit_metro_parks: 'Summit Metro Parks',
+  cvnp_conservancy:   'CVNP Conservancy',
+  players_guild:      'Players Guild Theatre',
+  missing_falls:      'Missing Falls Brewery',
   jillys_music_room:  "Jilly's Music Room",
+  akronym_brewing:    'Akronym Brewing',
+  akron_library:      'Akron Library',
+  akron_art_museum:   'Akron Art Museum',
+  akron_civic:        'Akron Civic Theatre',
+  akron_zoo:          'Akron Zoo',
+  downtown_akron:     'Downtown Akron Partnership',
+  weathervane:        'Weathervane Playhouse',
+  ohio_shakespeare:   'Ohio Shakespeare Festival',
+  painting_twist:     'Painting with a Twist',
   blu_jazz:           'BLU Jazz+',
   nightlight_cinema:  'The Nightlight',
-  missing_falls:      'Missing Falls Brewery',
-  akronym_brewing:    'Akronym Brewing',
-  akron_art_museum:   'Akron Art Museum',
   eventbrite:         'Eventbrite',
 }
 
@@ -254,9 +383,9 @@ export default function TechnicalPage() {
           <div className="tp-section__hd">
             <h3 className="tp-section__title">Data Sources</h3>
             <p className="tp-section__desc">
-              Events are pulled from {DATA_SOURCES.length} sources using a mix of official APIs,
-              plugin-specific endpoints, and HTML scraping. All ingestion runs server-side on
-              a scheduled basis.
+              Events are pulled from {DATA_SOURCES.length} sources — official REST APIs,
+              WordPress and Tribe Events endpoints, and direct HTML scrapers. All ingestion
+              runs server-side on a scheduled basis.
             </p>
           </div>
 
