@@ -21,7 +21,9 @@ export const PAGE_SIZE = 24
  */
 export function useEvents({
   categories = [],
-  dateRange  = null,
+  dateRange  = null,   // preset: 'this_weekend' | 'this_month' | null
+  dateFrom   = null,   // custom ISO date string 'YYYY-MM-DD', overrides dateRange when set
+  dateTo     = null,   // custom ISO date string 'YYYY-MM-DD', overrides dateRange when set
   search     = null,
   freeOnly   = false,
   sort       = 'soonest',
@@ -63,7 +65,15 @@ export function useEvents({
         }
 
         // ── Date range ───────────────────────────────────
-        if (dateRange) {
+        if (dateFrom || dateTo) {
+          // Custom range takes precedence over presets
+          if (dateFrom) {
+            query = query.gte('start_at', new Date(dateFrom + 'T00:00:00').toISOString())
+          }
+          if (dateTo) {
+            query = query.lte('start_at', new Date(dateTo + 'T23:59:59').toISOString())
+          }
+        } else if (dateRange) {
           const now   = new Date()
           const start = new Date(now)
           const end   = new Date(now)
@@ -128,7 +138,7 @@ export function useEvents({
 
     fetchEvents()
     return () => { cancelled = true }
-  }, [categories.join(','), dateRange, search, freeOnly, sort, limit, offset])
+  }, [categories.join(','), dateRange, dateFrom, dateTo, search, freeOnly, sort, limit, offset])
 
   const hasMore = offset + limit < total
 

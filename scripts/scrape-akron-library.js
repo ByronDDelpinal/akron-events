@@ -14,7 +14,7 @@
 
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
-import { logUpsertResult, logScraperError } from './lib/normalize.js'
+import { logUpsertResult, logScraperError, stripHtml } from './lib/normalize.js'
 
 const API_BASE   = 'https://services.akronlibrary.org/eeventcaldata'
 const DAYS_AHEAD = 180  // fetch 6 months at a time
@@ -74,6 +74,23 @@ function easternToIso(localDateStr) {
   const approxUtc = new Date(localUtcMs + 5 * 3600_000)
   const offsetHours = isEasternDST(approxUtc) ? 4 : 5
   return new Date(localUtcMs + offsetHours * 3600_000).toISOString()
+}
+
+/**
+ * Normalize a URL from the library API.
+ * The Communico/Libnet API occasionally returns paths with duplicate slashes,
+ * e.g. "https://akronlibrary.libnet.info//event/123". Parse and reconstruct
+ * to collapse them before storing.
+ */
+function sanitizeUrl(url) {
+  if (!url) return null
+  try {
+    const u = new URL(url)
+    u.pathname = u.pathname.replace(/\/+/g, '/')
+    return u.toString()
+  } catch {
+    return url  // not a valid URL — store as-is and let the UI handle it
+  }
 }
 
 // ── Category mapping ──────────────────────────────────────────────────────
@@ -230,16 +247,17 @@ async function processEvents(rawEvents, organizerId) {
     try {
       const venueId = await ensureLibraryVenue(ev.location_id, ev.location || 'Akron-Summit County Public Library')
 
-      const category = parseCategory(ev.tags, ev.title)
+      const title    = stripHtml(ev.title || '')
+      const category = parseCategory(ev.tags, title)
       const tags     = parseTags(ev.tags, ev.age)
       const startAt  = easternToIso(ev.raw_start_time)
       const endAt    = easternToIso(ev.raw_end_time)
-      const descText = (ev.long_description || ev.description || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+      const descText = stripHtml(ev.long_description || ev.description || '')
 
       if (!startAt) { skipped++; continue }
 
       const row = {
-        title:           ev.title,
+        title,
         description:     descText || null,
         start_at:        startAt,
         end_at:          endAt,
@@ -251,7 +269,7 @@ async function processEvents(rawEvents, organizerId) {
         price_max:       null,
         age_restriction: 'not_specified',
         image_url:       null,   // image filenames only — no reliable base URL
-        ticket_url:      ev.url || null,
+        ticket_url:      sanitizeUrl(ev.url),
         source:          'akron_library',
         source_id:       String(ev.id),
         status:          'published',

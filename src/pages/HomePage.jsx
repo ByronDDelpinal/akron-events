@@ -34,6 +34,8 @@ export default function HomePage() {
   // ── Filter state ──────────────────────────────────────────────────────
   const [categories,  setCategories]  = useState([])
   const [dateRange,   setDateRange]   = useState(null)
+  const [dateFrom,    setDateFrom]    = useState(null)
+  const [dateTo,      setDateTo]      = useState(null)
   const [freeOnly,    setFreeOnly]    = useState(false)
   const [sort,        setSort]        = useState('soonest')
   const [search,      setSearch]      = useState('')
@@ -41,25 +43,32 @@ export default function HomePage() {
   const [view,        setView]        = useState('list')
 
   // ── Pagination state ──────────────────────────────────────────────────
-  const [offset,    setOffset]    = useState(0)
-  const [allEvents, setAllEvents] = useState([])
+  const [offset,      setOffset]      = useState(0)
+  const [allEvents,   setAllEvents]   = useState([])
+  // isRefreshing: true between a filter change and the arrival of fresh data.
+  // We keep old events rendered (dimmed) instead of wiping them instantly.
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  // resultsKey increments each time a fresh first page is committed.
+  // Date-group divs use it in their key so React remounts them → CSS animation fires.
+  const [resultsKey, setResultsKey] = useState(0)
 
   // Track the filter signature so we can reset pagination on any change
-  const filterKey = `${categories.join(',')}|${dateRange}|${search}|${freeOnly}|${sort}`
+  const filterKey = `${categories.join(',')}|${dateRange}|${dateFrom}|${dateTo}|${search}|${freeOnly}|${sort}`
   const prevFilterKey = useRef(filterKey)
 
-  // Reset to page 1 whenever filters change
+  // On filter change: signal a refresh but keep old events visible
   useEffect(() => {
     if (prevFilterKey.current !== filterKey) {
       prevFilterKey.current = filterKey
       setOffset(0)
-      setAllEvents([])
+      setIsRefreshing(true)
+      // Don't clear allEvents here — old cards stay visible (dimmed) during load
     }
   }, [filterKey])
 
   // ── Data fetch (one page at a time) ───────────────────────────────────
   const { events: page, loading, error, total, hasMore } = useEvents({
-    categories, dateRange, search, freeOnly, sort,
+    categories, dateRange, dateFrom, dateTo, search, freeOnly, sort,
     limit: PAGE_SIZE,
     offset,
   })
@@ -69,6 +78,8 @@ export default function HomePage() {
     if (loading) return
     if (offset === 0) {
       setAllEvents(page)
+      setIsRefreshing(false)
+      setResultsKey(k => k + 1) // causes date-group keys to change → entrance animation
     } else {
       setAllEvents(prev => {
         // Deduplicate by id in case of any overlap
@@ -83,6 +94,8 @@ export default function HomePage() {
   const clearFilters = () => {
     setCategories([])
     setDateRange(null)
+    setDateFrom(null)
+    setDateTo(null)
     setFreeOnly(false)
     setSearch('')
     setSearchInput('')
@@ -141,6 +154,8 @@ export default function HomePage() {
       <FilterBar
         categories={categories}   onCategories={setCategories}
         dateRange={dateRange}     onDateRange={setDateRange}
+        dateFrom={dateFrom}       onDateFrom={setDateFrom}
+        dateTo={dateTo}           onDateTo={setDateTo}
         freeOnly={freeOnly}       onFreeOnly={setFreeOnly}
         sort={sort}               onSort={setSort}
         view={view}               onView={setView}
@@ -151,9 +166,9 @@ export default function HomePage() {
 
       {/* ── LIST VIEW ── */}
       {view === 'list' && (
-        <div className="content">
-          {/* Initial load skeleton */}
-          {loading && allEvents.length === 0 && (
+        <div className={`content${isRefreshing ? ' content--refreshing' : ''}`}>
+          {/* Initial load — only show spinner when we have nothing to show yet */}
+          {loading && allEvents.length === 0 && !isRefreshing && (
             <div className="empty-state">Loading events…</div>
           )}
 
@@ -161,7 +176,7 @@ export default function HomePage() {
             <div className="empty-state error">Couldn't load events. Please try again.</div>
           )}
 
-          {!loading && !error && allEvents.length === 0 && (
+          {!loading && !isRefreshing && !error && allEvents.length === 0 && (
             <div className="empty-state">
               <p>No events match your current filters.</p>
               <button className="btn-clear" onClick={clearFilters}>
@@ -170,20 +185,31 @@ export default function HomePage() {
             </div>
           )}
 
-          {grouped.map(([dateKey, dayEvents]) => (
-            <div key={dateKey}>
-              <DateHeading dateKey={dateKey} />
-              <div className="cards-grid">
-                {dayEvents.map((event, i) => (
-                  <EventCard
-                    key={event.id}
-                    event={event}
-                    featured={event.featured && i === 0}
-                  />
-                ))}
+          {(() => {
+            let cardIdx = 0
+            return grouped.map(([dateKey, dayEvents]) => (
+              <div key={`${resultsKey}-${dateKey}`}>
+                <DateHeading dateKey={dateKey} />
+                <div className="cards-grid">
+                  {dayEvents.map((event, i) => {
+                    const delay = cardIdx++ * 28
+                    return (
+                      <div
+                        key={event.id}
+                        className="card-enter"
+                        style={{ animationDelay: `${delay}ms` }}
+                      >
+                        <EventCard
+                          event={event}
+                          featured={event.featured && i === 0}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          })()}
 
           {/* Load more */}
           {allEvents.length > 0 && (

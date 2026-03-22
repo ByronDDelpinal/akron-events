@@ -123,6 +123,36 @@
 .stat-pill strong { color: var(--amber); font-weight: 700; }
 .stat-sep { width: 1px; height: 16px; background: var(--border); flex-shrink: 0; margin: 0 3px; }
 
+/* ── CONTENT TRANSITION ── */
+/* Dim old content while a new filter result is loading.
+   We keep the old cards in the DOM so there's no height collapse. */
+.content {
+  transition: opacity 0.18s ease;
+}
+.content--refreshing {
+  opacity: 0.32;
+  pointer-events: none;
+  /* Subtle desaturation signals "stale" without being jarring */
+  filter: saturate(0.4);
+  transition: opacity 0.1s ease, filter 0.1s ease;
+}
+
+/* ── CARD ENTRANCE ANIMATION ── */
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card-enter {
+  animation: cardIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 /* ── DATE HEADINGS ── */
 .date-group { padding: 26px 0 12px; }
 .date-heading { display: flex; align-items: center; gap: 12px; }

@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
-    "ingest:eventbrite": "node scripts/fetch-eventbrite.js",
+    "scrape:eventbrite": "node scripts/scrape-eventbrite.js",
     "ingest:ticketmaster": "node scripts/fetch-ticketmaster.js",
     "scrape:summit-artspace": "node scripts/scrape-summit-artspace.js",
     "scrape:nightlight": "node scripts/scrape-nightlight.js",
@@ -18,7 +18,7 @@
     "scrape:missing-falls": "node scripts/scrape-missing-falls.js",
     "scrape:akronym": "node scripts/scrape-akronym.js",
     "scrape:art-museum": "node scripts/scrape-akron-art-museum.js",
-    "scrape:all": "node scripts/scrape-summit-artspace.js ; node scripts/scrape-nightlight.js ; node scripts/scrape-akron-library.js ; node scripts/scrape-jillys.js ; node scripts/scrape-blu-jazz.js ; node scripts/scrape-missing-falls.js ; node scripts/scrape-akronym.js ; node scripts/scrape-akron-art-museum.js",
+    "scrape:all": "node scripts/scrape-summit-artspace.js ; node scripts/scrape-nightlight.js ; node scripts/scrape-akron-library.js ; node scripts/scrape-jillys.js ; node scripts/scrape-blu-jazz.js ; node scripts/scrape-missing-falls.js ; node scripts/scrape-akronym.js ; node scripts/scrape-akron-art-museum.js ; node scripts/scrape-eventbrite.js ; node scripts/fetch-ticketmaster.js",
     "health": "node scripts/check-scraper-health.js"
   },
   "dependencies": {

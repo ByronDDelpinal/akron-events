@@ -5,6 +5,41 @@
 
 import { supabaseAdmin } from './supabase-admin.js'
 
+/**
+ * Strip HTML tags and decode ALL HTML entities from a string.
+ *
+ * Handles:
+ *   • Named entities: &amp; &nbsp; &lt; &gt; &quot; &apos;
+ *   • Decimal numeric entities: &#038; &#160; &#8217; …
+ *   • Hex numeric entities: &#x26; &#xA0; …
+ *
+ * WordPress (and many CMSes) frequently encodes & as &#038; in
+ * titles/content — the old approach of hard-coding specific entities
+ * missed this entire class of encoding.
+ */
+export function stripHtml(html = '') {
+  return html
+    // 1. Remove all tags first
+    .replace(/<[^>]*>/g, ' ')
+    // 2. Decode ALL decimal numeric entities (e.g. &#038; → &)
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)))
+    // 3. Decode ALL hex numeric entities (e.g. &#x26; → &)
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    // 4. Decode common named entities
+    .replace(/&amp;/g,  '&')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g,   '<')
+    .replace(/&gt;/g,   '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    // 5. Normalize curly/smart quotes to straight ASCII
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201c\u201d]/g, '"')
+    // 6. Collapse whitespace
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 // Eventbrite category ID → our category enum
 export const EVENTBRITE_CATEGORY_MAP = {
   '103': 'music',        // Music

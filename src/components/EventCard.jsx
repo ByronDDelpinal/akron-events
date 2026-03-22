@@ -56,10 +56,17 @@ function AgeRestrictionPill({ value }) {
   return <span className="age-pill">{label}</span>
 }
 
+// Reject data URIs and blob URLs — they are scraper placeholder artifacts,
+// not real hostable images. Fall back to the gradient thumb instead.
+function isUsableImageUrl(url) {
+  return url && /^https?:\/\//i.test(url)
+}
+
 export default function EventCard({ event, featured = false }) {
   const navigate = useNavigate()
   const price    = formatPrice(event.price_min, event.price_max)
-  const gradient = event.image_url ? null : (GRADIENT_MAP[event.category] ?? 'g-default')
+  const imageUrl = isUsableImageUrl(event.image_url) ? event.image_url : null
+  const gradient = imageUrl ? null : (GRADIENT_MAP[event.category] ?? 'g-default')
   const tagClass = TAG_CLASS_MAP[event.category] ?? 'tag-other'
   const catLabel = CATEGORY_LABEL[event.category] ?? event.category
 
@@ -72,8 +79,8 @@ export default function EventCard({ event, featured = false }) {
       onKeyDown={(e) => e.key === 'Enter' && navigate(`/events/${event.id}`)}
     >
       <div className="card-thumb">
-        {event.image_url
-          ? <img src={event.image_url} alt={event.title} className="card-img" />
+        {imageUrl
+          ? <img src={imageUrl} alt={event.title} className="card-img" referrerPolicy="no-referrer" />
           : (
             <div className={`thumb-fill ${gradient}`}>
               <span className="thumb-lbl">{event.title}</span>

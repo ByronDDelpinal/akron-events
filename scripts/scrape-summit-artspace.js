@@ -14,7 +14,7 @@
 
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
-import { logUpsertResult, logScraperError } from './lib/normalize.js'
+import { logUpsertResult, logScraperError, stripHtml } from './lib/normalize.js'
 
 const BASE_URL   = 'https://www.summitartspace.org/wp-json/tribe/events/v1/events'
 const PER_PAGE   = 50
@@ -22,22 +22,7 @@ const DAYS_AHEAD = 180   // 6 months out
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-/** Strip HTML tags from description text */
-function stripHtml(html = '') {
-  return html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#8217;/g, "'")
-    .replace(/&#8216;/g, "'")
-    .replace(/&#8220;/g, '"')
-    .replace(/&#8221;/g, '"')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
+// stripHtml imported from normalize.js — handles all named + numeric HTML entities
 
 /** Parse price from Tribe cost_details or cost string */
 function parseCost(cost = '', costDetails = {}) {

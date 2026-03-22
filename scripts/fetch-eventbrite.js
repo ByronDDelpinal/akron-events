@@ -15,7 +15,7 @@
 
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
-import { EVENTBRITE_CATEGORY_MAP, parseEventbritePrice, logUpsertResult } from './lib/normalize.js'
+import { EVENTBRITE_CATEGORY_MAP, parseEventbritePrice, logUpsertResult, logScraperError, stripHtml } from './lib/normalize.js'
 
 const EVENTBRITE_TOKEN = process.env.EVENTBRITE_API_KEY
 if (!EVENTBRITE_TOKEN) {
@@ -34,6 +34,15 @@ const AKRON_LNG = -81.5190
 
 // ── Helpers ───────────────────────────────────────────────────────
 
+// Attach status to errors so the caller can distinguish auth failures
+// (which should surface as "blocked" rather than crashes) from genuine bugs.
+class EventbriteApiError extends Error {
+  constructor(status, body) {
+    super(`Eventbrite API error ${status}: ${body}`)
+    this.status = status
+  }
+}
+
 async function eb(path, params = {}) {
   const url = new URL(`${BASE_URL}${path}`)
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
@@ -44,7 +53,7 @@ async function eb(path, params = {}) {
 
   if (!res.ok) {
     const body = await res.text()
-    throw new Error(`Eventbrite API error ${res.status}: ${body}`)
+    throw new EventbriteApiError(res.status, body)
   }
 
   return res.json()
@@ -186,8 +195,8 @@ async function processEvents(rawEvents) {
 
       // ── Build event row ────────────────────────────────────────
       const row = {
-        title:           ev.name?.text ?? 'Untitled Event',
-        description:     ev.description?.text ?? null,
+        title:           stripHtml(ev.name?.text ?? 'Untitled Event'),
+        description:     ev.description?.text ? stripHtml(ev.description.text) : null,
         start_at:        ev.start?.utc ?? null,
         end_at:          ev.end?.utc   ?? null,
         venue_id:        venueId,
@@ -240,12 +249,28 @@ async function main() {
     console.log(`\n📥  Processing ${rawEvents.length} events…`)
 
     const { inserted, updated, skipped } = await processEvents(rawEvents)
-    logUpsertResult('eventbrite', inserted, updated, skipped)
+    await logUpsertResult('eventbrite', inserted, updated, skipped, {
+      eventsFound: rawEvents.length,
+      durationMs:  Date.now() - start,
+    })
 
     const elapsed = ((Date.now() - start) / 1000).toFixed(1)
     console.log(`\n✅  Done in ${elapsed}s`)
   } catch (err) {
-    console.error('\n❌  Fatal error:', err.message)
+    // 401 / 403 = auth or permissions problem — log as blocked, don't crash scrape:all
+    if (err instanceof EventbriteApiError && (err.status === 401 || err.status === 403)) {
+      console.warn(`\n⚠  Eventbrite access denied (${err.status}) — API key may need expanded permissions.`)
+      console.warn('   Apply at: https://www.eventbrite.com/platform/api')
+      await logUpsertResult('eventbrite', 0, 0, 0, {
+        status:       'error',
+        errorMessage: err.message,
+        durationMs:   Date.now() - start,
+        eventsFound:  0,
+      })
+      process.exit(0)  // exit 0 so scrape:all continues to next scraper
+    }
+
+    await logScraperError('eventbrite', err, start)
     process.exit(1)
   }
 }

@@ -25,7 +25,7 @@
 
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
-import { logUpsertResult, logScraperError } from './lib/normalize.js'
+import { logUpsertResult, logScraperError, stripHtml } from './lib/normalize.js'
 
 const AJAX_URL   = 'https://jillysmusicroom.com/wp-admin/admin-ajax.php'
 const REST_BASE  = 'https://jillysmusicroom.com/wp-json/wp/v2/ajde_events'
@@ -33,22 +33,7 @@ const DAYS_AHEAD = 180
 const BATCH_SIZE = 50   // WP REST API include= batch size
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-
-function stripHtml(html = '') {
-  return html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#8217;/g, "'")
-    .replace(/&#8216;/g, "'")
-    .replace(/&#8220;/g, '"')
-    .replace(/&#8221;/g, '"')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
+// stripHtml imported from normalize.js — handles all named + numeric HTML entities
 
 /** Extract first ticket/purchase URL from HTML content */
 function extractTicketUrl(html = '', permalink = '') {

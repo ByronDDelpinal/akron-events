@@ -88,7 +88,9 @@ export default function EventPage() {
   )
 
   const price    = formatPrice(event.price_min, event.price_max)
-  const gradient = event.image_url ? null : (GRADIENT_MAP[event.category] ?? 'g-default')
+  // Reject data URIs / blob URLs — they are scraper placeholder artifacts
+  const imageUrl = event.image_url && /^https?:\/\//i.test(event.image_url) ? event.image_url : null
+  const gradient = imageUrl ? null : (GRADIENT_MAP[event.category] ?? 'g-default')
   const tagClass = TAG_CLASS_MAP[event.category] ?? 'tag-other'
   const catLabel = CATEGORY_LABEL[event.category] ?? event.category
 
@@ -97,8 +99,8 @@ export default function EventPage() {
 
       {/* ── BANNER ── */}
       <div className="event-detail-banner">
-        {event.image_url
-          ? <img src={event.image_url} alt={event.title} className="event-banner-img" />
+        {imageUrl
+          ? <img src={imageUrl} alt={event.title} className="event-banner-img" referrerPolicy="no-referrer" />
           : <div className={`thumb-fill ${gradient}`} style={{ height: '100%' }} />
         }
         <div className="banner-scrim" />

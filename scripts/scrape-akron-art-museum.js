@@ -22,22 +22,13 @@
 
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
-import { logUpsertResult, logScraperError } from './lib/normalize.js'
+import { logUpsertResult, logScraperError, stripHtml } from './lib/normalize.js'
 
 const BASE_URL   = 'https://akronartmuseum.org/calendar/'
 const DAYS_AHEAD = 180   // 6 months
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-
-function stripHtml(html = '') {
-  return html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
-    .replace(/&#8217;/g, "'").replace(/&#8216;/g, "'")
-    .replace(/&#8220;/g, '"').replace(/&#8221;/g, '"')
-    .replace(/\s+/g, ' ').trim()
-}
+// stripHtml imported from normalize.js — handles all named + numeric HTML entities
 
 /**
  * Convert a local Eastern date + time string to an ISO 8601 UTC string.
@@ -203,8 +194,70 @@ function parseCalendarPage(html) {
 }
 
 /**
+ * Extract a real image URL from a page's HTML.
+ *
+ * Priority:
+ *   1. JSON-LD Event schema `image` field — always contains the real URL
+ *      on EventBrite even before JavaScript hydration; og:image may hold a
+ *      server-side placeholder (data URI) until JS runs.
+ *   2. og:image meta tag
+ *   3. twitter:image meta tag
+ *
+ * Only returns http/https URLs — data URIs and blobs are rejected because
+ * they are JS-rendered placeholders that will never load correctly as a
+ * stored image_url.
+ */
+function extractPageImage(html) {
+  // ── 1. JSON-LD ──────────────────────────────────────────────────────
+  const scriptRe = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+  let scriptMatch
+  while ((scriptMatch = scriptRe.exec(html)) !== null) {
+    try {
+      const raw = scriptMatch[1].trim()
+      const schemas = Array.isArray(JSON.parse(raw)) ? JSON.parse(raw) : [JSON.parse(raw)]
+      for (const schema of schemas) {
+        const entries = Array.isArray(schema) ? schema : [schema]
+        for (const entry of entries) {
+          if (entry['@type'] === 'Event' && entry.image) {
+            const img = typeof entry.image === 'string'
+              ? entry.image
+              : entry.image?.url ?? (Array.isArray(entry.image) ? entry.image[0] : null)
+            if (img && /^https?:\/\//i.test(img)) return img
+          }
+        }
+      }
+    } catch { /* invalid JSON, skip */ }
+  }
+
+  // ── 2. og:image ─────────────────────────────────────────────────────
+  const ogRe = [
+    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i,
+  ]
+  for (const re of ogRe) {
+    const m = html.match(re)
+    if (m && /^https?:\/\//i.test(m[1])) return m[1]
+  }
+
+  // ── 3. twitter:image ────────────────────────────────────────────────
+  const twRe = [
+    /<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["']/i,
+  ]
+  for (const re of twRe) {
+    const m = html.match(re)
+    if (m && /^https?:\/\//i.test(m[1])) return m[1]
+  }
+
+  return null
+}
+
+/**
  * Fetch an individual event detail page and extract:
- * price, full description, registration URL
+ * price, full description, registration URL, and image (og:image).
+ * If no image found on the museum page and the ticket URL is EventBrite,
+ * we do a second fetch to grab EventBrite's og:image — EventBrite always
+ * has high-quality event images.
  */
 async function fetchEventDetail(href) {
   try {
@@ -247,7 +300,31 @@ async function fetchEventDetail(href) {
       if (m) { description = stripHtml(m[1]).slice(0, 1000) || null; break }
     }
 
-    return { ticketUrl, priceMin, priceMax, description }
+    // Image: try the museum's own detail page first (JSON-LD → og → twitter)
+    let imageUrl = extractPageImage(html)
+
+    // Fallback: if the ticket URL is EventBrite, fetch that page and parse
+    // its JSON-LD Event schema — this reliably returns the real CDN image URL
+    // from EventBrite's server-side HTML before JS hydration replaces it.
+    if (!imageUrl && ticketUrl && /eventbrite\.com/i.test(ticketUrl)) {
+      try {
+        const ebRes = await fetch(ticketUrl, {
+          headers: {
+            'Accept': 'text/html',
+            'User-Agent': 'Mozilla/5.0 (compatible; The330-bot/1.0)',
+          },
+          redirect: 'follow',
+        })
+        if (ebRes.ok) {
+          const ebHtml = await ebRes.text()
+          imageUrl = extractPageImage(ebHtml)
+        }
+      } catch {
+        // EventBrite fetch failed — no image, not fatal
+      }
+    }
+
+    return { ticketUrl, priceMin, priceMax, description, imageUrl }
   } catch {
     return {}
   }
@@ -401,6 +478,9 @@ async function processEvents(items, venueId, organizerId) {
       const priceMax = detail.priceMax ?? null
       const description = detail.description || null
       const ticketUrl = detail.ticketUrl || item.href
+      // Calendar listing image takes precedence; fall back to detail page og:image
+      // (which may have been pulled from EventBrite if the ticket URL pointed there)
+      const imageUrl = item.imageUrl ?? detail.imageUrl ?? null
 
       const row = {
         title:           item.title,
@@ -414,7 +494,7 @@ async function processEvents(items, venueId, organizerId) {
         price_min:       priceMin,
         price_max:       priceMax,
         age_restriction: 'not_specified',
-        image_url:       item.imageUrl ?? null,
+        image_url:       imageUrl,
         ticket_url:      ticketUrl,
         source:          'akron_art_museum',
         source_id,
