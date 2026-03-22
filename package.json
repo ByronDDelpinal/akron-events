@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "scrape:eventbrite": "node scripts/scrape-eventbrite.js",
+    "scrape:eventbrite:force": "node scripts/scrape-eventbrite.js --force",
+    "scrape:eventbrite:fast": "node scripts/scrape-eventbrite.js --force --no-details",
     "ingest:ticketmaster": "node scripts/fetch-ticketmaster.js",
     "scrape:summit-artspace": "node scripts/scrape-summit-artspace.js",
     "scrape:nightlight": "node scripts/scrape-nightlight.js",

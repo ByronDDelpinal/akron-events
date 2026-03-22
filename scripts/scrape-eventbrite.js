@@ -26,7 +26,9 @@
  *
  * Usage:
  *   node scripts/scrape-eventbrite.js
- *   node scripts/scrape-eventbrite.js --debug   # verbose JSON inspection
+ *   node scripts/scrape-eventbrite.js --debug       # verbose JSON inspection
+ *   node scripts/scrape-eventbrite.js --no-details  # skip the detail-fetch pass
+ *   node scripts/scrape-eventbrite.js --force       # bypass 12h cooldown
  *
  * Required .env vars:
  *   VITE_SUPABASE_URL         — Supabase project URL
@@ -43,8 +45,9 @@ import {
   stripHtml,
 } from './lib/normalize.js'
 
-const DEBUG = process.argv.includes('--debug')
-const FORCE = process.argv.includes('--force')
+const DEBUG      = process.argv.includes('--debug')
+const FORCE      = process.argv.includes('--force')
+const NO_DETAILS = process.argv.includes('--no-details')
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -55,6 +58,13 @@ const MAX_PAGES      = 15     // ~20 events/page → up to 300 events
 const MIN_DELAY_MS   = 2000
 const MAX_DELAY_MS   = 5000
 const COOLDOWN_HOURS = 12
+
+// Detail-fetch pass — individual event pages for full descriptions
+const DETAIL_BATCH_SIZE    = 3     // concurrent fetches per batch
+const DETAIL_MIN_MS        = 1500  // jitter between batches
+const DETAIL_MAX_MS        = 3000
+const DETAIL_TIMEOUT_MS    = 12000 // per-request timeout
+const DETAIL_MIN_DESC_LEN  = 100   // skip detail fetch if existing desc is already this long
 
 const AKRON_LAT = 41.0814
 const AKRON_LNG = -81.5190
@@ -67,8 +77,9 @@ const USER_AGENTS = [
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15',
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
 ]
-function randomUA() { return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)] }
-function jitter()   { return new Promise(r => setTimeout(r, MIN_DELAY_MS + Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS))) }
+function randomUA()      { return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)] }
+function jitter()        { return new Promise(r => setTimeout(r, MIN_DELAY_MS    + Math.random() * (MAX_DELAY_MS    - MIN_DELAY_MS))) }
+function detailJitter()  { return new Promise(r => setTimeout(r, DETAIL_MIN_MS   + Math.random() * (DETAIL_MAX_MS   - DETAIL_MIN_MS))) }
 
 // ── Sentinel errors ──────────────────────────────────────────────────────────
 class BlockedError extends Error {
@@ -190,6 +201,18 @@ function extractWindowVar(html, varName) {
   }
 
   return null
+}
+
+// ── Next.js data extractor ────────────────────────────────────────────────────
+/**
+ * Next.js embeds its server data as a JSON script tag, NOT a window assignment:
+ *   <script id="__NEXT_DATA__" type="application/json">{...}</script>
+ * extractWindowVar() won't find it — this handles that format.
+ */
+function extractNextData(html) {
+  const match = html.match(/<script[^>]+id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/)
+  if (!match) return null
+  try { return JSON.parse(match[1]) } catch { return null }
 }
 
 // ── React Query state extractor ──────────────────────────────────────────────
@@ -547,7 +570,7 @@ function normaliseEvent(ev) {
 
   const rawDesc = ev.description?.text ?? ev.summary ??
     (typeof ev.description === 'string' ? ev.description : null)
-  const description = rawDesc ? stripHtml(rawDesc).slice(0, 2000) || null : null
+  const description = rawDesc ? stripHtml(rawDesc).slice(0, 5000) || null : null
 
   let start_at = null, end_at = null
   if (ev.start?.utc) {
@@ -562,9 +585,15 @@ function normaliseEvent(ev) {
   if (!start_at) return null
 
   let price_min = 0, price_max = null
-  if (ev.is_free) {
+  const ta = ev.ticket_availability
+  if (ev.is_free || ta?.is_free) {
     price_min = 0; price_max = 0
-  } else if (ev.ticket_classes) {
+  } else if (ta?.minimum_ticket_price?.major_value != null) {
+    // ticket_availability is the most reliable pricing source in search results
+    price_min = parseFloat(ta.minimum_ticket_price.major_value) || 0
+    const taMax = ta.maximum_ticket_price?.major_value
+    price_max = taMax != null && parseFloat(taMax) > price_min ? parseFloat(taMax) : null
+  } else if (ev.ticket_classes?.length) {
     ;({ price_min, price_max } = parseEventbritePrice(ev.ticket_classes, ev.is_free))
   } else if (ev.min_price != null) {
     price_min = parseFloat(ev.min_price) || 0
@@ -721,6 +750,264 @@ async function fetchAllEvents() {
   return allEvents
 }
 
+// ── Detail-page description fetching ─────────────────────────────────────────
+/**
+ * Fetch one Eventbrite event detail page and return the full description text.
+ *
+ * Eventbrite uses two description formats:
+ *   1. Legacy:            __SERVER_DATA__.event.description.{text|html}
+ *   2. Structured content: __SERVER_DATA__.structured_content.modules[]
+ *      where each module has data.body.{text|html}
+ *
+ * Returns { description, summary } or null on failure.
+ */
+async function fetchEventDetail(url, cookie) {
+  try {
+    const controller = new AbortController()
+    const tid = setTimeout(() => controller.abort(), DETAIL_TIMEOUT_MS)
+
+    const res = await fetch(url, {
+      headers: {
+        ...htmlHeaders(SEARCH_PAGE),
+        ...(cookie ? { Cookie: cookie } : {}),
+      },
+      redirect: 'follow',
+      signal:   controller.signal,
+    })
+    clearTimeout(tid)
+
+    if (!res.ok) {
+      if (DEBUG) console.log(`\n  [debug] Detail HTTP ${res.status}: ${url}`)
+      return null
+    }
+
+    const html = await res.text()
+
+    if (DEBUG) {
+      console.log(`\n  [debug] Detail page: ${url}`)
+      console.log(`  [debug]   HTML length: ${html.length}`)
+      console.log(`  [debug]   Has __SERVER_DATA__: ${html.includes('window.__SERVER_DATA__')}`)
+      console.log(`  [debug]   Has __NEXT_DATA__: ${html.includes('__NEXT_DATA__')}`)
+      console.log(`  [debug]   Has ld+json: ${html.includes('application/ld+json')}`)
+      console.log(`  [debug]   Has cf-browser: ${html.includes('cf-browser-verification')}`)
+    }
+
+    // Bot-detection bail-out
+    if (html.includes('cf-browser-verification') || html.includes('cf_clearance')) {
+      if (DEBUG) console.log(`  [debug]   → Blocked by Cloudflare`)
+      return null
+    }
+
+    // ── Strategy 1: window.__SERVER_DATA__ ───────────────────────────────────
+    const serverData = extractWindowVar(html, '__SERVER_DATA__')
+    if (serverData) {
+      if (DEBUG) console.log(`  [debug]   __SERVER_DATA__ top-level keys: ${Object.keys(serverData).join(', ')}`)
+
+      const ev = serverData.event ?? serverData.eventDetail ?? null
+      if (DEBUG && ev) console.log(`  [debug]   event keys: ${Object.keys(ev).join(', ')}`)
+
+      // Format 1a: legacy description object
+      const legacyHtml = ev?.description?.html ?? ev?.description?.text ?? null
+      if (legacyHtml && legacyHtml.trim().length > 10) {
+        if (DEBUG) console.log(`  [debug]   → found via __SERVER_DATA__.event.description`)
+        return { description: stripHtml(legacyHtml), summary: ev?.summary ?? null }
+      }
+
+      // Format 1b: structured_content modules (newer Eventbrite editor)
+      const modules =
+        serverData.structured_content?.modules ??
+        ev?.structured_content?.modules ?? []
+
+      if (Array.isArray(modules) && modules.length > 0) {
+        if (DEBUG) console.log(`  [debug]   structured_content has ${modules.length} modules`)
+        const parts = []
+        for (const mod of modules) {
+          const bodyHtml = mod?.data?.body?.html ?? mod?.data?.body?.text ?? null
+          if (bodyHtml && bodyHtml.trim()) { parts.push(stripHtml(bodyHtml).trim()); continue }
+          const textHtml = mod?.data?.text?.html ?? mod?.data?.text ?? null
+          if (textHtml && typeof textHtml === 'string' && textHtml.trim()) {
+            parts.push(stripHtml(textHtml).trim())
+          }
+        }
+        const combined = parts.filter(Boolean).join('\n\n')
+        if (combined.length > 10) {
+          if (DEBUG) console.log(`  [debug]   → found via structured_content modules`)
+          return { description: combined, summary: ev?.summary ?? null }
+        }
+      }
+
+      // Format 1c: summary from detail page
+      const sdSummary = ev?.summary ?? null
+      if (sdSummary && sdSummary.trim().length > 10) {
+        if (DEBUG) console.log(`  [debug]   → found via __SERVER_DATA__.event.summary`)
+        return { description: sdSummary, summary: sdSummary }
+      }
+    }
+
+    // ── Strategy 2: Structured content API ──────────────────────────────────
+    // Eventbrite serves the full event description via an internal endpoint:
+    //   /api/v3/events/{id}/structured_content/
+    // The JSON-LD description is just the summary; this returns every paragraph.
+    const eventIdMatch = url.match(/tickets-(\d+)\/?$/)
+    if (eventIdMatch) {
+      const eventId = eventIdMatch[1]
+      const scUrl = `https://www.eventbrite.com/api/v3/events/${eventId}/structured_content/?purpose=listing&expand=none`
+      try {
+        const scCtrl = new AbortController()
+        const scTid  = setTimeout(() => scCtrl.abort(), DETAIL_TIMEOUT_MS)
+        const scRes  = await fetch(scUrl, {
+          headers: apiHeaders(cookie, null, url),
+          redirect: 'follow',
+          signal:   scCtrl.signal,
+        })
+        clearTimeout(scTid)
+
+        if (scRes.ok) {
+          const scData = await scRes.json()
+          if (DEBUG) console.log(`  [debug]   SC API keys: ${Object.keys(scData).join(', ')}`)
+
+          const modules = scData.modules ?? []
+          if (modules.length > 0) {
+            const parts = []
+            for (const mod of modules) {
+              const bodyHtml = mod?.data?.body?.html ?? mod?.data?.body?.text ?? null
+              if (bodyHtml?.trim()) { parts.push(stripHtml(bodyHtml).trim()); continue }
+              const textHtml = mod?.data?.text?.html ?? mod?.data?.text ?? null
+              if (textHtml && typeof textHtml === 'string' && textHtml.trim()) {
+                parts.push(stripHtml(textHtml).trim())
+              }
+            }
+            const combined = parts.filter(Boolean).join('\n\n')
+            if (combined.length > 10) {
+              if (DEBUG) console.log(`  [debug]   → found via SC API (${combined.length} chars)`)
+              return { description: combined, summary: null }
+            }
+          }
+        } else {
+          if (DEBUG) console.log(`  [debug]   SC API HTTP ${scRes.status}`)
+        }
+      } catch (e) {
+        if (DEBUG) console.log(`  [debug]   SC API error: ${e.message}`)
+      }
+    }
+
+    // ── Strategy 3: __NEXT_DATA__ script tag (Next.js format) ──────────────
+    // Eventbrite event detail pages use Next.js. The data is embedded as:
+    //   <script id="__NEXT_DATA__" type="application/json">{...}</script>
+    // NOT as window.__NEXT_DATA__ = {...}, so extractWindowVar misses it.
+    const nextData = extractNextData(html)
+    if (nextData) {
+      if (DEBUG) {
+        console.log(`  [debug]   __NEXT_DATA__ found`)
+        console.log(`  [debug]   props keys: ${Object.keys(nextData?.props ?? {}).join(', ')}`)
+        const pp = nextData?.props?.pageProps ?? {}
+        console.log(`  [debug]   pageProps keys: ${Object.keys(pp).join(', ')}`)
+        const ev2 = pp?.event ?? pp?.eventData?.event ?? null
+        if (ev2) console.log(`  [debug]   event keys: ${Object.keys(ev2).join(', ')}`)
+      }
+      // Walk common pageProps shapes Eventbrite has used
+      const ndEv =
+        nextData?.props?.pageProps?.event ??
+        nextData?.props?.pageProps?.eventData?.event ??
+        nextData?.props?.pageProps?.data?.event ?? null
+
+      const ndDesc =
+        ndEv?.description?.text ??
+        ndEv?.description?.html ??
+        ndEv?.summary ?? null
+
+      if (ndDesc && ndDesc.trim().length > 10) {
+        if (DEBUG) console.log(`  [debug]   → found via __NEXT_DATA__ (${ndDesc.length} chars)`)
+        return { description: stripHtml(ndDesc), summary: ndEv?.summary ?? null }
+      }
+      if (DEBUG) console.log(`  [debug]   __NEXT_DATA__ had no usable description`)
+    }
+
+    // ── Strategy 3: JSON-LD <script type="application/ld+json"> ─────────────
+    // Eventbrite embeds structured event data for SEO — sometimes includes description.
+    const ldRe = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+    let ldMatch
+    while ((ldMatch = ldRe.exec(html)) !== null) {
+      try {
+        const ld = JSON.parse(ldMatch[1])
+        const items = Array.isArray(ld) ? ld : [ld]
+        for (const item of items) {
+          if (DEBUG) console.log(`  [debug]   ld+json @type=${item['@type']} keys: ${Object.keys(item).join(', ')}`)
+          // Match any schema.org event subtype (Event, SocialEvent, MusicEvent, Festival, etc.)
+          // by checking for description + startDate rather than enumerating every @type value.
+          if (item.startDate && item.description && item.description.trim().length > 10) {
+            if (DEBUG) console.log(`  [debug]   → found via JSON-LD @type=${item['@type']} (${item.description.length} chars)`)
+            return { description: stripHtml(item.description), summary: null }
+          }
+        }
+      } catch {}
+    }
+
+    if (DEBUG) console.log(`  [debug]   → all strategies exhausted, no description found`)
+    return null
+
+  } catch (err) {
+    if (DEBUG) console.log(`  [debug] Detail fetch exception (${url}): ${err.message}`)
+    return null
+  }
+}
+
+/**
+ * Enrich raw events in-place with full descriptions from their detail pages.
+ *
+ * Only fetches events that are missing a description or have a very short one.
+ * Runs in small parallel batches with jitter to stay polite.
+ */
+async function enrichWithDetails(rawEvents, cookie) {
+  const needsDetail = rawEvents.filter(ev => {
+    const existing =
+      ev.description?.text ??
+      ev.summary ??
+      (typeof ev.description === 'string' ? ev.description : null)
+    return !existing || existing.trim().length < DETAIL_MIN_DESC_LEN
+  })
+
+  if (needsDetail.length === 0) {
+    console.log('  All events already have descriptions — skipping detail pass.')
+    return
+  }
+
+  console.log(`\n📄  Fetching details for ${needsDetail.length} / ${rawEvents.length} events…`)
+
+  let enriched = 0
+  let failed   = 0
+
+  for (let i = 0; i < needsDetail.length; i += DETAIL_BATCH_SIZE) {
+    const batch = needsDetail.slice(i, i + DETAIL_BATCH_SIZE)
+
+    await Promise.all(batch.map(async (ev) => {
+      const url = ev.url ?? ev.ticket_url
+      if (!url) { failed++; return }
+
+      const detail = await fetchEventDetail(url, cookie)
+      if (detail?.description) {
+        // Patch the raw event object so normaliseEvent picks it up
+        if (!ev.description || typeof ev.description !== 'object') {
+          ev.description = {}
+        }
+        ev.description.text = detail.description
+        if (detail.summary && !ev.summary) ev.summary = detail.summary
+        enriched++
+      } else {
+        failed++
+      }
+    }))
+
+    const done = Math.min(i + DETAIL_BATCH_SIZE, needsDetail.length)
+    process.stdout.write(`\r  Details: ${done} / ${needsDetail.length} (${enriched} enriched, ${failed} failed)   `)
+
+    // Jitter between batches — skip delay after the last one
+    if (i + DETAIL_BATCH_SIZE < needsDetail.length) await detailJitter()
+  }
+
+  console.log(`\n  ✓ Detail pass complete: ${enriched} enriched, ${failed} without description`)
+}
+
 // ── Process + upsert ─────────────────────────────────────────────────────────
 async function processEvents(rawEvents) {
   let inserted = 0, updated = 0, skipped = 0
@@ -761,6 +1048,15 @@ async function main() {
     }
 
     const rawEvents = await fetchAllEvents()
+
+    if (rawEvents.length === 0) {
+      // fall through to zero-event log below
+    } else if (NO_DETAILS) {
+      console.log('\n⏩  Skipping detail pass (--no-details)')
+    } else {
+      const { cookie } = await getSession()  // already cached — no extra request
+      await enrichWithDetails(rawEvents, cookie)
+    }
 
     if (rawEvents.length === 0) {
       await logUpsertResult('eventbrite', 0, 0, 0, {

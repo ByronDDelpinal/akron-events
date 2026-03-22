@@ -88,6 +88,15 @@ const DATA_SOURCES = [
     notes:       'Custom WordPress plugin with no REST API. Scraper fetches 6 monthly calendar pages and parses .me-event-list-item elements. Detail pages fetched for pricing.',
     status:      'active',
   },
+  {
+    key:         'eventbrite',
+    label:       'Eventbrite',
+    method:      'HTML scrape',
+    methodDetail:'window.__SERVER_DATA__ + internal POST API',
+    venue:       'Regional events (Akron / Summit County)',
+    notes:       'Public API deprecated in 2020. Scraper fetches the Akron search page, extracts event buckets from window.__SERVER_DATA__, and paginates via the internal /api/v3/destination/search/ POST endpoint using session cookies for auth. Catches the long tail of community events not listed anywhere else.',
+    status:      'active',
+  },
 ]
 
 // ── Human-readable scraper name mapping ──────────────────────────────────────
@@ -101,6 +110,7 @@ const SCRAPER_LABELS = {
   missing_falls:      'Missing Falls Brewery',
   akronym_brewing:    'Akronym Brewing',
   akron_art_museum:   'Akron Art Museum',
+  eventbrite:         'Eventbrite',
 }
 
 function labelFor(key) {
@@ -173,16 +183,22 @@ export default function TechnicalPage() {
         if (healthErr) throw healthErr
         setHealth(healthData ?? [])
 
-        // Event counts per source
-        const { data: countData, error: countErr } = await supabase
-          .from('events')
-          .select('source')
-          .eq('status', 'published')
-        if (!countErr && countData) {
-          const counts = {}
-          countData.forEach(e => { counts[e.source] = (counts[e.source] ?? 0) + 1 })
-          setEventCounts(counts)
+        // Event counts per source — paginate to bypass the 1 000-row PostgREST default
+        const BATCH = 1000
+        let from = 0
+        const counts = {}
+        while (true) {
+          const { data: batch, error: batchErr } = await supabase
+            .from('events')
+            .select('source')
+            .eq('status', 'published')
+            .range(from, from + BATCH - 1)
+          if (batchErr || !batch || batch.length === 0) break
+          batch.forEach(e => { counts[e.source] = (counts[e.source] ?? 0) + 1 })
+          if (batch.length < BATCH) break
+          from += BATCH
         }
+        setEventCounts(counts)
       } catch (err) {
         setError(err.message)
       } finally {
