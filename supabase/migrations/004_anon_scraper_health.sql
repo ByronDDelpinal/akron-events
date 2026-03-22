@@ -10,6 +10,12 @@
 -- gives the community transparency into how the data pipeline works.
 -- =============================================================================
 
+-- RLS policy on the underlying table
 CREATE POLICY "Anon users can read scraper_runs"
   ON scraper_runs FOR SELECT
   USING (true);
+
+-- PostgREST requires explicit GRANTs on both the table AND the view.
+-- Without these, the anon key cannot see them even if RLS allows it.
+GRANT SELECT ON scraper_runs   TO anon, authenticated;
+GRANT SELECT ON scraper_health TO anon, authenticated;

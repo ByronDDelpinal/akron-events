@@ -1,11 +1,16 @@
 /**
- * scrape-nightlight.js
+ * scrape-missing-falls.js
  *
- * Fetches upcoming events from The Nightlight Cinema (nightlightcinema.com) via
- * The Events Calendar (Tribe) REST API — same platform as Summit Artspace.
+ * Fetches upcoming events from Missing Falls Brewery (missingfallsbrewery.com)
+ * via The Events Calendar (Tribe) REST API — same platform as Summit Artspace.
+ *
+ * NOTE: Missing Falls is a smaller venue and may have zero or few upcoming events
+ * at any given time. The scraper will log a "zero events" result to scraper_runs
+ * which the health dashboard will track. This is expected behavior, not a bug —
+ * a zero streak of ≥2 runs will surface as a warning in the health view.
  *
  * Usage:
- *   node scripts/scrape-nightlight.js
+ *   node scripts/scrape-missing-falls.js
  *
  * Required .env vars:
  *   VITE_SUPABASE_URL         — Supabase project URL
@@ -16,17 +21,9 @@ import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
 import { logUpsertResult, logScraperError } from './lib/normalize.js'
 
-const BASE_URL   = 'https://nightlightcinema.com/wp-json/tribe/events/v1/events'
+const BASE_URL   = 'https://missingfallsbrewery.com/wp-json/tribe/events/v1/events'
 const PER_PAGE   = 50
 const DAYS_AHEAD = 180
-
-/**
- * Sentinel error class for when the source is blocking our requests.
- * We catch this separately and exit 0 so `scrape:all` keeps running.
- */
-class BlockedError extends Error {
-  constructor(msg) { super(msg); this.name = 'BlockedError' }
-}
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -64,26 +61,25 @@ function parseImage(imageObj, descriptionHtml = '') {
   return match?.[1] ?? null
 }
 
-/** The Nightlight is a cinema and cultural arts venue — most events are 'art' */
 function parseCategory(categories = [], title = '') {
   const slugs = categories.map(c => c.slug?.toLowerCase() ?? '')
   const t = title.toLowerCase()
-
-  if (slugs.some(s => s.includes('music') || s.includes('concert'))) return 'music'
-  if (slugs.some(s => s.includes('food') || s.includes('drink'))) return 'food'
-  if (slugs.some(s => s.includes('educat') || s.includes('workshop') || s.includes('class'))) return 'education'
-  if (slugs.some(s => s.includes('communit') || s.includes('family'))) return 'community'
-  if (t.includes('fundrais') || t.includes('benefit') || t.includes('gala')) return 'nonprofit'
-
-  // Default: cinema is art
-  return 'art'
+  if (slugs.some(s => s.includes('music') || s.includes('concert') || s.includes('live'))) return 'music'
+  if (slugs.some(s => s.includes('trivia') || s.includes('game') || s.includes('bingo'))) return 'community'
+  if (slugs.some(s => s.includes('art') || s.includes('comedy') || s.includes('show'))) return 'art'
+  if (slugs.some(s => s.includes('food') || s.includes('tasting') || s.includes('pairing'))) return 'food'
+  if (slugs.some(s => s.includes('sport') || s.includes('fitness') || s.includes('run'))) return 'sports'
+  if (t.includes('trivia') || t.includes('bingo') || t.includes('game night')) return 'community'
+  if (t.includes('live') || t.includes('music') || t.includes('band') || t.includes('dj')) return 'music'
+  // Brewery events default to community
+  return 'community'
 }
 
 function parseTags(categories = [], tags = []) {
   const all = [
     ...categories.map(c => c.name?.toLowerCase()).filter(Boolean),
     ...tags.map(t => t.name?.toLowerCase()).filter(Boolean),
-    'film', 'cinema',
+    'brewery', 'akron',
   ]
   return [...new Set(all)]
 }
@@ -92,41 +88,41 @@ function parseTags(categories = [], tags = []) {
 
 async function ensureVenue() {
   const { data: existing } = await supabaseAdmin
-    .from('venues').select('id').eq('name', 'The Nightlight Cinema').maybeSingle()
+    .from('venues').select('id').eq('name', 'Missing Falls Brewery').maybeSingle()
   if (existing) return existing.id
 
   const { data, error } = await supabaseAdmin.from('venues').insert({
-    name:         'The Nightlight Cinema',
-    address:      '30 N High St',
+    name:         'Missing Falls Brewery',
+    address:      '1250 Triplett Blvd',
     city:         'Akron',
     state:        'OH',
-    zip:          '44308',
-    lat:          41.0851,
-    lng:          -81.5193,
-    parking_type: 'street',
-    parking_notes:'Street parking on N High St and Bowery St.',
-    website:      'https://nightlightcinema.com',
-    description:  'Akron\'s independent cinema and cultural venue in the heart of downtown.',
+    zip:          '44306',
+    lat:          41.0601,
+    lng:          -81.4958,
+    parking_type: 'lot',
+    parking_notes: 'Free lot parking on site.',
+    website:      'https://missingfallsbrewery.com',
+    description:  'Craft brewery and taproom in Akron, OH.',
   }).select('id').single()
 
-  if (error) { console.warn('  ⚠ Could not create Nightlight venue:', error.message); return null }
-  console.log('  ✚ Created The Nightlight Cinema venue')
+  if (error) { console.warn('  ⚠ Could not create Missing Falls venue:', error.message); return null }
+  console.log('  ✚ Created Missing Falls Brewery venue')
   return data.id
 }
 
 async function ensureOrganizer() {
   const { data: existing } = await supabaseAdmin
-    .from('organizers').select('id').eq('name', 'The Nightlight Cinema').maybeSingle()
+    .from('organizers').select('id').eq('name', 'Missing Falls Brewery').maybeSingle()
   if (existing) return existing.id
 
   const { data, error } = await supabaseAdmin.from('organizers').insert({
-    name:    'The Nightlight Cinema',
-    website: 'https://nightlightcinema.com',
-    description: 'Independent cinema and arts venue in downtown Akron, OH.',
+    name:    'Missing Falls Brewery',
+    website: 'https://missingfallsbrewery.com',
+    description: 'Craft brewery and community events venue in Akron, OH.',
   }).select('id').single()
 
-  if (error) { console.warn('  ⚠ Could not create Nightlight organizer:', error.message); return null }
-  console.log('  ✚ Created The Nightlight Cinema organizer')
+  if (error) { console.warn('  ⚠ Could not create Missing Falls organizer:', error.message); return null }
+  console.log('  ✚ Created Missing Falls Brewery organizer')
   return data.id
 }
 
@@ -138,7 +134,7 @@ async function fetchAllPages() {
   let page = 1, hasMore = true
   const all = []
 
-  console.log('\n🔍  Fetching Nightlight events via Tribe REST API…')
+  console.log('\n🔍  Fetching Missing Falls events via Tribe REST API…')
 
   while (hasMore) {
     const url = new URL(BASE_URL)
@@ -155,31 +151,34 @@ async function fetchAllPages() {
       },
       redirect: 'follow',
     })
-    if (!res.ok) throw new Error(`Nightlight API error ${res.status}: ${await res.text()}`)
+
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Missing Falls API error ${res.status}: ${body.slice(0, 200)}`)
+    }
 
     const text = await res.text()
     if (text.trimStart().startsWith('<')) {
-      // The site is behind Cloudflare or has disabled its REST API endpoint.
-      // We treat this as a known "blocked" condition rather than a hard error
-      // so that `scrape:all` can continue running the other scrapers.
-      throw new BlockedError(`Nightlight API returned HTML — site is blocking automated requests.`)
+      throw new Error('Missing Falls API returned HTML — endpoint may be unavailable.')
     }
+
     const data = JSON.parse(text)
     const events = data.events ?? []
     all.push(...events)
-    console.log(`  Page ${page}/${data.total_pages}: ${events.length} events (total: ${all.length})`)
+    console.log(`  Page ${page}/${data.total_pages ?? 1}: ${events.length} events (total: ${all.length})`)
 
     hasMore = page < (data.total_pages ?? 1)
     page++
     if (hasMore) await new Promise(r => setTimeout(r, 200))
   }
+
   return all
 }
 
 // ── Process ───────────────────────────────────────────────────────────────
 
 async function processEvents(rawEvents, venueId, organizerId) {
-  let inserted = 0, skipped = 0
+  let inserted = 0, updated = 0, skipped = 0
 
   for (const ev of rawEvents) {
     try {
@@ -203,7 +202,7 @@ async function processEvents(rawEvents, venueId, organizerId) {
         age_restriction: 'not_specified',
         image_url:       imageUrl,
         ticket_url:      ev.website || null,
-        source:          'nightlight_cinema',
+        source:          'missing_falls',
         source_id:       String(ev.id),
         status:          'published',
         featured:        ev.featured ?? false,
@@ -218,43 +217,38 @@ async function processEvents(rawEvents, venueId, organizerId) {
       if (error) { console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message); skipped++ }
       else inserted++
     } catch (err) {
-      console.warn(`  ⚠ Error processing "${ev.title}":`, err.message)
+      console.warn(`  ⚠ Error processing "${ev.title ?? '?'}":`, err.message)
       skipped++
     }
   }
-  return { inserted, skipped }
+
+  return { inserted, updated, skipped }
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('🚀  Starting Nightlight Cinema ingestion…')
+  console.log('🚀  Starting Missing Falls Brewery ingestion…')
   const start = Date.now()
 
   try {
     const [venueId, organizerId] = await Promise.all([ensureVenue(), ensureOrganizer()])
     const rawEvents = await fetchAllPages()
-    console.log(`\n📥  Processing ${rawEvents.length} events…`)
-    const { inserted, skipped } = await processEvents(rawEvents, venueId, organizerId)
-    logUpsertResult('nightlight_cinema', inserted, 0, skipped)
-    console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s`)
-  } catch (err) {
-    if (err instanceof BlockedError) {
-      // Not a bug — the site is actively blocking scrapers.
-      // Log to scraper_runs so the health dashboard shows the problem,
-      // but exit 0 so `scrape:all` continues with the remaining scrapers.
-      console.warn('\n⚠  Nightlight Cinema:', err.message)
-      console.warn('   This source requires manual intervention or an alternative approach.')
-      await logUpsertResult('nightlight_cinema', 0, 0, 0, {
-        status:       'error',
-        errorMessage: err.message,
-        durationMs:   Date.now() - start,
-        eventsFound:  0,
-      })
-      process.exit(0)
+
+    if (rawEvents.length === 0) {
+      console.log('\n  ℹ  No upcoming events found — this is normal for this venue.')
+    } else {
+      console.log(`\n📥  Processing ${rawEvents.length} events…`)
     }
 
-    await logScraperError('nightlight_cinema', err, start)
+    const { inserted, updated, skipped } = await processEvents(rawEvents, venueId, organizerId)
+    await logUpsertResult('missing_falls', inserted, updated, skipped, {
+      eventsFound: rawEvents.length,
+      durationMs:  Date.now() - start,
+    })
+    console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s`)
+  } catch (err) {
+    await logScraperError('missing_falls', err, start)
     process.exit(1)
   }
 }

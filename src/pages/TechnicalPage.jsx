@@ -58,8 +58,35 @@ const DATA_SOURCES = [
     method:      'HTML scrape',
     methodDetail:'INDY Cinema platform (blocked)',
     venue:       'The Nightlight — 30 N High St',
-    notes:       'The INDY Cinema platform rewrites all /wp-json/ paths server-side. GraphQL endpoint requires session auth. Temporarily unavailable.',
+    notes:       'The INDY Cinema platform rewrites all /wp-json/ paths server-side and returns HTML for all API requests. Monitoring active; data currently unavailable.',
     status:      'degraded',
+  },
+  {
+    key:         'missing_falls',
+    label:       'Missing Falls Brewery',
+    method:      'REST API',
+    methodDetail:'The Events Calendar (Tribe Events) REST',
+    venue:       'Missing Falls Brewery — 1250 Triplett Blvd',
+    notes:       'Same Tribe Events platform as Summit Artspace. This venue hosts fewer events — zero-event runs are normal between active periods.',
+    status:      'active',
+  },
+  {
+    key:         'akronym_brewing',
+    label:       'Akronym Brewing',
+    method:      'REST API',
+    methodDetail:'WordPress REST API (posts by category)',
+    venue:       'Akronym Brewing — 58 E Mill St',
+    notes:       'Events are WordPress posts filtered by category. Dates parsed from registered meta fields; falls back to post-published date.',
+    status:      'active',
+  },
+  {
+    key:         'akron_art_museum',
+    label:       'Akron Art Museum',
+    method:      'HTML scrape',
+    methodDetail:'Museum Events plugin — /calendar/ page',
+    venue:       'Akron Art Museum — 1 S High St',
+    notes:       'Custom WordPress plugin with no REST API. Scraper fetches 6 monthly calendar pages and parses .me-event-list-item elements. Detail pages fetched for pricing.',
+    status:      'active',
   },
 ]
 
@@ -71,6 +98,9 @@ const SCRAPER_LABELS = {
   jillys_music_room:  "Jilly's Music Room",
   blu_jazz:           'BLU Jazz+',
   nightlight_cinema:  'The Nightlight',
+  missing_falls:      'Missing Falls Brewery',
+  akronym_brewing:    'Akronym Brewing',
+  akron_art_museum:   'Akron Art Museum',
 }
 
 function labelFor(key) {

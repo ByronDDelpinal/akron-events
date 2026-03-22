@@ -15,7 +15,10 @@
     "scrape:library": "node scripts/scrape-akron-library.js",
     "scrape:jillys": "node scripts/scrape-jillys.js",
     "scrape:blu-jazz": "node scripts/scrape-blu-jazz.js",
-    "scrape:all": "node scripts/scrape-summit-artspace.js && node scripts/scrape-nightlight.js && node scripts/scrape-akron-library.js && node scripts/scrape-jillys.js && node scripts/scrape-blu-jazz.js",
+    "scrape:missing-falls": "node scripts/scrape-missing-falls.js",
+    "scrape:akronym": "node scripts/scrape-akronym.js",
+    "scrape:art-museum": "node scripts/scrape-akron-art-museum.js",
+    "scrape:all": "node scripts/scrape-summit-artspace.js ; node scripts/scrape-nightlight.js ; node scripts/scrape-akron-library.js ; node scripts/scrape-jillys.js ; node scripts/scrape-blu-jazz.js ; node scripts/scrape-missing-falls.js ; node scripts/scrape-akronym.js ; node scripts/scrape-akron-art-museum.js",
     "health": "node scripts/check-scraper-health.js"
   },
   "dependencies": {
