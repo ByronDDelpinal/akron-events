@@ -8,13 +8,12 @@
   padding-right: 20px;
   text-align: center;
   position: relative;
-  overflow: hidden; /* prevent glow from creating horizontal scroll */
 }
 .hero-glow {
   position: absolute;
   top: -80px; left: 50%;
   transform: translateX(-50%);
-  width: min(780px, 200vw); height: 440px;
+  width: min(780px, 100vw); height: 440px;
   background: radial-gradient(ellipse, rgba(212,146,42,0.19) 0%, transparent 62%);
   pointer-events: none;
 }
@@ -63,7 +62,7 @@
   max-width: 500px;
   margin: 0 auto;
   position: relative;
-  z-index: 50;
+  z-index: 110;
 }
 .search-input {
   width: 100%;
