@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { useEvent } from '@/hooks/useEvents'
+import { VenueMap } from '@/components/MapView'
 import './EventPage.css'
 
 const GRADIENT_MAP = {
@@ -163,11 +164,18 @@ export default function EventPage() {
               />
 
               {event.venue && (
-                <InfoRow icon={<PinIcon />} label="Venue"
-                  value={`${event.venue.name}\n${event.venue.address ?? ''}, ${event.venue.city}`}
-                  link={`https://maps.google.com/?q=${encodeURIComponent(event.venue.name + ' ' + (event.venue.address ?? '') + ' ' + event.venue.city)}`}
-                  linkLabel="Get directions"
-                />
+                <>
+                  <InfoRow icon={<PinIcon />} label="Venue"
+                    value={`${event.venue.name}\n${event.venue.address ?? ''}, ${event.venue.city}`}
+                    link={`https://maps.google.com/?q=${encodeURIComponent(event.venue.name + ' ' + (event.venue.address ?? '') + ' ' + event.venue.city)}`}
+                    linkLabel="Get directions"
+                  />
+                  <VenueMap
+                    lat={event.venue.lat}
+                    lng={event.venue.lng}
+                    venueName={event.venue.name}
+                  />
+                </>
               )}
 
               {event.venue?.parking_type && event.venue.parking_type !== 'unknown' && (

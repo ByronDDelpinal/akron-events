@@ -162,6 +162,14 @@
   transition: all 0.2s;
 }
 .btn-load-more:hover { border-color: var(--amber); color: var(--amber); }
+.btn-load-more:disabled { opacity: 0.55; cursor: default; }
+.btn-load-more:disabled:hover { border-color: var(--border-mid); color: var(--text-muted); }
+
+.load-more-end {
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+}
 
 /* ── EMPTY STATE ── */
 .empty-state {

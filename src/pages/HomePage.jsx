@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { format, isToday, isTomorrow } from 'date-fns'
-import { useEvents } from '@/hooks/useEvents'
+import { useEvents, PAGE_SIZE } from '@/hooks/useEvents'
 import EventCard from '@/components/EventCard'
 import FilterBar from '@/components/FilterBar'
+import MapView from '@/components/MapView'
 import './HomePage.css'
 
 function groupEventsByDate(events) {
@@ -16,17 +17,11 @@ function groupEventsByDate(events) {
 }
 
 function DateHeading({ dateKey }) {
-  const d = new Date(dateKey + 'T12:00:00') // noon to avoid TZ edge cases
-  const label = isToday(d)
-    ? format(d, 'EEEE, MMMM d')
-    : isTomorrow(d)
-    ? format(d, 'EEEE, MMMM d')
-    : format(d, 'EEEE, MMMM d')
-
+  const d = new Date(dateKey + 'T12:00:00')
   return (
     <div className="date-group">
       <div className="date-heading">
-        <span className="date-label">{label}</span>
+        <span className="date-label">{format(d, 'EEEE, MMMM d')}</span>
         {isToday(d)    && <span className="today-badge">Today</span>}
         {isTomorrow(d) && <span className="today-badge" style={{ background: 'var(--green-mid)' }}>Tomorrow</span>}
         <div className="date-line" />
@@ -36,34 +31,76 @@ function DateHeading({ dateKey }) {
 }
 
 export default function HomePage() {
-  const [category,  setCategory]  = useState(null)
-  const [dateRange, setDateRange] = useState(null)
-  const [freeOnly,  setFreeOnly]  = useState(false)
-  const [sort,      setSort]      = useState('soonest')
-  const [search,    setSearch]    = useState('')
+  // ── Filter state ──────────────────────────────────────────────────────
+  const [categories,  setCategories]  = useState([])
+  const [dateRange,   setDateRange]   = useState(null)
+  const [freeOnly,    setFreeOnly]    = useState(false)
+  const [sort,        setSort]        = useState('soonest')
+  const [search,      setSearch]      = useState('')
   const [searchInput, setSearchInput] = useState('')
+  const [view,        setView]        = useState('list')
 
-  const { events, loading, error } = useEvents({ category, dateRange, search })
+  // ── Pagination state ──────────────────────────────────────────────────
+  const [offset,    setOffset]    = useState(0)
+  const [allEvents, setAllEvents] = useState([])
 
-  // Client-side free filter + sort (Supabase already handles category/dateRange/search)
-  const filtered = useMemo(() => {
-    let list = freeOnly ? events.filter(e => e.price_min === 0 && (!e.price_max || e.price_max === 0)) : events
-    if (sort === 'latest')  list = [...list].sort((a,b) => new Date(b.start_at) - new Date(a.start_at))
-    if (sort === 'recent')  list = [...list].sort((a,b) => new Date(b.created_at) - new Date(a.created_at))
-    return list
-  }, [events, freeOnly, sort])
+  // Track the filter signature so we can reset pagination on any change
+  const filterKey = `${categories.join(',')}|${dateRange}|${search}|${freeOnly}|${sort}`
+  const prevFilterKey = useRef(filterKey)
 
-  const grouped    = groupEventsByDate(filtered)
-  const totalCount = filtered.length
-  const freeCount  = filtered.filter(e => e.price_min === 0 && (!e.price_max || e.price_max === 0)).length
-  const weekendCount = filtered.filter(e => {
-    const day = new Date(e.start_at).getDay()
-    return day === 0 || day === 6
-  }).length
+  // Reset to page 1 whenever filters change
+  useEffect(() => {
+    if (prevFilterKey.current !== filterKey) {
+      prevFilterKey.current = filterKey
+      setOffset(0)
+      setAllEvents([])
+    }
+  }, [filterKey])
+
+  // ── Data fetch (one page at a time) ───────────────────────────────────
+  const { events: page, loading, error, total, hasMore } = useEvents({
+    categories, dateRange, search, freeOnly, sort,
+    limit: PAGE_SIZE,
+    offset,
+  })
+
+  // Append each incoming page to the accumulated list
+  useEffect(() => {
+    if (loading) return
+    if (offset === 0) {
+      setAllEvents(page)
+    } else {
+      setAllEvents(prev => {
+        // Deduplicate by id in case of any overlap
+        const ids = new Set(prev.map(e => e.id))
+        return [...prev, ...page.filter(e => !ids.has(e.id))]
+      })
+    }
+  }, [page, loading, offset])
+
+  const grouped = useMemo(() => groupEventsByDate(allEvents), [allEvents])
+
+  const clearFilters = () => {
+    setCategories([])
+    setDateRange(null)
+    setFreeOnly(false)
+    setSearch('')
+    setSearchInput('')
+  }
 
   const handleSearchKeyDown = (e) => {
     if (e.key === 'Enter') setSearch(searchInput)
   }
+
+  const loadMore = () => {
+    if (!loading && hasMore) setOffset(prev => prev + PAGE_SIZE)
+  }
+
+  // ── Stat bar numbers ─────────────────────────────────────────────────
+  // `total` is the exact count from Supabase for the current filters.
+  // Loaded/weekend/free counts reflect what's actually been fetched so far.
+  const loadedCount  = allEvents.length
+  const weekendCount = allEvents.filter(e => { const d = new Date(e.start_at).getDay(); return d === 0 || d === 6 }).length
 
   return (
     <>
@@ -90,11 +127,11 @@ export default function HomePage() {
       {/* ── STAT BAR ── */}
       <div className="stat-bar">
         <div className="stat-bar-inner">
-          <div className="stat-pill"><strong>{totalCount}</strong> upcoming {totalCount === 1 ? 'event' : 'events'}</div>
+          <div className="stat-pill">
+            <strong>{total}</strong> upcoming {total === 1 ? 'event' : 'events'}
+          </div>
           <div className="stat-sep" />
           <div className="stat-pill"><strong>{weekendCount}</strong> this weekend</div>
-          <div className="stat-sep" />
-          <div className="stat-pill"><strong>{freeCount}</strong> free to attend</div>
           <div className="stat-sep" />
           <div className="stat-pill">Updated <strong>today</strong></div>
         </div>
@@ -102,47 +139,72 @@ export default function HomePage() {
 
       {/* ── FILTER BAR ── */}
       <FilterBar
-        category={category}    onCategory={setCategory}
-        dateRange={dateRange}  onDateRange={setDateRange}
-        freeOnly={freeOnly}    onFreeOnly={setFreeOnly}
-        sort={sort}            onSort={setSort}
+        categories={categories}   onCategories={setCategories}
+        dateRange={dateRange}     onDateRange={setDateRange}
+        freeOnly={freeOnly}       onFreeOnly={setFreeOnly}
+        sort={sort}               onSort={setSort}
+        view={view}               onView={setView}
       />
 
-      {/* ── EVENTS ── */}
-      <div className="content">
-        {loading && <div className="empty-state">Loading events…</div>}
-        {error   && <div className="empty-state error">Couldn't load events. Please try again.</div>}
+      {/* ── MAP VIEW ── */}
+      {view === 'map' && <MapView events={allEvents} />}
 
-        {!loading && !error && filtered.length === 0 && (
-          <div className="empty-state">
-            <p>No events match your current filters.</p>
-            <button className="btn-clear" onClick={() => { setCategory(null); setDateRange(null); setFreeOnly(false); setSearch(''); setSearchInput('') }}>
-              Clear filters
-            </button>
-          </div>
-        )}
+      {/* ── LIST VIEW ── */}
+      {view === 'list' && (
+        <div className="content">
+          {/* Initial load skeleton */}
+          {loading && allEvents.length === 0 && (
+            <div className="empty-state">Loading events…</div>
+          )}
 
-        {grouped.map(([dateKey, dayEvents]) => (
-          <div key={dateKey}>
-            <DateHeading dateKey={dateKey} />
-            <div className="cards-grid">
-              {dayEvents.map((event, i) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  featured={event.featured && i === 0}
-                />
-              ))}
+          {error && (
+            <div className="empty-state error">Couldn't load events. Please try again.</div>
+          )}
+
+          {!loading && !error && allEvents.length === 0 && (
+            <div className="empty-state">
+              <p>No events match your current filters.</p>
+              <button className="btn-clear" onClick={clearFilters}>
+                Clear filters
+              </button>
             </div>
-          </div>
-        ))}
+          )}
 
-        {!loading && filtered.length > 0 && (
-          <div className="load-more">
-            <button className="btn-load-more">Load more events</button>
-          </div>
-        )}
-      </div>
+          {grouped.map(([dateKey, dayEvents]) => (
+            <div key={dateKey}>
+              <DateHeading dateKey={dateKey} />
+              <div className="cards-grid">
+                {dayEvents.map((event, i) => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    featured={event.featured && i === 0}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* Load more */}
+          {allEvents.length > 0 && (
+            <div className="load-more">
+              {hasMore ? (
+                <button
+                  className="btn-load-more"
+                  onClick={loadMore}
+                  disabled={loading}
+                >
+                  {loading ? 'Loading…' : `Load more events (${total - loadedCount} remaining)`}
+                </button>
+              ) : (
+                <p className="load-more-end">
+                  Showing all {total} {total === 1 ? 'event' : 'events'}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </>
   )
 }

@@ -1,18 +1,37 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
+export const PAGE_SIZE = 24
+
 /**
- * Fetch published events with optional filtering.
+ * Fetch a paginated page of published events with server-side filtering.
  *
- * @param {Object} filters
- * @param {string|null}  filters.category  - e.g. 'music', 'art', or null for all
- * @param {string|null}  filters.dateRange - 'today' | 'this_week' | 'this_weekend' | 'this_month' | null
- * @param {string|null}  filters.search    - free-text search against title + description
+ * @param {Object}   opts
+ * @param {string[]} opts.categories  - category values to include; empty = all
+ * @param {string}   opts.dateRange   - 'this_weekend' | 'this_month' | null
+ * @param {string}   opts.search      - free-text search
+ * @param {boolean}  opts.freeOnly    - only return price_min = 0 events
+ * @param {string}   opts.sort        - 'soonest' | 'latest' | 'recent'
+ * @param {number}   opts.limit       - rows per page (default PAGE_SIZE)
+ * @param {number}   opts.offset      - row offset for pagination
+ *
+ * Returns { events, loading, error, total, hasMore }
+ *   total   — total matching row count from Supabase (for the stat bar)
+ *   hasMore — true when there are more rows beyond this page
  */
-export function useEvents({ category = null, dateRange = null, search = null } = {}) {
+export function useEvents({
+  categories = [],
+  dateRange  = null,
+  search     = null,
+  freeOnly   = false,
+  sort       = 'soonest',
+  limit      = PAGE_SIZE,
+  offset     = 0,
+} = {}) {
   const [events,  setEvents]  = useState([])
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(null)
+  const [total,   setTotal]   = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -27,36 +46,30 @@ export function useEvents({ category = null, dateRange = null, search = null } =
           .select(`
             *,
             venue:venues (
-              id, name, address, city, state,
-              parking_type, parking_notes, website
+              id, name, address, city, state, zip,
+              lat, lng, parking_type, parking_notes, website
             ),
             organizer:organizers (
               id, name, website, description, image_url
             )
-          `)
+          `, { count: 'exact' })
           .eq('status', 'published')
-          .order('start_at', { ascending: true })
+          // Always exclude events that have already ended
+          .gte('start_at', new Date(Date.now() - 3 * 3600_000).toISOString())
 
-        // ── Category filter ──────────────────────────────
-        if (category) {
-          query = query.eq('category', category)
+        // ── Category ─────────────────────────────────────
+        if (categories.length > 0) {
+          query = query.in('category', categories)
         }
 
-        // ── Date range filter ────────────────────────────
+        // ── Date range ───────────────────────────────────
         if (dateRange) {
           const now   = new Date()
           const start = new Date(now)
           const end   = new Date(now)
 
-          if (dateRange === 'today') {
-            start.setHours(0, 0, 0, 0)
-            end.setHours(23, 59, 59, 999)
-          } else if (dateRange === 'this_week') {
-            start.setHours(0, 0, 0, 0)
-            end.setDate(now.getDate() + (6 - now.getDay()))
-            end.setHours(23, 59, 59, 999)
-          } else if (dateRange === 'this_weekend') {
-            const dayOfWeek = now.getDay() // 0=Sun 6=Sat
+          if (dateRange === 'this_weekend') {
+            const dayOfWeek = now.getDay()
             const daysToSat = (6 - dayOfWeek + 7) % 7 || 7
             start.setDate(now.getDate() + daysToSat)
             start.setHours(0, 0, 0, 0)
@@ -73,17 +86,39 @@ export function useEvents({ category = null, dateRange = null, search = null } =
             .lte('start_at', end.toISOString())
         }
 
-        // ── Full-text search ─────────────────────────────
+        // ── Free only ────────────────────────────────────
+        if (freeOnly) {
+          query = query
+            .eq('price_min', 0)
+            .or('price_max.is.null,price_max.eq.0')
+        }
+
+        // ── Search ───────────────────────────────────────
         if (search && search.trim().length > 0) {
           query = query.or(
             `title.ilike.%${search.trim()}%,description.ilike.%${search.trim()}%`
           )
         }
 
-        const { data, error: fetchError } = await query
+        // ── Sort ─────────────────────────────────────────
+        if (sort === 'latest') {
+          query = query.order('start_at', { ascending: false })
+        } else if (sort === 'recent') {
+          query = query.order('created_at', { ascending: false })
+        } else {
+          query = query.order('start_at', { ascending: true })
+        }
+
+        // ── Pagination ───────────────────────────────────
+        query = query.range(offset, offset + limit - 1)
+
+        const { data, error: fetchError, count } = await query
 
         if (fetchError) throw fetchError
-        if (!cancelled) setEvents(data ?? [])
+        if (!cancelled) {
+          setEvents(data ?? [])
+          setTotal(count ?? 0)
+        }
       } catch (err) {
         if (!cancelled) setError(err.message ?? 'Failed to load events.')
       } finally {
@@ -93,9 +128,11 @@ export function useEvents({ category = null, dateRange = null, search = null } =
 
     fetchEvents()
     return () => { cancelled = true }
-  }, [category, dateRange, search])
+  }, [categories.join(','), dateRange, search, freeOnly, sort, limit, offset])
 
-  return { events, loading, error }
+  const hasMore = offset + limit < total
+
+  return { events, loading, error, total, hasMore }
 }
 
 /**
