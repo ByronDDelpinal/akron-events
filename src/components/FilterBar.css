@@ -1,3 +1,4 @@
+/* ── Wrapper ── */
 .filter-bar {
   background: var(--bg-page);
   border-bottom: 1px solid var(--border);
@@ -5,205 +6,54 @@
   top: 64px;
   z-index: 90;
 }
-.filter-inner {
-  max-width: 1120px;
-  margin: 0 auto;
-  padding: 10px 20px;
+
+/* ════════════════════════════════
+   ROW 1 — Date tabs + view toggle
+════════════════════════════════ */
+.filter-date-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 20px;
 }
 
-/* Scrollable pill area */
-.filter-chips {
+/* Scrollable date tab strip */
+.filter-date-tabs {
   display: flex;
-  gap: 6px;
+  flex: 1;
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  align-items: center;
-  flex: 1;
-  min-width: 0; /* allow shrinking */
 }
-.filter-chips::-webkit-scrollbar { display: none; }
+.filter-date-tabs::-webkit-scrollbar { display: none; }
 
-/* Fixed right-hand controls — always visible */
-.filter-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.date-tab {
   flex-shrink: 0;
-  padding-left: 6px;
-  border-left: 1px solid var(--border);
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 7px 14px;
-  border-radius: 22px;
-  background: var(--chip-bg);
-  color: var(--chip-text);
-  border: 1.5px solid transparent;
-  font-family: var(--font-body);
-  font-size: 0.79rem;
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: all 0.14s;
-  user-select: none;
-}
-.chip:hover { border-color: var(--amber); color: var(--amber); }
-.chip.active {
-  background: var(--chip-active-bg);
-  color: var(--chip-active-txt);
-  border-color: var(--chip-active-bg);
-  font-weight: 600;
-}
-
-.f-divider { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; margin: 0 2px; }
-
-.sort-select {
-  background: var(--chip-bg);
-  color: var(--chip-text);
-  border: 1.5px solid transparent;
-  border-radius: 22px;
-  padding: 7px 12px;
-  font-family: var(--font-body);
-  font-size: 0.79rem;
-  cursor: pointer;
-  outline: none;
-  flex-shrink: 0;
-}
-
-/* ── Date picker wrap — sits between chips and actions, never scrolls ── */
-.date-picker-wrap {
-  position: relative;
-  flex-shrink: 0;
-  padding: 0 6px;
-  border-left: 1px solid var(--border);
-  border-right: 1px solid var(--border);
-}
-
-/* ── Date chip clear button ─────────────────────────────────────────── */
-.chip-clear {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  margin-left: 2px;
-  border-radius: 50%;
-  font-size: 0.6rem;
-  line-height: 1;
-  opacity: 0.7;
-  transition: opacity 0.12s;
-  cursor: pointer;
-}
-.chip-clear:hover { opacity: 1; }
-
-/* ── Date picker popover ─────────────────────────────────────────────── */
-.date-picker-popover {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 200;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 16px;
-  width: 260px;
-  box-shadow: 0 8px 32px rgba(25,35,15,0.13);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.date-picker-section {
-  font-family: var(--font-body);
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin: 0;
-}
-
-.date-picker-presets {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.date-preset-btn {
-  padding: 6px 12px;
-  border-radius: 18px;
-  border: 1.5px solid var(--border);
+  padding: 12px 16px;
   background: transparent;
-  color: var(--text-secondary);
-  font-family: var(--font-body);
-  font-size: 0.78rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.13s;
-}
-.date-preset-btn:hover { border-color: var(--amber); color: var(--amber); }
-.date-preset-btn.active {
-  background: var(--chip-active-bg);
-  border-color: var(--chip-active-bg);
-  color: #fff;
-}
-
-.date-picker-inputs {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.date-input-label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-family: var(--font-body);
-  font-size: 0.72rem;
-  font-weight: 600;
+  border: none;
+  border-bottom: 2px solid transparent;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.date-input {
-  padding: 7px 10px;
-  border-radius: 8px;
-  border: 1.5px solid var(--border);
-  background: var(--bg-secondary);
-  color: var(--text-primary);
   font-family: var(--font-body);
   font-size: 0.82rem;
-  outline: none;
+  font-weight: 500;
   cursor: pointer;
-  transition: border-color 0.13s;
+  white-space: nowrap;
+  transition: color 0.14s, border-color 0.14s;
+  position: relative;
+  /* Counteract the parent border-bottom so our own sits flush */
+  margin-bottom: -1px;
 }
-.date-input:focus { border-color: var(--amber); }
-
-.date-picker-clear {
-  margin-top: 2px;
-  padding: 7px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-muted);
-  font-family: var(--font-body);
-  font-size: 0.75rem;
-  cursor: pointer;
-  transition: all 0.13s;
-  text-align: center;
+.date-tab:hover { color: var(--text-secondary); }
+.date-tab.active {
+  color: var(--amber);
+  border-bottom-color: var(--amber);
+  font-weight: 700;
 }
-.date-picker-clear:hover { border-color: var(--coral); color: var(--coral); }
 
-/* ── List / Map view toggle ─────────────────────────────────────────── */
+/* View toggle — pinned to the right of row 1 */
 .view-toggle {
   display: flex;
   align-items: center;
@@ -212,6 +62,11 @@
   padding: 3px;
   gap: 2px;
   flex-shrink: 0;
+  margin-left: 12px;
+  border-left: 1px solid var(--border);
+  padding-left: 14px;
+  background: transparent;
+  border-radius: 0;
 }
 
 .view-toggle-btn {
@@ -235,4 +90,194 @@
   background: var(--bg-nav);
   color: #fff;
   font-weight: 600;
+}
+
+/* ════════════════════════════════
+   ROW 2 — Intent pills + More + Sort
+════════════════════════════════ */
+.filter-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 9px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Scrollable pill area */
+.filter-chips {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+.filter-chips::-webkit-scrollbar { display: none; }
+
+/* ── Base chip ── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border-radius: 22px;
+  background: var(--chip-bg);
+  color: var(--chip-text);
+  border: 1.5px solid transparent;
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.14s;
+  user-select: none;
+}
+.chip:hover { border-color: var(--amber); color: var(--text-secondary); }
+.chip.active {
+  background: var(--amber-pale);
+  color: var(--amber);
+  border-color: var(--amber-border);
+  font-weight: 700;
+}
+
+/* ── Intent chip emoji ── */
+.intent-emoji {
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* ── Chip clear × ── */
+.chip-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 1px;
+  border-radius: 50%;
+  font-size: 0.58rem;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity 0.12s;
+  cursor: pointer;
+}
+.chip-clear:hover { opacity: 1; }
+
+/* ── More button ── */
+.chip--more {
+  background: var(--chip-bg);
+  gap: 6px;
+}
+.chip--more.active {
+  background: var(--amber-pale);
+  color: var(--amber);
+  border-color: var(--amber-border);
+}
+
+.more-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--amber);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  margin-left: 1px;
+}
+
+/* ── Fixed right-hand controls ── */
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+}
+
+.f-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.sort-select {
+  background: var(--chip-bg);
+  color: var(--chip-text);
+  border: 1.5px solid transparent;
+  border-radius: 22px;
+  padding: 7px 12px;
+  font-family: var(--font-body);
+  font-size: 0.79rem;
+  cursor: pointer;
+  outline: none;
+  flex-shrink: 0;
+  transition: border-color 0.14s;
+}
+.sort-select:hover { border-color: var(--border-mid); }
+
+/* ════════════════════════════════
+   Active filter summary strip
+════════════════════════════════ */
+.filter-active-strip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 0 20px 10px;
+  max-width: 1120px;
+  margin: 0 auto;
+  width: 100%;
+}
+.filter-active-strip::-webkit-scrollbar { display: none; }
+
+.active-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px 3px 12px;
+  border-radius: 20px;
+  background: var(--amber-pale);
+  border: 1px solid var(--amber-border);
+  color: var(--amber);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.active-pill-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  font-size: 0.55rem;
+  border-radius: 50%;
+  opacity: 0.65;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+.active-pill-x:hover { opacity: 1; }
+
+/* ── Mobile ── */
+@media (max-width: 640px) {
+  .filter-bar { top: 56px; } /* shorter header on mobile */
+
+  .filter-date-row,
+  .filter-inner,
+  .filter-active-strip { padding-left: 14px; padding-right: 14px; }
+
+  .date-tab { padding: 11px 12px; font-size: 0.8rem; }
+
+  .view-toggle { border-left: none; padding-left: 8px; }
 }

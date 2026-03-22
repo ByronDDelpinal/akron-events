@@ -5,6 +5,7 @@ import { useEvents, PAGE_SIZE } from '@/hooks/useEvents'
 import EventCard from '@/components/EventCard'
 import FilterBar from '@/components/FilterBar'
 import MapView from '@/components/MapView'
+import { INTENTS, SEARCH_SUGGESTIONS } from '@/lib/intents'
 import './HomePage.css'
 
 function groupEventsByDate(events) {
@@ -33,15 +34,43 @@ function DateHeading({ dateKey }) {
 
 export default function HomePage() {
   // ── Filter state ──────────────────────────────────────────────────────
-  const [categories,  setCategories]  = useState([])
-  const [dateRange,   setDateRange]   = useState(null)
-  const [dateFrom,    setDateFrom]    = useState(null)
-  const [dateTo,      setDateTo]      = useState(null)
-  const [freeOnly,    setFreeOnly]    = useState(false)
-  const [sort,        setSort]        = useState('soonest')
-  const [search,      setSearch]      = useState('')
-  const [searchInput, setSearchInput] = useState('')
-  const [view,        setView]        = useState('list')
+  const [activeIntentId, setActiveIntentId] = useState(null)  // 'date-night' | 'give-back' | etc.
+  const [dateRange,      setDateRange]      = useState(null)  // 'today' | 'this_weekend' | 'this_week' | 'this_month' | null
+  const [dateFrom,       setDateFrom]       = useState(null)  // custom 'YYYY-MM-DD'
+  const [dateTo,         setDateTo]         = useState(null)  // custom 'YYYY-MM-DD'
+  const [rawCategories,  setRawCategories]  = useState([])   // from FilterTray only
+  const [priceFilter,    setPriceFilter]    = useState(null) // null | 'free' | 'under10' | 'under25'
+  const [sort,           setSort]           = useState('soonest')
+  const [search,         setSearch]         = useState('')
+  const [searchInput,    setSearchInput]    = useState('')
+  const [view,           setView]           = useState('list')
+
+  // ── Search suggestion dropdown ─────────────────────────────────────────
+  const [searchFocused,  setSearchFocused]  = useState(false)
+  const searchWrapRef = useRef(null)
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!searchFocused) return
+    function onDown(e) {
+      if (searchWrapRef.current && !searchWrapRef.current.contains(e.target)) {
+        setSearchFocused(false)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [searchFocused])
+
+  // ── Derived: what to pass to useEvents ────────────────────────────────
+  const activeIntent      = INTENTS.find(i => i.id === activeIntentId) ?? null
+  // Tray raw categories narrow; if empty, fall back to intent's categories
+  const effectiveCategories = rawCategories.length > 0
+    ? rawCategories
+    : (activeIntent?.freeOnly ? [] : (activeIntent?.categories ?? []))
+  // freeOnly is true when intent is Free Fun, OR tray price is 'free'
+  const effectiveFreeOnly = (activeIntent?.freeOnly ?? false) || priceFilter === 'free'
+  // priceMax only applies when not using freeOnly
+  const effectivePriceMax = effectiveFreeOnly ? null : priceFilter
 
   // ── Pagination state ──────────────────────────────────────────────────
   const [offset,      setOffset]      = useState(0)
@@ -54,7 +83,7 @@ export default function HomePage() {
   const [resultsKey, setResultsKey] = useState(0)
 
   // Track the filter signature so we can reset pagination on any change
-  const filterKey = `${categories.join(',')}|${dateRange}|${dateFrom}|${dateTo}|${search}|${freeOnly}|${sort}`
+  const filterKey = `${activeIntentId}|${effectiveCategories.join(',')}|${dateRange}|${dateFrom}|${dateTo}|${search}|${effectiveFreeOnly}|${effectivePriceMax}|${sort}`
   const prevFilterKey = useRef(filterKey)
 
   // On filter change: signal a refresh but keep old events visible
@@ -69,7 +98,12 @@ export default function HomePage() {
 
   // ── Data fetch (one page at a time) ───────────────────────────────────
   const { events: page, loading, error, total, hasMore } = useEvents({
-    categories, dateRange, dateFrom, dateTo, search, freeOnly, sort,
+    categories: effectiveCategories,
+    dateRange, dateFrom, dateTo,
+    search,
+    freeOnly:  effectiveFreeOnly,
+    priceMax:  effectivePriceMax,
+    sort,
     limit: PAGE_SIZE,
     offset,
   })
@@ -93,11 +127,13 @@ export default function HomePage() {
   const grouped = useMemo(() => groupEventsByDate(allEvents), [allEvents])
 
   const clearFilters = () => {
-    setCategories([])
+    setActiveIntentId(null)
+    setRawCategories([])
     setDateRange(null)
     setDateFrom(null)
     setDateTo(null)
-    setFreeOnly(false)
+    setPriceFilter(null)
+    setSort('soonest')
     setSearch('')
     setSearchInput('')
   }
@@ -124,17 +160,48 @@ export default function HomePage() {
         <p className="hero-eyebrow">Summit County, Ohio</p>
         <h1>What's happening<br />in <span>Akron?</span></h1>
         <p className="hero-sub">Concerts, galas, art shows, markets, and more — happening right now in Akron.</p>
-        <div className="search-wrap">
+        <div className="search-wrap" ref={searchWrapRef}>
           <SearchIcon />
           <input
-            className="search-input"
+            className={`search-input${searchFocused && !searchInput ? ' search-input--open' : ''}`}
             type="text"
             placeholder="Search events, venues, organizers…"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={handleSearchKeyDown}
-            onBlur={() => setSearch(searchInput)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => { if (!searchInput) setSearch('') }}
           />
+
+          {/* ── Intent suggestion dropdown ── */}
+          {searchFocused && !searchInput && (
+            <div className="search-suggestions">
+              <p className="search-suggestions-label">What are you looking for?</p>
+              {SEARCH_SUGGESTIONS.map((s, i) => {
+                const intent = INTENTS.find(it => it.id === s.intentId)
+                return (
+                  <button
+                    key={i}
+                    className="search-suggestion-item"
+                    onMouseDown={() => {
+                      // mouseDown fires before blur — apply then close
+                      setActiveIntentId(s.intentId)
+                      if (s.datePreset) setDateRange(s.datePreset)
+                      setSearchFocused(false)
+                    }}
+                  >
+                    <span className="suggestion-emoji">{intent?.emoji ?? '✨'}</span>
+                    <span className="suggestion-text">
+                      <span className="suggestion-label">{s.label}</span>
+                      {intent?.tagline && (
+                        <span className="suggestion-tagline">{intent.tagline}</span>
+                      )}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -153,13 +220,15 @@ export default function HomePage() {
 
       {/* ── FILTER BAR ── */}
       <FilterBar
-        categories={categories}   onCategories={setCategories}
-        dateRange={dateRange}     onDateRange={setDateRange}
-        dateFrom={dateFrom}       onDateFrom={setDateFrom}
-        dateTo={dateTo}           onDateTo={setDateTo}
-        freeOnly={freeOnly}       onFreeOnly={setFreeOnly}
-        sort={sort}               onSort={setSort}
-        view={view}               onView={setView}
+        activeIntentId={activeIntentId}  onIntentId={setActiveIntentId}
+        dateRange={dateRange}            onDateRange={setDateRange}
+        dateFrom={dateFrom}              onDateFrom={setDateFrom}
+        dateTo={dateTo}                  onDateTo={setDateTo}
+        rawCategories={rawCategories}    onRawCategories={setRawCategories}
+        priceFilter={priceFilter}        onPriceFilter={setPriceFilter}
+        sort={sort}                      onSort={setSort}
+        view={view}                      onView={setView}
+        total={total}
       />
 
       {/* ── MAP VIEW ── */}

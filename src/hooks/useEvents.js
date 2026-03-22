@@ -8,9 +8,12 @@ export const PAGE_SIZE = 24
  *
  * @param {Object}   opts
  * @param {string[]} opts.categories  - category values to include; empty = all
- * @param {string}   opts.dateRange   - 'this_weekend' | 'this_month' | null
+ * @param {string}   opts.dateRange   - 'today' | 'this_weekend' | 'this_week' | 'this_month' | null
+ * @param {string}   opts.dateFrom    - custom ISO date string 'YYYY-MM-DD', overrides dateRange when set
+ * @param {string}   opts.dateTo      - custom ISO date string 'YYYY-MM-DD', overrides dateRange when set
  * @param {string}   opts.search      - free-text search
  * @param {boolean}  opts.freeOnly    - only return price_min = 0 events
+ * @param {string}   opts.priceMax    - 'under10' | 'under25' | null  (ignored when freeOnly=true)
  * @param {string}   opts.sort        - 'soonest' | 'latest' | 'recent'
  * @param {number}   opts.limit       - rows per page (default PAGE_SIZE)
  * @param {number}   opts.offset      - row offset for pagination
@@ -21,11 +24,12 @@ export const PAGE_SIZE = 24
  */
 export function useEvents({
   categories = [],
-  dateRange  = null,   // preset: 'this_weekend' | 'this_month' | null
+  dateRange  = null,   // preset: 'today' | 'this_weekend' | 'this_week' | 'this_month' | null
   dateFrom   = null,   // custom ISO date string 'YYYY-MM-DD', overrides dateRange when set
   dateTo     = null,   // custom ISO date string 'YYYY-MM-DD', overrides dateRange when set
   search     = null,
   freeOnly   = false,
+  priceMax   = null,   // 'under10' | 'under25' | null
   sort       = 'soonest',
   limit      = PAGE_SIZE,
   offset     = 0,
@@ -78,12 +82,21 @@ export function useEvents({
           const start = new Date(now)
           const end   = new Date(now)
 
-          if (dateRange === 'this_weekend') {
+          if (dateRange === 'today') {
+            start.setHours(0, 0, 0, 0)
+            end.setHours(23, 59, 59, 999)
+          } else if (dateRange === 'this_weekend') {
             const dayOfWeek = now.getDay()
             const daysToSat = (6 - dayOfWeek + 7) % 7 || 7
             start.setDate(now.getDate() + daysToSat)
             start.setHours(0, 0, 0, 0)
             end.setDate(start.getDate() + 1)
+            end.setHours(23, 59, 59, 999)
+          } else if (dateRange === 'this_week') {
+            start.setHours(0, 0, 0, 0)
+            // End of Sunday of the current week (or 7 days out if already Sunday)
+            const daysToSun = (7 - now.getDay()) % 7 || 7
+            end.setDate(now.getDate() + daysToSun)
             end.setHours(23, 59, 59, 999)
           } else if (dateRange === 'this_month') {
             start.setHours(0, 0, 0, 0)
@@ -101,6 +114,10 @@ export function useEvents({
           query = query
             .eq('price_min', 0)
             .or('price_max.is.null,price_max.eq.0')
+        } else if (priceMax === 'under10') {
+          query = query.lte('price_min', 10)
+        } else if (priceMax === 'under25') {
+          query = query.lte('price_min', 25)
         }
 
         // ── Search ───────────────────────────────────────
@@ -138,7 +155,7 @@ export function useEvents({
 
     fetchEvents()
     return () => { cancelled = true }
-  }, [categories.join(','), dateRange, dateFrom, dateTo, search, freeOnly, sort, limit, offset])
+  }, [categories.join(','), dateRange, dateFrom, dateTo, search, freeOnly, priceMax, sort, limit, offset])
 
   const hasMore = offset + limit < total
 

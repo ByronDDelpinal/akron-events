@@ -40,6 +40,46 @@ export function stripHtml(html = '') {
     .trim()
 }
 
+/**
+ * Convert HTML to structured plain text, preserving paragraph breaks and lists.
+ * Use this instead of stripHtml when the source content is rich HTML (e.g.
+ * Eventbrite structured content) and you want readable output.
+ *
+ * Rules:
+ *   <p>, <br>, headings  → newlines
+ *   <li>                 → bullet point (•)
+ *   Everything else      → stripped
+ */
+export function htmlToText(html = '') {
+  return html
+    // Block-level breaks before stripping tags
+    .replace(/<br\s*\/?>/gi,   '\n')
+    .replace(/<\/p>/gi,        '\n\n')
+    .replace(/<\/h[1-6]>/gi,   '\n\n')
+    .replace(/<\/li>/gi,       '\n')
+    .replace(/<li[^>]*>/gi,    '\n• ')
+    .replace(/<\/ul>/gi,       '\n')
+    .replace(/<\/ol>/gi,       '\n')
+    // Strip remaining tags
+    .replace(/<[^>]*>/g, '')
+    // Decode entities (same as stripHtml)
+    .replace(/&#(\d+);/g,          (_, n) => String.fromCharCode(parseInt(n, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g,(_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&amp;/g,  '&')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g,   '<')
+    .replace(/&gt;/g,   '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201c\u201d]/g, '"')
+    // Normalise whitespace while keeping intentional newlines
+    .replace(/[ \t]+/g,   ' ')
+    .replace(/\n{3,}/g,   '\n\n')
+    .replace(/^ +| +$/gm, '')
+    .trim()
+}
+
 // Eventbrite category ID → our category enum
 export const EVENTBRITE_CATEGORY_MAP = {
   '103': 'music',        // Music

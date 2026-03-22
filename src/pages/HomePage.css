@@ -8,12 +8,13 @@
   padding-right: 20px;
   text-align: center;
   position: relative;
+  overflow: hidden; /* prevent glow from creating horizontal scroll */
 }
 .hero-glow {
   position: absolute;
   top: -80px; left: 50%;
   transform: translateX(-50%);
-  width: 780px; height: 440px;
+  width: min(780px, 200vw); height: 440px;
   background: radial-gradient(ellipse, rgba(212,146,42,0.19) 0%, transparent 62%);
   pointer-events: none;
 }
@@ -62,7 +63,7 @@
   max-width: 500px;
   margin: 0 auto;
   position: relative;
-  z-index: 1;
+  z-index: 50;
 }
 .search-input {
   width: 100%;
@@ -74,7 +75,7 @@
   font-family: var(--font-body);
   font-size: 0.93rem;
   outline: none;
-  transition: all 0.2s;
+  transition: border-radius 0.15s, border-color 0.2s, background 0.2s, box-shadow 0.2s;
 }
 .search-input::placeholder { color: rgba(255,255,255,0.33); }
 .search-input:focus {
@@ -82,12 +83,97 @@
   border-color: var(--amber);
   box-shadow: 0 0 0 3px rgba(212,146,42,0.14);
 }
+/* When dropdown is open, square off the bottom corners */
+.search-input--open {
+  border-radius: 14px 14px 0 0;
+  border-bottom-color: rgba(255,255,255,0.06);
+  box-shadow: none;
+}
 .search-icon {
   position: absolute;
   left: 16px; top: 50%;
   transform: translateY(-50%);
   color: rgba(255,255,255,0.33);
   pointer-events: none;
+}
+
+/* ── Search suggestion dropdown ── */
+.search-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0; right: 0;
+  background: #1e1c18;
+  border: 1.5px solid var(--amber);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  border-radius: 0 0 14px 14px;
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgba(10,12,8,0.55);
+  z-index: 50;
+
+  animation: suggestIn 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes suggestIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.search-suggestions-label {
+  padding: 10px 16px 6px;
+  font-family: var(--font-body);
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.3);
+  margin: 0;
+}
+
+.search-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 16px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.search-suggestion-item:first-of-type { border-top: none; }
+.search-suggestion-item:hover { background: rgba(255,255,255,0.05); }
+
+.suggestion-emoji {
+  font-size: 18px;
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.suggestion-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.suggestion-label {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.88);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-tagline {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.38);
 }
 
 /* ── STAT BAR ── */

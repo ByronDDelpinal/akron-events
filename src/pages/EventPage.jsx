@@ -139,9 +139,10 @@ export default function EventPage() {
             </div>
 
             <p className="event-section-label">About this event</p>
-            <p className="event-detail-desc">
-              {event.description ?? 'No description available.'}
-            </p>
+            {event.description
+              ? <EventDescription text={event.description} />
+              : <p className="event-detail-desc">No description available.</p>
+            }
           </div>
 
           {/* ── SIDEBAR ── */}
@@ -198,6 +199,33 @@ export default function EventPage() {
 }
 
 /* ── Sub-components ─────────────────────────────────── */
+
+/**
+ * Renders a plain-text description that was produced by htmlToText().
+ * Splits on double newlines into paragraphs; paragraphs where every line
+ * starts with "• " are rendered as <ul> lists.
+ */
+function EventDescription({ text }) {
+  const blocks = text.split(/\n\n+/).filter(Boolean)
+  return (
+    <div className="event-detail-desc">
+      {blocks.map((block, i) => {
+        const lines = block.split('\n').filter(Boolean)
+        const isList = lines.length > 1 && lines.every(l => l.trimStart().startsWith('• '))
+        if (isList) {
+          return (
+            <ul key={i} className="event-detail-list">
+              {lines.map((l, j) => (
+                <li key={j}>{l.trimStart().replace(/^•\s*/, '')}</li>
+              ))}
+            </ul>
+          )
+        }
+        return <p key={i}>{block}</p>
+      })}
+    </div>
+  )
+}
 
 function InfoRow({ icon, label, value, link, linkLabel, sub }) {
   return (

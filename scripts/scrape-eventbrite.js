@@ -43,6 +43,7 @@ import {
   logUpsertResult,
   logScraperError,
   stripHtml,
+  htmlToText,
 } from './lib/normalize.js'
 
 const DEBUG      = process.argv.includes('--debug')
@@ -844,13 +845,15 @@ async function fetchEventDetail(url, cookie) {
       }
     }
 
-    // ── Strategy 2: Structured content API ──────────────────────────────────
-    // Eventbrite serves the full event description via an internal endpoint:
-    //   /api/v3/events/{id}/structured_content/
-    // The JSON-LD description is just the summary; this returns every paragraph.
+    // ── Strategy 2: Structured content API + Events API (description + price) ─
+    // /api/v3/events/{id}/structured_content/ → full description modules
+    // /api/v3/events/{id}/?expand=ticket_availability,ticket_classes → real price
     const eventIdMatch = url.match(/tickets-(\d+)\/?$/)
     if (eventIdMatch) {
       const eventId = eventIdMatch[1]
+
+      // ── 2a: structured content (description) ────────────────────────────
+      let description = null
       const scUrl = `https://www.eventbrite.com/api/v3/events/${eventId}/structured_content/?purpose=listing&expand=none`
       try {
         const scCtrl = new AbortController()
@@ -865,29 +868,58 @@ async function fetchEventDetail(url, cookie) {
         if (scRes.ok) {
           const scData = await scRes.json()
           if (DEBUG) console.log(`  [debug]   SC API keys: ${Object.keys(scData).join(', ')}`)
-
           const modules = scData.modules ?? []
-          if (modules.length > 0) {
-            const parts = []
-            for (const mod of modules) {
-              const bodyHtml = mod?.data?.body?.html ?? mod?.data?.body?.text ?? null
-              if (bodyHtml?.trim()) { parts.push(stripHtml(bodyHtml).trim()); continue }
-              const textHtml = mod?.data?.text?.html ?? mod?.data?.text ?? null
-              if (textHtml && typeof textHtml === 'string' && textHtml.trim()) {
-                parts.push(stripHtml(textHtml).trim())
-              }
+          const parts = []
+          for (const mod of modules) {
+            const bodyHtml = mod?.data?.body?.html ?? mod?.data?.body?.text ?? null
+            if (bodyHtml?.trim()) { parts.push(htmlToText(bodyHtml).trim()); continue }
+            const textHtml = mod?.data?.text?.html ?? mod?.data?.text ?? null
+            if (textHtml && typeof textHtml === 'string' && textHtml.trim()) {
+              parts.push(htmlToText(textHtml).trim())
             }
-            const combined = parts.filter(Boolean).join('\n\n')
-            if (combined.length > 10) {
-              if (DEBUG) console.log(`  [debug]   → found via SC API (${combined.length} chars)`)
-              return { description: combined, summary: null }
-            }
+          }
+          const combined = parts.filter(Boolean).join('\n\n')
+          if (combined.length > 10) {
+            description = combined
+            if (DEBUG) console.log(`  [debug]   → SC API description: ${combined.length} chars`)
           }
         } else {
           if (DEBUG) console.log(`  [debug]   SC API HTTP ${scRes.status}`)
         }
       } catch (e) {
         if (DEBUG) console.log(`  [debug]   SC API error: ${e.message}`)
+      }
+
+      // ── 2b: events API (accurate pricing) ───────────────────────────────
+      let priceData = null
+      const evUrl = `https://www.eventbrite.com/api/v3/events/${eventId}/?expand=ticket_availability,ticket_classes`
+      try {
+        const evCtrl = new AbortController()
+        const evTid  = setTimeout(() => evCtrl.abort(), DETAIL_TIMEOUT_MS)
+        const evRes  = await fetch(evUrl, {
+          headers: apiHeaders(cookie, null, url),
+          redirect: 'follow',
+          signal:   evCtrl.signal,
+        })
+        clearTimeout(evTid)
+
+        if (evRes.ok) {
+          const evData = await evRes.json()
+          if (DEBUG) console.log(`  [debug]   Events API is_free=${evData.is_free}, ta=${JSON.stringify(evData.ticket_availability?.minimum_ticket_price)}`)
+          priceData = {
+            is_free:              evData.is_free ?? false,
+            ticket_availability:  evData.ticket_availability  ?? null,
+            ticket_classes:       evData.ticket_classes        ?? [],
+          }
+        } else {
+          if (DEBUG) console.log(`  [debug]   Events API HTTP ${evRes.status}`)
+        }
+      } catch (e) {
+        if (DEBUG) console.log(`  [debug]   Events API error: ${e.message}`)
+      }
+
+      if (description || priceData) {
+        return { description, summary: null, priceData }
       }
     }
 
@@ -953,56 +985,52 @@ async function fetchEventDetail(url, cookie) {
 }
 
 /**
- * Enrich raw events in-place with full descriptions from their detail pages.
+ * Enrich raw events in-place with full descriptions and accurate pricing.
  *
- * Only fetches events that are missing a description or have a very short one.
+ * We fetch details for ALL events, not just those missing descriptions, because:
+ *   1. Pricing from the events API is always more accurate than search results
+ *   2. Search-result summaries can be 100+ chars yet still lack the full description
+ *
  * Runs in small parallel batches with jitter to stay polite.
  */
 async function enrichWithDetails(rawEvents, cookie) {
-  const needsDetail = rawEvents.filter(ev => {
-    const existing =
-      ev.description?.text ??
-      ev.summary ??
-      (typeof ev.description === 'string' ? ev.description : null)
-    return !existing || existing.trim().length < DETAIL_MIN_DESC_LEN
-  })
-
-  if (needsDetail.length === 0) {
-    console.log('  All events already have descriptions — skipping detail pass.')
-    return
-  }
-
-  console.log(`\n📄  Fetching details for ${needsDetail.length} / ${rawEvents.length} events…`)
+  console.log(`\n📄  Fetching details for all ${rawEvents.length} events…`)
 
   let enriched = 0
   let failed   = 0
 
-  for (let i = 0; i < needsDetail.length; i += DETAIL_BATCH_SIZE) {
-    const batch = needsDetail.slice(i, i + DETAIL_BATCH_SIZE)
+  for (let i = 0; i < rawEvents.length; i += DETAIL_BATCH_SIZE) {
+    const batch = rawEvents.slice(i, i + DETAIL_BATCH_SIZE)
 
     await Promise.all(batch.map(async (ev) => {
       const url = ev.url ?? ev.ticket_url
       if (!url) { failed++; return }
 
       const detail = await fetchEventDetail(url, cookie)
-      if (detail?.description) {
-        // Patch the raw event object so normaliseEvent picks it up
-        if (!ev.description || typeof ev.description !== 'object') {
-          ev.description = {}
+      if (detail?.description || detail?.priceData) {
+        // Patch description
+        if (detail.description) {
+          if (!ev.description || typeof ev.description !== 'object') ev.description = {}
+          ev.description.text = detail.description
+          if (detail.summary && !ev.summary) ev.summary = detail.summary
         }
-        ev.description.text = detail.description
-        if (detail.summary && !ev.summary) ev.summary = detail.summary
+        // Patch price — overwrite search-result pricing with the accurate events API data
+        if (detail.priceData) {
+          ev.is_free             = detail.priceData.is_free
+          ev.ticket_availability = detail.priceData.ticket_availability
+          ev.ticket_classes      = detail.priceData.ticket_classes
+        }
         enriched++
       } else {
         failed++
       }
     }))
 
-    const done = Math.min(i + DETAIL_BATCH_SIZE, needsDetail.length)
-    process.stdout.write(`\r  Details: ${done} / ${needsDetail.length} (${enriched} enriched, ${failed} failed)   `)
+    const done = Math.min(i + DETAIL_BATCH_SIZE, rawEvents.length)
+    process.stdout.write(`\r  Details: ${done} / ${rawEvents.length} (${enriched} enriched, ${failed} failed)   `)
 
     // Jitter between batches — skip delay after the last one
-    if (i + DETAIL_BATCH_SIZE < needsDetail.length) await detailJitter()
+    if (i + DETAIL_BATCH_SIZE < rawEvents.length) await detailJitter()
   }
 
   console.log(`\n  ✓ Detail pass complete: ${enriched} enriched, ${failed} without description`)
