@@ -54,9 +54,10 @@ export default function FilterBar({
   return (
     <div className="filter-bar">
       <div className="filter-inner">
-        <div className="filter-row">
 
-          {/* Category chips — "All" active when nothing selected; others toggle independently */}
+        {/* Scrollable chips — overflow-x: auto, no toggle inside */}
+        <div className="filter-chips">
+
           {CATEGORIES.map((c) => {
             const isAll    = c.value === null
             const isActive = isAll ? categories.length === 0 : categories.includes(c.value)
@@ -73,7 +74,6 @@ export default function FilterBar({
 
           <div className="f-divider" />
 
-          {/* Date range chips */}
           {DATE_RANGES.map((d) => (
             <button
               key={d.value}
@@ -86,7 +86,6 @@ export default function FilterBar({
 
           <div className="f-divider" />
 
-          {/* Free */}
           <button
             className={`chip ${freeOnly ? 'active' : ''}`}
             onClick={() => onFreeOnly(!freeOnly)}
@@ -94,8 +93,10 @@ export default function FilterBar({
             Free
           </button>
 
-          <div className="f-divider" />
+        </div>
 
+        {/* Fixed right section — never scrolls */}
+        <div className="filter-actions">
           {view === 'list' && (
             <select
               className="sort-select"
@@ -108,7 +109,6 @@ export default function FilterBar({
             </select>
           )}
 
-          {/* List / Map view toggle — pinned to the right */}
           <div className="view-toggle" role="group" aria-label="View mode">
             <button
               className={`view-toggle-btn ${view === 'list' ? 'active' : ''}`}
@@ -127,8 +127,8 @@ export default function FilterBar({
               <MapIcon /> Map
             </button>
           </div>
-
         </div>
+
       </div>
     </div>
   )

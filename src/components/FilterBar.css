@@ -9,16 +9,33 @@
   max-width: 1120px;
   margin: 0 auto;
   padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.filter-row {
+
+/* Scrollable pill area */
+.filter-chips {
   display: flex;
   gap: 6px;
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
   align-items: center;
+  flex: 1;
+  min-width: 0; /* allow shrinking */
 }
-.filter-row::-webkit-scrollbar { display: none; }
+.filter-chips::-webkit-scrollbar { display: none; }
+
+/* Fixed right-hand controls — always visible */
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding-left: 6px;
+  border-left: 1px solid var(--border);
+}
 
 .chip {
   display: inline-flex;
@@ -69,7 +86,6 @@
   border-radius: 22px;
   padding: 3px;
   gap: 2px;
-  margin-left: auto;  /* push to the right end of the row */
   flex-shrink: 0;
 }
 
