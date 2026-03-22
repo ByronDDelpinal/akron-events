@@ -191,9 +191,20 @@ export default function HomePage() {
             let midPromoShown = false
             const midThreshold = getMidPromoThreshold()
             return grouped.map(([dateKey, dayEvents]) => {
-              const items = dayEvents.map((event, i) => {
+              const items = []
+              for (let i = 0; i < dayEvents.length; i++) {
+                const event = dayEvents[i]
+                // Inject promo into the grid at the exact threshold position
+                if (!midPromoShown && cardIdx >= midThreshold) {
+                  items.push(
+                    <div key="__mid-promo__" className="cards-grid-promo">
+                      <GridPromo />
+                    </div>
+                  )
+                  midPromoShown = true
+                }
                 const delay = cardIdx++ * 28
-                return (
+                items.push(
                   <div
                     key={event.id}
                     className="card-enter"
@@ -205,17 +216,12 @@ export default function HomePage() {
                     />
                   </div>
                 )
-              })
-              const showMidPromo = !midPromoShown && cardIdx >= midThreshold
-              if (showMidPromo) midPromoShown = true
+              }
               return (
-                <Fragment key={`${resultsKey}-${dateKey}`}>
-                  <div>
-                    <DateHeading dateKey={dateKey} />
-                    <div className="cards-grid">{items}</div>
-                  </div>
-                  {showMidPromo && <GridPromo />}
-                </Fragment>
+                <div key={`${resultsKey}-${dateKey}`}>
+                  <DateHeading dateKey={dateKey} />
+                  <div className="cards-grid">{items}</div>
+                </div>
               )
             })
           })()}

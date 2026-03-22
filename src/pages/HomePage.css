@@ -228,14 +228,17 @@
 .btn-clear:hover { border-color: var(--amber); color: var(--amber); }
 
 /* ── GRID PROMO ── */
+/* When used as a standalone end-of-grid block */
 .grid-promo {
   margin: 8px 0 24px;
-  padding: 0 20px;
-  max-width: 900px;
-  margin-left: auto;
-  margin-right: auto;
   width: 100%;
   box-sizing: border-box;
+}
+
+/* When injected inside .cards-grid, no extra padding needed */
+.cards-grid-promo .grid-promo {
+  margin: 0;
+  padding: 0;
 }
 
 .grid-promo-inner {
@@ -258,6 +261,8 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
   gap: 8px;
   padding: 24px 28px;
 }
@@ -315,10 +320,16 @@
   cursor: pointer;
   text-decoration: none;
   transition: background 0.15s, color 0.15s;
-  align-self: flex-start;
+  align-self: center;
 }
 
 .grid-promo-btn:hover {
   background: var(--amber);
   color: #fff;
+}
+
+/* Promo injected inside the event grid — spans all columns */
+.cards-grid-promo {
+  grid-column: 1 / -1;
+  margin: 4px 0;
 }
