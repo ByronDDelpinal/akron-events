@@ -23,7 +23,7 @@ footer {
   background: var(--amber);
   flex-shrink: 0;
 }
-.footer-tagline { font-size: 0.74rem; color: rgba(255,255,255,0.28); margin-bottom: 18px; }
+.footer-tagline { font-size: var(--text-xs); color: rgba(255,255,255,0.28); margin-bottom: 18px; }
 .footer-links {
   display: flex;
   gap: 24px;
@@ -32,10 +32,10 @@ footer {
   margin-bottom: 20px;
 }
 .footer-links a {
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   color: rgba(255,255,255,0.4);
   text-decoration: none;
   transition: color 0.15s;
 }
 .footer-links a:hover { color: var(--amber); }
-.footer-copy { font-size: 0.7rem; color: rgba(255,255,255,0.18); }
+.footer-copy { font-size: var(--text-tag); color: rgba(255,255,255,0.18); }

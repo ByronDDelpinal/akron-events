@@ -1,0 +1,112 @@
+/* ── Searchable Multi-Select ── */
+/* Shared component used across admin and public pages */
+
+.sms-wrap {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+/* ── Selected pills ── */
+.sms-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.sms-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 5px 12px;
+  background: var(--amber);
+  color: var(--chip-active-txt);
+  border-radius: 20px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.sms-pill-x {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: rgba(255,255,255,0.25);
+  border-radius: 50%;
+  font-size: var(--text-tiny);
+  color: var(--chip-active-txt);
+  cursor: pointer;
+  transition: background 0.12s;
+  line-height: 1;
+}
+.sms-pill-x:hover {
+  background: rgba(255,255,255,0.45);
+}
+
+/* ── Search input ── */
+.sms-input-wrap {
+  position: relative;
+}
+.sms-input {
+  font-size: var(--text-sm) !important;
+  margin-bottom: 0;
+}
+
+/* ── Dropdown ── */
+.sms-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  max-height: 240px;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+.sms-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 9px 14px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-body);
+  transition: background 0.1s;
+}
+.sms-option:hover {
+  background: var(--amber-pale);
+}
+.sms-option--taken {
+  opacity: 0.6;
+}
+
+.sms-option-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.sms-option-sub {
+  font-size: var(--text-xxs);
+  color: var(--text-muted);
+}
+
+.sms-taken-note {
+  font-size: var(--text-xxs);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.sms-empty {
+  padding: 14px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-align: center;
+}

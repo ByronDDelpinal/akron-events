@@ -15,6 +15,7 @@ export default function Footer() {
       <div className="footer-links">
         <Link to="/">Browse Events</Link>
         <Link to="/submit">Submit an Event</Link>
+        <Link to="/subscribe">Get the Newsletter</Link>
         <Link to="/about">About</Link>
       </div>
       <p className="footer-copy">© {new Date().getFullYear()} Turnout · Made with ♥ in Akron, OH</p>

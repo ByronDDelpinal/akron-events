@@ -13,7 +13,7 @@
 }
 .venues-hero-eyebrow {
   font-family: var(--font-display);
-  font-size: 0.7rem;
+  font-size: var(--text-tag);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -30,7 +30,7 @@
   margin-bottom: 14px;
 }
 .venues-hero-sub {
-  font-size: 0.92rem;
+  font-size: var(--text-base);
   color: rgba(255, 255, 255, 0.5);
   line-height: 1.65;
   max-width: 480px;
@@ -38,7 +38,7 @@
 
 /* ── Body ── */
 .venues-body {
-  max-width: 1120px;
+  max-width: var(--width-full);
   margin: 0 auto;
   padding: 36px 20px 100px;
 }
@@ -70,7 +70,7 @@
   width: 100%;
   padding: 10px 40px 10px 40px;
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: var(--text-base);
   color: var(--text-primary);
   background: var(--bg-card);
   border: 1.5px solid var(--border);
@@ -87,7 +87,7 @@
   border: none;
   cursor: pointer;
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   padding: 4px;
   line-height: 1;
   transition: color 0.12s;
@@ -95,7 +95,7 @@
 .venues-search-clear:hover { color: var(--text-primary); }
 .venues-count {
   font-family: var(--font-display);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-muted);
   letter-spacing: 0.01em;
@@ -107,10 +107,10 @@
   text-align: center;
   padding: 72px 20px;
   color: var(--text-muted);
-  font-size: 0.92rem;
+  font-size: var(--text-base);
 }
 .venues-state-sub {
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   margin-top: 6px;
   opacity: 0.7;
 }
@@ -123,7 +123,7 @@
   border-radius: 7px;
   padding: 7px 16px;
   font-family: var(--font-display);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-secondary);
   cursor: pointer;
@@ -193,7 +193,7 @@
 }
 .venue-card-name {
   font-family: var(--font-display);
-  font-size: 0.95rem;
+  font-size: var(--text-lg);
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.01em;
@@ -206,7 +206,7 @@
   overflow: hidden;
 }
 .venue-card-address {
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   line-height: 1.45;
   margin-bottom: 10px;
@@ -223,7 +223,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.72rem;
+  font-size: var(--text-xxs);
   font-weight: 500;
   color: var(--text-muted);
   background: var(--chip-bg);
@@ -243,7 +243,7 @@
   display: flex;
   align-items: center;
   padding-right: 16px;
-  font-size: 0.95rem;
+  font-size: var(--text-lg);
   color: var(--text-muted);
   opacity: 0;
   transition: opacity 0.15s, transform 0.12s;

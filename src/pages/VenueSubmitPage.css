@@ -25,7 +25,7 @@
   width: 28px; height: 28px;
   display: flex; align-items: center; justify-content: center;
   border: none; background: var(--bg-card);
-  border-radius: 6px; font-size: 0.8rem;
+  border-radius: 6px; font-size: var(--text-sm);
   cursor: pointer; color: var(--text-muted);
   transition: all 0.12s;
   margin-top: 6px;
@@ -40,7 +40,7 @@
   border: 1px dashed var(--amber-border);
   border-radius: 8px;
   font-family: var(--font-display);
-  font-size: 0.78rem; font-weight: 600;
+  font-size: var(--text-sm); font-weight: 600;
   color: var(--amber);
   cursor: pointer;
   transition: all 0.12s;
@@ -48,7 +48,7 @@
 }
 .venue-add-area-btn:hover {
   background: var(--amber);
-  color: #FFFFFF;
+  color: var(--chip-active-txt);
   border-style: solid;
 }
 
@@ -70,7 +70,7 @@
 }
 .inline-venue-title {
   font-family: var(--font-display);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -78,7 +78,7 @@
   background: transparent;
   border: none;
   font-family: var(--font-body);
-  font-size: 0.76rem;
+  font-size: var(--text-sm);
   color: var(--coral);
   cursor: pointer;
   padding: 4px 8px;

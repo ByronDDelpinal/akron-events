@@ -3,6 +3,15 @@
   --font-display: 'Space Grotesk', system-ui, sans-serif;
   --font-body:    'DM Sans', system-ui, sans-serif;
 
+  /* Type scale */
+  --text-lg:   0.95rem;   /* Body text, descriptions               */
+  --text-base: 0.88rem;   /* Secondary body, form inputs            */
+  --text-sm:   0.82rem;   /* UI labels, pills, small body           */
+  --text-xs:   0.78rem;   /* Captions, pill text, fine print        */
+  --text-xxs:  0.73rem;   /* Hints, helper text, form labels        */
+  --text-tag:  0.7rem;    /* Eyebrows, section labels, tags         */
+  --text-tiny: 0.64rem;   /* Smallest labels, badges                */
+
   --bg-page:       #FAF6EF;
   --bg-card:       #FFFFFF;
   --bg-secondary:  #F0EAE0;
@@ -33,6 +42,10 @@
 
   --shadow-card:  0 1px 3px rgba(25,35,15,0.06), 0 4px 14px rgba(25,35,15,0.07);
   --shadow-hover: 0 4px 8px rgba(25,35,15,0.07), 0 14px 36px rgba(25,35,15,0.13);
+
+  /* Layout widths */
+  --width-full:    1120px;    /* Main content pages (home, venues, events, orgs) */
+  --width-narrow:  640px;     /* Forms, about, subscribe, preferences */
 
   --tag-music-bg:     #E4F0E6; --tag-music-txt:     #1A5428;
   --tag-art-bg:       #F2E8FA; --tag-art-txt:       #621A80;
@@ -91,7 +104,7 @@ button { font-family: inherit; }
    UTILITY
 ════════════════════════════════ */
 .content {
-  max-width: 1120px;
+  max-width: var(--width-full);
   margin: 0 auto;
   padding: 0 20px;
 }

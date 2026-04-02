@@ -11,16 +11,16 @@
 }
 .about-hero h2 span { color: var(--amber); }
 .about-hero p {
-  font-size: 0.92rem; color: rgba(255,255,255,0.48);
+  font-size: var(--text-base); color: rgba(255,255,255,0.48);
   max-width: 460px; margin: 0 auto; line-height: 1.65;
 }
-.about-body-wrap { max-width: 640px; margin: 44px auto; padding: 0 20px 80px; }
+.about-body-wrap { max-width: var(--width-full); margin: 44px auto; padding: 0 20px 80px; }
 .about-bar {
   height: 3px; width: 56px; border-radius: 2px; margin-bottom: 28px;
   background: linear-gradient(90deg, var(--amber), var(--green-mid), var(--coral));
 }
 .about-p {
-  font-size: 0.93rem; line-height: 1.78;
+  font-size: var(--text-lg); line-height: 1.78;
   color: var(--text-secondary); margin-bottom: 18px;
 }
 .about-p a { color: var(--amber); font-weight: 600; text-decoration: none; }
@@ -68,20 +68,20 @@
 .persona-text { flex: 1; min-width: 0; }
 .persona-label {
   font-family: var(--font-display);
-  font-size: 0.9rem;
+  font-size: var(--text-base);
   font-weight: 700;
   color: var(--text-primary);
   margin: 0 0 2px;
   letter-spacing: -0.01em;
 }
 .persona-desc {
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   margin: 0;
   line-height: 1.45;
 }
 .persona-arrow {
-  font-size: 0.95rem;
+  font-size: var(--text-lg);
   color: var(--amber);
   opacity: 0.6;
   flex-shrink: 0;
@@ -105,7 +105,7 @@
   background: var(--bg-nav);
   color: rgba(255,255,255,0.88);
   font-family: var(--font-display);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   font-weight: 700;
   letter-spacing: 0.01em;
   padding: 9px 18px;

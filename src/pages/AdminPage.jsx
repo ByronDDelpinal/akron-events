@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
+import SearchableMultiSelect from '@/components/SearchableMultiSelect'
 import './AdminPage.css'
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -144,82 +145,6 @@ function OverrideToggle({ field, overrides, onToggle }) {
     >
       {isLocked ? '🔒' : '🔓'}
     </button>
-  )
-}
-
-function VenueMultiSelect({ allVenues, selectedIds, orgId, onChange }) {
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-  const [search, setSearch] = useState('')
-  const dropdownRef = useRef(null)
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    if (!dropdownOpen) return
-    const handler = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setDropdownOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [dropdownOpen])
-
-  const selectedVenues = allVenues.filter(v => selectedIds.includes(v.id))
-  const unselected = allVenues.filter(v => !selectedIds.includes(v.id))
-  const filtered = search.trim()
-    ? unselected.filter(v => v.name.toLowerCase().includes(search.trim().toLowerCase()))
-    : unselected
-
-  const remove = (id) => onChange(selectedIds.filter(x => x !== id))
-  const add = (id) => { onChange([...selectedIds, id]) }
-
-  return (
-    <div className="venue-multiselect" ref={dropdownRef}>
-      {/* Selected pills */}
-      {selectedVenues.length > 0 && (
-        <div className="venue-ms-pills">
-          {selectedVenues.map(v => (
-            <span key={v.id} className="venue-ms-pill">
-              {v.name}
-              <button type="button" className="venue-ms-pill-x" onClick={() => remove(v.id)} aria-label={`Remove ${v.name}`}>✕</button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Dropdown trigger / search input */}
-      <div className="venue-ms-input-wrap">
-        <input
-          className="form-input venue-ms-input"
-          type="text"
-          placeholder={selectedVenues.length > 0 ? 'Add another venue…' : 'Search and select venues…'}
-          value={search}
-          onChange={e => { setSearch(e.target.value); setDropdownOpen(true) }}
-          onFocus={() => setDropdownOpen(true)}
-        />
-      </div>
-
-      {/* Dropdown list */}
-      {dropdownOpen && (
-        <div className="venue-ms-dropdown">
-          {filtered.length === 0 && (
-            <div className="venue-ms-empty">{search ? 'No venues match' : 'All venues selected'}</div>
-          )}
-          {filtered.map(v => {
-            const ownedByOther = v.organization_id && v.organization_id !== orgId
-            return (
-              <button
-                key={v.id}
-                type="button"
-                className={`venue-ms-option ${ownedByOther ? 'venue-ms-option--taken' : ''}`}
-                onClick={() => add(v.id)}
-              >
-                {v.name}
-                {ownedByOther && <span className="venue-ms-taken-note">owned by other org</span>}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
   )
 }
 
@@ -1084,11 +1009,12 @@ function OrgEditModal({ org, isNew, allVenues, onSave, onClose }) {
           </div>
 
           <div className="admin-section-label">Owned Venues</div>
-          <VenueMultiSelect
-            allVenues={allVenues ?? []}
+          <SearchableMultiSelect
+            allEntities={allVenues ?? []}
             selectedIds={ownedVenueIds}
-            orgId={org.id}
             onChange={setOwnedVenueIds}
+            placeholder="Search and select venues…"
+            disabledLabel={v => v.organization_id && v.organization_id !== org.id ? 'owned by other org' : null}
           />
 
           <div className="admin-modal-footer">

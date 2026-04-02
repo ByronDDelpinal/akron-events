@@ -12,6 +12,9 @@ import VenueSubmitPage from '@/pages/VenueSubmitPage'
 import OrganizationsPage     from '@/pages/OrganizationsPage'
 import OrganizationDetailPage from '@/pages/OrganizationDetailPage'
 import OrganizationSubmitPage from '@/pages/OrganizationSubmitPage'
+import SubscribePage     from '@/pages/SubscribePage'
+import PreferencesPage   from '@/pages/PreferencesPage'
+import UnsubscribePage   from '@/pages/UnsubscribePage'
 
 // Admin pages
 import AdminLayout from '@/pages/admin/AdminLayout'
@@ -52,6 +55,9 @@ function AppInner() {
           <Route path="/organizations"       element={<OrganizationsPage />} />
           <Route path="/organizations/submit" element={<OrganizationSubmitPage />} />
           <Route path="/organizations/:id"   element={<OrganizationDetailPage />} />
+          <Route path="/subscribe"               element={<SubscribePage />} />
+          <Route path="/subscribe/preferences"   element={<PreferencesPage />} />
+          <Route path="/unsubscribe"             element={<UnsubscribePage />} />
 
           {/* Admin — nested routing with shared layout */}
           <Route path="/admin" element={<AdminLayout />}>

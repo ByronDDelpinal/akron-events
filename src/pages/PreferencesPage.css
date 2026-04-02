@@ -1,0 +1,201 @@
+/* ── Preferences Page ── */
+
+.prefs-shell { max-width: var(--width-narrow); }
+
+.prefs-sub { text-align: left; }
+
+.prefs-hint {
+  margin-bottom: 12px;
+  margin-top: 0;
+}
+
+.prefs-no-token {
+  text-align: center;
+  padding: 60px 0;
+}
+
+.amber-link {
+  color: var(--amber);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.amber-link:hover { color: var(--amber-hover); }
+
+/* ── Category chips ── */
+.cat-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.cat-chip:hover:not(:disabled) {
+  border-color: var(--border-mid);
+}
+.cat-chip:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.cat-chip.cat-active {
+  border-color: var(--amber);
+  background: var(--amber-pale);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.cat-chip.cat-from-intent {
+  border-style: dashed;
+}
+.cat-emoji { font-size: var(--text-lg); }
+
+/* ── Checkbox (keyword title-only, etc.) ── */
+.prefs-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  margin-bottom: 20px;
+  font-family: var(--font-body);
+  font-size: var(--text-xxs);
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.prefs-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--amber);
+  cursor: pointer;
+}
+
+/* ── Price & Age pill overrides ── */
+.pill-group-sm {
+  flex-wrap: wrap;
+}
+.pill.pill-sm {
+  flex: none;
+  padding: 8px 12px;
+  font-size: var(--text-xs);
+}
+.prefs-row {
+  margin-bottom: 8px;
+}
+@media (max-width: 500px) {
+  .prefs-row { grid-template-columns: 1fr; }
+}
+
+/* ── Day-of-week filter ── */
+.day-shortcuts {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.day-grid {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 24px;
+}
+
+.day-chip {
+  flex: 1;
+  padding: 10px 4px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: var(--text-xxs);
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.day-chip:hover {
+  border-color: var(--border-mid);
+  color: var(--text-secondary);
+}
+.day-chip.day-active {
+  border-color: var(--amber);
+  background: var(--amber);
+  color: var(--chip-active-txt);
+}
+
+/* ── Location filter ── */
+.location-section {
+  margin-bottom: 24px;
+}
+
+.location-mode-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.area-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.area-chip {
+  padding: 8px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.area-chip:hover {
+  border-color: var(--border-mid);
+}
+.area-chip.area-active {
+  border-color: var(--amber);
+  background: var(--amber-pale);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.zipcode-row {
+  margin-bottom: 12px;
+}
+.zipcode-input {
+  max-width: 160px;
+}
+
+.radius-group {
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+
+/* ── Save button state ── */
+.prefs-save-btn { margin-top: 12px; }
+
+.prefs-saved-msg {
+  font-size: var(--text-xs);
+  color: var(--green-mid);
+  text-align: center;
+  margin-top: 10px;
+  font-weight: 600;
+}

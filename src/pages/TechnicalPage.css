@@ -6,10 +6,10 @@
   padding: 52px 20px 44px;
   text-align: center;
 }
-.tp-hero__inner { max-width: 600px; margin: 0 auto; }
+.tp-hero__inner { max-width: var(--width-narrow); margin: 0 auto; }
 .tp-hero__eyebrow {
   font-family: var(--font-display);
-  font-size: 0.7rem;
+  font-size: var(--text-tag);
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -25,7 +25,7 @@
   margin-bottom: 12px;
 }
 .tp-hero__sub {
-  font-size: 0.9rem;
+  font-size: var(--text-base);
   color: rgba(255,255,255,0.46);
   line-height: 1.65;
 }
@@ -63,7 +63,7 @@
 }
 .tp-stat__num--alert { color: var(--coral); }
 .tp-stat__label {
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -86,7 +86,7 @@
   margin-bottom: 6px;
 }
 .tp-section__desc {
-  font-size: 0.88rem;
+  font-size: var(--text-base);
   color: var(--text-muted);
   line-height: 1.65;
   max-width: 620px;
@@ -122,7 +122,7 @@
 }
 .tp-source__name {
   font-family: var(--font-display);
-  font-size: 0.95rem;
+  font-size: var(--text-lg);
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.01em;
@@ -136,12 +136,12 @@
   flex-shrink: 0;
 }
 .tp-source__venue {
-  font-size: 0.77rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   margin-bottom: 3px;
 }
 .tp-source__detail {
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   color: var(--amber);
   font-weight: 600;
   margin-bottom: 9px;
@@ -150,7 +150,7 @@
 }
 .tp-source--degraded .tp-source__detail { color: var(--coral); }
 .tp-source__notes {
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   line-height: 1.6;
   margin-bottom: 12px;
@@ -165,7 +165,7 @@
 }
 .tp-source__count,
 .tp-source__lastrun {
-  font-size: 0.73rem;
+  font-size: var(--text-xxs);
   color: var(--text-muted);
   font-weight: 500;
 }
@@ -174,7 +174,7 @@
 /* ── Badges ── */
 .tp-badge {
   font-family: var(--font-display);
-  font-size: 0.64rem;
+  font-size: var(--text-tiny);
   font-weight: 700;
   letter-spacing: 0.05em;
   padding: 2px 7px;
@@ -187,7 +187,7 @@
 
 .tp-method {
   font-family: var(--font-display);
-  font-size: 0.6rem;
+  font-size: var(--text-tiny);
   font-weight: 700;
   letter-spacing: 0.04em;
   padding: 2px 7px;
@@ -200,27 +200,27 @@
 .tp-method--html-scrape { background: var(--amber-pale); color: #7a4e08; }
 
 /* ── Health table ── */
-.tp-loading { font-size: 0.88rem; color: var(--text-muted); padding: 20px 0; }
+.tp-loading { font-size: var(--text-base); color: var(--text-muted); padding: 20px 0; }
 .tp-error   {
-  font-size: 0.85rem; color: var(--coral);
+  font-size: var(--text-sm); color: var(--coral);
   background: var(--coral-pale);
   border-radius: 8px; padding: 14px 16px;
 }
 .tp-empty   {
-  font-size: 0.88rem; color: var(--text-muted);
+  font-size: var(--text-base); color: var(--text-muted);
   background: var(--bg-secondary);
   border-radius: 8px; padding: 20px 18px;
 }
 .tp-empty code {
   background: var(--border); border-radius: 4px;
-  padding: 1px 6px; font-size: 0.82rem;
+  padding: 1px 6px; font-size: var(--text-sm);
 }
 
 .tp-table-wrap { overflow-x: auto; }
 .tp-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.84rem;
+  font-size: var(--text-sm);
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
@@ -232,7 +232,7 @@
 }
 .tp-table th {
   font-family: var(--font-display);
-  font-size: 0.7rem;
+  font-size: var(--text-tag);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -257,7 +257,7 @@
 .tp-row__name {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 0.88rem;
+  font-size: var(--text-base);
   white-space: nowrap;
 }
 .tp-row__time {
@@ -267,18 +267,18 @@
 }
 .tp-row__time-rel {
   font-weight: 600;
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   color: var(--text-primary);
 }
 .tp-row__time-abs {
-  font-size: 0.72rem;
+  font-size: var(--text-xxs);
   color: var(--text-muted);
 }
 
 /* Health badges */
 .tp-health {
   font-family: var(--font-display);
-  font-size: 0.69rem;
+  font-size: var(--text-tiny);
   font-weight: 700;
   letter-spacing: 0.04em;
   padding: 3px 8px;
@@ -299,7 +299,7 @@
 }
 .tp-alerts__title {
   font-family: var(--font-display);
-  font-size: 0.72rem;
+  font-size: var(--text-xxs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -313,7 +313,7 @@
   gap: 12px;
   align-items: baseline;
   padding: 9px 14px;
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   border-bottom: 1px solid rgba(196,83,42,0.15);
   background: rgba(250,234,228,0.3);
 }
@@ -354,14 +354,14 @@
 .tp-how-step__body strong {
   display: block;
   font-family: var(--font-display);
-  font-size: 0.9rem;
+  font-size: var(--text-base);
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 5px;
   letter-spacing: -0.01em;
 }
 .tp-how-step__body p {
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   line-height: 1.6;
 }
@@ -369,7 +369,7 @@
   background: var(--chip-bg);
   border-radius: 4px;
   padding: 1px 5px;
-  font-size: 0.76rem;
+  font-size: var(--text-sm);
   color: var(--text-primary);
 }
 

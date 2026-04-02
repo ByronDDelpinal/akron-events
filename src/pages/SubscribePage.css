@@ -1,0 +1,178 @@
+/* ── Subscribe Page ── */
+
+.subscribe-shell { max-width: var(--width-narrow); }
+
+.subscribe-title {
+  font-family: var(--font-display);
+  font-size: 1.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+  text-align: center;
+}
+.subscribe-sub {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+/* ── Intent cards grid ── */
+.intent-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 24px;
+}
+@media (max-width: 500px) {
+  .intent-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.intent-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 8px;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  font-family: var(--font-body);
+}
+.intent-card:hover {
+  border-color: var(--border-mid);
+  box-shadow: var(--shadow-card);
+}
+.intent-card.intent-active {
+  border-color: var(--amber);
+  background: var(--amber-pale);
+  box-shadow: 0 0 0 3px rgba(212,146,42,0.1);
+}
+.intent-emoji {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.intent-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: center;
+}
+.intent-active .intent-label {
+  color: var(--text-primary);
+}
+
+/* ── Pill toggles (frequency, lookahead) ── */
+.pill-group {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.pill {
+  flex: 1;
+  padding: 11px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  text-align: center;
+}
+.pill:hover {
+  border-color: var(--border-mid);
+}
+.pill.pill-active {
+  border-color: var(--amber);
+  background: var(--amber);
+  color: var(--chip-active-txt);
+}
+
+/* ── Subscribe button ── */
+.subscribe-btn {
+  margin-top: 8px;
+}
+
+/* ── Fine print ── */
+.subscribe-fine-print {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 14px;
+  line-height: 1.55;
+  padding: 0 12px;
+}
+
+/* ── Already subscribed section ── */
+.subscribe-existing {
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+.subscribe-existing-text {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-align: center;
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--amber);
+  font-weight: 600;
+  font-family: var(--font-body);
+  font-size: inherit;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link-btn:hover { color: var(--amber-hover); }
+
+/* ── Magic link form ── */
+.magic-link-form { text-align: center; }
+.magic-link-label {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.magic-link-row {
+  display: flex;
+  gap: 8px;
+}
+.magic-link-input { flex: 1; }
+.magic-link-btn {
+  width: auto;
+  padding: 11px 20px;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  margin-top: 0;
+}
+.magic-link-sent {
+  font-size: var(--text-xs);
+  color: var(--green-mid);
+  margin-top: 10px;
+  font-weight: 600;
+}
+
+/* ── Success state ── */
+.success-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.success-text {
+  font-size: var(--text-lg);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+.success-hint {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
