@@ -328,8 +328,25 @@ export async function ensureVenue(name, details = {}) {
  *                       are now in junction tables)
  * @returns {{ data, error, isNew: boolean }}
  */
+/**
+ * Sanitize text fields on an event row before upsert.
+ * Decodes HTML entities and strips stray tags from title and description.
+ * Exported so tests can verify the same logic without hitting the DB.
+ */
+export function sanitizeEventText(row) {
+  return {
+    ...row,
+    title:       row.title       ? stripHtml(row.title)       : row.title,
+    description: row.description ? stripHtml(row.description) : row.description,
+  }
+}
+
 export async function upsertEventSafe(row) {
-  const safeRow = await _stripOverriddenFields('events', row)
+  // Sanitize text fields — decode HTML entities and strip any stray tags.
+  // This catches cases where scrapers pass raw API titles containing entities
+  // like &#8217; or &amp; that would otherwise appear verbatim in the DB.
+  const sanitized = sanitizeEventText(row)
+  const safeRow = await _stripOverriddenFields('events', sanitized)
   const { data, error } = await supabaseAdmin
     .from('events')
     .upsert(safeRow, { onConflict: 'source,source_id', ignoreDuplicates: false })

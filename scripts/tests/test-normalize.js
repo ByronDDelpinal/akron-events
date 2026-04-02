@@ -23,6 +23,7 @@ const {
   stripHtml,
   htmlToText,
   easternToIso,
+  sanitizeEventText,
   parseCostFromTribe,
   parseTagsFromTribe,
   parseEventbritePrice,
@@ -476,5 +477,152 @@ describe('Insert payload construction (NOT NULL DEFAULT safety)', () => {
       tags: null,
     })
     assert.deepEqual(Object.keys(row), ['name'], 'only name should remain when all details are null')
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// sanitizeEventText — upsert-time HTML entity decoding
+// ════════════════════════════════════════════════════════════════════════════
+//
+// This is the safety net that catches HTML entities in titles/descriptions
+// that scrapers forgot to decode. Every event goes through upsertEventSafe →
+// sanitizeEventText before hitting the database.
+
+describe('sanitizeEventText', () => {
+  it('decodes &#8217; (right single quote) in title — the Lil Sprouts bug', () => {
+    const row = sanitizeEventText({
+      title: 'Lil&#8217; Sprouts',
+      description: 'A nature program for kids.',
+      source: 'summit_metro_parks',
+      source_id: '12345',
+    })
+    assert.equal(row.title, "Lil' Sprouts")
+  })
+
+  it('decodes &#8220; and &#8221; (smart double quotes) in title', () => {
+    const row = sanitizeEventText({
+      title: '&#8220;Fool&#8221; Moon Hike',
+      description: null,
+      source: 'summit_metro_parks',
+      source_id: '12346',
+    })
+    assert.equal(row.title, '"Fool" Moon Hike')
+  })
+
+  it('decodes &amp; in title', () => {
+    const row = sanitizeEventText({
+      title: 'Arts &amp; Crafts Night',
+      description: 'Fun for everyone.',
+      source: 'test',
+      source_id: '1',
+    })
+    assert.equal(row.title, 'Arts & Crafts Night')
+  })
+
+  it('decodes hex entities like &#x2019; in title', () => {
+    const row = sanitizeEventText({
+      title: 'It&#x2019;s Showtime',
+      description: null,
+      source: 'test',
+      source_id: '2',
+    })
+    assert.equal(row.title, "It's Showtime")
+  })
+
+  it('strips HTML tags from title if present', () => {
+    const row = sanitizeEventText({
+      title: 'A <strong>Bold</strong> Event',
+      description: null,
+      source: 'test',
+      source_id: '3',
+    })
+    assert.equal(row.title, 'A Bold Event')
+  })
+
+  it('decodes entities in description too', () => {
+    const row = sanitizeEventText({
+      title: 'Test',
+      description: 'Join us for music &amp; dancing &#8212; don&#8217;t miss it!',
+      source: 'test',
+      source_id: '4',
+    })
+    assert.ok(!row.description.includes('&amp;'))
+    assert.ok(!row.description.includes('&#8212;'))
+    assert.ok(!row.description.includes('&#8217;'))
+    assert.ok(row.description.includes('&'))
+    assert.ok(row.description.includes('—'))
+  })
+
+  it('preserves null title and description', () => {
+    const row = sanitizeEventText({
+      title: null,
+      description: null,
+      source: 'test',
+      source_id: '5',
+    })
+    assert.equal(row.title, null)
+    assert.equal(row.description, null)
+  })
+
+  it('preserves non-text fields untouched', () => {
+    const row = sanitizeEventText({
+      title: 'Test',
+      description: null,
+      source: 'summit_metro_parks',
+      source_id: '999',
+      price_min: 0,
+      price_max: null,
+      tags: ['parks', 'outdoors'],
+      category: 'community',
+      start_at: '2026-05-15T18:00:00.000Z',
+    })
+    assert.equal(row.source, 'summit_metro_parks')
+    assert.equal(row.source_id, '999')
+    assert.equal(row.price_min, 0)
+    assert.equal(row.price_max, null)
+    assert.deepEqual(row.tags, ['parks', 'outdoors'])
+    assert.equal(row.category, 'community')
+    assert.equal(row.start_at, '2026-05-15T18:00:00.000Z')
+  })
+
+  it('handles multiple entities in a single title', () => {
+    const row = sanitizeEventText({
+      title: 'Rock &amp; Roll &#8212; It&#8217;s a &quot;Party&quot;',
+      description: null,
+      source: 'test',
+      source_id: '6',
+    })
+    assert.equal(row.title, 'Rock & Roll \u2014 It\'s a "Party"')
+  })
+
+  it('normalizes smart single quotes to ASCII apostrophe', () => {
+    // \u2018 = left single quote, \u2019 = right single quote
+    const row = sanitizeEventText({
+      title: '\u2018Hello\u2019',
+      description: null,
+      source: 'test',
+      source_id: '7',
+    })
+    assert.equal(row.title, "'Hello'")
+  })
+
+  it('normalizes smart double quotes to ASCII', () => {
+    const row = sanitizeEventText({
+      title: '\u201CHello\u201D',
+      description: null,
+      source: 'test',
+      source_id: '8',
+    })
+    assert.equal(row.title, '"Hello"')
+  })
+
+  it('collapses extra whitespace from stripped tags', () => {
+    const row = sanitizeEventText({
+      title: '  Too   Many   Spaces  ',
+      description: null,
+      source: 'test',
+      source_id: '9',
+    })
+    assert.equal(row.title, 'Too Many Spaces')
   })
 })
