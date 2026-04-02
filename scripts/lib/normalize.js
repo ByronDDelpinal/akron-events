@@ -227,16 +227,19 @@ export async function ensureOrganization(name, details = {}) {
     return existing.id
   }
 
-  const { data, error } = await supabaseAdmin.from('organizations').insert({
-    name:        trimmed,
-    website:     details.website ?? null,
-    description: details.description ?? null,
-    image_url:   details.image_url ?? null,
-    address:     details.address ?? null,
-    city:        details.city ?? null,
-    state:       details.state ?? 'OH',
-    zip:         details.zip ?? null,
-  }).select('id').single()
+  // Build insert payload, omitting null/undefined values so Postgres
+  // uses column defaults (city NOT NULL DEFAULT 'Akron', etc.)
+  const row = { name: trimmed }
+  if (details.website)     row.website     = details.website
+  if (details.description) row.description = details.description
+  if (details.image_url)   row.image_url   = details.image_url
+  if (details.address)     row.address     = details.address
+  if (details.city)        row.city        = details.city
+  if (details.state)       row.state       = details.state
+  if (details.zip)         row.zip         = details.zip
+
+  const { data, error } = await supabaseAdmin
+    .from('organizations').insert(row).select('id').single()
 
   if (error) {
     console.warn(`  ⚠ Could not create organization "${trimmed}":`, error.message)
@@ -280,20 +283,23 @@ export async function ensureVenue(name, details = {}) {
     return existing.id
   }
 
-  const { data, error } = await supabaseAdmin.from('venues').insert({
-    name:          trimmed,
-    address:       details.address ?? null,
-    city:          details.city ?? null,
-    state:         details.state ?? 'OH',
-    zip:           details.zip ?? null,
-    lat:           details.lat ?? null,
-    lng:           details.lng ?? null,
-    parking_type:  details.parking_type ?? 'unknown',
-    parking_notes: details.parking_notes ?? null,
-    website:       details.website ?? null,
-    description:   details.description ?? null,
-    tags:          details.tags ?? [],
-  }).select('id').single()
+  // Build insert payload, omitting null/undefined values so Postgres
+  // uses column defaults (city NOT NULL DEFAULT 'Akron', etc.)
+  const row = { name: trimmed }
+  if (details.address)       row.address       = details.address
+  if (details.city)          row.city          = details.city
+  if (details.state)         row.state         = details.state
+  if (details.zip)           row.zip           = details.zip
+  if (details.lat != null)   row.lat           = details.lat
+  if (details.lng != null)   row.lng           = details.lng
+  if (details.parking_type)  row.parking_type  = details.parking_type
+  if (details.parking_notes) row.parking_notes = details.parking_notes
+  if (details.website)       row.website       = details.website
+  if (details.description)   row.description   = details.description
+  if (details.tags?.length)  row.tags          = details.tags
+
+  const { data, error } = await supabaseAdmin
+    .from('venues').insert(row).select('id').single()
 
   if (error) {
     console.warn(`  ⚠ Could not create venue "${trimmed}":`, error.message)
