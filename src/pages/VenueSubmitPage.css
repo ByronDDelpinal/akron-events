@@ -51,3 +51,40 @@
   color: #FFFFFF;
   border-style: solid;
 }
+
+/* ════════════════════════════════════════
+   INLINE VENUE BLOCK (org submit page)
+════════════════════════════════════════ */
+.inline-venue-block {
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 18px 8px;
+  background: var(--bg-secondary);
+  margin-bottom: 22px;
+}
+.inline-venue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.inline-venue-title {
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.inline-venue-remove {
+  background: transparent;
+  border: none;
+  font-family: var(--font-body);
+  font-size: 0.76rem;
+  color: var(--coral);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.12s;
+}
+.inline-venue-remove:hover {
+  background: var(--coral-pale);
+}

@@ -77,3 +77,23 @@
   margin: 0 auto 20px;
   border: 2px solid var(--amber-border);
 }
+.success-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  max-width: 400px;
+  margin: 0 auto;
+}
+.success-actions .btn-submit-form {
+  flex: 1;
+  text-align: center;
+}
+.btn-submit-outline {
+  background: transparent;
+  color: var(--amber);
+  border: 2px solid var(--amber);
+  text-decoration: none;
+}
+.btn-submit-outline:hover {
+  background: rgba(212,146,42,0.1);
+}

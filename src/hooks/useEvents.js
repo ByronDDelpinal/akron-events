@@ -474,6 +474,7 @@ export function useOrganizations() {
           venues ( id, name ),
           event_organizations ( event_id )
         `)
+        .eq('status', 'published')
         .order('name', { ascending: true })
 
       if (!cancelled) {
@@ -528,6 +529,7 @@ export function useOrganization(id) {
           )
         `)
         .eq('id', id)
+        .eq('status', 'published')
         .single()
 
       if (!cancelled) {

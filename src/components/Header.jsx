@@ -54,7 +54,10 @@ export default function Header() {
           <Link to="/admin"         className={`nav-link ${isActive('/admin')         ? 'active' : ''}`}>Admin</Link>
         </nav>
 
-        <Link to="/submit" className="btn-nav-cta">+ Submit Event</Link>
+        <div className="nav-cta-group">
+          <Link to="/submit" className="btn-nav-cta">+ Submit Event</Link>
+          <Link to="/organizations/submit" className="btn-nav-cta btn-nav-cta-outline">+ Register Organization</Link>
+        </div>
 
         <button
           className={`btn-hamburger ${menuOpen ? 'open' : ''}`}
@@ -74,6 +77,7 @@ export default function Header() {
           <button className={`mobile-nav-link ${isActive('/about')         ? 'active' : ''}`} onClick={() => navTo('/about')}>About</button>
           <button className={`mobile-nav-link ${isActive('/admin')         ? 'active' : ''}`} onClick={() => navTo('/admin')}>Admin</button>
           <button className="mobile-menu-cta" onClick={() => navTo('/submit')}>+ Submit Event</button>
+          <button className="mobile-menu-cta mobile-menu-cta-outline" onClick={() => navTo('/organizations/submit')}>+ Register Organization</button>
         </div>
       )}
     </header>

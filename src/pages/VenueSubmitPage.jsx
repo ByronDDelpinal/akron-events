@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { geocodeAddress } from '@/lib/geocode'
 import './SubmitPage.css'
 import './VenueSubmitPage.css'
 
@@ -15,7 +16,7 @@ export default function VenueSubmitPage() {
   const [form, setForm] = useState({
     name: '', address: '', city: 'Akron', state: 'OH', zip: '',
     description: '', website: '', parking_type: 'unknown', parking_notes: '',
-    lat: '', lng: '', contact_email: '',
+    contact_email: '',
   })
   const [areas, setAreas] = useState([])
   const [status, setStatus] = useState(null)
@@ -33,6 +34,12 @@ export default function VenueSubmitPage() {
     setError(null)
 
     try {
+      // Geocode the address behind the scenes
+      const coords = await geocodeAddress({
+        address: form.address, city: form.city,
+        state: form.state, zip: form.zip,
+      })
+
       const venuePayload = {
         name:          form.name,
         address:       form.address || null,
@@ -43,8 +50,8 @@ export default function VenueSubmitPage() {
         website:       form.website || null,
         parking_type:  form.parking_type,
         parking_notes: form.parking_notes || null,
-        lat:           form.lat ? parseFloat(form.lat) : null,
-        lng:           form.lng ? parseFloat(form.lng) : null,
+        lat:           coords?.lat ?? null,
+        lng:           coords?.lng ?? null,
         status:        'pending_review',
       }
 
@@ -85,7 +92,7 @@ export default function VenueSubmitPage() {
           <p className="page-sub">
             Thanks for adding a venue. We'll review and publish it shortly.
           </p>
-          <button className="btn-submit-form" style={{ maxWidth: 240 }} onClick={() => { setStatus(null); setForm({ name: '', address: '', city: 'Akron', state: 'OH', zip: '', description: '', website: '', parking_type: 'unknown', parking_notes: '', lat: '', lng: '', contact_email: '' }); setAreas([]) }}>
+          <button className="btn-submit-form" style={{ maxWidth: 240 }} onClick={() => { setStatus(null); setForm({ name: '', address: '', city: 'Akron', state: 'OH', zip: '', description: '', website: '', parking_type: 'unknown', parking_notes: '', contact_email: '' }); setAreas([]) }}>
             Submit another
           </button>
         </div>
@@ -143,22 +150,6 @@ export default function VenueSubmitPage() {
         <div className="form-group">
           <label className="form-label">Zip code</label>
           <input className="form-input" value={form.zip} onChange={e => set('zip', e.target.value)} placeholder="44308" />
-        </div>
-
-        <div className="form-section-label">Map pin (optional)</div>
-        <p className="form-hint" style={{ marginBottom: 12 }}>
-          If you know the exact coordinates, enter them here. This helps us place the venue on the map accurately.
-        </p>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Latitude</label>
-            <input className="form-input" type="number" step="any" value={form.lat} onChange={e => set('lat', e.target.value)} placeholder="41.0814" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Longitude</label>
-            <input className="form-input" type="number" step="any" value={form.lng} onChange={e => set('lng', e.target.value)} placeholder="-81.5190" />
-          </div>
         </div>
 
         <div className="form-section-label">Parking</div>
