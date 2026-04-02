@@ -316,3 +316,165 @@ describe('parseEventbritePrice', () => {
     assert.equal(result.price_min, 20)
   })
 })
+
+// ════════════════════════════════════════════════════════════════════════════
+// ensureOrganization / ensureVenue — insert payload construction
+// ════════════════════════════════════════════════════════════════════════════
+//
+// We can't call ensureOrganization/ensureVenue directly in unit tests (they
+// hit Supabase), but we CAN test the critical bug pattern: building an insert
+// payload that omits null values so Postgres uses column defaults instead of
+// violating NOT NULL constraints.
+//
+// This mirrors the exact logic in ensureOrganization and ensureVenue.
+
+describe('Insert payload construction (NOT NULL DEFAULT safety)', () => {
+  /**
+   * Simulate how ensureOrganization builds its insert row.
+   * This must match the actual implementation in normalize.js.
+   */
+  function buildOrgPayload(name, details = {}) {
+    const row = { name }
+    if (details.website)     row.website     = details.website
+    if (details.description) row.description = details.description
+    if (details.image_url)   row.image_url   = details.image_url
+    if (details.address)     row.address     = details.address
+    if (details.city)        row.city        = details.city
+    if (details.state)       row.state       = details.state
+    if (details.zip)         row.zip         = details.zip
+    return row
+  }
+
+  /**
+   * Simulate how ensureVenue builds its insert row.
+   */
+  function buildVenuePayload(name, details = {}) {
+    const row = { name }
+    if (details.address)       row.address       = details.address
+    if (details.city)          row.city          = details.city
+    if (details.state)         row.state         = details.state
+    if (details.zip)           row.zip           = details.zip
+    if (details.lat != null)   row.lat           = details.lat
+    if (details.lng != null)   row.lng           = details.lng
+    if (details.parking_type)  row.parking_type  = details.parking_type
+    if (details.parking_notes) row.parking_notes = details.parking_notes
+    if (details.website)       row.website       = details.website
+    if (details.description)   row.description   = details.description
+    if (details.tags?.length)  row.tags          = details.tags
+    return row
+  }
+
+  // ── Organization payload tests ─────────────────────────────────────────
+
+  it('org payload: omits city when not provided (lets DB default to Akron)', () => {
+    const row = buildOrgPayload('Summit Metro Parks', {
+      website: 'https://summitmetroparks.org',
+      description: 'Park system',
+    })
+    assert.ok(!('city' in row), 'city should NOT be in the payload when not provided')
+    assert.ok(!('state' in row), 'state should NOT be in the payload when not provided')
+    assert.equal(row.name, 'Summit Metro Parks')
+    assert.equal(row.website, 'https://summitmetroparks.org')
+  })
+
+  it('org payload: includes city when explicitly provided', () => {
+    const row = buildOrgPayload('Some Org', {
+      city: 'Canton',
+      state: 'OH',
+    })
+    assert.equal(row.city, 'Canton')
+    assert.equal(row.state, 'OH')
+  })
+
+  it('org payload: does NOT include null or undefined values', () => {
+    const row = buildOrgPayload('Test Org', {
+      website: null,
+      description: undefined,
+      city: null,
+      zip: '',
+    })
+    assert.ok(!('website' in row), 'null website should be omitted')
+    assert.ok(!('description' in row), 'undefined description should be omitted')
+    assert.ok(!('city' in row), 'null city should be omitted')
+    assert.ok(!('zip' in row), 'empty string zip should be omitted')
+  })
+
+  it('org payload: only has name when no details provided', () => {
+    const row = buildOrgPayload('Minimal Org')
+    assert.deepEqual(Object.keys(row), ['name'])
+  })
+
+  it('org payload: preserves all provided non-empty values', () => {
+    const row = buildOrgPayload('Full Org', {
+      website: 'https://example.com',
+      description: 'Desc',
+      image_url: 'https://img.com/logo.png',
+      address: '123 Main St',
+      city: 'Akron',
+      state: 'OH',
+      zip: '44311',
+    })
+    assert.equal(Object.keys(row).length, 8)
+    assert.equal(row.name, 'Full Org')
+    assert.equal(row.city, 'Akron')
+  })
+
+  // ── Venue payload tests ────────────────────────────────────────────────
+
+  it('venue payload: omits city when not provided (lets DB default)', () => {
+    const row = buildVenuePayload('Some Venue', {
+      address: '100 Park Ave',
+    })
+    assert.ok(!('city' in row), 'city should NOT be in the payload')
+    assert.equal(row.address, '100 Park Ave')
+  })
+
+  it('venue payload: includes lat/lng as 0 (falsy but valid)', () => {
+    const row = buildVenuePayload('Equator Venue', {
+      lat: 0,
+      lng: 0,
+    })
+    assert.equal(row.lat, 0, 'lat=0 should be included (equator)')
+    assert.equal(row.lng, 0, 'lng=0 should be included (prime meridian)')
+  })
+
+  it('venue payload: omits lat/lng when null', () => {
+    const row = buildVenuePayload('No Coords Venue', {
+      lat: null,
+      lng: undefined,
+    })
+    assert.ok(!('lat' in row), 'null lat should be omitted')
+    assert.ok(!('lng' in row), 'undefined lng should be omitted')
+  })
+
+  it('venue payload: omits empty tags array', () => {
+    const row = buildVenuePayload('Tagless Venue', {
+      tags: [],
+    })
+    assert.ok(!('tags' in row), 'empty tags array should be omitted')
+  })
+
+  it('venue payload: includes non-empty tags array', () => {
+    const row = buildVenuePayload('Tagged Venue', {
+      tags: ['outdoor', 'accessible'],
+    })
+    assert.deepEqual(row.tags, ['outdoor', 'accessible'])
+  })
+
+  it('venue payload: does NOT include null or undefined values for any field', () => {
+    const row = buildVenuePayload('Null Test Venue', {
+      address: null,
+      city: null,
+      state: null,
+      zip: null,
+      lat: null,
+      lng: null,
+      parking_type: null,
+      parking_notes: null,
+      website: null,
+      description: null,
+      tags: null,
+    })
+    assert.deepEqual(Object.keys(row), ['name'], 'only name should remain when all details are null')
+  })
+})
