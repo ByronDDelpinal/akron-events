@@ -1,0 +1,53 @@
+/* ════════════════════════════════════════
+   VENUE SUBMIT — area rows
+════════════════════════════════════════ */
+.venue-area-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.venue-area-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex: 1;
+}
+.venue-area-fields .form-input {
+  flex: 1;
+  min-width: 140px;
+}
+.venue-area-remove {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: var(--bg-card);
+  border-radius: 6px; font-size: 0.8rem;
+  cursor: pointer; color: var(--text-muted);
+  transition: all 0.12s;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+.venue-area-remove:hover { color: var(--coral); background: var(--coral-pale); }
+
+.venue-add-area-btn {
+  display: inline-flex; align-items: center;
+  padding: 8px 16px;
+  background: var(--amber-pale);
+  border: 1px dashed var(--amber-border);
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-size: 0.78rem; font-weight: 600;
+  color: var(--amber);
+  cursor: pointer;
+  transition: all 0.12s;
+  margin-bottom: 18px;
+}
+.venue-add-area-btn:hover {
+  background: var(--amber);
+  color: #FFFFFF;
+  border-style: solid;
+}

@@ -15,7 +15,7 @@
 
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
-import { logUpsertResult } from './lib/normalize.js'
+import { logUpsertResult, enrichWithImageDimensions, upsertEventSafe, linkEventVenue, linkEventOrganization } from './lib/normalize.js'
 
 const TM_KEY = process.env.TICKETMASTER_API_KEY
 if (!TM_KEY) {
@@ -136,7 +136,7 @@ async function upsertOrganizer(attractions = []) {
   }
 
   const { data: existing } = await supabaseAdmin
-    .from('organizers')
+    .from('organizations')
     .select('id')
     .eq('name', row.name)
     .maybeSingle()
@@ -144,7 +144,7 @@ async function upsertOrganizer(attractions = []) {
   if (existing) return existing.id
 
   const { data, error } = await supabaseAdmin
-    .from('organizers')
+    .from('organizations')
     .insert(row)
     .select('id')
     .single()
@@ -221,8 +221,6 @@ async function processEvents(rawEvents) {
         description:     ev.info ?? ev.pleaseNote ?? null,
         start_at:        ev.dates?.start?.dateTime ?? null,
         end_at:          null,   // TM rarely provides end times
-        venue_id:        venueId,
-        organizer_id:    orgId,
         category,
         tags,
         price_min,
@@ -238,14 +236,15 @@ async function processEvents(rawEvents) {
 
       if (!row.start_at) { skipped++; continue }
 
-      const { error } = await supabaseAdmin
-        .from('events')
-        .upsert(row, { onConflict: 'source,source_id', ignoreDuplicates: false })
+      const enrichedRow = await enrichWithImageDimensions(row)
+      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
 
       if (error) {
         console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)
         skipped++
       } else {
+        await linkEventVenue(upserted.id, venueId)
+        await linkEventOrganization(upserted.id, orgId)
         inserted++
       }
 

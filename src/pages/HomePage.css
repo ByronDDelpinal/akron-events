@@ -208,6 +208,13 @@
 .stat-pill strong { color: var(--amber); font-weight: 700; }
 .stat-sep { width: 1px; height: 16px; background: var(--border); flex-shrink: 0; margin: 0 3px; }
 
+/* ── VIEW MODE TOGGLE ROW ── */
+.view-mode-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 0 4px;
+}
+
 /* ── CONTENT TRANSITION ── */
 /* Dim old content while a new filter result is loading.
    We keep the old cards in the DOM so there's no height collapse. */

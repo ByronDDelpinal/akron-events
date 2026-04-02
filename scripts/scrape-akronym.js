@@ -20,50 +20,25 @@
  */
 
 import 'dotenv/config'
-import { supabaseAdmin } from './lib/supabase-admin.js'
-import { logUpsertResult, logScraperError, stripHtml } from './lib/normalize.js'
+import {
+  logUpsertResult,
+  logScraperError,
+  stripHtml,
+  enrichWithImageDimensions,
+  upsertEventSafe,
+  linkEventVenue,
+  linkEventOrganization,
+  ensureVenue,
+  ensureOrganization,
+  linkOrganizationVenue,
+  easternToIso,
+} from './lib/normalize.js'
 
 const WP_BASE    = 'https://akronymbrewing.com/wp-json/wp/v2'
 const DAYS_AHEAD = 180
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 // stripHtml imported from normalize.js — handles all named + numeric HTML entities
-
-/**
- * Convert a local Eastern date + time string to an ISO 8601 UTC string.
- * Handles basic DST: EDT (UTC-4) from March 2nd Sunday to November 1st Sunday;
- * EST (UTC-5) otherwise.
- */
-function easternToIso(dateStr, timeStr = '12:00 am') {
-  const d = new Date(dateStr)
-  if (isNaN(d.getTime())) return null
-
-  // DST: second Sunday of March → first Sunday of November
-  const year = d.getFullYear()
-  const dstStart = getNthSunday(year, 2, 2) // March (month 2), 2nd Sunday
-  const dstEnd   = getNthSunday(year, 10, 1) // November (month 10), 1st Sunday
-  const isDST    = d >= dstStart && d < dstEnd
-  const offsetMs = isDST ? 4 * 3600_000 : 5 * 3600_000
-
-  // Parse time: "7:00 pm", "7pm", "19:00", etc.
-  const timeMatch = timeStr.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i)
-  if (!timeMatch) return null
-  let hours   = parseInt(timeMatch[1], 10)
-  const mins  = parseInt(timeMatch[2] ?? '0', 10)
-  const ampm  = timeMatch[3]?.toLowerCase()
-  if (ampm === 'pm' && hours < 12) hours += 12
-  if (ampm === 'am' && hours === 12) hours = 0
-
-  const localMs = d.getTime() + hours * 3600_000 + mins * 60_000
-  return new Date(localMs + offsetMs).toISOString()
-}
-
-function getNthSunday(year, month, n) {
-  const d = new Date(year, month, 1)
-  const day = d.getDay()
-  const firstSunday = day === 0 ? 1 : 8 - day
-  return new Date(year, month, firstSunday + (n - 1) * 7)
-}
 
 /**
  * Try to extract event date from WordPress post meta.
@@ -316,8 +291,6 @@ async function processEvents(posts, venueId, organizerId) {
         description:     descText || null,
         start_at:        startAt,
         end_at:          endAt,
-        venue_id:        venueId,
-        organizer_id:    organizerId,
         category,
         tags,
         price_min:       0,
@@ -331,14 +304,15 @@ async function processEvents(posts, venueId, organizerId) {
         featured:        false,
       }
 
-      const { error } = await supabaseAdmin
-        .from('events')
-        .upsert(row, { onConflict: 'source,source_id', ignoreDuplicates: false })
+      const enrichedRow = await enrichWithImageDimensions(row)
+      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
 
       if (error) {
         console.warn(`  ⚠ Upsert failed for "${title}":`, error.message)
         skipped++
       } else {
+        await linkEventVenue(upserted.id, venueId)
+        await linkEventOrganization(upserted.id, organizerId)
         inserted++
       }
     } catch (err) {
@@ -352,13 +326,8 @@ async function processEvents(posts, venueId, organizerId) {
 
 // ── Venue / Organizer ─────────────────────────────────────────────────────
 
-async function ensureVenue() {
-  const { data: existing } = await supabaseAdmin
-    .from('venues').select('id').eq('name', 'Akronym Brewing').maybeSingle()
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin.from('venues').insert({
-    name:         'Akronym Brewing',
+async function ensureAkronymVenue() {
+  return ensureVenue('Akronym Brewing', {
     address:      '58 E Mill St',
     city:         'Akron',
     state:        'OH',
@@ -369,27 +338,14 @@ async function ensureVenue() {
     parking_notes:'Street parking on E Mill St and surrounding downtown streets.',
     website:      'https://akronymbrewing.com',
     description:  'Craft brewery in downtown Akron, OH.',
-  }).select('id').single()
-
-  if (error) { console.warn('  ⚠ Could not create Akronym venue:', error.message); return null }
-  console.log('  ✚ Created Akronym Brewing venue')
-  return data.id
+  })
 }
 
-async function ensureOrganizer() {
-  const { data: existing } = await supabaseAdmin
-    .from('organizers').select('id').eq('name', 'Akronym Brewing').maybeSingle()
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin.from('organizers').insert({
-    name:    'Akronym Brewing',
+async function ensureAkronymOrganizer() {
+  return ensureOrganization('Akronym Brewing', {
     website: 'https://akronymbrewing.com',
     description: 'Craft brewery and live events venue in downtown Akron, OH.',
-  }).select('id').single()
-
-  if (error) { console.warn('  ⚠ Could not create Akronym organizer:', error.message); return null }
-  console.log('  ✚ Created Akronym Brewing organizer')
-  return data.id
+  })
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────
@@ -400,8 +356,8 @@ async function main() {
 
   try {
     const [venueId, organizerId, categoryId] = await Promise.all([
-      ensureVenue(),
-      ensureOrganizer(),
+      ensureAkronymVenue(),
+      ensureAkronymOrganizer(),
       findEventsCategoryId(),
     ])
 

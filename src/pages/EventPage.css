@@ -12,9 +12,42 @@
   overflow: hidden;
   flex-shrink: 0;
 }
+/* Native aspect-ratio banner: respects image ratio but caps height.
+   Override the base banner's fixed height so the image drives sizing. */
+.event-detail-banner--native {
+  height: auto;
+  max-height: 500px;
+}
 .event-banner-img {
   width: 100%; height: 100%;
   object-fit: cover;
+}
+/* Native images: scale to fit within the 500px cap without cropping.
+   The image keeps its true aspect ratio — wide images stay short,
+   tall images shrink to fit the cap. */
+.event-banner-img--native {
+  width: 100%;
+  height: auto;
+  max-height: 500px;
+  object-fit: contain;
+  display: block;
+}
+
+/* Float-left image for narrow images on the detail page */
+.event-float-img {
+  float: left;
+  max-width: min(400px, 50%);
+  height: auto;
+  border-radius: 12px;
+  margin: 0 24px 16px 0;
+  box-shadow: var(--shadow-card);
+}
+@media (max-width: 599px) {
+  .event-float-img {
+    float: none;
+    max-width: 100%;
+    margin: 0 0 16px;
+  }
 }
 .banner-scrim {
   position: absolute;
@@ -76,6 +109,13 @@
   font-size: 0.9rem; color: var(--text-muted);
   font-style: italic; margin-bottom: 6px;
 }
+.event-detail-org-link {
+  color: var(--amber);
+  text-decoration: none;
+  font-weight: 600;
+  font-style: italic;
+}
+.event-detail-org-link:hover { text-decoration: underline; }
 .event-detail-type-row {
   display: flex; gap: 8px; align-items: center;
   flex-wrap: wrap; margin-bottom: 28px;

@@ -13,8 +13,19 @@
  */
 
 import 'dotenv/config'
-import { supabaseAdmin } from './lib/supabase-admin.js'
-import { logUpsertResult, logScraperError, stripHtml } from './lib/normalize.js'
+import {
+  logUpsertResult,
+  logScraperError,
+  stripHtml,
+  enrichWithImageDimensions,
+  upsertEventSafe,
+  linkEventVenue,
+  linkEventOrganization,
+  ensureVenue,
+  ensureOrganization,
+  linkOrganizationVenue,
+  easternToIso,
+} from './lib/normalize.js'
 
 const API_BASE   = 'https://services.akronlibrary.org/eeventcaldata'
 const DAYS_AHEAD = 180  // fetch 6 months at a time
@@ -41,39 +52,6 @@ const BRANCH_INFO = {
   'Springfield-Lakemore Branch Library': { address: '1100 Canton Rd',       zip: '44312', lat: 41.0169, lng: -81.4632, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
   'Tallmadge Branch Library':         { address: '90 North Ave',            zip: '44278', lat: 41.0992, lng: -81.4426, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
   'Odom Boulevard Branch Library':    { address: '600 Vernon Odom Blvd',    zip: '44307', lat: 41.0631, lng: -81.5372, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-}
-
-// ── Time conversion ───────────────────────────────────────────────────────
-
-/** Get the nth occurrence of dayOfWeek (0=Sun) in a given month */
-function nthWeekdayOfMonth(year, month, dayOfWeek, n) {
-  const first = new Date(Date.UTC(year, month, 1))
-  const offset = (dayOfWeek - first.getUTCDay() + 7) % 7
-  return new Date(Date.UTC(year, month, 1 + offset + (n - 1) * 7))
-}
-
-/** Returns true if the given UTC date is during Eastern Daylight Time */
-function isEasternDST(utcDate) {
-  const y = utcDate.getUTCFullYear()
-  const dstStart = nthWeekdayOfMonth(y, 2, 0, 2)  // 2nd Sunday in March
-  const dstEnd   = nthWeekdayOfMonth(y, 10, 0, 1) // 1st Sunday in November
-  return utcDate >= dstStart && utcDate < dstEnd
-}
-
-/**
- * Convert an Eastern local time string ("YYYY-MM-DD HH:MM:SS") to ISO UTC.
- * Correctly handles EST (UTC-5) vs EDT (UTC-4) transitions.
- */
-function easternToIso(localDateStr) {
-  if (!localDateStr) return null
-  const [datePart, timePart = '00:00:00'] = localDateStr.split(' ')
-  const [year, month, day]        = datePart.split('-').map(Number)
-  const [hour, minute, second = 0] = timePart.split(':').map(Number)
-  const localUtcMs = Date.UTC(year, month - 1, day, hour, minute, second)
-  // Start by checking with the EST offset; close enough to determine DST
-  const approxUtc = new Date(localUtcMs + 5 * 3600_000)
-  const offsetHours = isEasternDST(approxUtc) ? 4 : 5
-  return new Date(localUtcMs + offsetHours * 3600_000).toISOString()
 }
 
 /**
@@ -161,57 +139,49 @@ function parseTags(tagStr = '', ageStr = '') {
 
 const venueCache = new Map() // locationId → venueId
 
-async function ensureLibraryVenue(locationId, locationName) {
+async function ensureLibraryVenue(locationId, locationName, organizerId) {
   if (venueCache.has(locationId)) return venueCache.get(locationId)
 
-  const { data: existing } = await supabaseAdmin
-    .from('venues').select('id').eq('name', locationName).maybeSingle()
+  const branchInfo = BRANCH_INFO[locationName]
 
-  if (existing) {
-    venueCache.set(locationId, existing.id)
-    return existing.id
+  let venueId
+  if (branchInfo) {
+    // Known library branch — create with full branch-specific details
+    venueId = await ensureVenue(locationName, {
+      address:       branchInfo.address,
+      city:          'Akron',
+      state:         'OH',
+      zip:           branchInfo.zip,
+      lat:           branchInfo.lat,
+      lng:           branchInfo.lng,
+      parking_type:  branchInfo.parking_type,
+      parking_notes: branchInfo.parking_notes,
+      website:       'https://www.akronlibrary.org',
+      description:   'Branch of the Akron-Summit County Public Library.',
+    })
+    // Link this branch venue to the organization
+    if (venueId && organizerId) {
+      await linkOrganizationVenue(organizerId, venueId)
+    }
+  } else {
+    // Off-site / external venue — create with generic info only;
+    // do NOT stamp it with library website/description
+    // do NOT link to organization as these are external venues
+    venueId = await ensureVenue(locationName, {
+      city:  'Akron',
+      state: 'OH',
+    })
   }
 
-  const info = BRANCH_INFO[locationName] ?? {}
-  const { data, error } = await supabaseAdmin.from('venues').insert({
-    name:         locationName,
-    address:      info.address ?? null,
-    city:         'Akron',
-    state:        'OH',
-    zip:          info.zip ?? null,
-    lat:          info.lat ?? null,
-    lng:          info.lng ?? null,
-    parking_type: info.parking_type ?? 'lot',
-    parking_notes:info.parking_notes ?? 'Free on-site parking available.',
-    website:      'https://www.akronlibrary.org',
-    description:  `Branch of the Akron-Summit County Public Library.`,
-  }).select('id').single()
-
-  if (error) {
-    console.warn(`  ⚠ Could not create venue for "${locationName}":`, error.message)
-    venueCache.set(locationId, null)
-    return null
-  }
-
-  console.log(`  ✚ Created venue: ${locationName}`)
-  venueCache.set(locationId, data.id)
-  return data.id
+  venueCache.set(locationId, venueId)
+  return venueId
 }
 
 async function ensureOrganizer() {
-  const { data: existing } = await supabaseAdmin
-    .from('organizers').select('id').eq('name', 'Akron-Summit County Public Library').maybeSingle()
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin.from('organizers').insert({
-    name:        'Akron-Summit County Public Library',
+  return ensureOrganization('Akron-Summit County Public Library', {
     website:     'https://www.akronlibrary.org',
     description: 'The Akron-Summit County Public Library provides resources for learning, programs for all ages, and events that enrich community life across Summit County.',
-  }).select('id').single()
-
-  if (error) { console.warn('  ⚠ Could not create library organizer:', error.message); return null }
-  console.log('  ✚ Created library organizer')
-  return data.id
+  })
 }
 
 // ── Fetch ─────────────────────────────────────────────────────────────────
@@ -245,7 +215,7 @@ async function processEvents(rawEvents, organizerId) {
 
   for (const ev of rawEvents) {
     try {
-      const venueId = await ensureLibraryVenue(ev.location_id, ev.location || 'Akron-Summit County Public Library')
+      const venueId = await ensureLibraryVenue(ev.location_id, ev.location || 'Akron-Summit County Public Library', organizerId)
 
       const title    = stripHtml(ev.title || '')
       const category = parseCategory(ev.tags, title)
@@ -261,8 +231,6 @@ async function processEvents(rawEvents, organizerId) {
         description:     descText || null,
         start_at:        startAt,
         end_at:          endAt,
-        venue_id:        venueId,
-        organizer_id:    organizerId,
         category,
         tags,
         price_min:       0,
@@ -276,12 +244,17 @@ async function processEvents(rawEvents, organizerId) {
         featured:        false,
       }
 
-      const { error } = await supabaseAdmin
-        .from('events')
-        .upsert(row, { onConflict: 'source,source_id', ignoreDuplicates: false })
+      const enrichedRow = await enrichWithImageDimensions(row)
+      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
 
-      if (error) { console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message); skipped++ }
-      else inserted++
+      if (error) {
+        console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)
+        skipped++
+      } else {
+        await linkEventVenue(upserted.id, venueId)
+        await linkEventOrganization(upserted.id, organizerId)
+        inserted++
+      }
     } catch (err) {
       console.warn(`  ⚠ Error processing "${ev.title}":`, err.message)
       skipped++

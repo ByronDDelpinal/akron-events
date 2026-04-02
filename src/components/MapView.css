@@ -1,9 +1,82 @@
+/* ── Map section (wraps map + bottom edge) ────────────────────────────── */
+.map-section {
+  display: flex;
+  flex-direction: column;
+}
+
 /* ── Map wrapper (homepage full view) ─────────────────────────────────── */
 .map-wrap {
   position: relative;
   height: calc(100vh - 64px - 49px - 57px); /* viewport minus header, stat bar, filter bar */
   min-height: 480px;
   background: #1a1f1a;
+}
+
+/* Subtle border when map is inactive to reinforce it's a contained element */
+.map-wrap:not(.map-wrap--active) {
+  cursor: pointer;
+}
+
+/* ── Click-to-activate overlay ───────────────────────────────────────── */
+.map-activate-hint {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.map-wrap:not(.map-wrap--active):hover .map-activate-hint {
+  opacity: 1;
+}
+.map-activate-hint span {
+  background: rgba(29, 43, 31, 0.92);
+  backdrop-filter: blur(8px);
+  color: rgba(255,255,255,0.85);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 8px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+/* ── Bottom edge indicator ───────────────────────────────────────────── */
+.map-bottom-edge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 24px;
+  background: linear-gradient(180deg, #1a1f1a 0%, var(--bg-body, #111611) 100%);
+}
+.map-bottom-edge-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+}
+.map-bottom-edge-label {
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.28);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+
+/* ── Map loading state (shown while fetching all events) ─────────────── */
+.map-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 320px;
+  background: #1a1f1a;
+  font-family: var(--font-body);
+  color: rgba(255,255,255,0.5);
+  font-size: 0.85rem;
 }
 
 /* ── Missing token fallback ───────────────────────────────────────────── */
@@ -45,6 +118,45 @@
   border: 1px solid rgba(255,255,255,0.1);
   pointer-events: none;
   z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.map-count-primary {
+  color: rgba(255,255,255,0.85);
+}
+.map-count-note {
+  color: rgba(255,255,255,0.4);
+  margin-left: 2px;
+}
+
+/* ── Recenter button (bottom-right overlay) ──────────────────────────── */
+.map-recenter-btn {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(29, 43, 31, 0.92);
+  backdrop-filter: blur(8px);
+  color: var(--amber);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(212,146,42,0.25);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.map-recenter-btn:hover {
+  background: rgba(29, 43, 31, 1);
+  border-color: rgba(212,146,42,0.5);
+}
+.map-recenter-btn svg {
+  flex-shrink: 0;
 }
 
 /* ── Venue pin marker ────────────────────────────────────────────────── */
@@ -55,6 +167,9 @@
   cursor: pointer;
   filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
   transition: filter 0.15s, transform 0.15s;
+  /* Expand touch target to 44×44 minimum without changing visual size */
+  padding: 11px;
+  margin: -11px;
 }
 .venue-pin:hover,
 .venue-pin.active {
@@ -98,117 +213,184 @@
 .map-popup-outer .mapboxgl-popup-content {
   background: transparent !important;
   padding: 0 !important;
-  border-radius: 12px !important;
-  box-shadow: none !important;
+  border-radius: 14px !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06) !important;
 }
 .map-popup-outer .mapboxgl-popup-tip { display: none !important; }
 
 .map-popup {
-  background: var(--bg-nav);
+  background: #1c2a1e;
   border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 12px;
-  width: 300px;
+  border-radius: 14px;
+  width: 320px;
   overflow: hidden;
   font-family: var(--font-body);
+  position: relative;
 }
 
+/* ── Popup header ── */
 .map-popup-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 12px 14px 10px;
+  gap: 8px;
+  padding: 14px 14px 12px;
+  background: rgba(255,255,255,0.03);
   border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.map-popup-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
 }
 .map-popup-venue {
   font-family: var(--font-display);
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: #fff;
   line-height: 1.3;
 }
-.map-popup-close {
-  background: none;
-  border: none;
+.map-popup-event-count {
+  font-size: 0.7rem;
+  font-weight: 500;
   color: rgba(255,255,255,0.4);
-  font-size: 0.75rem;
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 4px;
-  transition: color 0.1s;
-  flex-shrink: 0;
+  letter-spacing: 0.01em;
 }
-.map-popup-close:hover { color: #fff; }
+.map-popup-close {
+  background: rgba(255,255,255,0.06);
+  border: none;
+  color: rgba(255,255,255,0.5);
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: background 0.12s, color 0.12s;
+  flex-shrink: 0;
+  margin: -8px -6px 0 0;
+  padding: 0;
+}
+.map-popup-close:hover {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+}
 
+/* ── Popup event list ── */
 .map-popup-events {
   display: flex;
   flex-direction: column;
-  max-height: 260px;
+  max-height: 240px;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.15) transparent;
+  scroll-behavior: smooth;
 }
 
 .map-popup-event {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 14px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 14px;
   border: none;
   background: none;
   cursor: pointer;
   text-align: left;
   border-bottom: 1px solid rgba(255,255,255,0.06);
   transition: background 0.12s;
+  min-height: 44px;
 }
 .map-popup-event:last-child { border-bottom: none; }
 .map-popup-event:hover { background: rgba(255,255,255,0.05); }
+.map-popup-event:active { background: rgba(255,255,255,0.08); }
 
-.map-popup-event-top {
-  display: flex;
-  align-items: flex-start;
-  gap: 7px;
-}
 .map-popup-emoji {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   flex-shrink: 0;
   margin-top: 1px;
+  width: 20px;
+  text-align: center;
 }
+
+.map-popup-event-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
 .map-popup-title {
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   font-weight: 500;
   color: rgba(255,255,255,0.92);
   line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
-.map-popup-event-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding-left: 24px; /* align with title text */
-}
 .map-popup-date {
-  font-size: 0.71rem;
-  color: rgba(255,255,255,0.44);
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.45);
+  line-height: 1.3;
 }
+
 .map-popup-price {
-  font-size: 0.71rem;
+  font-size: 0.72rem;
   font-weight: 600;
   color: var(--amber);
   flex-shrink: 0;
+  margin-top: 2px;
+  white-space: nowrap;
 }
 .map-popup-price.free { color: #5cba7d; }
 
+/* ── Scroll fade hint ── */
+.map-popup-scroll-fade {
+  position: absolute;
+  bottom: 44px; /* sits above the directions footer */
+  left: 0;
+  right: 0;
+  height: 32px;
+  background: linear-gradient(180deg, transparent 0%, #1c2a1e 100%);
+  pointer-events: none;
+  z-index: 2;
+}
+/* No directions link → fade sits at bottom of popup */
+.map-popup-scroll-fade:last-child {
+  bottom: 0;
+  border-radius: 0 0 14px 14px;
+}
+
+/* ── Popup footer (directions) ── */
 .map-popup-directions {
-  display: block;
-  padding: 9px 14px;
-  font-size: 0.72rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 14px;
+  font-size: 0.76rem;
+  font-weight: 500;
   color: var(--amber);
   text-decoration: none;
-  border-top: 1px solid rgba(255,255,255,0.07);
-  transition: opacity 0.12s;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.02);
+  transition: background 0.12s;
+  min-height: 44px;
 }
-.map-popup-directions:hover { opacity: 0.75; }
+.map-popup-directions:hover {
+  background: rgba(255,255,255,0.05);
+}
+.map-popup-directions svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
 
 /* ── Small venue map (EventPage sidebar) ─────────────────────────────── */
 .venue-map-wrap {
@@ -226,5 +408,14 @@
     min-height: 360px;
     height: calc(100vh - 64px - 100px);
   }
-  .map-popup { width: 270px; }
+  .map-popup { width: 290px; }
+
+  .map-activate-hint span {
+    font-size: 0.72rem;
+    padding: 7px 14px;
+  }
+
+  .map-bottom-edge {
+    padding: 12px 16px;
+  }
 }

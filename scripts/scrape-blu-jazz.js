@@ -27,52 +27,21 @@
  */
 
 import 'dotenv/config'
-import { supabaseAdmin } from './lib/supabase-admin.js'
-import { logUpsertResult, logScraperError, stripHtml } from './lib/normalize.js'
+import {
+  logUpsertResult,
+  logScraperError,
+  stripHtml,
+  enrichWithImageDimensions,
+  upsertEventSafe,
+  linkEventVenue,
+  linkEventOrganization,
+  ensureVenue,
+  ensureOrganization,
+  linkOrganizationVenue,
+  easternToIso,
+} from './lib/normalize.js'
 
 const SHOWS_URL = 'https://blu-jazz.turntabletickets.com/'
-
-// ── DST-aware Eastern → UTC conversion ───────────────────────────────────
-// (same logic as scrape-akron-library.js)
-
-function nthWeekdayOfMonth(year, month, dayOfWeek, n) {
-  const first  = new Date(Date.UTC(year, month, 1))
-  const offset = (dayOfWeek - first.getUTCDay() + 7) % 7
-  return new Date(Date.UTC(year, month, 1 + offset + (n - 1) * 7))
-}
-
-function isEasternDST(utcDate) {
-  const y        = utcDate.getUTCFullYear()
-  const dstStart = nthWeekdayOfMonth(y, 2, 0, 2)   // 2nd Sunday in March
-  const dstEnd   = nthWeekdayOfMonth(y, 10, 0, 1)  // 1st Sunday in November
-  return utcDate >= dstStart && utcDate < dstEnd
-}
-
-/**
- * Convert a local Eastern date+time string like "2026-03-26 20:00:00"
- * to a UTC ISO string. Correctly handles EST (UTC-5) vs EDT (UTC-4).
- */
-function easternToIso(dateStr, timeStr) {
-  // Normalise "8:00pm" → "20:00"
-  const normalised = timeStr.trim().replace(
-    /^(\d{1,2}):(\d{2})\s*(am|pm)$/i,
-    (_, h, m, meridiem) => {
-      let hour = parseInt(h, 10)
-      if (meridiem.toLowerCase() === 'pm' && hour !== 12) hour += 12
-      if (meridiem.toLowerCase() === 'am' && hour === 12) hour = 0
-      return `${String(hour).padStart(2, '0')}:${m}:00`
-    }
-  )
-
-  const [year, month, day]         = dateStr.split('-').map(Number)
-  const [hour, minute, second = 0] = normalised.split(':').map(Number)
-
-  const localUtcMs = Date.UTC(year, month - 1, day, hour, minute, second)
-  // Approximate UTC to determine DST (close enough — the offset is only 1 hour)
-  const approxUtc     = new Date(localUtcMs + 5 * 3_600_000)
-  const offsetHours   = isEasternDST(approxUtc) ? 4 : 5
-  return new Date(localUtcMs + offsetHours * 3_600_000).toISOString()
-}
 
 // ── HTML helpers ──────────────────────────────────────────────────────────
 // stripHtml imported from normalize.js — handles all named + numeric HTML entities
@@ -197,13 +166,8 @@ async function fetchCards() {
 
 // ── Venue / Organizer ─────────────────────────────────────────────────────
 
-async function ensureVenue() {
-  const { data: existing } = await supabaseAdmin
-    .from('venues').select('id').eq('name', 'BLU Jazz+').maybeSingle()
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin.from('venues').insert({
-    name:          'BLU Jazz+',
+async function ensureBluVenue() {
+  return ensureVenue('BLU Jazz+', {
     address:       '47 E Market St',
     city:          'Akron',
     state:         'OH',
@@ -214,27 +178,14 @@ async function ensureVenue() {
     parking_notes: 'Street parking on E Market St. Canal Park parking garage is 2 blocks away.',
     website:       'https://blujazzakron.com',
     description:   'Akron\'s dedicated jazz venue in the Historic Arts District, featuring world-class jazz, blues, and beyond in an intimate listening room setting.',
-  }).select('id').single()
-
-  if (error) { console.warn('  ⚠ Could not create BLU Jazz+ venue:', error.message); return null }
-  console.log('  ✚ Created BLU Jazz+ venue')
-  return data.id
+  })
 }
 
-async function ensureOrganizer() {
-  const { data: existing } = await supabaseAdmin
-    .from('organizers').select('id').eq('name', 'BLU Jazz+').maybeSingle()
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin.from('organizers').insert({
-    name:        'BLU Jazz+',
+async function ensureBluOrganizer() {
+  return ensureOrganization('BLU Jazz+', {
     website:     'https://blujazzakron.com',
     description: "Akron's premier jazz venue presenting world-class local and touring jazz artists.",
-  }).select('id').single()
-
-  if (error) { console.warn('  ⚠ Could not create BLU Jazz+ organizer:', error.message); return null }
-  console.log('  ✚ Created BLU Jazz+ organizer')
-  return data.id
+  })
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────
@@ -245,7 +196,7 @@ async function main() {
   let cardHtmls = []
 
   try {
-    const [venueId, organizerId] = await Promise.all([ensureVenue(), ensureOrganizer()])
+    const [venueId, organizerId] = await Promise.all([ensureBluVenue(), ensureBluOrganizer()])
 
     cardHtmls = await fetchCards()
 
@@ -280,8 +231,6 @@ async function main() {
         description,
         start_at:        startAt,
         end_at:          endAt,
-        venue_id:        venueId,
-        organizer_id:    organizerId,
         category:        'music',
         tags:            ['jazz', 'live music', 'blu jazz+'],
         price_min:       priceMin,
@@ -295,14 +244,15 @@ async function main() {
         featured:        false,
       }
 
-      const { error } = await supabaseAdmin
-        .from('events')
-        .upsert(row, { onConflict: 'source,source_id', ignoreDuplicates: false })
+      const enrichedRow = await enrichWithImageDimensions(row)
+      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
 
       if (error) {
         console.warn(`  ⚠ Upsert failed for "${title}":`, error.message)
         skipped++
       } else {
+        await linkEventVenue(upserted.id, venueId)
+        await linkEventOrganization(upserted.id, organizerId)
         inserted++
         console.log(`  ✓ ${showDate}  ${title}`)
       }

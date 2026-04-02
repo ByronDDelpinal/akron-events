@@ -13,44 +13,21 @@
  */
 
 import 'dotenv/config'
-import { supabaseAdmin } from './lib/supabase-admin.js'
-import { logUpsertResult, logScraperError, stripHtml } from './lib/normalize.js'
+import {
+  logUpsertResult,
+  logScraperError,
+  stripHtml,
+  enrichWithImageDimensions,
+  upsertEventSafe,
+  linkEventVenue,
+  linkEventOrganization,
+  ensureVenue as ensureVenueGeneric,
+  ensureOrganization,
+  linkOrganizationVenue,
+  easternToIso,
+} from './lib/normalize.js'
 
 const SOURCE_URL = 'https://www.akroncivic.com/view-all-shows'
-
-// ── DST-aware Eastern → UTC ────────────────────────────────────────────────
-
-function nthWeekdayOfMonth(year, month, dayOfWeek, n) {
-  const first  = new Date(Date.UTC(year, month, 1))
-  const offset = (dayOfWeek - first.getUTCDay() + 7) % 7
-  return new Date(Date.UTC(year, month, 1 + offset + (n - 1) * 7))
-}
-function isEasternDST(utcDate) {
-  const y        = utcDate.getUTCFullYear()
-  const dstStart = nthWeekdayOfMonth(y, 2, 0, 2)
-  const dstEnd   = nthWeekdayOfMonth(y, 10, 0, 1)
-  return utcDate >= dstStart && utcDate < dstEnd
-}
-function easternToIso(dateStr, timeStr = '19:30:00') {
-  if (!dateStr) return null
-  // timeStr can be "7:30 PM", "19:30", "19:30:00"
-  const normalised = timeStr.trim().replace(
-    /^(\d{1,2}):(\d{2})\s*(am|pm)$/i,
-    (_, h, m, mer) => {
-      let hr = parseInt(h, 10)
-      if (mer.toLowerCase() === 'pm' && hr !== 12) hr += 12
-      if (mer.toLowerCase() === 'am' && hr === 12) hr = 0
-      return `${String(hr).padStart(2, '0')}:${m}:00`
-    }
-  )
-  const [datePart] = dateStr.split('T')
-  const [year, month, day] = datePart.split('-').map(Number)
-  const [hour, minute, second = 0] = normalised.split(':').map(Number)
-  const localUtcMs   = Date.UTC(year, month - 1, day, hour, minute, second)
-  const approxUtc    = new Date(localUtcMs + 5 * 3600_000)
-  const offsetHours  = isEasternDST(approxUtc) ? 4 : 5
-  return new Date(localUtcMs + offsetHours * 3600_000).toISOString()
-}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -159,22 +136,11 @@ const CIVIC_VENUES = {
   },
 }
 
-const venueCache = new Map()
-
-async function ensureVenue(venueName) {
-  const key = (venueName ?? 'Akron Civic Theatre').toLowerCase().trim()
-  if (venueCache.has(key)) return venueCache.get(key)
-
+async function ensureCivicVenue(venueName) {
   const displayName = venueName ?? 'Akron Civic Theatre'
-
-  const { data: existing } = await supabaseAdmin
-    .from('venues').select('id').eq('name', displayName).maybeSingle()
-
-  if (existing) { venueCache.set(key, existing.id); return existing.id }
-
+  const key = displayName.toLowerCase().trim()
   const info = CIVIC_VENUES[key] ?? CIVIC_VENUES['akron civic theatre']
-  const { data, error } = await supabaseAdmin.from('venues').insert({
-    name:          displayName,
+  return ensureVenueGeneric(displayName, {
     address:       info.address,
     city:          info.city,
     state:         info.state,
@@ -184,32 +150,14 @@ async function ensureVenue(venueName) {
     parking_type:  info.parking_type,
     parking_notes: info.parking_notes,
     website:       'https://www.akroncivic.com',
-  }).select('id').single()
-
-  if (error) {
-    console.warn(`  ⚠ Could not create venue "${displayName}":`, error.message)
-    venueCache.set(key, null)
-    return null
-  }
-  console.log(`  ✚ Created venue: ${displayName}`)
-  venueCache.set(key, data.id)
-  return data.id
+  })
 }
 
-async function ensureOrganizer() {
-  const { data: existing } = await supabaseAdmin
-    .from('organizers').select('id').eq('name', 'Akron Civic Theatre').maybeSingle()
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin.from('organizers').insert({
-    name:        'Akron Civic Theatre',
+async function ensureCivicOrganizer() {
+  return ensureOrganization('Akron Civic Theatre', {
     website:     'https://www.akroncivic.com',
     description: 'Akron Civic Theatre is a historic performing arts venue in downtown Akron presenting Broadway touring productions, concerts, comedy, and local performances.',
-  }).select('id').single()
-
-  if (error) { console.warn('  ⚠ Could not create Akron Civic organizer:', error.message); return null }
-  console.log('  ✚ Created Akron Civic Theatre organizer')
-  return data.id
+  })
 }
 
 // ── HTML fetch ─────────────────────────────────────────────────────────────
@@ -319,7 +267,7 @@ async function processShows(shows, organizerId) {
 
   for (const show of shows) {
     try {
-      const venueId  = await ensureVenue(show.venue)
+      const venueId  = await ensureCivicVenue(show.venue)
       const startAt  = easternToIso(show.dateStr, '19:30:00')
 
       if (!startAt) { skipped++; continue }
@@ -329,8 +277,6 @@ async function processShows(shows, organizerId) {
         description:     null,
         start_at:        startAt,
         end_at:          null,
-        venue_id:        venueId,
-        organizer_id:    organizerId,
         category:        'art',
         tags:            deriveTags(show.title),
         price_min:       25,
@@ -344,12 +290,17 @@ async function processShows(shows, organizerId) {
         featured:        false,
       }
 
-      const { error } = await supabaseAdmin
-        .from('events')
-        .upsert(row, { onConflict: 'source,source_id', ignoreDuplicates: false })
+      const enrichedRow = await enrichWithImageDimensions(row)
+      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
 
-      if (error) { console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message); skipped++ }
-      else inserted++
+      if (error) {
+        console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)
+        skipped++
+      } else {
+        await linkEventVenue(upserted.id, venueId)
+        await linkEventOrganization(upserted.id, organizerId)
+        inserted++
+      }
     } catch (err) {
       console.warn(`  ⚠ Error processing "${show.title}":`, err.message)
       skipped++
@@ -366,7 +317,7 @@ async function main() {
   const start = Date.now()
 
   try {
-    const organizerId = await ensureOrganizer()
+    const organizerId = await ensureCivicOrganizer()
 
     console.log(`\n🔍  Fetching ${SOURCE_URL}…`)
     const html  = await fetchHtml(SOURCE_URL)

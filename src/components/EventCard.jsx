@@ -1,6 +1,11 @@
+import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, isToday, isTomorrow } from 'date-fns'
 import './EventCard.css'
+
+// ── Minimum dimensions to consider an image "quality enough" ──
+const MIN_IMG_WIDTH  = 600
+const MIN_IMG_HEIGHT = 338
 
 // Map category → CSS class for thumbnail gradient
 const GRADIENT_MAP = {
@@ -62,13 +67,59 @@ function isUsableImageUrl(url) {
   return url && /^https?:\/\//i.test(url)
 }
 
-export default function EventCard({ event, featured = false }) {
+/**
+ * Check if the image meets the quality threshold.
+ * If dimensions are stored in the DB, use those. If dimensions are unknown
+ * (null), show the image optimistically (it will fallback on error).
+ */
+function isImageQualityOk(event) {
+  // No dimensions stored → show optimistically
+  if (event.image_width == null || event.image_height == null) return true
+  return event.image_width >= MIN_IMG_WIDTH && event.image_height >= MIN_IMG_HEIGHT
+}
+
+// ── COMFORTABLE MODE (default) ──────────────────────────────────────────────
+
+export default function EventCard({ event, featured = false, viewMode = 'comfortable' }) {
   const navigate = useNavigate()
   const price    = formatPrice(event.price_min, event.price_max)
-  const imageUrl = isUsableImageUrl(event.image_url) ? event.image_url : null
-  const gradient = imageUrl ? null : (GRADIENT_MAP[event.category] ?? 'g-default')
   const tagClass = TAG_CLASS_MAP[event.category] ?? 'tag-other'
   const catLabel = CATEGORY_LABEL[event.category] ?? event.category
+
+  if (viewMode === 'efficient') {
+    return (
+      <EfficientCard
+        event={event}
+        featured={featured}
+        price={price}
+        tagClass={tagClass}
+        catLabel={catLabel}
+        navigate={navigate}
+      />
+    )
+  }
+
+  return (
+    <ComfortableCard
+      event={event}
+      featured={featured}
+      price={price}
+      tagClass={tagClass}
+      catLabel={catLabel}
+      navigate={navigate}
+    />
+  )
+}
+
+function ComfortableCard({ event, featured, price, tagClass, catLabel, navigate }) {
+  const [imgFailed, setImgFailed] = useState(false)
+
+  const rawUrl   = isUsableImageUrl(event.image_url) ? event.image_url : null
+  const qualityOk = rawUrl && isImageQualityOk(event)
+  const imageUrl  = qualityOk && !imgFailed ? rawUrl : null
+  const gradient  = imageUrl ? null : (GRADIENT_MAP[event.category] ?? 'g-default')
+
+  const handleImgError = useCallback(() => setImgFailed(true), [])
 
   return (
     <div
@@ -80,7 +131,7 @@ export default function EventCard({ event, featured = false }) {
     >
       <div className="card-thumb">
         {imageUrl
-          ? <img src={imageUrl} alt={event.title} className="card-img" referrerPolicy="no-referrer" />
+          ? <img src={imageUrl} alt={event.title} className="card-img" referrerPolicy="no-referrer" onError={handleImgError} />
           : (
             <div className={`thumb-fill ${gradient}`}>
               <span className="thumb-lbl">{event.title}</span>
@@ -133,7 +184,41 @@ export default function EventCard({ event, featured = false }) {
   )
 }
 
-// ── Inline icon components ────────────────────────────
+// ── EFFICIENT MODE ──────────────────────────────────────────────────────────
+
+function EfficientCard({ event, featured, price, tagClass, catLabel, navigate }) {
+  return (
+    <div
+      className={`card-efficient ${featured ? 'card-efficient--featured' : ''}`}
+      onClick={() => navigate(`/events/${event.id}`)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === 'Enter' && navigate(`/events/${event.id}`)}
+    >
+      <div className="card-efficient-main">
+        <div className="card-efficient-title">{event.title}</div>
+        <div className="card-efficient-meta">
+          <div className="card-efficient-meta-row">
+            <CalendarIcon />
+            <span>{formatDate(event.start_at)}</span>
+          </div>
+          {event.venue && (
+            <div className="card-efficient-meta-row">
+              <PinIcon />
+              <span>{event.venue.name}{event.venue.city !== 'Akron' ? `, ${event.venue.city}` : ''}</span>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="card-efficient-end">
+        <span className={`event-tag ${tagClass}`}>{catLabel}</span>
+        <span className={`card-efficient-price ${price.free ? 'free' : ''}`}>{price.label}</span>
+      </div>
+    </div>
+  )
+}
+
+// ── Inline icon components ────────────────────────────────────
 function CalendarIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

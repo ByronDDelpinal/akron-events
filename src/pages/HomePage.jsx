@@ -1,12 +1,25 @@
 import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { format, isToday, isTomorrow } from 'date-fns'
 import { Link } from 'react-router-dom'
-import { useEvents, PAGE_SIZE } from '@/hooks/useEvents'
+import { useEvents, useMapEvents, PAGE_SIZE } from '@/hooks/useEvents'
+
+const COMPACT_PAGE_SIZE = 48
 import EventCard from '@/components/EventCard'
 import FilterBar from '@/components/FilterBar'
 import MapView from '@/components/MapView'
+import ViewModeToggle from '@/components/ViewModeToggle'
 import { INTENTS, SEARCH_SUGGESTIONS } from '@/lib/intents'
 import './HomePage.css'
+
+// ── localStorage key for persisting card view mode ──
+const VIEW_MODE_KEY = 'turnout_card_view_mode'
+
+function getStoredViewMode() {
+  try {
+    const v = localStorage.getItem(VIEW_MODE_KEY)
+    return v === 'efficient' ? 'efficient' : 'comfortable'
+  } catch { return 'comfortable' }
+}
 
 function groupEventsByDate(events) {
   const groups = {}
@@ -44,6 +57,14 @@ export default function HomePage() {
   const [search,         setSearch]         = useState('')
   const [searchInput,    setSearchInput]    = useState('')
   const [view,           setView]           = useState('list')
+
+  // ── Card view mode (Comfortable / Efficient) ─────────────────────────
+  const [cardViewMode, setCardViewMode] = useState(getStoredViewMode)
+
+  const handleCardViewMode = (mode) => {
+    setCardViewMode(mode)
+    try { localStorage.setItem(VIEW_MODE_KEY, mode) } catch {}
+  }
 
   // ── Search suggestion dropdown ─────────────────────────────────────────
   const [searchFocused,  setSearchFocused]  = useState(false)
@@ -83,7 +104,8 @@ export default function HomePage() {
   const [resultsKey, setResultsKey] = useState(0)
 
   // Track the filter signature so we can reset pagination on any change
-  const filterKey = `${activeIntentId}|${effectiveCategories.join(',')}|${dateRange}|${dateFrom}|${dateTo}|${search}|${effectiveFreeOnly}|${effectivePriceMax}|${sort}`
+  const activePageSize = cardViewMode === 'efficient' ? COMPACT_PAGE_SIZE : PAGE_SIZE
+  const filterKey = `${activeIntentId}|${effectiveCategories.join(',')}|${dateRange}|${dateFrom}|${dateTo}|${search}|${effectiveFreeOnly}|${effectivePriceMax}|${sort}|${cardViewMode}`
   const prevFilterKey = useRef(filterKey)
 
   // On filter change: signal a refresh but keep old events visible
@@ -104,8 +126,17 @@ export default function HomePage() {
     freeOnly:  effectiveFreeOnly,
     priceMax:  effectivePriceMax,
     sort,
-    limit: PAGE_SIZE,
+    limit: activePageSize,
     offset,
+  })
+
+  // Separate unpaginated fetch for the map — same filters, all results
+  const { events: mapEvents, loading: mapLoading, total: mapTotal } = useMapEvents({
+    categories: effectiveCategories,
+    dateRange, dateFrom, dateTo,
+    search,
+    freeOnly:  effectiveFreeOnly,
+    priceMax:  effectivePriceMax,
   })
 
   // Append each incoming page to the accumulated list
@@ -143,7 +174,7 @@ export default function HomePage() {
   }
 
   const loadMore = () => {
-    if (!loading && hasMore) setOffset(prev => prev + PAGE_SIZE)
+    if (!loading && hasMore) setOffset(prev => prev + activePageSize)
   }
 
   // ── Stat bar numbers ─────────────────────────────────────────────────
@@ -151,6 +182,8 @@ export default function HomePage() {
   // Loaded/weekend/free counts reflect what's actually been fetched so far.
   const loadedCount  = allEvents.length
   const weekendCount = allEvents.filter(e => { const d = new Date(e.start_at).getDay(); return d === 0 || d === 6 }).length
+
+  const isEfficient = cardViewMode === 'efficient'
 
   return (
     <>
@@ -232,11 +265,23 @@ export default function HomePage() {
       />
 
       {/* ── MAP VIEW ── */}
-      {view === 'map' && <MapView events={allEvents} />}
+      {view === 'map' && (
+        mapLoading
+          ? <div className="map-loading"><span>Loading map data…</span></div>
+          : <MapView events={mapEvents} />
+      )}
 
       {/* ── LIST VIEW ── */}
       {view === 'list' && (
         <div className={`content${isRefreshing ? ' content--refreshing' : ''}`}>
+
+          {/* ── View mode toggle (right-aligned above grid) ── */}
+          {allEvents.length > 0 && (
+            <div className="view-mode-row">
+              <ViewModeToggle mode={cardViewMode} onChange={handleCardViewMode} />
+            </div>
+          )}
+
           {/* Initial load — only show spinner when we have nothing to show yet */}
           {loading && allEvents.length === 0 && !isRefreshing && (
             <div className="empty-state">Loading events…</div>
@@ -263,8 +308,8 @@ export default function HomePage() {
               const items = []
               for (let i = 0; i < dayEvents.length; i++) {
                 const event = dayEvents[i]
-                // Inject promo into the grid at the exact threshold position
-                if (!midPromoShown && cardIdx >= midThreshold) {
+                // Inject promo into the grid at the exact threshold position (comfortable only)
+                if (!isEfficient && !midPromoShown && cardIdx >= midThreshold) {
                   items.push(
                     <div key="__mid-promo__" className="cards-grid-promo">
                       <GridPromo />
@@ -282,6 +327,7 @@ export default function HomePage() {
                     <EventCard
                       event={event}
                       featured={event.featured && i === 0}
+                      viewMode={cardViewMode}
                     />
                   </div>
                 )
@@ -289,7 +335,7 @@ export default function HomePage() {
               return (
                 <div key={`${resultsKey}-${dateKey}`}>
                   <DateHeading dateKey={dateKey} />
-                  <div className="cards-grid">{items}</div>
+                  <div className={isEfficient ? 'cards-grid--efficient' : 'cards-grid'}>{items}</div>
                 </div>
               )
             })

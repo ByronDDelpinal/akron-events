@@ -1,8 +1,13 @@
-import { useParams, useNavigate } from 'react-router-dom'
+import { useState, useCallback } from 'react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { useEvent } from '@/hooks/useEvents'
 import { VenueMap } from '@/components/MapView'
 import './EventPage.css'
+
+// ── Minimum dimensions to consider an image "quality enough" ──
+const MIN_IMG_WIDTH  = 600
+const MIN_IMG_HEIGHT = 338
 
 const GRADIENT_MAP = {
   music: 'g-jazz', art: 'g-art', community: 'g-market',
@@ -30,6 +35,15 @@ function formatPrice(min, max) {
   if (min === 0 && (!max || max === 0)) return { label: 'Free', free: true }
   if (max && max > min) return { label: `$${min}–$${max}`, free: false }
   return { label: `$${min}`, free: false }
+}
+
+function isUsableImageUrl(url) {
+  return url && /^https?:\/\//i.test(url)
+}
+
+function isImageQualityOk(event) {
+  if (event.image_width == null || event.image_height == null) return true
+  return event.image_width >= MIN_IMG_WIDTH && event.image_height >= MIN_IMG_HEIGHT
 }
 
 function buildGoogleCalUrl(event) {
@@ -88,27 +102,42 @@ export default function EventPage() {
   )
 
   const price    = formatPrice(event.price_min, event.price_max)
-  // Reject data URIs / blob URLs — they are scraper placeholder artifacts
-  const imageUrl = event.image_url && /^https?:\/\//i.test(event.image_url) ? event.image_url : null
-  const gradient = imageUrl ? null : (GRADIENT_MAP[event.category] ?? 'g-default')
   const tagClass = TAG_CLASS_MAP[event.category] ?? 'tag-other'
   const catLabel = CATEGORY_LABEL[event.category] ?? event.category
+
+  // ── Image quality gating ──
+  const rawUrl    = isUsableImageUrl(event.image_url) ? event.image_url : null
+  const qualityOk = rawUrl && isImageQualityOk(event)
+  const gradient  = GRADIENT_MAP[event.category] ?? 'g-default'
+
+  // Determine if image is wide enough to span full page width (>=1120px content area)
+  // If we know dimensions and the image is narrower, use float-left layout
+  const isNarrowImage = qualityOk && event.image_width != null && event.image_width < 1120
 
   return (
     <div className="page-event">
 
-      {/* ── BANNER ── */}
-      <div className="event-detail-banner">
-        {imageUrl
-          ? <img src={imageUrl} alt={event.title} className="event-banner-img" referrerPolicy="no-referrer" />
-          : <div className={`thumb-fill ${gradient}`} style={{ height: '100%' }} />
-        }
-        <div className="banner-scrim" />
-        <div className="banner-tags">
-          {event.featured && <span className="featured-tag">Featured</span>}
-          <span className={`event-tag ${tagClass}`}>{catLabel}</span>
+      {/* ── BANNER / IMAGE ── */}
+      {qualityOk ? (
+        isNarrowImage ? null : (
+          <EventBannerImage
+            imageUrl={rawUrl}
+            event={event}
+            tagClass={tagClass}
+            catLabel={catLabel}
+            gradient={gradient}
+          />
+        )
+      ) : (
+        <div className="event-detail-banner">
+          <div className={`thumb-fill ${gradient}`} style={{ height: '100%' }} />
+          <div className="banner-scrim" />
+          <div className="banner-tags">
+            {event.featured && <span className="featured-tag">Featured</span>}
+            <span className={`event-tag ${tagClass}`}>{catLabel}</span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── CONTENT ── */}
       <div className="event-detail-content">
@@ -122,9 +151,22 @@ export default function EventPage() {
           <div>
             {event.featured && <div className="event-detail-featured">Featured Event</div>}
             <h1 className="event-detail-title">{event.title}</h1>
-            {event.organizer && (
-              <p className="event-detail-organizer">Presented by {event.organizer.name}</p>
-            )}
+            {event.organizations?.length > 0 ? (
+              <p className="event-detail-organizer">
+                Presented by{' '}
+                {event.organizations.map((org, i) => (
+                  <span key={org.id}>
+                    {i > 0 && ', '}
+                    <Link to={`/organizations/${org.id}`} className="event-detail-org-link">{org.name}</Link>
+                  </span>
+                ))}
+              </p>
+            ) : event.organizer ? (
+              <p className="event-detail-organizer">
+                Presented by{' '}
+                <Link to={`/organizations/${event.organizer.id}`} className="event-detail-org-link">{event.organizer.name}</Link>
+              </p>
+            ) : null}
             <div className="event-detail-type-row">
               <span className={`event-tag ${tagClass}`}>{catLabel}</span>
               {event.tags?.map(tag => (
@@ -137,6 +179,11 @@ export default function EventPage() {
               <MobileInfoGrid event={event} price={price} />
               <ActionButtons event={event} price={price} />
             </div>
+
+            {/* Narrow image: float left alongside text */}
+            {qualityOk && isNarrowImage && (
+              <EventFloatImage imageUrl={rawUrl} event={event} />
+            )}
 
             <p className="event-section-label">About this event</p>
             {event.description
@@ -172,6 +219,8 @@ export default function EventPage() {
                     value={`${event.venue.name}\n${event.venue.address ?? ''}, ${event.venue.city}`}
                     link={`https://maps.google.com/?q=${encodeURIComponent(event.venue.name + ' ' + (event.venue.address ?? '') + ' ' + event.venue.city)}`}
                     linkLabel="Get directions"
+                    internalLink={`/venues/${event.venue.id}`}
+                    internalLinkLabel="View venue"
                   />
                   <VenueMap
                     lat={event.venue.lat}
@@ -179,6 +228,13 @@ export default function EventPage() {
                     venueName={event.venue.name}
                   />
                 </>
+              )}
+
+              {event.areas?.length > 0 && (
+                <InfoRow icon={<AreaIcon />} label="Area"
+                  value={event.areas.map(a => a.name).join(', ')}
+                  sub={event.areas[0]?.capacity ? `Capacity: ${event.areas[0].capacity}` : null}
+                />
               )}
 
               {event.venue?.parking_type && event.venue.parking_type !== 'unknown' && (
@@ -199,6 +255,68 @@ export default function EventPage() {
 }
 
 /* ── Sub-components ─────────────────────────────────── */
+
+/**
+ * Full-width banner image that respects native aspect ratio.
+ * Uses the actual image_width/image_height from DB when available.
+ */
+function EventBannerImage({ imageUrl, event, tagClass, catLabel, gradient }) {
+  const [imgFailed, setImgFailed] = useState(false)
+  const handleError = useCallback(() => setImgFailed(true), [])
+
+  if (imgFailed) {
+    // Fall back to gradient banner on load failure
+    return (
+      <div className="event-detail-banner">
+        <div className={`thumb-fill ${gradient}`} style={{ height: '100%' }} />
+        <div className="banner-scrim" />
+        <div className="banner-tags">
+          {event.featured && <span className="featured-tag">Featured</span>}
+          <span className={`event-tag ${tagClass}`}>{catLabel}</span>
+        </div>
+      </div>
+    )
+  }
+
+  // Use native aspect ratio: let the image determine its own height
+  return (
+    <div className="event-detail-banner event-detail-banner--native">
+      <img
+        src={imageUrl}
+        alt={event.title}
+        className="event-banner-img event-banner-img--native"
+        referrerPolicy="no-referrer"
+        onError={handleError}
+      />
+      <div className="banner-scrim" />
+      <div className="banner-tags">
+        {event.featured && <span className="featured-tag">Featured</span>}
+        <span className={`event-tag ${tagClass}`}>{catLabel}</span>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Float-left image for narrow images that don't span full width.
+ * Text flows around it.
+ */
+function EventFloatImage({ imageUrl, event }) {
+  const [imgFailed, setImgFailed] = useState(false)
+  const handleError = useCallback(() => setImgFailed(true), [])
+
+  if (imgFailed) return null
+
+  return (
+    <img
+      src={imageUrl}
+      alt={event.title}
+      className="event-float-img"
+      referrerPolicy="no-referrer"
+      onError={handleError}
+    />
+  )
+}
 
 /**
  * Renders a plain-text description that was produced by htmlToText().
@@ -227,7 +345,7 @@ function EventDescription({ text }) {
   )
 }
 
-function InfoRow({ icon, label, value, link, linkLabel, sub }) {
+function InfoRow({ icon, label, value, link, linkLabel, sub, internalLink, internalLinkLabel }) {
   return (
     <div className="info-row">
       <div className="info-row-icon">{icon}</div>
@@ -236,6 +354,7 @@ function InfoRow({ icon, label, value, link, linkLabel, sub }) {
         <p className="info-row-value" style={{ whiteSpace: 'pre-line' }}>{value}</p>
         {sub   && <p className="info-row-sub">{sub}</p>}
         {link  && <a href={link} target="_blank" rel="noopener noreferrer" className="info-row-link">{linkLabel}</a>}
+        {internalLink && <Link to={internalLink} className="info-row-link">{internalLinkLabel}</Link>}
       </div>
     </div>
   )
@@ -304,4 +423,7 @@ function PinIcon() {
 }
 function ParkingIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/></svg>
+}
+function AreaIcon() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="3" x2="21" y1="9" y2="9"/><line x1="9" x2="9" y1="21" y2="9"/></svg>
 }

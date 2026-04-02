@@ -301,3 +301,62 @@
   .venue-event-thumb { width: 72px; height: 72px; }
   .venue-event-arrow { display: none; }
 }
+
+/* ── Status Badge in Hero ── */
+.venue-detail-status {
+  display: inline-block;
+  margin-top: 10px;
+  font-family: var(--font-display);
+  font-size: 0.6rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  background: #FDF2DC; color: #7A4E08;
+  padding: 3px 8px; border-radius: 5px;
+}
+
+/* ── Description block ── */
+.venue-description-block { margin-bottom: 32px; }
+.venue-description-text {
+  font-size: 0.94rem; line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+/* ── Areas ── */
+.venue-areas-block { margin-bottom: 32px; }
+.venue-areas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.venue-area-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.venue-area-name {
+  font-family: var(--font-display);
+  font-size: 0.88rem; font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.venue-area-desc {
+  font-size: 0.8rem; color: var(--text-secondary);
+  line-height: 1.5; margin-bottom: 4px;
+}
+.venue-area-cap {
+  font-family: var(--font-display);
+  font-size: 0.68rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+/* ── Tags ── */
+.venue-tag-list {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.venue-tag-chip {
+  font-size: 0.72rem; font-weight: 500;
+  color: var(--text-muted);
+  background: var(--chip-bg);
+  padding: 3px 10px; border-radius: 20px;
+}

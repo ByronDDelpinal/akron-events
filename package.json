@@ -32,7 +32,13 @@
     "scrape:ohio-shakespeare": "node scripts/scrape-ohio-shakespeare.js",
     "scrape:painting-twist": "node scripts/scrape-painting-twist.js",
     "scrape:all": "node scripts/scrape-summit-artspace.js ; node scripts/scrape-summit-metro-parks.js ; node scripts/scrape-cvnp-conservancy.js ; node scripts/scrape-players-guild.js ; node scripts/scrape-uakron-calendar.js ; node scripts/scrape-rubberducks.js ; node scripts/scrape-nightlight.js ; node scripts/scrape-akron-library.js ; node scripts/scrape-jillys.js ; node scripts/scrape-blu-jazz.js ; node scripts/scrape-missing-falls.js ; node scripts/scrape-akronym.js ; node scripts/scrape-akron-art-museum.js ; node scripts/scrape-akron-civic.js ; node scripts/scrape-akron-zoo.js ; node scripts/scrape-downtown-akron.js ; node scripts/scrape-weathervane.js ; node scripts/scrape-ohio-shakespeare.js ; node scripts/scrape-painting-twist.js ; node scripts/scrape-eventbrite.js ; node scripts/fetch-ticketmaster.js",
-    "health": "node scripts/check-scraper-health.js"
+    "test": "node --test scripts/tests/test-*.js",
+    "test:normalize": "node --test scripts/tests/test-normalize.js",
+    "test:library": "node --test scripts/tests/test-akron-library.js",
+    "health": "node scripts/check-scraper-health.js",
+    "check:venues": "node scripts/check-venue-duplicates.js",
+    "check:venues:strict": "node scripts/check-venue-duplicates.js --min-similarity=0.80",
+    "check:venues:quiet": "node scripts/check-venue-duplicates.js --quiet"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.0",

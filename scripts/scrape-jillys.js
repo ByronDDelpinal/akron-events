@@ -24,8 +24,18 @@
  */
 
 import 'dotenv/config'
-import { supabaseAdmin } from './lib/supabase-admin.js'
-import { logUpsertResult, logScraperError, stripHtml } from './lib/normalize.js'
+import {
+  logUpsertResult,
+  logScraperError,
+  stripHtml,
+  enrichWithImageDimensions,
+  upsertEventSafe,
+  linkEventVenue,
+  linkEventOrganization,
+  ensureVenue,
+  ensureOrganization,
+  linkOrganizationVenue,
+} from './lib/normalize.js'
 
 const AJAX_URL   = 'https://jillysmusicroom.com/wp-admin/admin-ajax.php'
 const REST_BASE  = 'https://jillysmusicroom.com/wp-json/wp/v2/ajde_events'
@@ -76,13 +86,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms))
 
 // ── Venue / Organizer ─────────────────────────────────────────────────────
 
-async function ensureVenue() {
-  const { data: existing } = await supabaseAdmin
-    .from('venues').select('id').eq('name', "Jilly's Music Room").maybeSingle()
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin.from('venues').insert({
-    name:          "Jilly's Music Room",
+async function ensureJillysVenue() {
+  return ensureVenue("Jilly's Music Room", {
     address:       '111 N Main St',
     city:          'Akron',
     state:         'OH',
@@ -93,27 +98,14 @@ async function ensureVenue() {
     parking_notes: 'Street parking on N Main St and surrounding blocks. Canal Park garage nearby.',
     website:       'https://jillysmusicroom.com',
     description:   "Akron's premier live music venue in the heart of downtown, featuring jazz, blues, rock, and more.",
-  }).select('id').single()
-
-  if (error) { console.warn('  ⚠ Could not create Jilly\'s venue:', error.message); return null }
-  console.log("  ✚ Created Jilly's Music Room venue")
-  return data.id
+  })
 }
 
-async function ensureOrganizer() {
-  const { data: existing } = await supabaseAdmin
-    .from('organizers').select('id').eq('name', "Jilly's Music Room").maybeSingle()
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin.from('organizers').insert({
-    name:        "Jilly's Music Room",
+async function ensureJillysOrganizer() {
+  return ensureOrganization("Jilly's Music Room", {
     website:     'https://jillysmusicroom.com',
     description: "Akron's downtown live music venue hosting jazz, blues, Americana, tribute acts, and more.",
-  }).select('id').single()
-
-  if (error) { console.warn('  ⚠ Could not create Jilly\'s organizer:', error.message); return null }
-  console.log("  ✚ Created Jilly's Music Room organizer")
-  return data.id
+  })
 }
 
 // ── Step 1: Fetch event IDs + timestamps via EventON AJAX ─────────────────
@@ -255,8 +247,6 @@ async function processEvents(ajaxEvents, restById, venueId, organizerId) {
         description,
         start_at:        startAt,
         end_at:          endAt,
-        venue_id:        venueId,
-        organizer_id:    organizerId,
         category,
         tags,
         price_min:       0,    // Jilly's often has free or door-price shows; update if parseable
@@ -272,14 +262,15 @@ async function processEvents(ajaxEvents, restById, venueId, organizerId) {
 
       if (!row.start_at) { skipped++; continue }
 
-      const { error } = await supabaseAdmin
-        .from('events')
-        .upsert(row, { onConflict: 'source,source_id', ignoreDuplicates: false })
+      const enrichedRow = await enrichWithImageDimensions(row)
+      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
 
       if (error) {
         console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)
         skipped++
       } else {
+        await linkEventVenue(upserted.id, venueId)
+        await linkEventOrganization(upserted.id, organizerId)
         inserted++
       }
     } catch (err) {
@@ -298,7 +289,7 @@ async function main() {
   const start = Date.now()
 
   try {
-    const [venueId, organizerId] = await Promise.all([ensureVenue(), ensureOrganizer()])
+    const [venueId, organizerId] = await Promise.all([ensureJillysVenue(), ensureJillysOrganizer()])
 
     // Step 1: EventON AJAX — get upcoming event IDs and timestamps
     const ajaxEvents = await fetchEventonEvents()

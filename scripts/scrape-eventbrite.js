@@ -44,6 +44,12 @@ import {
   logScraperError,
   stripHtml,
   htmlToText,
+  enrichWithImageDimensions,
+  upsertEventSafe,
+  linkEventVenue,
+  linkEventOrganization,
+  ensureVenue,
+  ensureOrganization,
 } from './lib/normalize.js'
 
 const DEBUG      = process.argv.includes('--debug')
@@ -528,13 +534,14 @@ function extractFromHtml(html, label = '') {
 }
 
 // ── Venue / Organizer upsert ─────────────────────────────────────────────────
+// Uses shared ensureVenue/ensureOrganization from normalize.js for consistent
+// name-based deduplication across all scrapers.
 
 async function upsertVenue(ev) {
   const v = ev.primary_venue ?? ev.venue
   if (!v?.name) return null
   const addr = v.address ?? v.location ?? {}
-  const row = {
-    name:         v.name,
+  return ensureVenue(v.name, {
     address:      addr.address_1 ?? addr.localized_address_display ?? null,
     city:         addr.city ?? 'Akron',
     state:        addr.region ?? 'OH',
@@ -542,25 +549,15 @@ async function upsertVenue(ev) {
     lat:          v.latitude  ? parseFloat(v.latitude)  : null,
     lng:          v.longitude ? parseFloat(v.longitude) : null,
     parking_type: 'unknown',
-  }
-  const { data: existing } = await supabaseAdmin
-    .from('venues').select('id').eq('name', row.name).eq('city', row.city).maybeSingle()
-  if (existing) return existing.id
-  const { data, error } = await supabaseAdmin.from('venues').insert(row).select('id').single()
-  if (error) { console.warn(`  ⚠ Venue upsert "${row.name}":`, error.message); return null }
-  return data.id
+  })
 }
 
 async function upsertOrganizer(ev) {
   const o = ev.primary_organizer ?? ev.organizer
   if (!o?.name) return null
-  const row = { name: o.name, website: o.website ?? o.url ?? null }
-  const { data: existing } = await supabaseAdmin
-    .from('organizers').select('id').eq('name', row.name).maybeSingle()
-  if (existing) return existing.id
-  const { data, error } = await supabaseAdmin.from('organizers').insert(row).select('id').single()
-  if (error) { console.warn(`  ⚠ Organizer upsert "${row.name}":`, error.message); return null }
-  return data.id
+  return ensureOrganization(o.name, {
+    website: o.website ?? o.url ?? null,
+  })
 }
 
 // ── Event normalisation ──────────────────────────────────────────────────────
@@ -587,8 +584,17 @@ function normaliseEvent(ev) {
 
   let price_min = 0, price_max = null
   const ta = ev.ticket_availability
-  if (ev.is_free || ta?.is_free) {
+  // Only assert definitively free (price_max=0) when we have confirming data.
+  // Search results sometimes set is_free=true incorrectly; the detail-fetch pass
+  // patches ev.is_free with accurate Events API data, but if that fails we'd
+  // propagate the wrong value. Require ticket_availability or ticket_classes
+  // confirmation before marking as free.
+  const hasPricingData = ta?.minimum_ticket_price != null || ev.ticket_classes?.length > 0
+  if ((ev.is_free || ta?.is_free) && hasPricingData) {
     price_min = 0; price_max = 0
+  } else if (ev.is_free && !hasPricingData) {
+    // is_free flag without backing data — treat as unknown rather than asserting free
+    price_min = 0; price_max = null
   } else if (ta?.minimum_ticket_price?.major_value != null) {
     // ticket_availability is the most reliable pricing source in search results
     price_min = parseFloat(ta.minimum_ticket_price.major_value) || 0
@@ -799,6 +805,15 @@ async function fetchEventDetail(url, cookie) {
       return null
     }
 
+    // ── Extract og:image from HTML (works even when JS data is missing) ──────
+    let ogImageUrl = null
+    const ogMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ??
+                    html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
+    if (ogMatch?.[1] && /^https?:\/\//i.test(ogMatch[1])) {
+      ogImageUrl = ogMatch[1]
+      if (DEBUG) console.log(`  [debug]   og:image: ${ogImageUrl}`)
+    }
+
     // ── Strategy 1: window.__SERVER_DATA__ ───────────────────────────────────
     const serverData = extractWindowVar(html, '__SERVER_DATA__')
     if (serverData) {
@@ -807,11 +822,15 @@ async function fetchEventDetail(url, cookie) {
       const ev = serverData.event ?? serverData.eventDetail ?? null
       if (DEBUG && ev) console.log(`  [debug]   event keys: ${Object.keys(ev).join(', ')}`)
 
+      // Try to get image from __SERVER_DATA__ event object too
+      const sdImage = ev?.image?.url ?? ev?.logo?.url ?? ev?.logo?.original?.url ?? null
+      const imageUrl = ogImageUrl ?? sdImage ?? null
+
       // Format 1a: legacy description object
       const legacyHtml = ev?.description?.html ?? ev?.description?.text ?? null
       if (legacyHtml && legacyHtml.trim().length > 10) {
         if (DEBUG) console.log(`  [debug]   → found via __SERVER_DATA__.event.description`)
-        return { description: stripHtml(legacyHtml), summary: ev?.summary ?? null }
+        return { description: stripHtml(legacyHtml), summary: ev?.summary ?? null, imageUrl }
       }
 
       // Format 1b: structured_content modules (newer Eventbrite editor)
@@ -833,7 +852,7 @@ async function fetchEventDetail(url, cookie) {
         const combined = parts.filter(Boolean).join('\n\n')
         if (combined.length > 10) {
           if (DEBUG) console.log(`  [debug]   → found via structured_content modules`)
-          return { description: combined, summary: ev?.summary ?? null }
+          return { description: combined, summary: ev?.summary ?? null, imageUrl }
         }
       }
 
@@ -841,7 +860,7 @@ async function fetchEventDetail(url, cookie) {
       const sdSummary = ev?.summary ?? null
       if (sdSummary && sdSummary.trim().length > 10) {
         if (DEBUG) console.log(`  [debug]   → found via __SERVER_DATA__.event.summary`)
-        return { description: sdSummary, summary: sdSummary }
+        return { description: sdSummary, summary: sdSummary, imageUrl }
       }
     }
 
@@ -918,8 +937,8 @@ async function fetchEventDetail(url, cookie) {
         if (DEBUG) console.log(`  [debug]   Events API error: ${e.message}`)
       }
 
-      if (description || priceData) {
-        return { description, summary: null, priceData }
+      if (description || priceData || ogImageUrl) {
+        return { description, summary: null, priceData, imageUrl: ogImageUrl }
       }
     }
 
@@ -950,7 +969,8 @@ async function fetchEventDetail(url, cookie) {
 
       if (ndDesc && ndDesc.trim().length > 10) {
         if (DEBUG) console.log(`  [debug]   → found via __NEXT_DATA__ (${ndDesc.length} chars)`)
-        return { description: stripHtml(ndDesc), summary: ndEv?.summary ?? null }
+        const ndImage = ndEv?.image?.url ?? ndEv?.logo?.url ?? null
+        return { description: stripHtml(ndDesc), summary: ndEv?.summary ?? null, imageUrl: ogImageUrl ?? ndImage }
       }
       if (DEBUG) console.log(`  [debug]   __NEXT_DATA__ had no usable description`)
     }
@@ -969,13 +989,16 @@ async function fetchEventDetail(url, cookie) {
           // by checking for description + startDate rather than enumerating every @type value.
           if (item.startDate && item.description && item.description.trim().length > 10) {
             if (DEBUG) console.log(`  [debug]   → found via JSON-LD @type=${item['@type']} (${item.description.length} chars)`)
-            return { description: stripHtml(item.description), summary: null }
+            const ldImage = typeof item.image === 'string' ? item.image : (item.image?.url ?? null)
+            return { description: stripHtml(item.description), summary: null, imageUrl: ogImageUrl ?? ldImage }
           }
         }
       } catch {}
     }
 
     if (DEBUG) console.log(`  [debug]   → all strategies exhausted, no description found`)
+    // Even without description, return og:image if we found one
+    if (ogImageUrl) return { description: null, summary: null, imageUrl: ogImageUrl }
     return null
 
   } catch (err) {
@@ -1007,7 +1030,7 @@ async function enrichWithDetails(rawEvents, cookie) {
       if (!url) { failed++; return }
 
       const detail = await fetchEventDetail(url, cookie)
-      if (detail?.description || detail?.priceData) {
+      if (detail?.description || detail?.priceData || detail?.imageUrl) {
         // Patch description
         if (detail.description) {
           if (!ev.description || typeof ev.description !== 'object') ev.description = {}
@@ -1019,6 +1042,10 @@ async function enrichWithDetails(rawEvents, cookie) {
           ev.is_free             = detail.priceData.is_free
           ev.ticket_availability = detail.priceData.ticket_availability
           ev.ticket_classes      = detail.priceData.ticket_classes
+        }
+        // Patch image — fill in from detail page when search result had none
+        if (detail.imageUrl && !ev.image?.url && !ev.logo?.url && !ev.banner_url && !ev.hero_image_url) {
+          ev.image = { url: detail.imageUrl }
         }
         enriched++
       } else {
@@ -1045,14 +1072,14 @@ async function processEvents(rawEvents) {
       if (!row) { skipped++; continue }
       const venueId     = await upsertVenue(ev)
       const organizerId = await upsertOrganizer(ev)
-      const { error } = await supabaseAdmin
-        .from('events')
-        .upsert({ ...row, venue_id: venueId, organizer_id: organizerId },
-                 { onConflict: 'source,source_id', ignoreDuplicates: false })
+      const enrichedRow = await enrichWithImageDimensions(row)
+      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
       if (error) {
         console.warn(`  ⚠ Upsert failed "${ev.name?.text ?? ev.name}":`, error.message)
         skipped++
       } else {
+        await linkEventVenue(upserted.id, venueId)
+        await linkEventOrganization(upserted.id, organizerId)
         inserted++
       }
     } catch (err) {

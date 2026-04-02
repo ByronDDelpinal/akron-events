@@ -14,7 +14,11 @@
 
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
-import { logUpsertResult, logScraperError, stripHtml } from './lib/normalize.js'
+import {
+  logUpsertResult, logScraperError, stripHtml, enrichWithImageDimensions, upsertEventSafe,
+  linkEventVenue, linkEventOrganization, ensureVenue, linkOrganizationVenue,
+  parseCostFromTribe, parseTagsFromTribe, ensureOrganization,
+} from './lib/normalize.js'
 
 const BASE_URL   = 'https://www.summitartspace.org/wp-json/tribe/events/v1/events'
 const PER_PAGE   = 50
@@ -23,32 +27,6 @@ const DAYS_AHEAD = 180   // 6 months out
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 // stripHtml imported from normalize.js — handles all named + numeric HTML entities
-
-/** Parse price from Tribe cost_details or cost string */
-function parseCost(cost = '', costDetails = {}) {
-  const values = costDetails.values ?? []
-
-  if (values.length) {
-    const nums = values.map(Number).filter(n => !isNaN(n))
-    if (nums.length) {
-      const min = Math.min(...nums)
-      const max = Math.max(...nums)
-      return { price_min: min, price_max: max > min ? max : null }
-    }
-  }
-
-  // Fallback: parse the human-readable cost string
-  if (!cost || cost.toLowerCase().includes('free')) {
-    return { price_min: 0, price_max: null }
-  }
-
-  const numbers = cost.match(/\d+(\.\d+)?/g)?.map(Number)
-  if (!numbers?.length) return { price_min: 0, price_max: null }
-
-  const min = Math.min(...numbers)
-  const max = Math.max(...numbers)
-  return { price_min: min, price_max: max > min ? max : null }
-}
 
 /** Extract the first usable image URL from the Tribe image object or description HTML */
 function parseImage(imageObj, descriptionHtml = '') {
@@ -76,83 +54,6 @@ function parseCategory(categories = []) {
   return 'art'
 }
 
-/** Combine Tribe categories + tags into our tags array */
-function parseTags(categories = [], tags = []) {
-  const all = [
-    ...categories.map(c => c.name?.toLowerCase()).filter(Boolean),
-    ...tags.map(t => t.name?.toLowerCase()).filter(Boolean),
-  ]
-  return [...new Set(all)]
-}
-
-// ── Venue lookup ──────────────────────────────────────────────────────────
-
-/** Find or create Summit Artspace venue */
-async function ensureVenue() {
-  const { data: existing } = await supabaseAdmin
-    .from('venues')
-    .select('id')
-    .eq('name', 'Summit Artspace')
-    .maybeSingle()
-
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin
-    .from('venues')
-    .insert({
-      name:         'Summit Artspace',
-      address:      '140 E Market St',
-      city:         'Akron',
-      state:        'OH',
-      zip:          '44308',
-      lat:          41.0821,
-      lng:          -81.5148,
-      parking_type: 'street',
-      website:      'https://www.summitartspace.org',
-    })
-    .select('id')
-    .single()
-
-  if (error) {
-    console.warn('  ⚠ Could not create Summit Artspace venue:', error.message)
-    return null
-  }
-
-  console.log('  ✚ Created Summit Artspace venue')
-  return data.id
-}
-
-// ── Organizer lookup ──────────────────────────────────────────────────────
-
-/** Find or create Summit Artspace organizer */
-async function ensureOrganizer() {
-  const { data: existing } = await supabaseAdmin
-    .from('organizers')
-    .select('id')
-    .eq('name', 'Summit Artspace')
-    .maybeSingle()
-
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin
-    .from('organizers')
-    .insert({
-      name:        'Summit Artspace',
-      website:     'https://www.summitartspace.org',
-      description: 'Summit Artspace is a multi-disciplinary arts center in downtown Akron, OH.',
-      image_url:   null,
-    })
-    .select('id')
-    .single()
-
-  if (error) {
-    console.warn('  ⚠ Could not create Summit Artspace organizer:', error.message)
-    return null
-  }
-
-  console.log('  ✚ Created Summit Artspace organizer')
-  return data.id
-}
 
 // ── Fetch all pages ───────────────────────────────────────────────────────
 
@@ -210,9 +111,9 @@ async function processEvents(rawEvents, venueId, organizerId) {
 
   for (const ev of rawEvents) {
     try {
-      const { price_min, price_max } = parseCost(ev.cost, ev.cost_details)
+      const { price_min, price_max } = parseCostFromTribe(ev.cost, ev.cost_details)
       const category  = parseCategory(ev.categories)
-      const tags      = parseTags(ev.categories, ev.tags)
+      const tags      = parseTagsFromTribe(ev.categories, ev.tags, [])
       const imageUrl  = parseImage(ev.image, ev.description)
       const descText  = stripHtml(ev.description)
 
@@ -254,8 +155,6 @@ async function processEvents(rawEvents, venueId, organizerId) {
         description:     descText || null,
         start_at:        ev.utc_start_date ? ev.utc_start_date.replace(' ', 'T') + 'Z' : null,
         end_at:          ev.utc_end_date   ? ev.utc_end_date.replace(' ', 'T') + 'Z'   : null,
-        venue_id:        eventVenueId,
-        organizer_id:    organizerId,
         category,
         tags,
         price_min,
@@ -271,14 +170,15 @@ async function processEvents(rawEvents, venueId, organizerId) {
 
       if (!row.start_at) { skipped++; continue }
 
-      const { error } = await supabaseAdmin
-        .from('events')
-        .upsert(row, { onConflict: 'source,source_id', ignoreDuplicates: false })
+      const enrichedRow = await enrichWithImageDimensions(row)
+      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
 
       if (error) {
         console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)
         skipped++
       } else {
+        await linkEventVenue(upserted.id, eventVenueId)
+        await linkEventOrganization(upserted.id, organizerId)
         inserted++
       }
 
@@ -298,10 +198,23 @@ async function main() {
   const start = Date.now()
 
   try {
-    const [venueId, organizerId] = await Promise.all([
-      ensureVenue(),
-      ensureOrganizer(),
-    ])
+    const venueId = await ensureVenue('Summit Artspace', {
+      address:      '140 E Market St',
+      city:         'Akron',
+      state:        'OH',
+      zip:          '44308',
+      lat:          41.0821,
+      lng:          -81.5148,
+      parking_type: 'street',
+      website:      'https://www.summitartspace.org',
+    })
+
+    const organizerId = await ensureOrganization('Summit Artspace', {
+      website:     'https://www.summitartspace.org',
+      description: 'Summit Artspace is a multi-disciplinary arts center in downtown Akron, OH.',
+    })
+
+    await linkOrganizationVenue(organizerId, venueId)
 
     const rawEvents = await fetchAllPages()
     console.log(`\n📥  Processing ${rawEvents.length} events…`)

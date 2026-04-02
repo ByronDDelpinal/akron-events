@@ -19,7 +19,11 @@
 
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
-import { logUpsertResult, logScraperError, stripHtml } from './lib/normalize.js'
+import {
+  logUpsertResult, logScraperError, stripHtml, enrichWithImageDimensions, upsertEventSafe,
+  linkEventVenue, linkEventOrganization, ensureVenue, linkOrganizationVenue,
+  parseCostFromTribe, parseTagsFromTribe, ensureOrganization,
+} from './lib/normalize.js'
 
 const BASE_URL   = 'https://missingfallsbrewery.com/wp-json/tribe/events/v1/events'
 const PER_PAGE   = 50
@@ -27,24 +31,6 @@ const DAYS_AHEAD = 180
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 // stripHtml imported from normalize.js — handles all named + numeric HTML entities
-
-function parseCost(cost = '', costDetails = {}) {
-  const values = costDetails.values ?? []
-  if (values.length) {
-    const nums = values.map(Number).filter(n => !isNaN(n))
-    if (nums.length) {
-      const min = Math.min(...nums)
-      const max = Math.max(...nums)
-      return { price_min: min, price_max: max > min ? max : null }
-    }
-  }
-  if (!cost || cost.toLowerCase().includes('free')) return { price_min: 0, price_max: null }
-  const numbers = cost.match(/\d+(\.\d+)?/g)?.map(Number)
-  if (!numbers?.length) return { price_min: 0, price_max: null }
-  const min = Math.min(...numbers)
-  const max = Math.max(...numbers)
-  return { price_min: min, price_max: max > min ? max : null }
-}
 
 function parseImage(imageObj, descriptionHtml = '') {
   if (imageObj && imageObj.url) return imageObj.url
@@ -66,56 +52,6 @@ function parseCategory(categories = [], title = '') {
   return 'community'
 }
 
-function parseTags(categories = [], tags = []) {
-  const all = [
-    ...categories.map(c => c.name?.toLowerCase()).filter(Boolean),
-    ...tags.map(t => t.name?.toLowerCase()).filter(Boolean),
-    'brewery', 'akron',
-  ]
-  return [...new Set(all)]
-}
-
-// ── Venue / Organizer ─────────────────────────────────────────────────────
-
-async function ensureVenue() {
-  const { data: existing } = await supabaseAdmin
-    .from('venues').select('id').eq('name', 'Missing Falls Brewery').maybeSingle()
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin.from('venues').insert({
-    name:         'Missing Falls Brewery',
-    address:      '1250 Triplett Blvd',
-    city:         'Akron',
-    state:        'OH',
-    zip:          '44306',
-    lat:          41.0601,
-    lng:          -81.4958,
-    parking_type: 'lot',
-    parking_notes: 'Free lot parking on site.',
-    website:      'https://missingfallsbrewery.com',
-    description:  'Craft brewery and taproom in Akron, OH.',
-  }).select('id').single()
-
-  if (error) { console.warn('  ⚠ Could not create Missing Falls venue:', error.message); return null }
-  console.log('  ✚ Created Missing Falls Brewery venue')
-  return data.id
-}
-
-async function ensureOrganizer() {
-  const { data: existing } = await supabaseAdmin
-    .from('organizers').select('id').eq('name', 'Missing Falls Brewery').maybeSingle()
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin.from('organizers').insert({
-    name:    'Missing Falls Brewery',
-    website: 'https://missingfallsbrewery.com',
-    description: 'Craft brewery and community events venue in Akron, OH.',
-  }).select('id').single()
-
-  if (error) { console.warn('  ⚠ Could not create Missing Falls organizer:', error.message); return null }
-  console.log('  ✚ Created Missing Falls Brewery organizer')
-  return data.id
-}
 
 // ── Fetch ─────────────────────────────────────────────────────────────────
 
@@ -173,9 +109,9 @@ async function processEvents(rawEvents, venueId, organizerId) {
 
   for (const ev of rawEvents) {
     try {
-      const { price_min, price_max } = parseCost(ev.cost, ev.cost_details)
+      const { price_min, price_max } = parseCostFromTribe(ev.cost, ev.cost_details)
       const category = parseCategory(ev.categories, ev.title)
-      const tags     = parseTags(ev.categories, ev.tags)
+      const tags     = parseTagsFromTribe(ev.categories, ev.tags, ['brewery', 'akron'])
       const imageUrl = parseImage(ev.image, ev.description)
       const descText = stripHtml(ev.description)
 
@@ -184,8 +120,6 @@ async function processEvents(rawEvents, venueId, organizerId) {
         description:     descText || null,
         start_at:        ev.utc_start_date ? ev.utc_start_date.replace(' ', 'T') + 'Z' : null,
         end_at:          ev.utc_end_date   ? ev.utc_end_date.replace(' ', 'T') + 'Z'   : null,
-        venue_id:        venueId,
-        organizer_id:    organizerId,
         category,
         tags,
         price_min,
@@ -201,12 +135,17 @@ async function processEvents(rawEvents, venueId, organizerId) {
 
       if (!row.start_at) { skipped++; continue }
 
-      const { error } = await supabaseAdmin
-        .from('events')
-        .upsert(row, { onConflict: 'source,source_id', ignoreDuplicates: false })
+      const enrichedRow = await enrichWithImageDimensions(row)
+      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
 
-      if (error) { console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message); skipped++ }
-      else inserted++
+      if (error) {
+        console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)
+        skipped++
+      } else {
+        await linkEventVenue(upserted.id, venueId)
+        await linkEventOrganization(upserted.id, organizerId)
+        inserted++
+      }
     } catch (err) {
       console.warn(`  ⚠ Error processing "${ev.title ?? '?'}":`, err.message)
       skipped++
@@ -223,7 +162,26 @@ async function main() {
   const start = Date.now()
 
   try {
-    const [venueId, organizerId] = await Promise.all([ensureVenue(), ensureOrganizer()])
+    const venueId = await ensureVenue('Missing Falls Brewery', {
+      address:       '1250 Triplett Blvd',
+      city:          'Akron',
+      state:         'OH',
+      zip:           '44306',
+      lat:           41.0601,
+      lng:           -81.4958,
+      parking_type:  'lot',
+      parking_notes: 'Free lot parking on site.',
+      website:       'https://missingfallsbrewery.com',
+      description:   'Craft brewery and taproom in Akron, OH.',
+    })
+
+    const organizerId = await ensureOrganization('Missing Falls Brewery', {
+      website:     'https://missingfallsbrewery.com',
+      description: 'Craft brewery and community events venue in Akron, OH.',
+    })
+
+    await linkOrganizationVenue(organizerId, venueId)
+
     const rawEvents = await fetchAllPages()
 
     if (rawEvents.length === 0) {

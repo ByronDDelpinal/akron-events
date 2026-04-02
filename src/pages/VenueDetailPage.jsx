@@ -61,6 +61,9 @@ export default function VenueDetailPage() {
 
   const hasMap = venue.lat && venue.lng
   const parking = PARKING_LABEL[venue.parking_type] ?? null
+  const venueTags = venue.tags ?? []
+  const venueAreas = venue.areas ?? []
+  const venueOrg = venue.organization ?? null
 
   return (
     <div className="page-venue-detail">
@@ -76,6 +79,9 @@ export default function VenueDetailPage() {
             <p className="venue-detail-address">
               {venue.address}{venue.zip ? `, ${venue.zip}` : ''}
             </p>
+          )}
+          {venue.status && venue.status !== 'published' && (
+            <span className="venue-detail-status">{venue.status.replace('_', ' ')}</span>
           )}
         </div>
       </div>
@@ -146,11 +152,58 @@ export default function VenueDetailPage() {
                 </div>
               )}
 
+              {/* Organization */}
+              {venueOrg && (
+                <div className="venue-info-section">
+                  <p className="venue-info-label">Organization</p>
+                  <Link to={`/organizations/${venueOrg.id}`} className="venue-info-link">
+                    <OrgIcon />
+                    {venueOrg.name}
+                  </Link>
+                </div>
+              )}
+
+              {/* Tags */}
+              {venueTags.length > 0 && (
+                <div className="venue-info-section">
+                  <p className="venue-info-label">Tags</p>
+                  <div className="venue-tag-list">
+                    {venueTags.map(tag => (
+                      <span key={tag} className="venue-tag-chip">{tag}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
             </div>
           </aside>
 
-          {/* ── MAIN (events) ── */}
+          {/* ── MAIN (description, areas, events) ── */}
           <div className="venue-detail-main">
+            {/* Description */}
+            {venue.description && (
+              <div className="venue-description-block">
+                <p className="venue-section-label">About</p>
+                <p className="venue-description-text">{venue.description}</p>
+              </div>
+            )}
+
+            {/* Areas */}
+            {venueAreas.length > 0 && (
+              <div className="venue-areas-block">
+                <p className="venue-section-label">Spaces &amp; Areas</p>
+                <div className="venue-areas-grid">
+                  {venueAreas.map(area => (
+                    <div key={area.id} className="venue-area-card">
+                      <h3 className="venue-area-name">{area.name}</h3>
+                      {area.description && <p className="venue-area-desc">{area.description}</p>}
+                      {area.capacity && <p className="venue-area-cap">Capacity: {area.capacity}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <p className="venue-section-label">Upcoming Events</p>
 
             {eventsLoading && (
@@ -242,4 +295,7 @@ function GlobeIcon() {
 }
 function CalIcon() {
   return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+}
+function OrgIcon() {
+  return <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>
 }

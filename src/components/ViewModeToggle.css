@@ -1,0 +1,53 @@
+.view-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.vmt-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  opacity: 0.45;
+}
+
+.vmt-btn:hover {
+  opacity: 0.75;
+  background: rgba(212,146,42,0.08);
+}
+
+.vmt-btn--active {
+  background: var(--bg-card);
+  box-shadow: 0 1px 3px rgba(25,35,15,0.1);
+  opacity: 1;
+}
+
+.vmt-btn:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: -1px;
+}
+
+/* Grid/list line icon */
+.vmt-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.vmt-btn--active .vmt-icon {
+  color: var(--amber);
+}
+
+/* Character avatar */
+.vmt-avatar {
+  flex-shrink: 0;
+}

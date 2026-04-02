@@ -13,21 +13,25 @@
  */
 
 import 'dotenv/config'
-import { supabaseAdmin } from './lib/supabase-admin.js'
-import { logUpsertResult, logScraperError } from './lib/normalize.js'
+import {
+  logUpsertResult,
+  logScraperError,
+  enrichWithImageDimensions,
+  upsertEventSafe,
+  linkEventVenue,
+  linkEventOrganization,
+  ensureVenue,
+  ensureOrganization,
+  linkOrganizationVenue,
+} from './lib/normalize.js'
 
 const TEAM_ID     = 402     // Akron RubberDucks
 const MLB_API_BASE = 'https://statsapi.mlb.com/api/v1/schedule'
 
 // ── Venue / Organizer ──────────────────────────────────────────────────────
 
-async function ensureVenue() {
-  const { data: existing } = await supabaseAdmin
-    .from('venues').select('id').eq('name', '7 17 Credit Union Park').maybeSingle()
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin.from('venues').insert({
-    name:          '7 17 Credit Union Park',
+async function ensureDucksVenue() {
+  return ensureVenue('7 17 Credit Union Park', {
     address:       '300 S Main St',
     city:          'Akron',
     state:         'OH',
@@ -37,27 +41,14 @@ async function ensureVenue() {
     parking_type:  'lot',
     parking_notes: 'Paid parking available in lots surrounding the stadium.',
     website:       'https://www.milb.com/akron',
-  }).select('id').single()
-
-  if (error) { console.warn('  ⚠ Could not create 7 17 Credit Union Park venue:', error.message); return null }
-  console.log('  ✚ Created venue: 7 17 Credit Union Park')
-  return data.id
+  })
 }
 
-async function ensureOrganizer() {
-  const { data: existing } = await supabaseAdmin
-    .from('organizers').select('id').eq('name', 'Akron RubberDucks').maybeSingle()
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin.from('organizers').insert({
-    name:        'Akron RubberDucks',
+async function ensureDucksOrganizer() {
+  return ensureOrganization('Akron RubberDucks', {
     website:     'https://www.milb.com/akron',
     description: 'The Akron RubberDucks are the Double-A affiliate of the Cleveland Guardians, playing at 7 17 Credit Union Park in downtown Akron.',
-  }).select('id').single()
-
-  if (error) { console.warn('  ⚠ Could not create RubberDucks organizer:', error.message); return null }
-  console.log('  ✚ Created Akron RubberDucks organizer')
-  return data.id
+  })
 }
 
 // ── Fetch schedule ─────────────────────────────────────────────────────────
@@ -131,8 +122,6 @@ async function processGames(games, venueId, organizerId) {
         description,
         start_at:        startAt,
         end_at:          null,
-        venue_id:        venueId,
-        organizer_id:    organizerId,
         category:        'sports',
         tags:            ['baseball', 'minor-league', 'rubberducks', 'family'],
         price_min:       10,
@@ -148,12 +137,17 @@ async function processGames(games, venueId, organizerId) {
 
       if (!row.start_at) { skipped++; continue }
 
-      const { error } = await supabaseAdmin
-        .from('events')
-        .upsert(row, { onConflict: 'source,source_id', ignoreDuplicates: false })
+      const enrichedRow = await enrichWithImageDimensions(row)
+      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
 
-      if (error) { console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message); skipped++ }
-      else inserted++
+      if (error) {
+        console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)
+        skipped++
+      } else {
+        await linkEventVenue(upserted.id, venueId)
+        await linkEventOrganization(upserted.id, organizerId)
+        inserted++
+      }
     } catch (err) {
       console.warn(`  ⚠ Error processing game ${game.gamePk}:`, err.message)
       skipped++
@@ -171,7 +165,7 @@ async function main() {
   const start = Date.now()
 
   try {
-    const [venueId, organizerId] = await Promise.all([ensureVenue(), ensureOrganizer()])
+    const [venueId, organizerId] = await Promise.all([ensureDucksVenue(), ensureDucksOrganizer()])
     const games = await fetchSchedule()
     console.log(`\n📥  Processing ${games.length} games…`)
 

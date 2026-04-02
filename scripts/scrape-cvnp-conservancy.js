@@ -14,7 +14,11 @@
 
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
-import { logUpsertResult, logScraperError, stripHtml } from './lib/normalize.js'
+import {
+  logUpsertResult, logScraperError, stripHtml, enrichWithImageDimensions, upsertEventSafe,
+  linkEventVenue, linkEventOrganization, ensureVenue, linkOrganizationVenue,
+  parseCostFromTribe, parseTagsFromTribe, ensureOrganization,
+} from './lib/normalize.js'
 
 const BASE_URL   = 'https://www.conservancyforcvnp.org/wp-json/tribe/events/v1/events'
 const PER_PAGE   = 50
@@ -34,32 +38,6 @@ function parseCategory(categories = [], tags = []) {
   return 'community'
 }
 
-function parseTags(categories = [], tags = []) {
-  const all = [
-    ...categories.map(c => c.name?.toLowerCase()).filter(Boolean),
-    ...tags.map(t => t.name?.toLowerCase()).filter(Boolean),
-    'national-park', 'cvnp', 'outdoors',
-  ]
-  return [...new Set(all)]
-}
-
-function parseCost(cost = '', costDetails = {}) {
-  const values = costDetails.values ?? []
-  if (values.length) {
-    const nums = values.map(Number).filter(n => !isNaN(n))
-    if (nums.length) {
-      const min = Math.min(...nums)
-      const max = Math.max(...nums)
-      return { price_min: min, price_max: max > min ? max : null }
-    }
-  }
-  if (!cost || cost.toLowerCase().includes('free')) return { price_min: 0, price_max: null }
-  const numbers = cost.match(/\d+(\.\d+)?/g)?.map(Number)
-  if (!numbers?.length) return { price_min: 0, price_max: null }
-  const min = Math.min(...numbers)
-  const max = Math.max(...numbers)
-  return { price_min: min, price_max: max > min ? max : null }
-}
 
 // ── Venue cache ────────────────────────────────────────────────────────────
 
@@ -68,13 +46,7 @@ const venueCache = new Map()
 async function ensureOrgVenue() {
   if (venueCache.has('__org__')) return venueCache.get('__org__')
 
-  const { data: existing } = await supabaseAdmin
-    .from('venues').select('id').eq('name', 'Cuyahoga Valley National Park').maybeSingle()
-
-  if (existing) { venueCache.set('__org__', existing.id); return existing.id }
-
-  const { data, error } = await supabaseAdmin.from('venues').insert({
-    name:          'Cuyahoga Valley National Park',
+  const venueId = await ensureVenue('Cuyahoga Valley National Park', {
     address:       '1550 Boston Mills Rd',
     city:          'Peninsula',
     state:         'OH',
@@ -84,12 +56,10 @@ async function ensureOrgVenue() {
     parking_type:  'lot',
     parking_notes: 'Multiple free parking lots throughout the park.',
     website:       'https://www.conservancyforcvnp.org',
-  }).select('id').single()
+  })
 
-  if (error) { console.warn('  ⚠ Could not create CVNP venue:', error.message); venueCache.set('__org__', null); return null }
-  console.log('  ✚ Created venue: Cuyahoga Valley National Park')
-  venueCache.set('__org__', data.id)
-  return data.id
+  venueCache.set('__org__', venueId)
+  return venueId
 }
 
 async function ensureEventVenue(tribeVenue, orgVenueId) {
@@ -99,44 +69,20 @@ async function ensureEventVenue(tribeVenue, orgVenueId) {
   if (!name) return orgVenueId
   if (venueCache.has(name)) return venueCache.get(name)
 
-  const { data: existing } = await supabaseAdmin
-    .from('venues').select('id').eq('name', name).maybeSingle()
+  const venueId = await ensureVenue(name, {
+    address:       tribeVenue.address ?? null,
+    city:          tribeVenue.city ?? 'Peninsula',
+    state:         tribeVenue.stateprovince ?? 'OH',
+    zip:           tribeVenue.zip ?? null,
+    lat:           tribeVenue.geo_lat ? parseFloat(tribeVenue.geo_lat) : null,
+    lng:           tribeVenue.geo_lng ? parseFloat(tribeVenue.geo_lng) : null,
+    parking_type:  'lot',
+    parking_notes: 'Multiple free parking lots throughout the park.',
+    website:       tribeVenue.website ?? 'https://www.conservancyforcvnp.org',
+  })
 
-  if (existing) { venueCache.set(name, existing.id); return existing.id }
-
-  const { data, error } = await supabaseAdmin.from('venues').insert({
-    name,
-    address:      tribeVenue.address ?? null,
-    city:         tribeVenue.city ?? 'Peninsula',
-    state:        tribeVenue.stateprovince ?? 'OH',
-    zip:          tribeVenue.zip ?? null,
-    lat:          tribeVenue.geo_lat ? parseFloat(tribeVenue.geo_lat) : null,
-    lng:          tribeVenue.geo_lng ? parseFloat(tribeVenue.geo_lng) : null,
-    parking_type: 'lot',
-    parking_notes:'Multiple free parking lots throughout the park.',
-    website:      tribeVenue.website ?? 'https://www.conservancyforcvnp.org',
-  }).select('id').single()
-
-  if (error) { console.warn(`  ⚠ Could not create venue "${name}":`, error.message); venueCache.set(name, orgVenueId); return orgVenueId }
-  console.log(`  ✚ Created venue: ${name}`)
-  venueCache.set(name, data.id)
-  return data.id
-}
-
-async function ensureOrganizer() {
-  const { data: existing } = await supabaseAdmin
-    .from('organizers').select('id').eq('name', 'Conservancy for Cuyahoga Valley National Park').maybeSingle()
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin.from('organizers').insert({
-    name:        'Conservancy for Cuyahoga Valley National Park',
-    website:     'https://www.conservancyforcvnp.org',
-    description: 'The Conservancy for Cuyahoga Valley National Park supports, promotes, and enhances Cuyahoga Valley National Park through education, recreation, and stewardship.',
-  }).select('id').single()
-
-  if (error) { console.warn('  ⚠ Could not create CVNP organizer:', error.message); return null }
-  console.log('  ✚ Created CVNP Conservancy organizer')
-  return data.id
+  venueCache.set(name, venueId ?? orgVenueId)
+  return venueId ?? orgVenueId
 }
 
 // ── Fetch ──────────────────────────────────────────────────────────────────
@@ -189,9 +135,9 @@ async function processEvents(rawEvents, orgVenueId, organizerId) {
 
   for (const ev of rawEvents) {
     try {
-      const { price_min, price_max } = parseCost(ev.cost, ev.cost_details)
+      const { price_min, price_max } = parseCostFromTribe(ev.cost, ev.cost_details)
       const category = parseCategory(ev.categories, ev.tags)
-      const tags     = parseTags(ev.categories, ev.tags)
+      const tags     = parseTagsFromTribe(ev.categories, ev.tags, ['national-park', 'cvnp', 'outdoors'])
       const imageUrl = ev.image?.url ?? null
       const descText = stripHtml(ev.description ?? '')
 
@@ -202,8 +148,6 @@ async function processEvents(rawEvents, orgVenueId, organizerId) {
         description:     descText || null,
         start_at:        ev.utc_start_date ? ev.utc_start_date.replace(' ', 'T') + 'Z' : null,
         end_at:          ev.utc_end_date   ? ev.utc_end_date.replace(' ', 'T') + 'Z'   : null,
-        venue_id:        venueId,
-        organizer_id:    organizerId,
         category,
         tags,
         price_min,
@@ -219,12 +163,17 @@ async function processEvents(rawEvents, orgVenueId, organizerId) {
 
       if (!row.start_at) { skipped++; continue }
 
-      const { error } = await supabaseAdmin
-        .from('events')
-        .upsert(row, { onConflict: 'source,source_id', ignoreDuplicates: false })
+      const enrichedRow = await enrichWithImageDimensions(row)
+      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
 
-      if (error) { console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message); skipped++ }
-      else inserted++
+      if (error) {
+        console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)
+        skipped++
+      } else {
+        await linkEventVenue(upserted.id, venueId)
+        await linkEventOrganization(upserted.id, organizerId)
+        inserted++
+      }
     } catch (err) {
       console.warn(`  ⚠ Error processing "${ev.title}":`, err.message)
       skipped++
@@ -241,7 +190,14 @@ async function main() {
   const start = Date.now()
 
   try {
-    const [orgVenueId, organizerId] = await Promise.all([ensureOrgVenue(), ensureOrganizer()])
+    const orgVenueId = await ensureOrgVenue()
+    const organizerId = await ensureOrganization('Conservancy for Cuyahoga Valley National Park', {
+      website:     'https://www.conservancyforcvnp.org',
+      description: 'The Conservancy for Cuyahoga Valley National Park supports, promotes, and enhances Cuyahoga Valley National Park through education, recreation, and stewardship.',
+    })
+
+    await linkOrganizationVenue(organizerId, orgVenueId)
+
     const rawEvents = await fetchAllPages()
     console.log(`\n📥  Processing ${rawEvents.length} events…`)
 

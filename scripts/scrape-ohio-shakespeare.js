@@ -14,8 +14,18 @@
  */
 
 import 'dotenv/config'
-import { supabaseAdmin } from './lib/supabase-admin.js'
-import { logUpsertResult, logScraperError, stripHtml } from './lib/normalize.js'
+import {
+  logUpsertResult,
+  logScraperError,
+  stripHtml,
+  enrichWithImageDimensions,
+  upsertEventSafe,
+  linkEventVenue,
+  linkEventOrganization,
+  ensureVenue,
+  ensureOrganization,
+  easternToIso,
+} from './lib/normalize.js'
 
 const BASE_URL   = 'https://www.ohioshakespearefestival.com'
 const HOME_URL   = `${BASE_URL}/`
@@ -26,38 +36,6 @@ const NON_SHOW_SLUGS = new Set([
   'resources', 'shakesbeer', 'donate', 'about', 'contact', 'season',
   'tickets', 'box-office', 'education', 'auditions',
 ])
-
-// ── DST-aware Eastern → UTC ────────────────────────────────────────────────
-
-function nthWeekdayOfMonth(year, month, dayOfWeek, n) {
-  const first  = new Date(Date.UTC(year, month, 1))
-  const offset = (dayOfWeek - first.getUTCDay() + 7) % 7
-  return new Date(Date.UTC(year, month, 1 + offset + (n - 1) * 7))
-}
-function isEasternDST(utcDate) {
-  const y        = utcDate.getUTCFullYear()
-  const dstStart = nthWeekdayOfMonth(y, 2, 0, 2)
-  const dstEnd   = nthWeekdayOfMonth(y, 10, 0, 1)
-  return utcDate >= dstStart && utcDate < dstEnd
-}
-function easternToIso(dateStr, timeStr = '20:00:00') {
-  if (!dateStr) return null
-  const normalised = timeStr.trim().replace(
-    /^(\d{1,2}):?(\d{2})?\s*(am|pm)$/i,
-    (_, h, m = '00', mer) => {
-      let hr = parseInt(h, 10)
-      if (mer.toLowerCase() === 'pm' && hr !== 12) hr += 12
-      if (mer.toLowerCase() === 'am' && hr === 12) hr = 0
-      return `${String(hr).padStart(2, '0')}:${m}:00`
-    }
-  )
-  const [year, month, day] = dateStr.split('-').map(Number)
-  const [hour, minute, second = 0] = normalised.split(':').map(Number)
-  const localUtcMs  = Date.UTC(year, month - 1, day, hour, minute, second)
-  const approxUtc   = new Date(localUtcMs + 5 * 3600_000)
-  const offsetHours = isEasternDST(approxUtc) ? 4 : 5
-  return new Date(localUtcMs + offsetHours * 3600_000).toISOString()
-}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -186,44 +164,16 @@ async function ensureVenueByKeyword(pageText) {
   if (venueCache.has(venueKey)) return venueCache.get(venueKey)
 
   const info = KNOWN_VENUES[venueKey]
-  const { data: existing } = await supabaseAdmin
-    .from('venues').select('id').eq('name', info.name).maybeSingle()
-
-  if (existing) { venueCache.set(venueKey, existing.id); return existing.id }
-
-  const { data, error } = await supabaseAdmin.from('venues').insert({
-    name:          info.name,
-    address:       info.address,
-    city:          info.city,
-    state:         info.state,
-    zip:           info.zip,
-    lat:           info.lat,
-    lng:           info.lng,
-    parking_type:  info.parking_type,
-    parking_notes: info.parking_notes,
-    website:       info.website,
-  }).select('id').single()
-
-  if (error) { console.warn(`  ⚠ Could not create venue "${info.name}":`, error.message); venueCache.set(venueKey, null); return null }
-  console.log(`  ✚ Created venue: ${info.name}`)
-  venueCache.set(venueKey, data.id)
-  return data.id
+  const venueId = await ensureVenue(info.name, info)
+  venueCache.set(venueKey, venueId)
+  return venueId
 }
 
-async function ensureOrganizer() {
-  const { data: existing } = await supabaseAdmin
-    .from('organizers').select('id').eq('name', 'Ohio Shakespeare Festival').maybeSingle()
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin.from('organizers').insert({
-    name:        'Ohio Shakespeare Festival',
+async function ensureOsfOrganizer() {
+  return ensureOrganization('Ohio Shakespeare Festival', {
     website:     'https://www.ohioshakespearefestival.com',
     description: 'Ohio Shakespeare Festival is a professional theatre company in Akron, Ohio, celebrating its 25th anniversary season with a diverse repertoire from Shakespeare to contemporary musicals.',
-  }).select('id').single()
-
-  if (error) { console.warn('  ⚠ Could not create OSF organizer:', error.message); return null }
-  console.log('  ✚ Created Ohio Shakespeare Festival organizer')
-  return data.id
+  })
 }
 
 // ── Find show slugs on homepage ────────────────────────────────────────────
@@ -379,8 +329,6 @@ async function upsertShows(shows, organizerId) {
         description:     show.desc || null,
         start_at:        show.startAt,
         end_at:          null,
-        venue_id:        show.venueId,
-        organizer_id:    organizerId,
         category:        'art',
         tags:            ['theatre', 'shakespeare', 'professional-theatre', 'akron', 'live-performance'],
         price_min:       15,
@@ -394,12 +342,17 @@ async function upsertShows(shows, organizerId) {
         featured:        false,
       }
 
-      const { error } = await supabaseAdmin
-        .from('events')
-        .upsert(row, { onConflict: 'source,source_id', ignoreDuplicates: false })
+      const enrichedRow = await enrichWithImageDimensions(row)
+      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
 
-      if (error) { console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message); skipped++ }
-      else inserted++
+      if (error) {
+        console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)
+        skipped++
+      } else {
+        await linkEventVenue(upserted.id, show.venueId)
+        await linkEventOrganization(upserted.id, organizerId)
+        inserted++
+      }
     } catch (err) {
       console.warn(`  ⚠ Error upserting "${show.title}":`, err.message)
       skipped++
@@ -416,7 +369,7 @@ async function main() {
   const start = Date.now()
 
   try {
-    const organizerId = await ensureOrganizer()
+    const organizerId = await ensureOsfOrganizer()
     const shows       = await fetchAndProcessShows(organizerId)
     console.log(`\n📥  Upserting ${shows.length} shows…`)
 

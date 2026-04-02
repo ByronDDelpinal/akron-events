@@ -15,7 +15,7 @@
 
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
-import { EVENTBRITE_CATEGORY_MAP, parseEventbritePrice, logUpsertResult, logScraperError, stripHtml } from './lib/normalize.js'
+import { EVENTBRITE_CATEGORY_MAP, parseEventbritePrice, logUpsertResult, logScraperError, stripHtml, enrichWithImageDimensions, upsertEventSafe, linkEventVenue, linkEventOrganization } from './lib/normalize.js'
 
 const EVENTBRITE_TOKEN = process.env.EVENTBRITE_API_KEY
 if (!EVENTBRITE_TOKEN) {
@@ -112,7 +112,7 @@ async function upsertOrganizer(ebOrganizer) {
   }
 
   const { data: existing } = await supabaseAdmin
-    .from('organizers')
+    .from('organizations')
     .select('id')
     .eq('name', row.name)
     .maybeSingle()
@@ -120,7 +120,7 @@ async function upsertOrganizer(ebOrganizer) {
   if (existing) return existing.id
 
   const { data, error } = await supabaseAdmin
-    .from('organizers')
+    .from('organizations')
     .insert(row)
     .select('id')
     .single()
@@ -199,8 +199,6 @@ async function processEvents(rawEvents) {
         description:     ev.description?.text ? stripHtml(ev.description.text) : null,
         start_at:        ev.start?.utc ?? null,
         end_at:          ev.end?.utc   ?? null,
-        venue_id:        venueId,
-        organizer_id:    organizerId,
         category,
         tags:            [],   // Eventbrite tags aren't reliable; we rely on category
         price_min,
@@ -217,14 +215,15 @@ async function processEvents(rawEvents) {
       if (!row.start_at) { skipped++; continue }
 
       // ── Upsert (insert or update on source+source_id conflict) ─
-      const { error } = await supabaseAdmin
-        .from('events')
-        .upsert(row, { onConflict: 'source,source_id', ignoreDuplicates: false })
+      const enrichedRow = await enrichWithImageDimensions(row)
+      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
 
       if (error) {
         console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)
         skipped++
       } else {
+        await linkEventVenue(upserted.id, venueId)
+        await linkEventOrganization(upserted.id, organizerId)
         // We can't easily tell insert vs update from upsert, so count as inserted
         inserted++
       }

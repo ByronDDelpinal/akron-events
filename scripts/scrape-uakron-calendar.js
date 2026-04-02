@@ -15,35 +15,20 @@
  */
 
 import 'dotenv/config'
-import { supabaseAdmin } from './lib/supabase-admin.js'
-import { logUpsertResult, logScraperError, stripHtml } from './lib/normalize.js'
+import {
+  logUpsertResult,
+  logScraperError,
+  stripHtml,
+  enrichWithImageDimensions,
+  upsertEventSafe,
+  linkEventVenue,
+  linkEventOrganization,
+  ensureVenue as ensureVenueGeneric,
+  ensureOrganization,
+} from './lib/normalize.js'
 
 const API_URL   = 'https://calendar.uakron.edu/live/json/events?days=90&user_tz=America/New_York'
 const EJ_THOMAS_GROUP = 'EJ Thomas Hall'
-
-// ── DST-aware Eastern → UTC ────────────────────────────────────────────────
-
-function nthWeekdayOfMonth(year, month, dayOfWeek, n) {
-  const first = new Date(Date.UTC(year, month, 1))
-  const offset = (dayOfWeek - first.getUTCDay() + 7) % 7
-  return new Date(Date.UTC(year, month, 1 + offset + (n - 1) * 7))
-}
-function isEasternDST(utcDate) {
-  const y = utcDate.getUTCFullYear()
-  const dstStart = nthWeekdayOfMonth(y, 2, 0, 2)
-  const dstEnd   = nthWeekdayOfMonth(y, 10, 0, 1)
-  return utcDate >= dstStart && utcDate < dstEnd
-}
-function easternToIso(dateStr) {
-  if (!dateStr) return null
-  const [datePart, timePart = '00:00:00'] = dateStr.split(' ')
-  const [year, month, day] = datePart.split('-').map(Number)
-  const [hour, minute, second = 0] = timePart.split(':').map(Number)
-  const localUtcMs = Date.UTC(year, month - 1, day, hour, minute, second)
-  const approxUtc = new Date(localUtcMs + 5 * 3600_000)
-  const offsetHours = isEasternDST(approxUtc) ? 4 : 5
-  return new Date(localUtcMs + offsetHours * 3600_000).toISOString()
-}
 
 // ── Category mapping ───────────────────────────────────────────────────────
 
@@ -102,45 +87,35 @@ async function ensureVenue(locationTitle, lat, lng) {
   const name = locationTitle ?? 'University of Akron'
   if (venueCache.has(name)) return venueCache.get(name)
 
-  const { data: existing } = await supabaseAdmin
-    .from('venues').select('id').eq('name', name).maybeSingle()
+  const known = KNOWN_VENUES[name]
 
-  if (existing) { venueCache.set(name, existing.id); return existing.id }
+  let venueId
+  if (known) {
+    // Known campus venue — use its specific details
+    venueId = await ensureVenueGeneric(name, {
+      ...known,
+      lat: lat ? parseFloat(lat) : known.lat,
+      lng: lng ? parseFloat(lng) : known.lng,
+    })
+  } else {
+    // Off-campus / external venue — only pass coords if available
+    venueId = await ensureVenueGeneric(name, {
+      city:  'Akron',
+      state: 'OH',
+      lat:   lat ? parseFloat(lat) : null,
+      lng:   lng ? parseFloat(lng) : null,
+    })
+  }
 
-  const known = KNOWN_VENUES[name] ?? {}
-  const { data, error } = await supabaseAdmin.from('venues').insert({
-    name,
-    address:      known.address ?? null,
-    city:         known.city ?? 'Akron',
-    state:        known.state ?? 'OH',
-    zip:          known.zip ?? '44325',
-    lat:          lat ? parseFloat(lat) : (known.lat ?? null),
-    lng:          lng ? parseFloat(lng) : (known.lng ?? null),
-    parking_type: known.parking_type ?? 'garage',
-    parking_notes:known.parking_notes ?? 'Parking garages available on campus.',
-    website:      known.website ?? 'https://www.uakron.edu',
-  }).select('id').single()
-
-  if (error) { console.warn(`  ⚠ Could not create venue "${name}":`, error.message); venueCache.set(name, null); return null }
-  console.log(`  ✚ Created venue: ${name}`)
-  venueCache.set(name, data.id)
-  return data.id
+  venueCache.set(name, venueId)
+  return venueId
 }
 
-async function ensureOrganizer() {
-  const { data: existing } = await supabaseAdmin
-    .from('organizers').select('id').eq('name', 'University of Akron').maybeSingle()
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin.from('organizers').insert({
-    name:        'University of Akron',
+async function ensureUakronOrganizer() {
+  return ensureOrganization('University of Akron', {
     website:     'https://www.uakron.edu',
     description: 'The University of Akron is a public research university in Akron, Ohio, offering diverse academic programs, performing arts events, and community programming.',
-  }).select('id').single()
-
-  if (error) { console.warn('  ⚠ Could not create UAkron organizer:', error.message); return null }
-  console.log('  ✚ Created University of Akron organizer')
-  return data.id
+  })
 }
 
 // ── Fetch ──────────────────────────────────────────────────────────────────
@@ -196,8 +171,6 @@ async function processEvents(rawEvents, organizerId) {
         description:     descText || null,
         start_at:        startAt,
         end_at:          endAt,
-        venue_id:        venueId,
-        organizer_id:    organizerId,
         category,
         tags,
         price_min,
@@ -211,12 +184,17 @@ async function processEvents(rawEvents, organizerId) {
         featured:        false,
       }
 
-      const { error } = await supabaseAdmin
-        .from('events')
-        .upsert(row, { onConflict: 'source,source_id', ignoreDuplicates: false })
+      const enrichedRow = await enrichWithImageDimensions(row)
+      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
 
-      if (error) { console.warn(`  ⚠ Upsert failed for "${row.title}" [${source}]:`, error.message); results.skipped++ }
-      else results.inserted++
+      if (error) {
+        console.warn(`  ⚠ Upsert failed for "${row.title}" [${source}]:`, error.message)
+        results.skipped++
+      } else {
+        await linkEventVenue(upserted.id, venueId)
+        await linkEventOrganization(upserted.id, organizerId)
+        results.inserted++
+      }
     } catch (err) {
       console.warn(`  ⚠ Error processing "${ev.title}":`, err.message)
       results.skipped++
@@ -233,7 +211,7 @@ async function main() {
   const start = Date.now()
 
   try {
-    const organizerId = await ensureOrganizer()
+    const organizerId = await ensureUakronOrganizer()
     const rawEvents   = await fetchEvents()
     console.log(`\n📥  Processing ${rawEvents.length} events…`)
 

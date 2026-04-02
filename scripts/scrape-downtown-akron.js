@@ -15,52 +15,20 @@
  */
 
 import 'dotenv/config'
-import { supabaseAdmin } from './lib/supabase-admin.js'
-import { logUpsertResult, logScraperError, stripHtml } from './lib/normalize.js'
+import {
+  logUpsertResult,
+  logScraperError,
+  stripHtml,
+  enrichWithImageDimensions,
+  upsertEventSafe,
+  linkEventVenue,
+  linkEventOrganization,
+  ensureVenue,
+  ensureOrganization,
+  easternToIso,
+} from './lib/normalize.js'
 
 const BASE_URL = 'https://www.downtownakron.com'
-
-// ── DST-aware Eastern → UTC ────────────────────────────────────────────────
-
-function nthWeekdayOfMonth(year, month, dayOfWeek, n) {
-  const first  = new Date(Date.UTC(year, month, 1))
-  const offset = (dayOfWeek - first.getUTCDay() + 7) % 7
-  return new Date(Date.UTC(year, month, 1 + offset + (n - 1) * 7))
-}
-function isEasternDST(utcDate) {
-  const y        = utcDate.getUTCFullYear()
-  const dstStart = nthWeekdayOfMonth(y, 2, 0, 2)
-  const dstEnd   = nthWeekdayOfMonth(y, 10, 0, 1)
-  return utcDate >= dstStart && utcDate < dstEnd
-}
-function easternToIso(dateStr, timeStr = '12:00:00') {
-  if (!dateStr) return null
-  const normalised = timeStr.trim().replace(
-    /^(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?)$/i,
-    (_, h, m, mer) => {
-      let hr = parseInt(h, 10)
-      const isPm = /p/i.test(mer)
-      if (isPm && hr !== 12) hr += 12
-      if (!isPm && hr === 12) hr = 0
-      return `${String(hr).padStart(2, '0')}:${m}:00`
-    }
-  ).replace(
-    /^(\d{1,2}):(\d{2})\s*(am|pm)$/i,
-    (_, h, m, mer) => {
-      let hr = parseInt(h, 10)
-      if (mer.toLowerCase() === 'pm' && hr !== 12) hr += 12
-      if (mer.toLowerCase() === 'am' && hr === 12) hr = 0
-      return `${String(hr).padStart(2, '0')}:${m}:00`
-    }
-  )
-  const [datePart] = dateStr.split('T')
-  const [year, month, day] = datePart.split('-').map(Number)
-  const [hour, minute, second = 0] = normalised.split(':').map(Number)
-  const localUtcMs  = Date.UTC(year, month - 1, day, hour, minute, second)
-  const approxUtc   = new Date(localUtcMs + 5 * 3600_000)
-  const offsetHours = isEasternDST(approxUtc) ? 4 : 5
-  return new Date(localUtcMs + offsetHours * 3600_000).toISOString()
-}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -131,39 +99,22 @@ async function ensureVenueByName(venueName) {
   const name = venueName.trim()
   if (venueCache.has(name)) return venueCache.get(name)
 
-  const { data: existing } = await supabaseAdmin
-    .from('venues').select('id').eq('name', name).maybeSingle()
-
-  if (existing) { venueCache.set(name, existing.id); return existing.id }
-
   // Create a minimal venue record — we don't have full address data from DAP calendar
-  const { data, error } = await supabaseAdmin.from('venues').insert({
-    name,
+  const venueId = await ensureVenue(name, {
     city:         'Akron',
     state:        'OH',
     parking_type: 'unknown',
-  }).select('id').single()
+  })
 
-  if (error) { console.warn(`  ⚠ Could not create venue "${name}":`, error.message); venueCache.set(name, null); return null }
-  console.log(`  ✚ Created venue: ${name}`)
-  venueCache.set(name, data.id)
-  return data.id
+  venueCache.set(name, venueId)
+  return venueId
 }
 
-async function ensureOrganizer() {
-  const { data: existing } = await supabaseAdmin
-    .from('organizers').select('id').eq('name', 'Downtown Akron Partnership').maybeSingle()
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin.from('organizers').insert({
-    name:        'Downtown Akron Partnership',
+async function ensureDapOrganizer() {
+  return ensureOrganization('Downtown Akron Partnership', {
     website:     'https://www.downtownakron.com',
     description: "The Downtown Akron Partnership promotes events, culture, and entertainment in downtown Akron's 49-block district.",
-  }).select('id').single()
-
-  if (error) { console.warn('  ⚠ Could not create DAP organizer:', error.message); return null }
-  console.log('  ✚ Created Downtown Akron Partnership organizer')
-  return data.id
+  })
 }
 
 // ── HTML fetch ─────────────────────────────────────────────────────────────
@@ -303,8 +254,6 @@ async function processEvents(events, organizerId) {
         description:     null,
         start_at:        startAt,
         end_at:          null,
-        venue_id:        venueId,
-        organizer_id:    organizerId,
         category:        parseCategory(ev.title),
         tags:            ['downtown-akron', 'akron', ...(ev.venueName ? [ev.venueName.toLowerCase()] : [])],
         price_min:       0,
@@ -318,12 +267,17 @@ async function processEvents(events, organizerId) {
         featured:        false,
       }
 
-      const { error } = await supabaseAdmin
-        .from('events')
-        .upsert(row, { onConflict: 'source,source_id', ignoreDuplicates: false })
+      const enrichedRow = await enrichWithImageDimensions(row)
+      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
 
-      if (error) { console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message); skipped++ }
-      else inserted++
+      if (error) {
+        console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)
+        skipped++
+      } else {
+        await linkEventVenue(upserted.id, venueId)
+        await linkEventOrganization(upserted.id, organizerId)
+        inserted++
+      }
     } catch (err) {
       console.warn(`  ⚠ Error processing "${ev.title}":`, err.message)
       skipped++
@@ -340,7 +294,7 @@ async function main() {
   const start = Date.now()
 
   try {
-    const organizerId = await ensureOrganizer()
+    const organizerId = await ensureDapOrganizer()
 
     const monthUrls = getMonthUrls()
     const allEvents = []

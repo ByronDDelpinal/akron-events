@@ -21,46 +21,25 @@
  */
 
 import 'dotenv/config'
-import { supabaseAdmin } from './lib/supabase-admin.js'
-import { logUpsertResult, logScraperError, stripHtml } from './lib/normalize.js'
+import {
+  logUpsertResult,
+  logScraperError,
+  stripHtml,
+  enrichWithImageDimensions,
+  upsertEventSafe,
+  linkEventVenue,
+  linkEventOrganization,
+  ensureVenue,
+  ensureOrganization,
+  linkOrganizationVenue,
+  easternToIso,
+} from './lib/normalize.js'
 
 const BASE_URL   = 'https://akronartmuseum.org/calendar/'
 const DAYS_AHEAD = 180   // 6 months
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 // stripHtml imported from normalize.js — handles all named + numeric HTML entities
-
-/**
- * Convert a local Eastern date + time string to an ISO 8601 UTC string.
- * DST: second Sunday of March → first Sunday of November (EDT = UTC-4)
- * Standard time outside that range (EST = UTC-5)
- */
-function easternToIso(dateStr, timeStr = '12:00 pm') {
-  const d = new Date(dateStr)
-  if (isNaN(d.getTime())) return null
-
-  const year = d.getFullYear()
-  const dstStart = getNthSunday(year, 2, 2)   // 2nd Sunday of March
-  const dstEnd   = getNthSunday(year, 10, 1)  // 1st Sunday of November
-  const offsetMs = (d >= dstStart && d < dstEnd) ? 4 * 3600_000 : 5 * 3600_000
-
-  const timeMatch = timeStr.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i)
-  if (!timeMatch) return null
-  let hours = parseInt(timeMatch[1], 10)
-  const mins = parseInt(timeMatch[2] ?? '0', 10)
-  const ampm = timeMatch[3]?.toLowerCase()
-  if (ampm === 'pm' && hours < 12) hours += 12
-  if (ampm === 'am' && hours === 12) hours = 0
-
-  const localMs = d.getTime() + hours * 3600_000 + mins * 60_000
-  return new Date(localMs + offsetMs).toISOString()
-}
-
-function getNthSunday(year, month, n) {
-  const d = new Date(year, month, 1)
-  const firstSunday = d.getDay() === 0 ? 1 : 8 - d.getDay()
-  return new Date(year, month, firstSunday + (n - 1) * 7)
-}
 
 /**
  * Parse event date and time from the raw text found in the <p> tag inside each
@@ -346,13 +325,8 @@ function parseCategory(types = [], title = '') {
 
 // ── Venue / Organizer ─────────────────────────────────────────────────────
 
-async function ensureVenue() {
-  const { data: existing } = await supabaseAdmin
-    .from('venues').select('id').eq('name', 'Akron Art Museum').maybeSingle()
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin.from('venues').insert({
-    name:         'Akron Art Museum',
+async function ensureAamVenue() {
+  return ensureVenue('Akron Art Museum', {
     address:      '1 S High St',
     city:         'Akron',
     state:        'OH',
@@ -363,27 +337,14 @@ async function ensureVenue() {
     parking_notes:'Free 2-hour street parking. Paid parking at Quaker Square garage (nearby).',
     website:      'https://akronartmuseum.org',
     description:  'The Akron Art Museum is a modern art museum in downtown Akron, OH.',
-  }).select('id').single()
-
-  if (error) { console.warn('  ⚠ Could not create AAM venue:', error.message); return null }
-  console.log('  ✚ Created Akron Art Museum venue')
-  return data.id
+  })
 }
 
-async function ensureOrganizer() {
-  const { data: existing } = await supabaseAdmin
-    .from('organizers').select('id').eq('name', 'Akron Art Museum').maybeSingle()
-  if (existing) return existing.id
-
-  const { data, error } = await supabaseAdmin.from('organizers').insert({
-    name:    'Akron Art Museum',
+async function ensureAamOrganizer() {
+  return ensureOrganization('Akron Art Museum', {
     website: 'https://akronartmuseum.org',
     description: 'The Akron Art Museum presents modern and contemporary art in downtown Akron, OH.',
-  }).select('id').single()
-
-  if (error) { console.warn('  ⚠ Could not create AAM organizer:', error.message); return null }
-  console.log('  ✚ Created Akron Art Museum organizer')
-  return data.id
+  })
 }
 
 // ── Fetch calendar pages ───────────────────────────────────────────────────
@@ -487,8 +448,6 @@ async function processEvents(items, venueId, organizerId) {
         description,
         start_at:        startAt,
         end_at:          endAt,
-        venue_id:        venueId,
-        organizer_id:    organizerId,
         category,
         tags,
         price_min:       priceMin,
@@ -502,14 +461,15 @@ async function processEvents(items, venueId, organizerId) {
         featured:        false,
       }
 
-      const { error } = await supabaseAdmin
-        .from('events')
-        .upsert(row, { onConflict: 'source,source_id', ignoreDuplicates: false })
+      const enrichedRow = await enrichWithImageDimensions(row)
+      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
 
       if (error) {
         console.warn(`  ⚠ Upsert failed for "${item.title}":`, error.message)
         skipped++
       } else {
+        await linkEventVenue(upserted.id, venueId)
+        await linkEventOrganization(upserted.id, organizerId)
         inserted++
       }
     } catch (err) {
@@ -528,7 +488,7 @@ async function main() {
   const start = Date.now()
 
   try {
-    const [venueId, organizerId] = await Promise.all([ensureVenue(), ensureOrganizer()])
+    const [venueId, organizerId] = await Promise.all([ensureAamVenue(), ensureAamOrganizer()])
     const items = await fetchAllEvents()
 
     if (items.length === 0) {
