@@ -121,6 +121,17 @@ const DATA_SOURCES = [
     status:      'active',
   },
 
+  // ── Squarespace Events Collection ───────────────────────────────────
+  {
+    key:         'leadership_akron',
+    label:       'Leadership Akron',
+    method:      'REST API',
+    methodDetail:'Squarespace Events Collection JSON (?format=json&view=upcoming)',
+    venue:       'The Duck Club by Firestone at 7 17 Credit Union Park — 300 S Main St',
+    notes:       'Uses the shared Squarespace Events Collection module. Monthly "Leadership on Main" speaker series plus other community leadership events. Free admission with complimentary food.',
+    status:      'active',
+  },
+
   // ── HTML scrapers ──────────────────────────────────────────────────────
   {
     key:         'akron_art_museum',
@@ -239,6 +250,7 @@ const SCRAPER_LABELS = {
   painting_twist:     'Painting with a Twist',
   blu_jazz:           'BLU Jazz+',
   nightlight_cinema:  'The Nightlight',
+  leadership_akron:   'Leadership Akron',
   eventbrite:         'Eventbrite',
 }
 
