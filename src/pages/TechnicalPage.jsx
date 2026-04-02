@@ -92,6 +92,16 @@ const DATA_SOURCES = [
     status:      'active',
   },
 
+  {
+    key:         'torchbearers',
+    label:       'Torchbearers',
+    method:      'REST API',
+    methodDetail:'The Events Calendar (Tribe Events) REST',
+    venue:       'Various venues across Akron',
+    notes:       'Young professionals leadership org. 51+ events across committee meetings, socials, GMMs, and volunteer projects. Per-event venue caching (events at various restaurants, bars, and community spaces).',
+    status:      'active',
+  },
+
   // ── WordPress APIs ─────────────────────────────────────────────────────
   {
     key:         'jillys_music_room',
@@ -206,6 +216,15 @@ const DATA_SOURCES = [
     status:      'active',
   },
   {
+    key:         'akron_childrens_museum',
+    label:       "Akron Children's Museum",
+    method:      'HTML scrape',
+    methodDetail:'Drupal 8 Views — /calendar listing pages',
+    venue:       "Akron Children's Museum — 216 S Main St",
+    notes:       'Scrapes three Drupal Views listing pages (/calendar, /calendar/special-events, /calendar/programs). Parses .views-field elements for title, dates, times, cost, and description. Handles recurring events ("Every Thursday") by computing next occurrence.',
+    status:      'active',
+  },
+  {
     key:         'nightlight_cinema',
     label:       'The Nightlight Cinema',
     method:      'HTML scrape',
@@ -250,6 +269,8 @@ const SCRAPER_LABELS = {
   painting_twist:     'Painting with a Twist',
   blu_jazz:           'BLU Jazz+',
   nightlight_cinema:  'The Nightlight',
+  torchbearers:       'Torchbearers',
+  akron_childrens_museum: "Akron Children's Museum",
   leadership_akron:   'Leadership Akron',
   eventbrite:         'Eventbrite',
 }
