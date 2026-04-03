@@ -62,6 +62,7 @@ export default function Header() {
         </nav>
 
         <div className="nav-cta-group">
+          <Link to="/feedback" className="btn-nav-feedback">Feedback<span className="feedback-badge">Beta</span></Link>
           <Link to="/submit" className="btn-nav-cta">+ Submit Event</Link>
           <Link to="/organizations/submit" className="btn-nav-cta btn-nav-cta-outline">+ Register Organization</Link>
         </div>
@@ -84,6 +85,7 @@ export default function Header() {
           <button className={`mobile-nav-link ${isActive('/subscribe')     ? 'active' : ''}`} onClick={() => navTo('/subscribe')}>Subscribe</button>
           <button className={`mobile-nav-link ${isActive('/about')         ? 'active' : ''}`} onClick={() => navTo('/about')}>About</button>
           <button className={`mobile-nav-link ${isActive('/admin')         ? 'active' : ''}`} onClick={() => navTo('/admin')}>Admin</button>
+          <button className="mobile-nav-feedback" onClick={() => navTo('/feedback')}>Feedback<span className="feedback-badge">Beta</span></button>
           <button className="mobile-menu-cta" onClick={() => navTo('/submit')}>+ Submit Event</button>
           <button className="mobile-menu-cta mobile-menu-cta-outline" onClick={() => navTo('/organizations/submit')}>+ Register Organization</button>
         </div>

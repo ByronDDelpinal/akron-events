@@ -102,6 +102,56 @@ header.menu-open {
   border-color: var(--amber);
 }
 
+/* ── FEEDBACK NAV (prominent during beta) ── */
+.btn-nav-feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: 22px;
+  border: 2px solid var(--coral);
+  background: rgba(196,83,42,0.12);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn-nav-feedback:hover {
+  background: rgba(196,83,42,0.25);
+}
+.feedback-badge {
+  font-family: var(--font-display);
+  font-size: var(--text-tiny);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--coral);
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.mobile-nav-feedback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-body);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: #fff;
+  background: rgba(196,83,42,0.15);
+  border: 1px solid rgba(196,83,42,0.3);
+  border-radius: 10px;
+  text-align: left;
+  cursor: pointer;
+  padding: 13px 12px;
+  margin-bottom: 4px;
+  transition: background 0.15s;
+}
+.mobile-nav-feedback:hover { background: rgba(196,83,42,0.25); }
+
 /* ── HAMBURGER ── */
 .btn-hamburger {
   display: none;
