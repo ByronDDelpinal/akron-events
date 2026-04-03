@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { INTENTS } from '@/lib/intents'
 import FilterTray from './FilterTray'
+import ViewModeToggle from './ViewModeToggle'
 import './FilterBar.css'
 
 const DATE_TABS = [
@@ -12,23 +13,13 @@ const DATE_TABS = [
 ]
 
 /**
- * FilterBar — two-row sticky filter zone.
+ * FilterBar — sticky filter zone.
  *
- * Row 1: Date tabs (All / Today / This Weekend / This Week / This Month) + view toggle
- * Row 2: Curated intent pill bar + "More" button (opens FilterTray) + sort select
+ * Row 1: Date tabs (All / Today / This Weekend / This Week / This Month) + List/Map toggle
+ * Row 2: Curated intent pill bar (full-width scrollable)
+ * Row 3: "More" button (opens FilterTray) + sort select + view mode toggle (mobile only)
  *
  * Active filter summary strip renders below when any filter is on.
- *
- * Props:
- *   activeIntentId  {string|null}  onIntentId      {function}
- *   dateRange       {string|null}  onDateRange     {function}
- *   dateFrom        {string|null}  onDateFrom      {function}
- *   dateTo          {string|null}  onDateTo        {function}
- *   rawCategories   {string[]}     onRawCategories {function}
- *   priceFilter     {string|null}  onPriceFilter   {function}
- *   sort            {string}       onSort          {function}
- *   view            {string}       onView          {function}
- *   total           {number}       — live count for tray CTA
  */
 export default function FilterBar({
   activeIntentId,  onIntentId,
@@ -40,6 +31,7 @@ export default function FilterBar({
   sort,            onSort,
   view,            onView,
   total,
+  cardViewMode,    onCardViewMode,
 }) {
   const [trayOpen, setTrayOpen] = useState(false)
 
@@ -102,10 +94,8 @@ export default function FilterBar({
           </div>
         </div>
 
-        {/* ── Row 2: Intent pill bar + More + Sort ── */}
-        <div className="filter-inner">
-
-          {/* Scrollable intent pills */}
+        {/* ── Row 2: Intent pill bar ── */}
+        <div className="filter-intents-row">
           <div className="filter-chips">
             {INTENTS.map(intent => {
               const active = activeIntentId === intent.id
@@ -132,8 +122,10 @@ export default function FilterBar({
               )
             })}
           </div>
+        </div>
 
-          {/* More button */}
+        {/* ── Row 3: More + Sort + View mode toggle ── */}
+        <div className="filter-actions-row">
           <div className="filter-actions">
             <button
               className={`chip chip--more ${trayActiveCount > 0 ? 'active' : ''}`}
@@ -159,6 +151,10 @@ export default function FilterBar({
               <option value="recent">Sort: Recently Added</option>
             </select>
           </div>
+
+          {cardViewMode && onCardViewMode && (
+            <ViewModeToggle mode={cardViewMode} onChange={onCardViewMode} />
+          )}
         </div>
 
         {/* ── Active filter summary strip ── */}

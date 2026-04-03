@@ -93,16 +93,32 @@
 }
 
 /* ════════════════════════════════
-   ROW 2 — Intent pills + More + Sort
+   ROW 2 — Intent pills
 ════════════════════════════════ */
-.filter-inner {
+.filter-intents-row {
   max-width: var(--width-full);
   margin: 0 auto;
-  padding: 9px 20px;
+  padding: 9px 20px 0;
   display: flex;
   align-items: center;
   gap: 8px;
 }
+
+/* ════════════════════════════════
+   ROW 3 — More + Sort + View mode
+════════════════════════════════ */
+.filter-actions-row {
+  max-width: var(--width-full);
+  margin: 0 auto;
+  padding: 6px 20px 9px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Hide the view-mode toggle inside filter bar on desktop (it shows in the grid area instead) */
+.filter-actions-row .view-mode-toggle { display: none; }
 
 /* Scrollable pill area */
 .filter-chips {
@@ -269,15 +285,44 @@
 }
 .active-pill-x:hover { opacity: 1; }
 
+/* ════════════════════════════════
+   Scroll fade hints
+   Right-edge gradient showing more content is scrollable.
+════════════════════════════════ */
+.filter-intents-row,
+.filter-active-strip {
+  position: relative;
+}
+.filter-intents-row::after,
+.filter-active-strip::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0; right: 0;
+  width: 32px;
+  background: linear-gradient(to right, transparent, var(--bg-page));
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Date tabs: mask fades content at the right edge before the view toggle */
+.filter-date-tabs {
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+  mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+}
+
 /* ── Mobile ── */
 @media (max-width: 640px) {
   .filter-bar { top: 56px; } /* shorter header on mobile */
 
   .filter-date-row,
-  .filter-inner,
+  .filter-intents-row,
+  .filter-actions-row,
   .filter-active-strip { padding-left: 14px; padding-right: 14px; }
 
   .date-tab { padding: 11px 12px; font-size: var(--text-sm); }
 
   .view-toggle { border-left: none; padding-left: 8px; }
+
+  /* Show the view-mode toggle inside filter bar on mobile */
+  .filter-actions-row .view-mode-toggle { display: inline-flex; }
 }

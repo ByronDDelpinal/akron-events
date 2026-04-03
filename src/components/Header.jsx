@@ -25,6 +25,12 @@ export default function Header() {
   // Close menu on route change
   useEffect(() => { setMenuOpen(false) }, [location])
 
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [menuOpen])
+
   // Hide header on admin page
   if (isAdmin) return null
 
@@ -39,7 +45,7 @@ export default function Header() {
       : location.pathname.startsWith(path)
 
   return (
-    <header className={scrolled ? 'scrolled' : ''}>
+    <header className={`${scrolled ? 'scrolled' : ''} ${menuOpen ? 'menu-open' : ''}`}>
       <div className="header-inner">
         <Link to="/" className="nav-logo">
           <div className="logo-dot" />

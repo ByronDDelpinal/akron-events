@@ -6,7 +6,8 @@ header {
   border-bottom: 1px solid transparent;
   transition: background 0.35s ease, border-color 0.35s ease;
 }
-header.scrolled {
+header.scrolled,
+header.menu-open {
   background: var(--bg-nav);
   border-bottom-color: rgba(255,255,255,0.06);
 }
@@ -129,8 +130,8 @@ header.scrolled {
 /* ── MOBILE MENU ── */
 .mobile-menu {
   display: none;
-  position: absolute;
-  top: 100%; left: 0; right: 0;
+  position: fixed;
+  top: 64px; left: 0; right: 0; bottom: 0;
   background: var(--bg-nav);
   border-top: 1px solid rgba(255,255,255,0.06);
   padding: 8px 20px 16px;
@@ -138,6 +139,8 @@ header.scrolled {
   gap: 2px;
   animation: menuDrop 0.2s ease;
   z-index: 99;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 @keyframes menuDrop {
   from { opacity: 0; transform: translateY(-6px); }

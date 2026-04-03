@@ -152,10 +152,10 @@
    EFFICIENT MODE — Compact grid
 ════════════════════════════════ */
 
-/* Responsive grid: 1 col mobile → 2 cols tablet → 4 cols desktop */
+/* Responsive grid: 2 cols mobile → 2 cols tablet → 4 cols desktop */
 .cards-grid--efficient {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   padding-bottom: 4px;
 }

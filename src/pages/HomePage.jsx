@@ -262,6 +262,7 @@ export default function HomePage() {
         sort={sort}                      onSort={setSort}
         view={view}                      onView={setView}
         total={total}
+        cardViewMode={cardViewMode}      onCardViewMode={handleCardViewMode}
       />
 
       {/* ── MAP VIEW ── */}

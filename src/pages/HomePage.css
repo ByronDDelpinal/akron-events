@@ -62,7 +62,7 @@
   max-width: 500px;
   margin: 0 auto;
   position: relative;
-  z-index: 110;
+  z-index: 95;
 }
 .search-input {
   width: 100%;
@@ -179,6 +179,16 @@
 .stat-bar {
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
+  position: relative;
+}
+.stat-bar::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0; right: 0;
+  width: 32px;
+  background: linear-gradient(to right, transparent, var(--bg-secondary));
+  pointer-events: none;
+  z-index: 1;
 }
 .stat-bar-inner {
   max-width: var(--width-full);
@@ -213,6 +223,9 @@
   display: flex;
   justify-content: flex-end;
   padding: 12px 0 4px;
+}
+@media (max-width: 640px) {
+  .view-mode-row { display: none; }
 }
 
 /* ── CONTENT TRANSITION ── */
