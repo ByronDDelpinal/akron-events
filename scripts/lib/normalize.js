@@ -93,7 +93,7 @@ export function parseEventbritePrice(ticketClasses = [], isFree = false) {
     .filter(tc => !tc.free && tc.cost?.major_value != null)
     .map(tc => parseFloat(tc.cost.major_value))
     .filter(p => !isNaN(p) && p > 0)
-  if (prices.length === 0) return { price_min: 0, price_max: null }
+  if (prices.length === 0) return { price_min: null, price_max: null }
   const min = Math.min(...prices)
   const max = Math.max(...prices)
   return { price_min: min, price_max: max > min ? max : null }
@@ -177,9 +177,10 @@ export function parseCostFromTribe(cost = '', costDetails = {}) {
       return { price_min: min, price_max: max > min ? max : null }
     }
   }
-  if (!cost || cost.toLowerCase().includes('free')) return { price_min: 0, price_max: null }
+  if (cost && cost.toLowerCase().includes('free')) return { price_min: 0, price_max: null }
+  if (!cost) return { price_min: null, price_max: null }
   const numbers = cost.match(/\d+(\.\d+)?/g)?.map(Number)
-  if (!numbers?.length) return { price_min: 0, price_max: null }
+  if (!numbers?.length) return { price_min: null, price_max: null }
   const min = Math.min(...numbers)
   const max = Math.max(...numbers)
   return { price_min: min, price_max: max > min ? max : null }

@@ -195,7 +195,7 @@ describe('CVNP Conservancy: Cost Parsing', () => {
 
   it('defaults to 0/null for empty cost', () => {
     const { price_min, price_max } = parseCostFromTribe('', {})
-    assert.equal(price_min, 0)
+    assert.equal(price_min, null)
     assert.equal(price_max, null)
   })
 
@@ -341,11 +341,11 @@ describe('CVNP Conservancy: Batch Processing', () => {
     }
   })
 
-  it('every non-null row has price_min as a number', () => {
+  it('every non-null row has price_min as a number or null', () => {
     for (const fixture of ALL_FIXTURES) {
       const row = normalizeEvent(fixture)
       if (!row) continue
-      assert.equal(typeof row.price_min, 'number', `fixture id=${fixture.id} price_min not a number`)
+      assert.ok(row.price_min === null || typeof row.price_min === 'number', `fixture id=${fixture.id} price_min not a number or null`)
     }
   })
 

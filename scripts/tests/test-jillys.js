@@ -103,7 +103,7 @@ function mergeEvent(ajaxEvent, restPost) {
     end_at: endAt,
     category,
     tags,
-    price_min: 0,
+    price_min: null,
     price_max: null,
     age_restriction: 'not_specified',
     image_url: imageUrl,
@@ -286,11 +286,11 @@ describe('Jilly\'s: Batch Processing', () => {
     }
   })
 
-  it('price_min is always a number', () => {
+  it('price_min is always a number or null', () => {
     for (const fixture of ALL_FIXTURES) {
       const row = mergeEvent(fixture.ajax, fixture.rest)
       if (!row) continue
-      assert.equal(typeof row.price_min, 'number')
+      assert.ok(row.price_min === null || typeof row.price_min === 'number')
     }
   })
 

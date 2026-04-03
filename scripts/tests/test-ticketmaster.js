@@ -8,9 +8,9 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 import { F1, F2, F3, F4, ALL } from './fixtures/ticketmaster-events.js'
 
 function parsePrice(priceRanges = []) {
-  if (!priceRanges.length) return { min: 0, max: null }
+  if (!priceRanges.length) return { min: null, max: null }
   const prices = priceRanges.map(p => p.min).filter(p => p != null)
-  const min = prices.length ? Math.min(...prices) : 0
+  const min = prices.length ? Math.min(...prices) : null
   const maxes = priceRanges.map(p => p.max).filter(p => p != null)
   const max = maxes.length ? Math.max(...maxes) : null
   return { min, max }

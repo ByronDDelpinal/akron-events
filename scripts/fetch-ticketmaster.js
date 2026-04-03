@@ -60,10 +60,11 @@ async function tm(path, params = {}) {
 }
 
 function parsePrice(priceRanges = []) {
-  if (!priceRanges.length) return { price_min: 0, price_max: null }
-  const mins = priceRanges.map(p => p.min).filter(Boolean)
-  const maxs = priceRanges.map(p => p.max).filter(Boolean)
-  const min  = mins.length ? Math.min(...mins) : 0
+  if (!priceRanges.length) return { price_min: null, price_max: null }
+  const mins = priceRanges.map(p => p.min).filter(p => p != null)
+  const maxs = priceRanges.map(p => p.max).filter(p => p != null)
+  // If every range reports 0, it's genuinely free
+  const min  = mins.length ? Math.min(...mins) : null
   const max  = maxs.length ? Math.max(...maxs) : null
   return {
     price_min: min,

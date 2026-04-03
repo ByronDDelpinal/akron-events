@@ -256,7 +256,7 @@ async function processEvents(events, organizerId) {
         end_at:          null,
         category:        parseCategory(ev.title),
         tags:            ['downtown-akron', 'akron', ...(ev.venueName ? [ev.venueName.toLowerCase()] : [])],
-        price_min:       0,
+        price_min:       null,
         price_max:       null,
         age_restriction: 'not_specified',
         image_url:       null,

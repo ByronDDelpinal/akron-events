@@ -171,9 +171,9 @@ describe('Summit Metro Parks: Cost Parsing', () => {
     assert.equal(price_max, 30)
   })
 
-  it('returns (0, null) for empty or falsy cost', () => {
-    assert.deepEqual(parseCostFromTribe('', {}), { price_min: 0, price_max: null })
-    assert.deepEqual(parseCostFromTribe(null, {}), { price_min: 0, price_max: null })
+  it('returns (null, null) for empty or falsy cost (unknown price)', () => {
+    assert.deepEqual(parseCostFromTribe('', {}), { price_min: null, price_max: null })
+    assert.deepEqual(parseCostFromTribe(null, {}), { price_min: null, price_max: null })
   })
 })
 

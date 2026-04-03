@@ -177,7 +177,7 @@ describe('ACM — parseCost', () => {
 
   it('returns free for null input', () => {
     const { price_min, price_max } = parseCost(null)
-    assert.equal(price_min, 0)
+    assert.equal(price_min, null)
     assert.equal(price_max, null)
   })
 

@@ -279,7 +279,7 @@ async function processEvents(events, venueId, organizerId) {
         end_at:          null,
         category:        parseCategory(ev.title),
         tags:            parseTags(ev.title),
-        price_min:       0,
+        price_min:       null,
         price_max:       null,
         age_restriction: 'all_ages',
         image_url:       ev.imageUrl,

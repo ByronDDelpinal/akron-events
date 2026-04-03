@@ -166,7 +166,7 @@ function normalizePost(post) {
     end_at: endAt,
     category,
     tags,
-    price_min: 0,
+    price_min: null,
     price_max: null,
     age_restriction: 'not_specified',
     image_url: imageUrl,
@@ -337,11 +337,11 @@ describe('Akronym: Batch Processing', () => {
     }
   })
 
-  it('price_min is always a number', () => {
+  it('price_min is always a number or null', () => {
     for (const post of ALL_FIXTURES) {
       const row = normalizePost(post)
       if (!row) continue
-      assert.equal(typeof row.price_min, 'number')
+      assert.ok(row.price_min === null || typeof row.price_min === 'number')
     }
   })
 

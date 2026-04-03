@@ -293,7 +293,7 @@ async function processEvents(posts, venueId, organizerId) {
         end_at:          endAt,
         category,
         tags,
-        price_min:       0,
+        price_min:       null,
         price_max:       null,
         age_restriction: 'not_specified',
         image_url:       imageUrl,

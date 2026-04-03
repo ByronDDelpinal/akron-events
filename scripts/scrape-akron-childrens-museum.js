@@ -223,7 +223,7 @@ export function parseTimeRange(timeStr) {
  * Returns { price_min, price_max }
  */
 export function parseCost(costStr) {
-  if (!costStr) return { price_min: 0, price_max: null }
+  if (!costStr) return { price_min: null, price_max: null }
 
   const lower = costStr.toLowerCase()
   if (lower.includes('free') && !lower.includes('$')) return { price_min: 0, price_max: null }
@@ -231,7 +231,7 @@ export function parseCost(costStr) {
   const prices = [...costStr.matchAll(/\$(\d+(?:\.\d+)?)/g)].map(m => parseFloat(m[1]))
   if (prices.length === 0) {
     if (lower.includes('free')) return { price_min: 0, price_max: null }
-    return { price_min: 0, price_max: null }
+    return { price_min: null, price_max: null }
   }
 
   const min = Math.min(...prices)

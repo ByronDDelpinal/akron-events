@@ -28,6 +28,7 @@ const CATEGORY_LABEL = {
 }
 
 function formatPrice(min, max) {
+  if (min == null && max == null) return { label: 'See tickets', free: false }
   if (min === 0 && (!max || max === 0)) return { label: 'Free', free: true }
   if (max && max > min) return { label: `$${min}–$${max}`, free: false }
   return { label: `$${min}`, free: false }

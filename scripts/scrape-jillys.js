@@ -249,7 +249,7 @@ async function processEvents(ajaxEvents, restById, venueId, organizerId) {
         end_at:          endAt,
         category,
         tags,
-        price_min:       0,    // Jilly's often has free or door-price shows; update if parseable
+        price_min:       null, // Jilly's often has free or door-price shows; null = unknown
         price_max:       null,
         age_restriction: 'not_specified',
         image_url:       imageUrl,

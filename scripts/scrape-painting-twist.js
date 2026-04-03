@@ -81,7 +81,7 @@ function parsePwtDateTime(raw) {
  * Returns { price_min, price_max }.
  */
 function parsePrice(raw) {
-  if (!raw) return { price_min: 0, price_max: null }
+  if (!raw) return { price_min: null, price_max: null }
   const s = raw.trim().toLowerCase()
 
   if (s.includes('free')) return { price_min: 0, price_max: null }
@@ -101,7 +101,7 @@ function parsePrice(raw) {
     return { price_min: parseFloat(singleMatch[1]), price_max: null }
   }
 
-  return { price_min: 0, price_max: null }
+  return { price_min: null, price_max: null }
 }
 
 // ── Venue / Organizer ──────────────────────────────────────────────────────

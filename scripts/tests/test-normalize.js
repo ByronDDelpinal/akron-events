@@ -204,22 +204,22 @@ describe('parseCostFromTribe', () => {
     assert.equal(result.price_max, 20)
   })
 
-  it('returns 0/null for empty cost', () => {
+  it('returns null/null for empty cost (unknown price)', () => {
     const result = parseCostFromTribe('')
-    assert.equal(result.price_min, 0)
+    assert.equal(result.price_min, null)
     assert.equal(result.price_max, null)
   })
 
-  it('returns 0/null for undefined cost', () => {
+  it('returns null/null for undefined cost (unknown price)', () => {
     const result = parseCostFromTribe()
-    assert.equal(result.price_min, 0)
+    assert.equal(result.price_min, null)
     assert.equal(result.price_max, null)
   })
 
   it('handles costDetails with non-numeric values gracefully', () => {
     const result = parseCostFromTribe('Donation', { values: ['donation'] })
-    // Non-numeric values get filtered out, falls through to string parsing
-    assert.equal(result.price_min, 0)
+    // Non-numeric values get filtered out, falls through to string parsing — unknown price
+    assert.equal(result.price_min, null)
   })
 })
 
@@ -302,9 +302,9 @@ describe('parseEventbritePrice', () => {
     assert.equal(result.price_max, null)
   })
 
-  it('returns 0/null when no valid prices and not free', () => {
+  it('returns null/null when no valid prices and not free (unknown price)', () => {
     const result = parseEventbritePrice([], false)
-    assert.equal(result.price_min, 0)
+    assert.equal(result.price_min, null)
     assert.equal(result.price_max, null)
   })
 

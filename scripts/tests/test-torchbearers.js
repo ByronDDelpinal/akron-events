@@ -163,7 +163,7 @@ describe('Torchbearers — cost parsing', () => {
 
   it('parses empty cost as free', () => {
     const row = normalise(SOCIAL_EVENT)
-    assert.equal(row.price_min, 0)
+    assert.equal(row.price_min, null)
   })
 })
 
