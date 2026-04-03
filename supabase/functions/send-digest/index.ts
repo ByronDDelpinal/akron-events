@@ -70,7 +70,7 @@ interface Event {
   end_at: string | null
   category: string
   tags: string[]
-  price_min: number
+  price_min: number | null
   price_max: number | null
   age_restriction: string
   image_url: string | null
@@ -239,19 +239,21 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
   // Hero event
   if (hero) {
     const venue = hero.venues[0]
+    const heroUrl = `${BASE_URL}/events/${hero.id}`
     const date = new Date(hero.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    const heroIsFree = hero.price_min === 0 && !hero.price_max
     html += `
-  <div style="background:${c.card};border-radius:12px;overflow:hidden;margin-bottom:20px;border:1px solid ${c.border};">
+  <a href="${heroUrl}" style="display:block;background:${c.card};border-radius:12px;overflow:hidden;margin-bottom:20px;border:1px solid ${c.border};text-decoration:none;color:inherit;">
     ${hero.image_url ? `<img src="${hero.image_url}" alt="" style="width:100%;height:200px;object-fit:cover;display:block;">` : ''}
     <div style="padding:20px;">
       <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:${c.primary};margin-bottom:6px;">Featured</div>
       <div style="font-family:${f.display};font-size:1.1rem;font-weight:700;color:${c.textPrimary};margin-bottom:6px;">${hero.title}</div>
       <div style="font-size:0.82rem;color:${c.textSecondary};margin-bottom:4px;">${date}</div>
       ${venue ? `<div style="font-size:0.78rem;color:${c.textMuted};">${venue.name}</div>` : ''}
-      ${hero.price_min === 0 && !hero.price_max ? `<div style="display:inline-block;margin-top:8px;padding:3px 10px;background:${c.freeBg};color:${c.freeTxt};font-size:0.72rem;font-weight:600;border-radius:10px;">Free</div>` : ''}
-      ${hero.ticket_url ? `<a href="${hero.ticket_url}" style="display:inline-block;margin-top:10px;padding:8px 18px;background:${c.primary};color:${c.white};text-decoration:none;border-radius:8px;font-size:0.82rem;font-weight:600;">Get Tickets</a>` : ''}
+      ${heroIsFree ? `<div style="display:inline-block;margin-top:8px;padding:3px 10px;background:${c.freeBg};color:${c.freeTxt};font-size:0.72rem;font-weight:600;border-radius:10px;">Free</div>` : ''}
+      ${hero.ticket_url ? `<span style="display:inline-block;margin-top:10px;padding:8px 18px;background:${c.primary};color:${c.white};text-decoration:none;border-radius:8px;font-size:0.82rem;font-weight:600;">Get Tickets</span>` : ''}
     </div>
-  </div>
+  </a>
 `
   }
 
@@ -261,11 +263,12 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
 
     for (const event of picks) {
       const venue = event.venues[0]
+      const eventUrl = `${BASE_URL}/events/${event.id}`
       const date = new Date(event.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
       const isFree = event.price_min === 0 && !event.price_max
 
       html += `
-  <div style="display:flex;gap:14px;padding:14px 0;border-bottom:1px solid ${c.border};">
+  <a href="${eventUrl}" style="display:flex;gap:14px;padding:14px 0;border-bottom:1px solid ${c.border};text-decoration:none;color:inherit;">
     ${event.image_url ? `<img src="${event.image_url}" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:8px;flex-shrink:0;">` : ''}
     <div style="flex:1;min-width:0;">
       <div style="font-family:${f.display};font-size:0.88rem;font-weight:700;color:${c.textPrimary};margin-bottom:3px;">${event.title}</div>
@@ -273,7 +276,7 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
       ${venue ? `<div style="font-size:0.73rem;color:${c.textMuted};">${venue.name}</div>` : ''}
       ${isFree ? `<span style="display:inline-block;margin-top:4px;padding:2px 8px;background:${c.freeBg};color:${c.freeTxt};font-size:0.68rem;font-weight:600;border-radius:8px;">Free</span>` : ''}
     </div>
-  </div>
+  </a>
 `
     }
   }
