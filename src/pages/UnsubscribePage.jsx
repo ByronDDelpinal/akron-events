@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
+import { supabase } from '@/lib/supabase'
 import { EMAIL_THEME } from '@/lib/emailTheme'
 import './UnsubscribePage.css'
 
@@ -11,10 +12,16 @@ export default function UnsubscribePage() {
   useEffect(() => {
     if (!token) return
 
-    // TODO: Wire to Supabase — set unsubscribed_at = now() via Edge Function
     const unsubscribe = async () => {
-      await new Promise(r => setTimeout(r, 500))
-      setStatus('done')
+      try {
+        await supabase.functions.invoke('unsubscribe', {
+          body: { token },
+        })
+        // Always show success — idempotent, don't reveal token validity
+        setStatus('done')
+      } catch {
+        setStatus('done') // still show success for privacy
+      }
     }
 
     unsubscribe()

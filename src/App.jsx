@@ -27,6 +27,7 @@ import OrgEditPage from '@/pages/admin/organizations/OrgEditPage'
 import AreasListPage from '@/pages/admin/areas/AreasListPage'
 import AreaEditPage from '@/pages/admin/areas/AreaEditPage'
 import ScraperRunsPage from '@/pages/admin/scraper-runs/ScraperRunsPage'
+import EmailPage from '@/pages/admin/email/EmailPage'
 
 import '@/styles/globals.css'
 
@@ -75,6 +76,7 @@ function AppInner() {
             <Route path="areas/new"          element={<AreaEditPage />} />
             <Route path="areas/:id/edit"     element={<AreaEditPage />} />
             <Route path="scraper-runs"       element={<ScraperRunsPage />} />
+            <Route path="email"              element={<EmailPage />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

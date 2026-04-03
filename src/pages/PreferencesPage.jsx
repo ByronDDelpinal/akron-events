@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
+import { supabase } from '@/lib/supabase'
 import { INTENTS } from '@/lib/intents'
 import { EMAIL_THEME } from '@/lib/emailTheme'
 import SearchableMultiSelect from '@/components/SearchableMultiSelect'
@@ -92,6 +93,10 @@ export default function PreferencesPage() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token')
 
+  // Loading & page state
+  const [loading, setLoading]         = useState(true)
+  const [loadError, setLoadError]     = useState(null)
+
   // Preference state
   const [intents, setIntents]         = useState(['all'])
   const [categories, setCategories]   = useState([])
@@ -111,29 +116,80 @@ export default function PreferencesPage() {
   const [radius, setRadius]           = useState(10)
   const [status, setStatus]           = useState(null) // null | 'saving' | 'saved' | 'error'
 
-  // Placeholder venues (will be fetched from Supabase)
-  const [allVenues] = useState([
-    { id: '1', name: 'Jilly\'s Music Room', address: 'Kenmore Blvd' },
-    { id: '2', name: 'Akron Civic Theatre', address: 'Main St' },
-    { id: '3', name: 'Akron Art Museum', address: 'E Market St' },
-    { id: '4', name: 'Summit Artspace', address: 'E Market St' },
-    { id: '5', name: 'Akron Zoo', address: 'Edgewood Ave' },
-    { id: '6', name: 'Nightlight Cinema', address: 'N Main St' },
-    { id: '7', name: 'Lock 3', address: 'S Main St' },
-    { id: '8', name: 'Goodyear Theater', address: 'E Market St' },
-  ])
+  // Entity lists (fetched from Supabase)
+  const [allVenues, setAllVenues] = useState([])
+  const [allOrgs, setAllOrgs]     = useState([])
 
-  // Placeholder organizations (will be fetched from Supabase)
-  const [allOrgs] = useState([
-    { id: '1', name: 'Akron Art Museum' },
-    { id: '2', name: 'Summit Metro Parks' },
-    { id: '3', name: 'Akron-Summit County Public Library' },
-    { id: '4', name: 'Downtown Akron Partnership' },
-    { id: '5', name: 'Leadership Akron' },
-    { id: '6', name: 'Akron Civic Theatre' },
-    { id: '7', name: 'Summit Artspace' },
-    { id: '8', name: 'Cuyahoga Valley National Park' },
-  ])
+  /* ── Load preferences + entity lists on mount ── */
+  useEffect(() => {
+    if (!token) { setLoading(false); return }
+
+    const load = async () => {
+      try {
+        // Fetch preferences from Edge Function, venues, and orgs in parallel
+        const [prefsRes, venuesRes, orgsRes] = await Promise.all([
+          supabase.functions.invoke('preferences', {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            body: null,
+            // Edge Functions don't support query params via invoke, so we use fetch
+          }).catch(() => null),
+          supabase.from('venues').select('id, name, address').order('name'),
+          supabase.from('organizations').select('id, name').order('name'),
+        ])
+
+        // Venues & orgs — these are public reads
+        if (venuesRes.data) setAllVenues(venuesRes.data)
+        if (orgsRes.data) setAllOrgs(orgsRes.data)
+
+        // Preferences — call via fetch since we need query params
+        const baseUrl = import.meta.env.VITE_SUPABASE_URL
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+        const prefsResp = await fetch(
+          `${baseUrl}/functions/v1/preferences?token=${token}`,
+          { headers: { Authorization: `Bearer ${anonKey}`, apikey: anonKey } }
+        )
+        const prefsData = await prefsResp.json()
+
+        if (prefsData.ok && prefsData.preferences) {
+          const p = prefsData.preferences
+          if (p.intents?.length) setIntents(p.intents)
+          if (p.categories?.length) setCategories(p.categories)
+          if (p.venue_ids?.length) setSelectedVenueIds(p.venue_ids)
+          if (p.org_ids?.length) setSelectedOrgIds(p.org_ids)
+          if (p.keywords?.length) setKeywords(p.keywords)
+          if (p.keywords_title_only) setKeywordsTitleOnly(true)
+          if (p.price_max !== null && p.price_max !== undefined) setPriceMax(p.price_max)
+          if (p.age_restriction) setAgeRestriction(p.age_restriction)
+          if (p.event_days?.length && p.event_days.length < 7) setEventDays(p.event_days)
+          if (p.location) {
+            if (p.location.mode === 'area') {
+              setLocationMode('area')
+              const match = AREA_PRESETS.find(a =>
+                Math.abs(a.lat - p.location.lat) < 0.01 && Math.abs(a.lng - p.location.lng) < 0.01
+              )
+              if (match) setSelectedArea(match)
+            } else if (p.location.mode === 'zipcode') {
+              setLocationMode('zipcode')
+              setZipcode(p.location.label || '')
+            }
+            if (p.location.radius_miles) setRadius(p.location.radius_miles)
+          }
+        }
+        if (prefsData.frequency) setFrequency(prefsData.frequency)
+        if (prefsData.lookahead_days) setLookahead(prefsData.lookahead_days)
+        if (prefsData.send_day !== null && prefsData.send_day !== undefined) setSendDay(prefsData.send_day)
+
+        setLoading(false)
+      } catch (err) {
+        console.error('Load preferences error:', err)
+        setLoadError('Could not load your preferences. The link may be invalid or expired.')
+        setLoading(false)
+      }
+    }
+
+    load()
+  }, [token])
 
   /* ── Intent selection ── */
   const toggleIntent = (id) => {
@@ -201,17 +257,68 @@ export default function PreferencesPage() {
     setZipcode('')
   }
 
-  /* ── Save (stub) ── */
+  /* ── Save preferences ── */
   const handleSave = async () => {
     setStatus('saving')
-    // TODO: Wire to Supabase update via Edge Function with token
-    await new Promise(r => setTimeout(r, 600))
-    setStatus('saved')
-    setTimeout(() => setStatus(null), 2500)
+
+    // Build location object
+    let location = null
+    if (locationMode === 'area' && selectedArea) {
+      location = {
+        mode: 'area',
+        lat: selectedArea.lat,
+        lng: selectedArea.lng,
+        radius_miles: radius,
+        label: selectedArea.label,
+      }
+    } else if (locationMode === 'zipcode' && zipcode.length === 5) {
+      // Geocode would go here in the future; for now store the zipcode
+      location = {
+        mode: 'zipcode',
+        lat: null,
+        lng: null,
+        radius_miles: radius,
+        label: zipcode,
+      }
+    }
+
+    const preferences = {
+      intents,
+      categories,
+      venue_ids: selectedVenueIds,
+      org_ids: selectedOrgIds,
+      price_max: priceMax,
+      age_restriction: ageRestriction,
+      event_days: eventDays,
+      location,
+      keywords,
+      keywords_title_only: keywordsTitleOnly,
+    }
+
+    try {
+      const { data, error: fnErr } = await supabase.functions.invoke('preferences', {
+        body: {
+          token,
+          preferences,
+          frequency,
+          lookahead_days: lookahead,
+          send_day: frequency === 'weekly' ? sendDay : null,
+        },
+      })
+
+      if (fnErr) throw fnErr
+      if (data?.error) throw new Error(data.error)
+
+      setStatus('saved')
+      setTimeout(() => setStatus(null), 2500)
+    } catch (err) {
+      console.error('Save preferences error:', err)
+      setStatus('error')
+      setTimeout(() => setStatus(null), 3000)
+    }
   }
 
   /* ── No token state ── */
-  /* TODO: Re-enable token gate when wiring to Supabase
   if (!token) {
     return (
       <div className="page-shell prefs-shell">
@@ -226,7 +333,28 @@ export default function PreferencesPage() {
       </div>
     )
   }
-  */
+
+  /* ── Loading state ── */
+  if (loading) {
+    return (
+      <div className="page-shell prefs-shell">
+        <p className="prefs-loading">Loading your preferences…</p>
+      </div>
+    )
+  }
+
+  /* ── Load error state ── */
+  if (loadError) {
+    return (
+      <div className="page-shell prefs-shell">
+        <div className="prefs-no-token">
+          <h1 className="page-title">Preference Center</h1>
+          <p className="page-sub">{loadError}</p>
+          <Link to="/subscribe" className="amber-link">Go to subscribe page</Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="page-shell prefs-shell">
@@ -539,11 +667,16 @@ export default function PreferencesPage() {
         onClick={handleSave}
         disabled={status === 'saving'}
       >
-        {status === 'saving' ? 'Saving…' : status === 'saved' ? '✓ Saved!' : 'Save preferences'}
+        {status === 'saving' ? 'Saving…' : status === 'saved' ? 'Saved!' : status === 'error' ? 'Try again' : 'Save preferences'}
       </button>
       {status === 'saved' && (
         <p className="prefs-saved-msg">
           Your preferences have been updated. Your next email will reflect these changes.
+        </p>
+      )}
+      {status === 'error' && (
+        <p className="prefs-error-msg">
+          Something went wrong saving your preferences. Please try again.
         </p>
       )}
     </div>

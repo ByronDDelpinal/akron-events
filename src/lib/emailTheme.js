@@ -14,7 +14,7 @@ export const EMAIL_THEME = {
   location: 'Akron, OH',
 
   // URLs (update when domain changes)
-  baseUrl: 'https://turnout.com',      // production domain
+  baseUrl: 'https://events.supportlocalakron.com',      // production domain
   logoUrl: null,                         // set when logo is hosted
 
   // Colors (matches CSS variables in globals.css)
@@ -42,7 +42,7 @@ export const EMAIL_THEME = {
   // Email-specific
   email: {
     fromName: 'Turnout',
-    fromAddress: 'digest@turnout.com',   // update with verified domain
+    fromAddress: 'digest@events.supportlocalakron.com',   // update with verified domain
     replyTo: null,                        // optional
   },
 }

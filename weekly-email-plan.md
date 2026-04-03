@@ -282,7 +282,7 @@ All brand values (name, logo URL, colors, fonts, tagline) live in a single `emai
 
 **One click.** Hitting the link immediately sets `unsubscribed_at = now()` and shows a simple page:
 
-> *"You've been unsubscribed. If you ever want to come back, you can re-subscribe anytime at [turnout.com/subscribe]. We hope to see you again."*
+> *"You've been unsubscribed. If you ever want to come back, you can re-subscribe anytime at [events.supportlocalakron.com/subscribe]. We hope to see you again."*
 
 That's it. No survey. No guilt. No "are you sure?" No frequency downsell. No "before you go" interstitial. Respect the decision, leave the door open.
 

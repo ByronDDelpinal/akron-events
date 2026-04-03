@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { supabase } from '@/lib/supabase'
 import { INTENTS } from '@/lib/intents'
 import { EMAIL_THEME } from '@/lib/emailTheme'
 import './SubscribePage.css'
@@ -45,7 +46,7 @@ export default function SubscribePage() {
     if (match) setLookahead(match.lookahead)
   }
 
-  /* ── Submit (stub — will be wired to Supabase) ── */
+  /* ── Submit ── */
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError(null)
@@ -57,19 +58,45 @@ export default function SubscribePage() {
 
     setStatus('submitting')
 
-    // TODO: Wire to Supabase insert + Resend confirmation email
-    await new Promise(r => setTimeout(r, 800))
-    setStatus('success')
+    try {
+      const { data, error: fnErr } = await supabase.functions.invoke('subscribe', {
+        body: {
+          email: email.trim(),
+          intents: selectedIntents,
+          frequency,
+          lookahead_days: lookahead,
+        },
+      })
+
+      if (fnErr) throw fnErr
+      if (data?.error) throw new Error(data.error)
+
+      setStatus('success')
+    } catch (err) {
+      console.error('Subscribe error:', err)
+      setError('Something went wrong. Please try again.')
+      setStatus(null)
+    }
   }
 
-  /* ── Magic link request (stub) ── */
+  /* ── Magic link request ── */
   const handleMagicLink = async (e) => {
     e.preventDefault()
     if (!magicEmail.trim() || !magicEmail.includes('@')) return
     setMagicStatus('sending')
-    // TODO: Wire to Edge Function that sends magic link
-    await new Promise(r => setTimeout(r, 600))
-    setMagicStatus('sent')
+
+    try {
+      await supabase.functions.invoke('subscribe', {
+        body: {
+          email: magicEmail.trim(),
+          resend_confirmation: true,
+        },
+      })
+      // Always show sent — don't reveal whether email exists
+      setMagicStatus('sent')
+    } catch {
+      setMagicStatus('sent') // fail silently for privacy
+    }
   }
 
   /* ── Success state ── */

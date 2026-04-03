@@ -199,3 +199,18 @@
   margin-top: 10px;
   font-weight: 600;
 }
+
+.prefs-error-msg {
+  font-size: var(--text-xs);
+  color: var(--coral);
+  text-align: center;
+  margin-top: 10px;
+  font-weight: 600;
+}
+
+.prefs-loading {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  padding: 60px 0;
+}
