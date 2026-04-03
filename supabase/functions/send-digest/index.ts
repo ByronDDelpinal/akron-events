@@ -325,9 +325,26 @@ function buildSubject(frequency: string, eventCount: number): string {
   }
 }
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+  })
+}
+
 // ── Main handler ──
 Deno.serve(async (req) => {
-  // Only allow POST (from pg_cron or manual trigger)
+  // Handle CORS preflight (needed for browser calls from admin dashboard)
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: CORS_HEADERS })
+  }
+
+  // Only allow POST (from pg_cron, admin dashboard, or manual trigger)
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 })
   }
@@ -370,12 +387,12 @@ Deno.serve(async (req) => {
 
     if (subErr) {
       console.error('[send-digest] Subscriber query error:', subErr)
-      return new Response(JSON.stringify({ error: 'Subscriber query failed' }), { status: 500 })
+      return json({ error: 'Subscriber query failed' }, 500)
     }
 
     if (!subscribers || subscribers.length === 0) {
       console.log('[send-digest] No subscribers due today')
-      return new Response(JSON.stringify({ ok: true, sent: 0 }), { status: 200 })
+      return json({ ok: true, sent: 0, skipped: 0 })
     }
 
     console.log(`[send-digest] ${subscribers.length} subscribers due`)
@@ -398,7 +415,7 @@ Deno.serve(async (req) => {
 
     if (evtErr) {
       console.error('[send-digest] Events query error:', evtErr)
-      return new Response(JSON.stringify({ error: 'Events query failed' }), { status: 500 })
+      return json({ error: 'Events query failed' }, 500)
     }
 
     // Flatten the joined data for easier filtering
@@ -501,12 +518,9 @@ Deno.serve(async (req) => {
     }
 
     console.log('[send-digest] Complete:', summary)
-    return new Response(JSON.stringify(summary), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return json(summary)
   } catch (err) {
     console.error('[send-digest] Fatal error:', err)
-    return new Response(JSON.stringify({ error: 'Internal error' }), { status: 500 })
+    return json({ error: 'Internal error' }, 500)
   }
 })
