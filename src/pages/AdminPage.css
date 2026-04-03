@@ -613,3 +613,45 @@
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
+
+/* ── Admin Feedback ── */
+.admin-feedback-filters {
+  display: flex; flex-wrap: wrap; gap: 16px;
+  margin-bottom: 18px;
+}
+.admin-feedback-filter-group {
+  display: flex; align-items: center; gap: 8px;
+}
+.admin-feedback-filter-label {
+  font-family: var(--font-display);
+  font-size: var(--text-tiny); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.admin-feedback-chips {
+  display: flex; flex-wrap: wrap; gap: 4px;
+}
+.admin-feedback-chip {
+  padding: 4px 10px;
+  border: 1.5px solid var(--border); border-radius: 20px;
+  background: var(--bg-card); color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: var(--text-xxs); font-weight: 500;
+  cursor: pointer; transition: all 0.12s;
+  display: inline-flex; align-items: center; gap: 3px;
+}
+.admin-feedback-chip:hover { border-color: var(--amber); color: var(--amber); }
+.admin-feedback-chip.active {
+  background: var(--amber); border-color: var(--amber);
+  color: #fff;
+}
+.admin-feedback-body {
+  max-width: 360px;
+  white-space: normal;
+  line-height: 1.5;
+}
+.admin-empty {
+  text-align: center; padding: 40px;
+  color: var(--text-muted); font-size: var(--text-sm);
+}

@@ -55,6 +55,7 @@ const NAV_ITEMS = [
   { to: 'areas',         label: 'Areas',         icon: '🏟️' },
   { to: 'scraper-runs',  label: 'Scraper Runs',  icon: '🤖' },
   { to: 'email',         label: 'Email',         icon: '✉️' },
+  { to: 'feedback',      label: 'Feedback',      icon: '📣' },
 ]
 
 // ── Layout ────────────────────────────────────────────────────────────────

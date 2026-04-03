@@ -29,6 +29,7 @@ import AreasListPage from '@/pages/admin/areas/AreasListPage'
 import AreaEditPage from '@/pages/admin/areas/AreaEditPage'
 import ScraperRunsPage from '@/pages/admin/scraper-runs/ScraperRunsPage'
 import EmailPage from '@/pages/admin/email/EmailPage'
+import AdminFeedbackPage from '@/pages/admin/feedback/AdminFeedbackPage'
 
 import '@/styles/globals.css'
 
@@ -79,6 +80,7 @@ function AppInner() {
             <Route path="areas/:id/edit"     element={<AreaEditPage />} />
             <Route path="scraper-runs"       element={<ScraperRunsPage />} />
             <Route path="email"              element={<EmailPage />} />
+            <Route path="feedback"           element={<AdminFeedbackPage />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />
