@@ -356,32 +356,42 @@ Deno.serve(async (req) => {
     return new Response('Unauthorized', { status: 401 })
   }
 
+  // Check for force mode (admin manual trigger sends to ALL active subscribers)
+  let forceAll = false
+  try {
+    const body = await req.json()
+    forceAll = body?.force === true
+  } catch {
+    // No body or invalid JSON — that's fine, default to scheduled mode
+  }
+
   const now = new Date()
   const todayDow = now.getDay() // 0=Sun..6=Sat
   const isFirstOfMonth = now.getDate() === 1
   const dateStr = now.toISOString().slice(0, 10)
 
-  console.log(`[send-digest] Starting for ${dateStr}, DOW=${todayDow}, 1st=${isFirstOfMonth}`)
+  console.log(`[send-digest] Starting for ${dateStr}, DOW=${todayDow}, 1st=${isFirstOfMonth}, force=${forceAll}`)
 
   try {
-    // ── Step 1: WHO is due today? ──
+    // ── Step 1: WHO gets emailed? ──
     let query = supabase
       .from('subscribers')
       .select('id, email, frequency, lookahead_days, preferences, token')
       .eq('confirmed', true)
       .is('unsubscribed_at', null)
 
-    // Build OR conditions for frequency matching
-    // Daily subscribers: always due
-    // Weekly subscribers: due if send_day matches today
-    // Monthly subscribers: due on the 1st only
-    const conditions = [`frequency.eq.daily`]
-    conditions.push(`and(frequency.eq.weekly,send_day.eq.${todayDow})`)
-    if (isFirstOfMonth) {
-      conditions.push(`frequency.eq.monthly`)
+    if (!forceAll) {
+      // Scheduled mode: only subscribers due today
+      // Daily subscribers: always due
+      // Weekly subscribers: due if send_day matches today
+      // Monthly subscribers: due on the 1st only
+      const conditions = [`frequency.eq.daily`]
+      conditions.push(`and(frequency.eq.weekly,send_day.eq.${todayDow})`)
+      if (isFirstOfMonth) {
+        conditions.push(`frequency.eq.monthly`)
+      }
+      query = query.or(conditions.join(','))
     }
-
-    query = query.or(conditions.join(','))
 
     const { data: subscribers, error: subErr } = await query
 

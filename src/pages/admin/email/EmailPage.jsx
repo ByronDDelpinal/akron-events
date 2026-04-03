@@ -86,15 +86,14 @@ export default function EmailPage() {
 
   // ── Manual send ──
   const handleSendDigest = async () => {
-    if (!confirm('This will send digest emails to all subscribers who are due today. Continue?')) return
+    if (!confirm('This will send a digest email to ALL active subscribers right now. Continue?')) return
 
     setSending(true)
     setSendResult(null)
 
     try {
       const { data, error } = await supabase.functions.invoke('send-digest', {
-        method: 'POST',
-        body: {},
+        body: { force: true },
       })
 
       if (error) throw error
@@ -158,9 +157,9 @@ export default function EmailPage() {
       <div className="email-trigger-section">
         <h3 className="email-trigger-title">Manual Send</h3>
         <p className="email-trigger-desc">
-          Trigger a digest send for all subscribers who are due today.
-          This is the same logic that pg_cron will run once automated —
-          daily subscribers always, weekly on their chosen day, monthly on the 1st.
+          Send a digest to every active subscriber right now, regardless of
+          their frequency or scheduled day. Once pg_cron is set up, scheduled
+          sends will only target subscribers who are due that day.
         </p>
         <button
           className="btn-admin-primary email-send-btn"
