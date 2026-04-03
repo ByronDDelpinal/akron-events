@@ -420,6 +420,16 @@
   color: #fff;
 }
 
+.grid-promo-btn--subscribe {
+  background: var(--amber);
+  color: var(--chip-active-txt);
+  border-color: var(--amber);
+}
+.grid-promo-btn--subscribe:hover {
+  background: var(--amber-hover);
+  border-color: var(--amber-hover);
+}
+
 /* Promo injected inside the event grid — spans all columns */
 .cards-grid-promo {
   grid-column: 1 / -1;

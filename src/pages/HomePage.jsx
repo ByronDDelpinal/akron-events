@@ -409,6 +409,15 @@ function GridPromo() {
         </div>
         <div className="grid-promo-divider" />
         <div className="grid-promo-col">
+          <span className="grid-promo-icon">✉️</span>
+          <div className="grid-promo-text">
+            <strong>Never miss an event</strong>
+            <p>Get a personalized digest delivered to your inbox.</p>
+          </div>
+          <Link to="/subscribe" className="grid-promo-btn grid-promo-btn--subscribe">Subscribe →</Link>
+        </div>
+        <div className="grid-promo-divider" />
+        <div className="grid-promo-col">
           <span className="grid-promo-icon">📤</span>
           <div className="grid-promo-text">
             <strong>Know an organizer?</strong>

@@ -155,12 +155,12 @@
 /* Responsive grid: 1 col mobile → 2 cols tablet → 4 cols desktop */
 .cards-grid--efficient {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   padding-bottom: 4px;
 }
-@media (min-width: 600px) { .cards-grid--efficient { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 900px) { .cards-grid--efficient { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 600px) { .cards-grid--efficient { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 900px) { .cards-grid--efficient { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
 .card-efficient {
   display: flex;
@@ -173,6 +173,8 @@
   cursor: pointer;
   transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
   min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .card-efficient:hover {
@@ -188,6 +190,7 @@
 .card-efficient-main {
   min-width: 0;
   flex: 1;
+  overflow: hidden;
 }
 
 .card-efficient-title {
@@ -212,14 +215,19 @@
   font-family: var(--font-body);
   font-size: var(--text-xxs);
   color: var(--text-muted);
+  min-width: 0;
 }
 .card-efficient-meta-row {
   display: flex;
   align-items: center;
   gap: 5px;
+  min-width: 0;
+}
+.card-efficient-meta-row > span {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 .card-efficient-meta svg {
   flex-shrink: 0;
@@ -237,6 +245,11 @@
   padding-top: 6px;
   border-top: 1px solid var(--border);
   margin-top: auto;
+  min-width: 0;
+}
+.card-efficient-end .event-tag {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .card-efficient-price {
@@ -245,6 +258,10 @@
   font-weight: 700;
   color: var(--amber);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
 }
 .card-efficient-price.free {
   color: var(--green-mid);
