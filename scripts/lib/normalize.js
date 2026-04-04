@@ -280,6 +280,22 @@ export async function ensureVenue(name, details = {}) {
     .from('venues').select('id').eq('name', trimmed).maybeSingle()
 
   if (existing) {
+    // Update details on existing venue (e.g. corrected coordinates)
+    const updates = {}
+    if (details.address)       updates.address       = details.address
+    if (details.city)          updates.city          = details.city
+    if (details.state)         updates.state         = details.state
+    if (details.zip)           updates.zip           = details.zip
+    if (details.lat != null)   updates.lat           = details.lat
+    if (details.lng != null)   updates.lng           = details.lng
+    if (details.parking_type)  updates.parking_type  = details.parking_type
+    if (details.parking_notes) updates.parking_notes = details.parking_notes
+    if (details.website)       updates.website       = details.website
+    if (details.description)   updates.description   = details.description
+    if (details.tags?.length)  updates.tags          = details.tags
+    if (Object.keys(updates).length) {
+      await supabaseAdmin.from('venues').update(updates).eq('id', existing.id)
+    }
     _venueNameCache.set(trimmed, existing.id)
     return existing.id
   }

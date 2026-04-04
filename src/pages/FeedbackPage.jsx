@@ -287,8 +287,6 @@ export default function FeedbackPage() {
       </div>
 
       <div className="fb-wrap">
-        <div className="fb-bar" />
-
         <p className="fb-intro">
           The ideas with the most votes help us decide what to build next.
           See something you agree with? Give it an upvote.

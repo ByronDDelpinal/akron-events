@@ -31,13 +31,6 @@
   margin: 44px auto;
   padding: 0 20px 80px;
 }
-.fb-bar {
-  height: 3px;
-  width: 56px;
-  border-radius: 2px;
-  margin-bottom: 28px;
-  background: linear-gradient(90deg, var(--amber), var(--green-mid), var(--coral));
-}
 
 /* ── Intro blurb ───────────────────────────────────────────────────────── */
 .fb-intro {
