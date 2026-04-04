@@ -15,8 +15,8 @@ export const INTENTS = [
     id:         'date-night',
     label:      'Date Night',
     emoji:      '🌙',
-    tagline:    'Music, art & food — a great evening out',
-    categories: ['music', 'art', 'food'],
+    tagline:    'Music, art, food & sports — a great evening out',
+    categories: ['music', 'art', 'food', 'sports'],
     freeOnly:   false,
   },
   {
@@ -39,8 +39,8 @@ export const INTENTS = [
     id:         'get-active',
     label:      'Get Active',
     emoji:      '🏃',
-    tagline:    'Sports, fitness & outdoor events',
-    categories: ['sports', 'fitness'],
+    tagline:    'Fitness & outdoor events',
+    categories: ['fitness'],
     freeOnly:   false,
   },
   {
