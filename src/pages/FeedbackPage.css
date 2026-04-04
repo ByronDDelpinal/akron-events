@@ -547,6 +547,13 @@
   letter-spacing: 0.04em;
 }
 
+.fb-resolved-stamp {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 4px;
+}
+
 .fb-post--resolved {
   opacity: 0.5;
   filter: grayscale(0.6);

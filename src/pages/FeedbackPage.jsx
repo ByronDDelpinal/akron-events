@@ -259,6 +259,11 @@ export default function FeedbackPage() {
             <span className="fb-meta-dot">·</span>
             <span>{timeAgo(post.created_at)}</span>
           </div>
+          {isResolved && post.resolved_at && (
+            <div className="fb-resolved-stamp">
+              Resolved on {new Date(post.resolved_at).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })} at {new Date(post.resolved_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })}
+            </div>
+          )}
         </div>
 
         {post.image_url && (

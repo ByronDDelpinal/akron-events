@@ -60,7 +60,7 @@ async function fetchSchedule() {
 
   const url = new URL(MLB_API_BASE)
   url.searchParams.set('lang',          'en')
-  url.searchParams.set('sportId',       '11,12,13,14,15,16,5442')
+  url.searchParams.set('sportId',       '12')   // Double-A only
   url.searchParams.set('hydrate',       'team,venue,game(promotions)')
   url.searchParams.set('season',        year)
   url.searchParams.set('startDate',     startDate)

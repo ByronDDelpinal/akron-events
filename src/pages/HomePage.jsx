@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { format, isToday, isTomorrow } from 'date-fns'
 import { Link } from 'react-router-dom'
 import { useEvents, useMapEvents, PAGE_SIZE } from '@/hooks/useEvents'
+import { supabase } from '@/lib/supabase'
 
 const COMPACT_PAGE_SIZE = 48
 import EventCard from '@/components/EventCard'
@@ -92,6 +93,24 @@ export default function HomePage() {
   const effectiveFreeOnly = (activeIntent?.freeOnly ?? false) || priceFilter === 'free'
   // priceMax only applies when not using freeOnly
   const effectivePriceMax = effectiveFreeOnly ? null : priceFilter
+
+  // ── Last-updated label (from most recent scraper run) ─────────────────
+  const [lastUpdated, setLastUpdated] = useState(null)
+  useEffect(() => {
+    supabase
+      .from('scraper_runs')
+      .select('ran_at')
+      .order('ran_at', { ascending: false })
+      .limit(1)
+      .then(({ data }) => {
+        if (data?.[0]?.ran_at) {
+          const hours = (Date.now() - new Date(data[0].ran_at).getTime()) / 3.6e6
+          if (hours < 1)       setLastUpdated('< 1 hour ago')
+          else if (hours < 24) setLastUpdated(`${Math.round(hours)}h ago`)
+          else                 setLastUpdated(`${Math.round(hours / 24)}d ago`)
+        }
+      })
+  }, [])
 
   // ── Pagination state ──────────────────────────────────────────────────
   const [offset,      setOffset]      = useState(0)
@@ -247,7 +266,7 @@ export default function HomePage() {
           <div className="stat-sep" />
           <div className="stat-pill"><strong>{weekendCount}</strong> this weekend</div>
           <div className="stat-sep" />
-          <div className="stat-pill">Updated <strong>today</strong></div>
+          {lastUpdated && <div className="stat-pill">Updated <strong>{lastUpdated}</strong></div>}
         </div>
       </div>
 

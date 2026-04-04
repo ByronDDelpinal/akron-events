@@ -1237,7 +1237,7 @@ function ScraperRunsAdmin() {
                   <td>{r.events_updated ?? 0}</td>
                   <td>{r.events_skipped ?? 0}</td>
                   <td>{r.duration_ms != null ? `${(r.duration_ms / 1000).toFixed(1)}s` : '—'}</td>
-                  <td className="admin-td-nowrap">{r.created_at ? format(new Date(r.created_at), 'MMM d, h:mm a') : '—'}</td>
+                  <td className="admin-td-nowrap">{r.ran_at ? format(new Date(r.ran_at), 'MMM d, h:mm a') : '—'}</td>
                 </tr>
               ))}
             </tbody>
