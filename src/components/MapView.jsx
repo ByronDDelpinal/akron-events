@@ -39,7 +39,8 @@ const CATEGORY_EMOJI = {
   nonprofit: '💛',
   community: '🤝',
   food:      '🍺',
-  sports:    '🏃',
+  sports:    '🏟',
+  fitness:   '🏃',
   education: '📚',
 }
 

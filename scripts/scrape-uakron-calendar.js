@@ -41,7 +41,8 @@ function parseCategory(ev) {
   if (group.includes('ej thomas') || group.includes('performing arts')) return 'art'
   if (group.includes('music') || group.includes('school of music')) return 'music'
   if (group.includes('art') || group.includes('school of art')) return 'art'
-  if (all.some(s => s.includes('athletic') || s.includes('sport') || s.includes('recreation'))) return 'sports'
+  if (all.some(s => s.includes('athletic') || s.includes('sport'))) return 'sports'
+  if (all.some(s => s.includes('recreation'))) return 'fitness'
   if (all.some(s => s.includes('lecture') || s.includes('seminar') || s.includes('workshop') || s.includes('class'))) return 'education'
   if (all.some(s => s.includes('performance') || s.includes('recital') || s.includes('concert'))) {
     if (group.includes('music') || group.includes('school of music')) return 'music'

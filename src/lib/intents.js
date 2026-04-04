@@ -39,8 +39,8 @@ export const INTENTS = [
     id:         'get-active',
     label:      'Get Active',
     emoji:      '🏃',
-    tagline:    'Fitness & outdoor events',
-    categories: ['sports'],
+    tagline:    'Sports, fitness & outdoor events',
+    categories: ['sports', 'fitness'],
     freeOnly:   false,
   },
   {

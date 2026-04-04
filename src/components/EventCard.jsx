@@ -14,7 +14,8 @@ const GRADIENT_MAP = {
   community: 'g-market',
   nonprofit: 'g-gala',
   food:      'g-market',
-  sports:    'g-run',
+  sports:    'g-sports',
+  fitness:   'g-run',
   education: 'g-openmic',
   other:     'g-default',
 }
@@ -26,7 +27,8 @@ const TAG_CLASS_MAP = {
   nonprofit: 'tag-nonprofit',
   community: 'tag-community',
   food:      'tag-food',
-  sports:    'tag-fitness',
+  sports:    'tag-sports',
+  fitness:   'tag-fitness',
   education: 'tag-education',
   other:     'tag-other',
 }
@@ -37,7 +39,8 @@ const CATEGORY_LABEL = {
   nonprofit: 'Non-Profit',
   community: 'Community',
   food:      'Food & Drink',
-  sports:    'Fitness',
+  sports:    'Sports',
+  fitness:   'Fitness',
   education: 'Education',
   other:     'Other',
 }

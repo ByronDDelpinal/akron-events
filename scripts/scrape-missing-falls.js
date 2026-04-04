@@ -45,7 +45,8 @@ function parseCategory(categories = [], title = '') {
   if (slugs.some(s => s.includes('trivia') || s.includes('game') || s.includes('bingo'))) return 'community'
   if (slugs.some(s => s.includes('art') || s.includes('comedy') || s.includes('show'))) return 'art'
   if (slugs.some(s => s.includes('food') || s.includes('tasting') || s.includes('pairing'))) return 'food'
-  if (slugs.some(s => s.includes('sport') || s.includes('fitness') || s.includes('run'))) return 'sports'
+  if (slugs.some(s => s.includes('fitness') || s.includes('run'))) return 'fitness'
+  if (slugs.some(s => s.includes('sport'))) return 'sports'
   if (t.includes('trivia') || t.includes('bingo') || t.includes('game night')) return 'community'
   if (t.includes('live') || t.includes('music') || t.includes('band') || t.includes('dj')) return 'music'
   // Brewery events default to community

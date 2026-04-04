@@ -84,7 +84,7 @@ function parseCategory(title = '') {
   if (/concert|music|jazz|band|festival|symphony|orchestra/.test(lower)) return 'music'
   if (/art|exhibit|gallery|film|movie|theatre|play|performance|ballet|dance/.test(lower)) return 'art'
   if (/food|tasting|market|brew|wine|culinary/.test(lower)) return 'food'
-  if (/run|race|walk|bike|5k|marathon/.test(lower)) return 'sports'
+  if (/run|race|walk|bike|5k|marathon/.test(lower)) return 'fitness'
   if (/storytime|story time|family|kids|children/.test(lower)) return 'community'
   if (/gala|benefit|fundrais|nonprofit|charity/.test(lower)) return 'nonprofit'
   return 'community'

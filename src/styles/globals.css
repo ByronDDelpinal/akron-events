@@ -52,6 +52,7 @@
   --tag-nonprofit-bg: #FDF2DC; --tag-nonprofit-txt: #7A4E08;
   --tag-community-bg: #E4EEF8; --tag-community-txt: #1A3E70;
   --tag-food-bg:      #FAE8E4; --tag-food-txt:      #882810;
+  --tag-sports-bg:    #E0ECF8; --tag-sports-txt:    #1A3870;
   --tag-fitness-bg:   #E4F2EE; --tag-fitness-txt:   #0C5438;
   --tag-education-bg: #EAF0FA; --tag-education-txt: #1A3060;
   --tag-other-bg:     #F0F0F0; --tag-other-txt:     #555555;
@@ -76,7 +77,8 @@ button { font-family: inherit; }
 .g-market  { background: linear-gradient(140deg,#082010 0%,#186030 50%,#68AF78 100%); }
 .g-gala    { background: linear-gradient(140deg,#180808 0%,#501828 50%,#D4922A 100%); }
 .g-openmic { background: linear-gradient(140deg,#100828 0%,#2E1060 45%,#8050D0 100%); }
-.g-run     { background: linear-gradient(140deg,#081828 0%,#1040A0 50%,#60B8E8 100%); }
+.g-sports  { background: linear-gradient(140deg,#081828 0%,#1040A0 50%,#60B8E8 100%); }
+.g-run     { background: linear-gradient(140deg,#0A2818 0%,#18784A 50%,#58C888 100%); }
 .g-default { background: linear-gradient(140deg,#1D2B1F 0%,#3A6B4A 55%,#D4922A 100%); }
 
 /* ════════════════════════════════
@@ -96,6 +98,7 @@ button { font-family: inherit; }
 .tag-nonprofit { background: var(--tag-nonprofit-bg); color: var(--tag-nonprofit-txt); }
 .tag-community { background: var(--tag-community-bg); color: var(--tag-community-txt); }
 .tag-food      { background: var(--tag-food-bg);      color: var(--tag-food-txt); }
+.tag-sports    { background: var(--tag-sports-bg);    color: var(--tag-sports-txt); }
 .tag-fitness   { background: var(--tag-fitness-bg);   color: var(--tag-fitness-txt); }
 .tag-education { background: var(--tag-education-bg); color: var(--tag-education-txt); }
 .tag-other     { background: var(--tag-other-bg);     color: var(--tag-other-txt); }

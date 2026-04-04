@@ -4,7 +4,8 @@ export const CATEGORIES = [
   { value: 'nonprofit', label: 'Non-Profit' },
   { value: 'community', label: 'Community' },
   { value: 'food',      label: 'Food & Drink' },
-  { value: 'sports',    label: 'Fitness / Sports' },
+  { value: 'sports',    label: 'Sports' },
+  { value: 'fitness',   label: 'Fitness' },
   { value: 'education', label: 'Education' },
   { value: 'other',     label: 'Other' },
 ]

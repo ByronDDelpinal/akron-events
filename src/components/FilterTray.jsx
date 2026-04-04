@@ -10,7 +10,8 @@ const RAW_CATEGORIES = [
   { value: 'food',      label: '🍺 Food & Drink' },
   { value: 'community', label: '🤝 Community' },
   { value: 'nonprofit', label: '💛 Non-Profit' },
-  { value: 'sports',    label: '🏃 Fitness' },
+  { value: 'sports',    label: '🏟 Sports' },
+  { value: 'fitness',   label: '🏃 Fitness' },
   { value: 'education', label: '📚 Education' },
 ]
 

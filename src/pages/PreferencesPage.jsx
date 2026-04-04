@@ -12,7 +12,8 @@ const CATEGORIES = [
   { id: 'community',  label: 'Community',  emoji: '🏘' },
   { id: 'nonprofit',  label: 'Nonprofit',  emoji: '💛' },
   { id: 'food',       label: 'Food',       emoji: '🍽' },
-  { id: 'sports',     label: 'Sports',     emoji: '⚽' },
+  { id: 'sports',     label: 'Sports',     emoji: '🏟' },
+  { id: 'fitness',    label: 'Fitness',    emoji: '🏃' },
   { id: 'education',  label: 'Education',  emoji: '📚' },
   { id: 'other',      label: 'Other',      emoji: '📌' },
 ]

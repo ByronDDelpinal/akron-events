@@ -98,7 +98,7 @@ const LIBRARY_CATEGORY_MAP = {
   'health':               'community',
   'wellness':             'community',
   'yoga':                 'community',
-  'fitness':              'sports',
+  'fitness':              'fitness',
   'volunteer':            'nonprofit',
   'fundrais':             'nonprofit',
   'nonprofit':            'nonprofit',

@@ -32,7 +32,8 @@ function parseCategory(categories = [], tags = []) {
     ...tags.map(t => (t.name ?? t.slug ?? '').toLowerCase()),
   ]
   if (names.some(n => n.includes('music') || n.includes('concert'))) return 'music'
-  if (names.some(n => n.includes('sport') || n.includes('fitness') || n.includes('run') || n.includes('bike') || n.includes('paddle'))) return 'sports'
+  if (names.some(n => n.includes('fitness') || n.includes('run') || n.includes('bike') || n.includes('paddle'))) return 'fitness'
+  if (names.some(n => n.includes('sport'))) return 'sports'
   if (names.some(n => n.includes('educat') || n.includes('program') || n.includes('class') || n.includes('workshop') || n.includes('learn'))) return 'education'
   return 'community'
 }
