@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import Modal from '@/components/Modal'
 import './FeedbackPage.css'
 
 /* ── Category config ─────────────────────────────────────────────────── */
@@ -45,8 +46,14 @@ export default function FeedbackPage() {
   const [formBody,    setFormBody]    = useState('')
   const [formAuthor,  setFormAuthor]  = useState('')
   const [formPrivate, setFormPrivate] = useState(false)
+  const [formImage,   setFormImage]   = useState(null)      // File object
+  const [imagePreview,setImagePreview]= useState(null)      // data URL for preview
   const [submitting,  setSubmitting]  = useState(false)
   const textareaRef = useRef(null)
+  const fileInputRef = useRef(null)
+
+  // Image lightbox
+  const [lightboxUrl, setLightboxUrl] = useState(null)
 
   // Persist author name across submissions
   const savedAuthor = useRef('')
@@ -83,9 +90,27 @@ export default function FeedbackPage() {
     setFormCat(filter !== 'all' ? filter : 'general')
     setFormBody('')
     setFormPrivate(false)
+    setFormImage(null)
+    setImagePreview(null)
     setFormAuthor(savedAuthor.current)
     setShowForm(true)
     setTimeout(() => textareaRef.current?.focus(), 80)
+  }
+
+  /* ── Handle image selection ─────────────────────────────────────── */
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setFormImage(file)
+    const reader = new FileReader()
+    reader.onload = (ev) => setImagePreview(ev.target.result)
+    reader.readAsDataURL(file)
+  }
+
+  const clearImage = () => {
+    setFormImage(null)
+    setImagePreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   /* ── Submit a new post ──────────────────────────────────────────── */
@@ -95,16 +120,36 @@ export default function FeedbackPage() {
     if (!body || submitting) return
     setSubmitting(true)
 
-    // Capture current form values before any state changes
-    const payload = {
-      category:    formCat,
-      body,
-      author_name: formAuthor.trim() || 'Anonymous',
-      is_private:  formPrivate,
-    }
-
     try {
-      const { data, error } = await supabase
+      // Upload image if provided
+      let image_url = null
+      if (formImage) {
+        const ext = formImage.name.split('.').pop()
+        const path = `${Date.now()}_${crypto.randomUUID().slice(0, 8)}.${ext}`
+        const { error: uploadErr } = await supabase.storage
+          .from('feedback-images')
+          .upload(path, formImage)
+
+        if (uploadErr) {
+          console.error('Image upload error:', uploadErr)
+          // Continue without image rather than blocking the submit
+        } else {
+          const { data: urlData } = supabase.storage
+            .from('feedback-images')
+            .getPublicUrl(path)
+          image_url = urlData.publicUrl
+        }
+      }
+
+      const payload = {
+        category:    formCat,
+        body,
+        author_name: formAuthor.trim() || 'Anonymous',
+        is_private:  formPrivate,
+        image_url,
+      }
+
+      const { error } = await supabase
         .from('feedback_posts')
         .insert(payload)
         .select()
@@ -122,6 +167,8 @@ export default function FeedbackPage() {
       setShowForm(false)
       setFormBody('')
       setFormPrivate(false)
+      setFormImage(null)
+      setImagePreview(null)
 
       // Re-fetch to get clean data from the database
       const { data: fresh } = await supabase
@@ -164,9 +211,12 @@ export default function FeedbackPage() {
 
   /* ── Filter + sort + search ──────────────────────────────────────── */
   const q = search.toLowerCase().trim()
-  const visible = posts
+  const filtered = posts
     .filter(p => filter === 'all' || p.category === filter)
     .filter(p => !q || p.body.toLowerCase().includes(q) || p.author_name.toLowerCase().includes(q))
+
+  const active   = filtered.filter(p => !p.resolved_at)
+  const resolved = filtered.filter(p => p.resolved_at)
 
   const timeAgo = (dateStr) => {
     const diff = Date.now() - new Date(dateStr).getTime()
@@ -177,6 +227,47 @@ export default function FeedbackPage() {
     if (hrs < 24) return `${hrs}h ago`
     const days = Math.floor(hrs / 24)
     return `${days}d ago`
+  }
+
+  /* ── Render a single post card ────────────────────────────────────── */
+  const renderPost = (post, isResolved = false) => {
+    const cat = CAT_MAP[post.category] || CAT_MAP.general
+    const voted = myVotes.has(post.id)
+    return (
+      <div
+        key={post.id}
+        className={`fb-post ${post.image_url ? 'fb-post--has-image' : ''} ${isResolved ? 'fb-post--resolved' : ''}`}
+        onClick={() => { if (post.image_url) setLightboxUrl(post.image_url) }}
+      >
+        <button
+          className={`fb-vote ${voted ? 'fb-vote--active' : ''}`}
+          onClick={(e) => { e.stopPropagation(); if (!isResolved) toggleVote(post.id) }}
+          aria-label={voted ? 'Remove vote' : 'Upvote'}
+          disabled={isResolved}
+        >
+          <svg width="14" height="10" viewBox="0 0 14 10" fill="none"><path d="M7 0L13.5 9.5H0.5L7 0Z" fill="currentColor"/></svg>
+          <span>{post.votes}</span>
+        </button>
+
+        <div className="fb-post-body">
+          <span className={`fb-tag fb-tag--${post.category}`}>
+            {cat.icon} {cat.label}
+          </span>
+          <p className="fb-post-text">{post.body}</p>
+          <div className="fb-post-meta">
+            <span>{post.author_name}</span>
+            <span className="fb-meta-dot">·</span>
+            <span>{timeAgo(post.created_at)}</span>
+          </div>
+        </div>
+
+        {post.image_url && (
+          <div className="fb-post-thumb">
+            <img src={post.image_url} alt="" />
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -277,6 +368,28 @@ export default function FeedbackPage() {
               rows={3}
             />
 
+            <div className="fb-image-row">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="fb-sr-only"
+                id="fb-image-input"
+              />
+              {imagePreview ? (
+                <div className="fb-image-preview-wrap">
+                  <img src={imagePreview} alt="Preview" className="fb-image-preview" />
+                  <button type="button" className="fb-image-remove" onClick={clearImage} aria-label="Remove image">×</button>
+                </div>
+              ) : (
+                <button type="button" className="fb-image-add" onClick={() => fileInputRef.current?.click()}>
+                  <span className="fb-image-add-icon">📷</span>
+                  Add screenshot
+                </button>
+              )}
+            </div>
+
             <div
               className="fb-private-toggle"
               role="switch"
@@ -315,46 +428,41 @@ export default function FeedbackPage() {
         {/* ── Feed ───────────────────────────────────────────────────── */}
         {loading ? (
           <div className="fb-loading">Loading...</div>
-        ) : visible.length === 0 ? (
+        ) : active.length === 0 && resolved.length === 0 ? (
           <div className="fb-empty">
             <p>No feedback yet{filter !== 'all' ? ' in this category' : ''}.</p>
             <button className="fb-empty-cta" onClick={openForm}>Be the first →</button>
           </div>
         ) : (
-          <div className="fb-feed">
-            {visible.map(post => {
-              const cat = CAT_MAP[post.category] || CAT_MAP.general
-              const voted = myVotes.has(post.id)
-              return (
-                <div key={post.id} className="fb-post">
-                  {/* Vote column */}
-                  <button
-                    className={`fb-vote ${voted ? 'fb-vote--active' : ''}`}
-                    onClick={() => toggleVote(post.id)}
-                    aria-label={voted ? 'Remove vote' : 'Upvote'}
-                  >
-                    <svg width="14" height="10" viewBox="0 0 14 10" fill="none"><path d="M7 0L13.5 9.5H0.5L7 0Z" fill="currentColor"/></svg>
-                    <span>{post.votes}</span>
-                  </button>
+          <>
+            {/* Active feedback */}
+            {active.length > 0 && (
+              <div className="fb-feed">
+                {active.map(post => renderPost(post))}
+              </div>
+            )}
 
-                  {/* Content */}
-                  <div className="fb-post-body">
-                    <span className={`fb-tag fb-tag--${post.category}`}>
-                      {cat.icon} {cat.label}
-                    </span>
-                    <p className="fb-post-text">{post.body}</p>
-                    <div className="fb-post-meta">
-                      <span>{post.author_name}</span>
-                      <span className="fb-meta-dot">·</span>
-                      <span>{timeAgo(post.created_at)}</span>
-                    </div>
-                  </div>
+            {/* Resolved feedback */}
+            {resolved.length > 0 && (
+              <>
+                <div className="fb-resolved-divider">
+                  <span className="fb-resolved-label">Resolved Feedback</span>
                 </div>
-              )
-            })}
-          </div>
+                <div className="fb-feed">
+                  {resolved.map(post => renderPost(post, true))}
+                </div>
+              </>
+            )}
+          </>
         )}
       </div>
+
+      {/* ── Image lightbox ───────────────────────────────────────────── */}
+      <Modal open={!!lightboxUrl} onClose={() => setLightboxUrl(null)} size="lg" bare>
+        {lightboxUrl && (
+          <img src={lightboxUrl} alt="Feedback screenshot" className="fb-lightbox-img" />
+        )}
+      </Modal>
     </>
   )
 }

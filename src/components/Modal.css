@@ -1,0 +1,92 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   MODAL — reusable across the app
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: modal-fadeIn 0.15s ease;
+}
+
+.modal-container {
+  position: relative;
+  background: var(--bg-card);
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  animation: modal-slideUp 0.2s ease;
+}
+
+/* Sizes */
+.modal--sm  { width: 100%; max-width: 400px; }
+.modal--md  { width: 100%; max-width: 600px; }
+.modal--lg  { width: 100%; max-width: 840px; }
+.modal--full { width: 100%; max-width: calc(100vw - 48px); }
+
+/* Bare mode — no chrome, transparent bg, for image lightboxes etc. */
+.modal--bare {
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+/* Close button */
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.12s;
+  z-index: 1;
+}
+.modal-close:hover {
+  background: var(--coral-pale);
+  color: var(--coral);
+}
+
+/* Bare mode close — white circle for dark backdrops */
+.modal--bare .modal-close {
+  background: rgba(255, 255, 255, 0.9);
+  color: #333;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+.modal--bare .modal-close:hover {
+  background: #fff;
+  color: var(--coral);
+}
+
+/* Animations */
+@keyframes modal-fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes modal-slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .modal-backdrop { padding: 16px; }
+  .modal-container { max-height: calc(100vh - 32px); }
+}

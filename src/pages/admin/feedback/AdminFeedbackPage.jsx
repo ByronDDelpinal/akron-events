@@ -61,6 +61,15 @@ export default function AdminFeedbackPage() {
     fetchPosts()
   }
 
+  const handleResolve = async (post) => {
+    const resolved = post.resolved_at ? null : new Date().toISOString()
+    await supabase
+      .from('feedback_posts')
+      .update({ resolved_at: resolved })
+      .eq('id', post.id)
+    fetchPosts()
+  }
+
   return (
     <div className="admin-section">
       <div className="admin-section-header">
@@ -116,6 +125,7 @@ export default function AdminFeedbackPage() {
                 <th>Author</th>
                 <th>Votes</th>
                 <th>Visibility</th>
+                <th>Status</th>
                 <th>Date</th>
                 <th></th>
               </tr>
@@ -139,10 +149,22 @@ export default function AdminFeedbackPage() {
                         : <span className="admin-status-badge status-published">Public</span>
                       }
                     </td>
+                    <td>
+                      {p.resolved_at
+                        ? <span className="admin-status-badge status-published">Resolved</span>
+                        : <span className="admin-status-badge status-draft">Open</span>
+                      }
+                    </td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       {format(new Date(p.created_at), 'MMM d, yyyy h:mm a')}
                     </td>
-                    <td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <button
+                        className={`btn-admin-ghost btn-admin-sm`}
+                        onClick={() => handleResolve(p)}
+                        title={p.resolved_at ? 'Unresolve' : 'Resolve'}
+                        style={{ marginRight: 4 }}
+                      >{p.resolved_at ? 'Unresolve' : 'Resolve'}</button>
                       <button
                         className="btn-admin-ghost btn-admin-sm"
                         onClick={() => handleDelete(p.id)}

@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import '../../pages/AdminPage.css'
 
 // ── Auth ──────────────────────────────────────────────────────────────────
-const ADMIN_PW = 'admin'
+const ADMIN_PW = 'turnoutforwhat?'
 
 function useAdminAuth() {
   const [authed, setAuthed] = useState(() => sessionStorage.getItem('admin_auth') === '1')
