@@ -11,8 +11,9 @@ const CATEGORIES = [
   { id: 'love',     label: 'Love It',      icon: '🔥' },
   { id: 'wish',     label: 'Wish List',    icon: '✨' },
   { id: 'confusing',label: 'Confusing',    icon: '🤔' },
-  { id: 'idea',     label: 'Roadmap Idea', icon: '💡' },
-  { id: 'general',  label: 'General',      icon: '💬' },
+  { id: 'idea',      label: 'Roadmap Idea', icon: '💡' },
+  { id: 'datasource',label: 'Data Source',  icon: '📡' },
+  { id: 'general',   label: 'General',      icon: '💬' },
 ]
 
 const VISIBILITY = [

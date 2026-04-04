@@ -9,6 +9,7 @@ const CATEGORIES = [
   { id: 'wish',      label: 'Wish List',     icon: '✨' },
   { id: 'confusing', label: 'Confusing',     icon: '🤔' },
   { id: 'idea',      label: 'Roadmap Idea',  icon: '💡' },
+  { id: 'datasource',label: 'Data Source',   icon: '📡' },
   { id: 'general',   label: 'General',       icon: '💬' },
 ]
 const CAT_MAP = Object.fromEntries(CATEGORIES.map(c => [c.id, c]))
@@ -47,54 +48,92 @@ export default function FeedbackPage() {
   const [submitting,  setSubmitting]  = useState(false)
   const textareaRef = useRef(null)
 
+  // Persist author name across submissions
+  const savedAuthor = useRef('')
+
   /* ── Fetch posts + my votes ─────────────────────────────────────── */
   const fetchPosts = useCallback(async () => {
-    const { data } = await supabase
-      .from('feedback_posts')
-      .select('*')
-      .eq('is_private', false)
-      .order(sort === 'popular' ? 'votes' : 'created_at', { ascending: false })
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('feedback_posts')
+        .select('*')
+        .eq('is_private', false)
+        .order(sort === 'popular' ? 'votes' : 'created_at', { ascending: false })
 
-    if (data) setPosts(data)
+      if (!error && data) setPosts(data)
 
-    // Fetch my votes
-    const voterId = getVoterId()
-    const { data: votes } = await supabase
-      .from('feedback_votes')
-      .select('post_id')
-      .eq('voter_id', voterId)
+      const voterId = getVoterId()
+      const { data: votes } = await supabase
+        .from('feedback_votes')
+        .select('post_id')
+        .eq('voter_id', voterId)
 
-    if (votes) setMyVotes(new Set(votes.map(v => v.post_id)))
-    setLoading(false)
+      if (votes) setMyVotes(new Set(votes.map(v => v.post_id)))
+    } finally {
+      setLoading(false)
+    }
   }, [sort])
 
+  // Only fetch on mount and when sort changes
   useEffect(() => { fetchPosts() }, [fetchPosts])
+
+  /* ── Open form — sync category from active filter ────────────────── */
+  const openForm = () => {
+    setFormCat(filter !== 'all' ? filter : 'general')
+    setFormBody('')
+    setFormPrivate(false)
+    setFormAuthor(savedAuthor.current)
+    setShowForm(true)
+    setTimeout(() => textareaRef.current?.focus(), 80)
+  }
 
   /* ── Submit a new post ──────────────────────────────────────────── */
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!formBody.trim()) return
+    const body = formBody.trim()
+    if (!body || submitting) return
     setSubmitting(true)
 
-    const { data, error } = await supabase
-      .from('feedback_posts')
-      .insert({
-        category:    formCat,
-        body:        formBody.trim(),
-        author_name: formAuthor.trim() || 'Anonymous',
-        is_private:  formPrivate,
-      })
-      .select()
-      .single()
+    // Capture current form values before any state changes
+    const payload = {
+      category:    formCat,
+      body,
+      author_name: formAuthor.trim() || 'Anonymous',
+      is_private:  formPrivate,
+    }
 
-    if (!error && data) {
-      // Only add to visible feed if public
-      if (!data.is_private) setPosts(prev => [data, ...prev])
+    try {
+      const { data, error } = await supabase
+        .from('feedback_posts')
+        .insert(payload)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Feedback submit error:', error)
+        return
+      }
+
+      // Remember author for next submission
+      savedAuthor.current = formAuthor.trim()
+
+      // Close form and reset
+      setShowForm(false)
       setFormBody('')
       setFormPrivate(false)
-      setShowForm(false)
+
+      // Re-fetch to get clean data from the database
+      const { data: fresh } = await supabase
+        .from('feedback_posts')
+        .select('*')
+        .eq('is_private', false)
+        .order(sort === 'popular' ? 'votes' : 'created_at', { ascending: false })
+
+      if (fresh) setPosts(fresh)
+    } finally {
+      setSubmitting(false)
     }
-    setSubmitting(false)
   }
 
   /* ── Toggle vote ────────────────────────────────────────────────── */
@@ -160,50 +199,56 @@ export default function FeedbackPage() {
           Got something new? Post it. Vote responsibly.
         </p>
 
-        {/* ── Search ────────────────────────────────────────────────── */}
+        {/* ── Toolbar: filters + sort + post button (hidden when form open) */}
+        {!showForm && (
+          <div className="fb-toolbar">
+            <div className="fb-filters">
+              <button
+                className={`fb-chip ${filter === 'all' ? 'fb-chip--active' : ''}`}
+                onClick={() => setFilter('all')}
+              >All</button>
+              {CATEGORIES.map(c => (
+                <button
+                  key={c.id}
+                  className={`fb-chip ${filter === c.id ? 'fb-chip--active' : ''}`}
+                  onClick={() => setFilter(c.id)}
+                >
+                  <span className="fb-chip-icon">{c.icon}</span>
+                  {c.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="fb-toolbar-right">
+              <div className="fb-sort">
+                {SORTS.map(s => (
+                  <button
+                    key={s.id}
+                    className={`fb-sort-btn ${sort === s.id ? 'fb-sort-btn--active' : ''}`}
+                    onClick={() => setSort(s.id)}
+                  >{s.label}</button>
+                ))}
+              </div>
+              <button className="fb-add-btn" onClick={openForm}>
+                Add Feedback
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Search (secondary, below toolbar) ──────────────────────── */}
         <div className="fb-search-row">
+          <p className="fb-search-hint">
+            Try searching to see if your item has already been reported.
+            Give it a vote if so, or add it if you can't find it quickly.
+          </p>
           <input
             type="text"
             className="fb-search"
-            placeholder="Search feedback..."
+            placeholder="Search existing feedback..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-        </div>
-
-        {/* ── Toolbar: filters + sort + post button ─────────────────── */}
-        <div className="fb-toolbar">
-          <div className="fb-filters">
-            <button
-              className={`fb-chip ${filter === 'all' ? 'fb-chip--active' : ''}`}
-              onClick={() => setFilter('all')}
-            >All</button>
-            {CATEGORIES.map(c => (
-              <button
-                key={c.id}
-                className={`fb-chip ${filter === c.id ? 'fb-chip--active' : ''}`}
-                onClick={() => setFilter(c.id)}
-              >
-                <span className="fb-chip-icon">{c.icon}</span>
-                {c.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="fb-toolbar-right">
-            <div className="fb-sort">
-              {SORTS.map(s => (
-                <button
-                  key={s.id}
-                  className={`fb-sort-btn ${sort === s.id ? 'fb-sort-btn--active' : ''}`}
-                  onClick={() => setSort(s.id)}
-                >{s.label}</button>
-              ))}
-            </div>
-            <button className="fb-post-btn" onClick={() => { setShowForm(true); setTimeout(() => textareaRef.current?.focus(), 80) }}>
-              + Post
-            </button>
-          </div>
         </div>
 
         {/* ── New post form (inline, not modal) ─────────────────────── */}
@@ -232,7 +277,14 @@ export default function FeedbackPage() {
               rows={3}
             />
 
-            <label className="fb-private-toggle" htmlFor="fb-private">
+            <div
+              className="fb-private-toggle"
+              role="switch"
+              aria-checked={formPrivate}
+              tabIndex={0}
+              onClick={() => setFormPrivate(p => !p)}
+              onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setFormPrivate(p => !p) } }}
+            >
               <span className={`fb-toggle ${formPrivate ? 'fb-toggle--on' : ''}`}>
                 <span className="fb-toggle-thumb" />
               </span>
@@ -240,14 +292,7 @@ export default function FeedbackPage() {
                 <span className="fb-private-title">Keep this on the down low</span>
                 <span className="fb-private-hint">Only visible to the Turnout team</span>
               </span>
-              <input
-                id="fb-private"
-                type="checkbox"
-                checked={formPrivate}
-                onChange={e => setFormPrivate(e.target.checked)}
-                className="fb-sr-only"
-              />
-            </label>
+            </div>
 
             <div className="fb-form-footer">
               <input
@@ -260,7 +305,7 @@ export default function FeedbackPage() {
               <div className="fb-form-actions">
                 <button type="button" className="fb-cancel-btn" onClick={() => setShowForm(false)}>Cancel</button>
                 <button type="submit" className="fb-submit-btn" disabled={!formBody.trim() || submitting}>
-                  {submitting ? 'Posting...' : 'Post'}
+                  {submitting ? 'Submitting...' : 'Submit Feedback'}
                 </button>
               </div>
             </div>
@@ -273,7 +318,7 @@ export default function FeedbackPage() {
         ) : visible.length === 0 ? (
           <div className="fb-empty">
             <p>No feedback yet{filter !== 'all' ? ' in this category' : ''}.</p>
-            <button className="fb-empty-cta" onClick={() => setShowForm(true)}>Be the first →</button>
+            <button className="fb-empty-cta" onClick={openForm}>Be the first →</button>
           </div>
         ) : (
           <div className="fb-feed">

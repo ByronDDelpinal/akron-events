@@ -3,7 +3,7 @@
 
 create table feedback_posts (
   id          bigint generated always as identity primary key,
-  category    text not null check (category in ('bug','love','wish','confusing','idea','general')),
+  category    text not null check (category in ('bug','love','wish','confusing','idea','datasource','general')),
   body        text not null,
   author_name text not null default 'Anonymous',
   is_private  boolean not null default false,
