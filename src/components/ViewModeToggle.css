@@ -5,15 +5,15 @@
   background: var(--bg-secondary);
   border: var(--border-width-thin) solid var(--border);
   border-radius: var(--radius-md);
-  padding: var(--space-3);
+  padding: var(--space-2xs);
 }
 
 .vmt-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-5);
-  padding: var(--space-4) var(--space-10);
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;

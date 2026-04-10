@@ -5,13 +5,13 @@
 .prefs-sub { text-align: left; }
 
 .prefs-hint {
-  margin-bottom: var(--space-12);
+  margin-bottom: var(--space-md);
   margin-top: 0;
 }
 
 .prefs-no-token {
   text-align: center;
-  padding: var(--space-60) 0;
+  padding: var(--space-5xl) 0;
 }
 
 .amber-link {
@@ -26,15 +26,15 @@
 .cat-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-8);
-  margin-bottom: var(--space-24);
+  gap: var(--space-sm);
+  margin-bottom: var(--space-2xl);
 }
 
 .cat-chip {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-5);
-  padding: var(--space-8) var(--space-14);
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-lg);
   border: var(--border-width-medium) solid var(--border);
   border-radius: var(--radius-pill);
   background: var(--bg-card);
@@ -67,9 +67,9 @@
 .prefs-checkbox {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-8);
-  margin-top: var(--space-4);
-  margin-bottom: var(--space-20);
+  gap: var(--space-sm);
+  margin-top: var(--space-xs);
+  margin-bottom: var(--space-xl);
   font-family: var(--font-body);
   font-size: var(--text-xxs);
   font-weight: 500;
@@ -90,11 +90,11 @@
 }
 .pill.pill-sm {
   flex: none;
-  padding: var(--space-8) var(--space-12);
+  padding: var(--space-sm) var(--space-md);
   font-size: var(--text-xs);
 }
 .prefs-row {
-  margin-bottom: var(--space-8);
+  margin-bottom: var(--space-sm);
 }
 @media (max-width: 500px) {
   .prefs-row { grid-template-columns: 1fr; }
@@ -103,19 +103,19 @@
 /* ── Day-of-week filter ── */
 .day-shortcuts {
   display: flex;
-  gap: var(--space-8);
-  margin-bottom: var(--space-10);
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
 }
 
 .day-grid {
   display: flex;
-  gap: var(--space-6);
-  margin-bottom: var(--space-24);
+  gap: var(--space-sm);
+  margin-bottom: var(--space-2xl);
 }
 
 .day-chip {
   flex: 1;
-  padding: var(--space-10) var(--space-4);
+  padding: var(--space-md) var(--space-xs);
   border: var(--border-width-medium) solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-card);
@@ -139,24 +139,24 @@
 
 /* ── Location filter ── */
 .location-section {
-  margin-bottom: var(--space-24);
+  margin-bottom: var(--space-2xl);
 }
 
 .location-mode-row {
   display: flex;
-  gap: var(--space-8);
-  margin-bottom: var(--space-12);
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
 }
 
 .area-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-8);
-  margin-bottom: var(--space-12);
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
 }
 
 .area-chip {
-  padding: var(--space-8) var(--space-14);
+  padding: var(--space-sm) var(--space-lg);
   border: var(--border-width-medium) solid var(--border);
   border-radius: var(--radius-pill);
   background: var(--bg-card);
@@ -178,25 +178,25 @@
 }
 
 .zipcode-row {
-  margin-bottom: var(--space-12);
+  margin-bottom: var(--space-md);
 }
 .zipcode-input {
   max-width: 160px;
 }
 
 .radius-group {
-  margin-top: var(--space-4);
+  margin-top: var(--space-xs);
   margin-bottom: 0;
 }
 
 /* ── Save button state ── */
-.prefs-save-btn { margin-top: var(--space-12); }
+.prefs-save-btn { margin-top: var(--space-md); }
 
 .prefs-saved-msg {
   font-size: var(--text-xs);
   color: var(--green-mid);
   text-align: center;
-  margin-top: var(--space-10);
+  margin-top: var(--space-md);
   font-weight: 600;
 }
 
@@ -204,7 +204,7 @@
   font-size: var(--text-xs);
   color: var(--coral);
   text-align: center;
-  margin-top: var(--space-10);
+  margin-top: var(--space-md);
   font-weight: 600;
 }
 
@@ -212,5 +212,5 @@
   text-align: center;
   color: var(--text-muted);
   font-size: var(--text-sm);
-  padding: var(--space-60) 0;
+  padding: var(--space-5xl) 0;
 }

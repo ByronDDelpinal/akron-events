@@ -5,7 +5,7 @@
 /* ── Hero ── */
 .orgs-hero {
   background: var(--bg-nav);
-  padding: var(--space-52) var(--space-20) var(--space-44);
+  padding: var(--space-4xl) var(--space-xl) var(--space-4xl);
   text-align: center;
 }
 .orgs-hero-inner { max-width: 640px; margin: 0 auto; }
@@ -13,13 +13,13 @@
   font-family: var(--font-display);
   font-size: var(--text-tiny); font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.14em;
-  color: var(--amber); margin-bottom: var(--space-10);
+  color: var(--amber); margin-bottom: var(--space-md);
 }
 .orgs-hero-title {
   /* font-family / weight / size from global h1. Hero overrides only. */
   color: #FFFFFF;
   line-height: 1.1;
-  margin-bottom: var(--space-10);
+  margin-bottom: var(--space-md);
 }
 .orgs-hero-sub {
   font-size: var(--text-base); color: rgba(255,255,255,0.6);
@@ -30,13 +30,13 @@
 .orgs-body {
   max-width: var(--width-full);
   margin: 0 auto;
-  padding: 0 var(--space-20) var(--space-80);
+  padding: 0 var(--space-xl) var(--space-5xl);
 }
 
 /* ── Search ── */
 .orgs-search-row {
   display: flex; align-items: center; justify-content: space-between;
-  gap: var(--space-16); padding: var(--space-28) 0 var(--space-20); flex-wrap: wrap;
+  gap: var(--space-lg); padding: var(--space-2xl) 0 var(--space-xl); flex-wrap: wrap;
 }
 .orgs-search-wrap {
   position: relative; flex: 1; max-width: 420px;
@@ -46,7 +46,7 @@
   color: var(--text-muted);
 }
 .orgs-search {
-  width: 100%; padding: var(--space-10) var(--space-14) var(--space-10) var(--space-40);
+  width: 100%; padding: var(--space-md) var(--space-lg) var(--space-md) var(--space-4xl);
   border: var(--border-width-medium) solid var(--border); border-radius: var(--radius-md);
   background: var(--bg-card); font-size: var(--text-base);
   color: var(--text-primary); outline: none;
@@ -67,21 +67,21 @@
 
 /* ── States ── */
 .orgs-state {
-  text-align: center; padding: var(--space-60) var(--space-20);
+  text-align: center; padding: var(--space-5xl) var(--space-xl);
   color: var(--text-muted); font-size: var(--text-base);
 }
-.orgs-state-sub { font-size: var(--text-sm); margin-top: var(--space-4); }
+.orgs-state-sub { font-size: var(--text-sm); margin-top: var(--space-xs); }
 .orgs-spinner {
   width: 28px; height: 28px;
   border: var(--border-width-thickest) solid var(--border);
   border-top-color: var(--amber);
   border-radius: var(--radius-round);
   animation: spin 0.7s linear infinite;
-  margin: 0 auto var(--space-12);
+  margin: 0 auto var(--space-md);
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 .orgs-clear-btn {
-  margin-top: var(--space-12); padding: var(--space-8) var(--space-18);
+  margin-top: var(--space-md); padding: var(--space-sm) var(--space-lg);
   background: var(--amber-pale); border: var(--border-width-thin) solid var(--amber-border);
   border-radius: var(--radius-sm); font-size: var(--text-sm); font-weight: 600;
   color: var(--amber); cursor: pointer;
@@ -91,7 +91,7 @@
 .orgs-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--space-18);
+  gap: var(--space-lg);
 }
 
 /* ── Org Card ── */
@@ -132,25 +132,25 @@
   font-weight: var(--font-weight-bold);
   color: rgba(255,255,255,0.7);
 }
-.org-card-body { padding: var(--space-16) var(--space-18) var(--space-18); flex: 1; }
+.org-card-body { padding: var(--space-lg) var(--space-lg) var(--space-lg); flex: 1; }
 .org-card-name {
   /* h2 inside an org card — overriding the global --text-h2 down to
      body+ scale. font-family / weight come from the global rule. */
   font-size: var(--text-md);
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-2xs);
   line-height: 1.25;
 }
 .org-card-location {
   font-size: var(--text-sm); color: var(--text-muted);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-sm);
 }
 .org-card-desc {
   font-size: var(--text-sm); color: var(--text-secondary);
   line-height: 1.5;
-  margin-bottom: var(--space-10);
+  margin-bottom: var(--space-md);
 }
 .org-card-stats {
-  display: flex; gap: var(--space-12);
+  display: flex; gap: var(--space-md);
 }
 .org-stat {
   font-family: var(--font-display);
@@ -158,32 +158,32 @@
   text-transform: uppercase; letter-spacing: 0.06em;
   color: var(--text-muted);
   background: var(--bg-secondary);
-  padding: var(--space-3) var(--space-8); border-radius: var(--radius-xs);
+  padding: var(--space-2xs) var(--space-sm); border-radius: var(--radius-xs);
 }
 
 /* ── CTA ── */
-.orgs-cta-section { margin-top: var(--space-48); }
+.orgs-cta-section { margin-top: var(--space-4xl); }
 .orgs-cta-card {
   background: var(--amber-pale);
   border: var(--border-width-thin) solid var(--amber-border);
   border-radius: var(--radius-xxl);
-  padding: var(--space-32);
+  padding: var(--space-3xl);
   text-align: center;
 }
 .orgs-cta-title {
   /* h3 — but the CTA card wants a more compact heading than the global
      --text-h3 (1.5rem). Override to --text-h4 (1.25rem). */
   font-size: var(--text-h4);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-sm);
 }
 .orgs-cta-sub {
   font-size: var(--text-sm); color: var(--text-secondary);
-  margin-bottom: var(--space-18);
+  margin-bottom: var(--space-lg);
 }
 .orgs-cta-btn {
   display: inline-block;
   background: var(--amber); color: #FFFFFF;
-  padding: var(--space-12) var(--space-24); border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-2xl); border-radius: var(--radius-md);
   font-family: var(--font-display);
   font-size: var(--text-sm); font-weight: 700;
   text-decoration: none;

@@ -4,27 +4,27 @@
 
 .unsub-box {
   text-align: center;
-  padding: var(--space-60) 0;
+  padding: var(--space-5xl) 0;
 }
 
 .unsub-icon {
   /* Emoji icon being sized like a hero heading; tracks --text-h1 so it
      scales with the heading scale rather than drifting on its own. */
   font-size: var(--text-h1);
-  margin-bottom: var(--space-16);
+  margin-bottom: var(--space-lg);
 }
 
 .unsub-title {
   /* font-family / weight / size all come from the global h1 rule. Only
      margin needs to be set per-page. */
-  margin-bottom: var(--space-10);
+  margin-bottom: var(--space-md);
 }
 
 .unsub-text {
   font-size: var(--text-lg);
   color: var(--text-secondary);
   line-height: 1.6;
-  margin-bottom: var(--space-28);
+  margin-bottom: var(--space-2xl);
   max-width: 340px;
   margin-left: auto;
   margin-right: auto;
@@ -33,10 +33,10 @@
 .unsub-resubscribe {
   display: inline-block;
   width: auto;
-  padding: var(--space-12) var(--space-32);
+  padding: var(--space-md) var(--space-3xl);
   text-decoration: none;
   text-align: center;
-  margin-bottom: var(--space-16);
+  margin-bottom: var(--space-lg);
 }
 
 .unsub-home-link {
@@ -57,7 +57,7 @@
   border: var(--border-width-thickest) solid var(--border);
   border-top-color: var(--amber);
   border-radius: var(--radius-round);
-  margin: 0 auto var(--space-16);
+  margin: 0 auto var(--space-lg);
   animation: spin 0.6s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }

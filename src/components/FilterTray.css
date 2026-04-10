@@ -18,7 +18,7 @@
   border-radius: var(--radius-pill) var(--radius-pill) 0 0;
   border: var(--border-width-thin) solid var(--border);
   border-bottom: none;
-  padding: 0 var(--space-24) var(--space-48);
+  padding: 0 var(--space-2xl) var(--space-4xl);
   width: 100%;
   max-width: 640px;
   max-height: 88vh;
@@ -40,7 +40,7 @@
   height: 4px;
   background: var(--border-mid);
   border-radius: var(--radius-xxs);
-  margin: var(--space-14) auto 0;
+  margin: var(--space-lg) auto 0;
 }
 
 /* ── Header ── */
@@ -48,9 +48,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--space-16) 0 var(--space-18);
+  padding: var(--space-lg) 0 var(--space-lg);
   border-bottom: var(--border-width-thin) solid var(--border);
-  margin-bottom: var(--space-22);
+  margin-bottom: var(--space-xl);
 }
 
 .tray-title {
@@ -68,14 +68,14 @@
   font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
-  padding: var(--space-4) 0;
+  padding: var(--space-xs) 0;
   transition: opacity var(--transition-medium);
 }
 .tray-clear-btn:hover { opacity: 0.75; }
 
 /* ── Section ── */
 .tray-section {
-  margin-bottom: var(--space-24);
+  margin-bottom: var(--space-2xl);
 }
 
 .tray-section-label {
@@ -85,20 +85,20 @@
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--text-muted);
-  margin: 0 0 var(--space-10);
+  margin: 0 0 var(--space-md);
 }
 
 /* ── Chip row ── */
 .tray-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-8);
+  gap: var(--space-sm);
 }
 
 .tray-chip {
   display: inline-flex;
   align-items: center;
-  padding: var(--space-7) 15px;
+  padding: var(--space-sm) 15px;
   border-radius: var(--radius-pill);
   border: var(--border-width-medium) solid var(--border);
   background: transparent;
@@ -124,13 +124,13 @@
 /* ── Date range ── */
 .tray-date-row {
   display: flex;
-  gap: var(--space-12);
+  gap: var(--space-md);
 }
 
 .tray-date-label {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-xs);
   flex: 1;
   font-family: var(--font-body);
   font-size: var(--text-tag);
@@ -141,7 +141,7 @@
 }
 
 .tray-date-input {
-  padding: var(--space-8) var(--space-10);
+  padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-md);
   border: var(--border-width-medium) solid var(--border);
   background: var(--bg-secondary);
@@ -156,8 +156,8 @@
 .tray-date-input:focus { border-color: var(--amber); }
 
 .tray-date-clear {
-  margin-top: var(--space-10);
-  padding: var(--space-7) var(--space-14);
+  margin-top: var(--space-md);
+  padding: var(--space-sm) var(--space-lg);
   border-radius: var(--radius-sm);
   border: var(--border-width-thin) solid var(--border);
   background: transparent;
@@ -176,8 +176,8 @@
 .tray-cta {
   display: block;
   width: 100%;
-  margin-top: var(--space-8);
-  padding: 15px;
+  margin-top: var(--space-sm);
+  padding: var(--space-lg);
   border-radius: var(--radius-xl);
   border: none;
   background: var(--amber);
@@ -194,11 +194,11 @@
 /* ── Mobile tweaks ── */
 @media (max-width: 640px) {
   .tray-sheet {
-    padding: 0 var(--space-16) var(--space-48);
+    padding: 0 var(--space-lg) var(--space-4xl);
     max-height: 92vh;
   }
   .tray-date-row {
     flex-direction: column;
-    gap: var(--space-8);
+    gap: var(--space-sm);
   }
 }

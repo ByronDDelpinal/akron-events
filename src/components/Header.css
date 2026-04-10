@@ -13,7 +13,7 @@ header.menu-open {
 }
 
 .header-inner {
-  padding: 0 var(--space-32);
+  padding: 0 var(--space-3xl);
   height: 64px;
   display: flex;
   align-items: center;
@@ -28,10 +28,10 @@ header.menu-open {
   text-decoration: none;
   display: flex;
   align-items: center;
-  gap: var(--space-9);
+  gap: var(--space-sm);
   letter-spacing: -0.02em;
   flex-shrink: 0;
-  margin-right: 36px;
+  margin-right: var(--space-3xl);
 }
 .logo-dot {
   width: 9px; height: 9px;
@@ -45,7 +45,7 @@ header.menu-open {
 .nav-links {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-2xs);
   flex: 1;
 }
 .nav-link {
@@ -56,7 +56,7 @@ header.menu-open {
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: var(--space-8) var(--space-14);
+  padding: var(--space-sm) var(--space-lg);
   border-radius: var(--radius-sm);
   transition: color var(--transition-medium), background var(--transition-medium);
   white-space: nowrap;
@@ -71,7 +71,7 @@ header.menu-open {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: var(--space-8);
+  gap: var(--space-sm);
 }
 .btn-nav-cta {
   flex-shrink: 0;
@@ -79,7 +79,7 @@ header.menu-open {
   color: var(--bg-nav);
   border: var(--border-width-thick) solid var(--amber);
   border-radius: var(--radius-pill);
-  padding: var(--space-7) var(--space-18);
+  padding: var(--space-sm) var(--space-lg);
   font-family: var(--font-display);
   font-size: var(--text-sm);
   font-weight: 700;
@@ -106,8 +106,8 @@ header.menu-open {
 .btn-nav-feedback {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-6);
-  padding: var(--space-7) var(--space-16);
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-lg);
   border-radius: var(--radius-pill);
   border: var(--border-width-thick) solid var(--coral);
   background: rgba(196,83,42,0.12);
@@ -130,13 +130,13 @@ header.menu-open {
   letter-spacing: 0.05em;
   background: var(--coral);
   color: #fff;
-  padding: 1px var(--space-6);
+  padding: 1px var(--space-sm);
   border-radius: var(--radius-xs);
 }
 .mobile-nav-feedback {
   display: flex;
   align-items: center;
-  gap: var(--space-8);
+  gap: var(--space-sm);
   font-family: var(--font-body);
   font-size: var(--text-lg);
   font-weight: 600;
@@ -146,8 +146,8 @@ header.menu-open {
   border-radius: var(--radius-md);
   text-align: left;
   cursor: pointer;
-  padding: var(--space-13) var(--space-12);
-  margin-bottom: var(--space-4);
+  padding: var(--space-md) var(--space-md);
+  margin-bottom: var(--space-xs);
   transition: background var(--transition-medium);
 }
 .mobile-nav-feedback:hover { background: rgba(196,83,42,0.25); }
@@ -158,10 +158,10 @@ header.menu-open {
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: var(--space-6);
-  margin-left: var(--space-12);
+  padding: var(--space-sm);
+  margin-left: var(--space-md);
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-xs);
   align-items: center;
   justify-content: center;
 }
@@ -184,9 +184,9 @@ header.menu-open {
   top: 64px; left: 0; right: 0; bottom: 0;
   background: var(--bg-nav);
   border-top: var(--border-width-thin) solid rgba(255,255,255,0.06);
-  padding: var(--space-8) var(--space-20) var(--space-16);
+  padding: var(--space-sm) var(--space-xl) var(--space-lg);
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-2xs);
   animation: menuDrop 0.2s ease;
   z-index: 99;
   overflow-y: auto;
@@ -203,7 +203,7 @@ header.menu-open {
   color: rgba(255,255,255,0.65);
   background: transparent; border: none;
   text-align: left; cursor: pointer;
-  padding: var(--space-13) var(--space-4);
+  padding: var(--space-md) var(--space-xs);
   border-bottom: var(--border-width-thin) solid rgba(255,255,255,0.06);
   transition: color var(--transition-medium);
 }
@@ -211,10 +211,10 @@ header.menu-open {
 .mobile-nav-link:hover,
 .mobile-nav-link.active { color: var(--amber); }
 .mobile-menu-cta {
-  margin-top: var(--space-6);
+  margin-top: var(--space-sm);
   background: var(--amber); color: var(--bg-nav);
   border: none; border-radius: var(--radius-md);
-  padding: var(--space-13); font-family: var(--font-display);
+  padding: var(--space-md); font-family: var(--font-display);
   font-size: var(--text-base); font-weight: 700;
   cursor: pointer; transition: background var(--transition-medium);
 }
@@ -235,7 +235,7 @@ header.menu-open {
    laptops, or partially-resized browser windows — gets the hamburger. */
 @media (max-width: 1279px) {
   .nav-links { display: none; }
-  .header-inner { padding: 0 var(--space-20); position: relative; }
+  .header-inner { padding: 0 var(--space-xl); position: relative; }
   /* With nav-links and nav-cta-group both hidden, nothing is pulling the
      hamburger to the right edge. margin-left: auto does that job. */
   .btn-hamburger { display: flex; margin-left: auto; }

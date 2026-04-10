@@ -10,7 +10,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-24);
+  padding: var(--space-2xl);
   animation: modal-fadeIn 0.15s ease;
 }
 
@@ -87,6 +87,6 @@
 
 /* Mobile */
 @media (max-width: 600px) {
-  .modal-backdrop { padding: var(--space-16); }
+  .modal-backdrop { padding: var(--space-lg); }
   .modal-container { max-height: calc(100vh - 32px); }
 }

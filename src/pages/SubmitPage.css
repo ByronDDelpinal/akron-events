@@ -1,20 +1,20 @@
-.page-shell { max-width: var(--width-narrow); margin: var(--space-44) auto; padding: 0 var(--space-20) var(--space-80); }
+.page-shell { max-width: var(--width-narrow); margin: var(--space-4xl) auto; padding: 0 var(--space-xl) var(--space-5xl); }
 .page-title {
   /* Shared by every form page (Submit, Subscribe, Preferences, etc.).
      This class is applied to <h1> on the form state and <h2> on the
      success state — letting the global element rules drive font-size
      means the heading size automatically matches whichever tag the
      class lands on. We only override margin here. */
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-sm);
 }
-.page-sub { font-size: var(--text-base); color: var(--text-muted); margin-bottom: var(--space-24); line-height: 1.6; }
+.page-sub { font-size: var(--text-base); color: var(--text-muted); margin-bottom: var(--space-2xl); line-height: 1.6; }
 .notice-box {
   border-left: var(--border-width-thickest) solid var(--amber);
   background: var(--amber-pale);
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
-  padding: var(--space-12) var(--space-16);
+  padding: var(--space-md) var(--space-lg);
   font-size: var(--text-sm); color: var(--text-secondary);
-  margin-bottom: var(--space-28); line-height: 1.55;
+  margin-bottom: var(--space-2xl); line-height: 1.55;
 }
 .form-section-label {
   font-family: var(--font-display);
@@ -22,20 +22,20 @@
   text-transform: uppercase; letter-spacing: 0.1em;
   color: var(--text-muted);
   border-bottom: var(--border-width-thin) solid var(--border);
-  padding-bottom: var(--space-8);
-  margin: var(--space-28) 0 var(--space-18);
+  padding-bottom: var(--space-sm);
+  margin: var(--space-2xl) 0 var(--space-lg);
 }
-.form-group { margin-bottom: var(--space-18); }
+.form-group { margin-bottom: var(--space-lg); }
 .form-label {
   display: block;
   font-family: var(--font-display);
   font-size: var(--text-xxs); font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.07em;
-  color: var(--text-muted); margin-bottom: var(--space-6);
+  color: var(--text-muted); margin-bottom: var(--space-sm);
 }
 .req { color: var(--amber); }
 .form-input, .form-select, .form-textarea {
-  width: 100%; padding: var(--space-11) var(--space-14);
+  width: 100%; padding: var(--space-md) var(--space-lg);
   border: var(--border-width-medium) solid var(--border); border-radius: var(--radius-md);
   background: var(--bg-card); color: var(--text-primary);
   font-family: var(--font-body); font-size: var(--text-lg);
@@ -46,22 +46,22 @@
   box-shadow: 0 0 0 3px rgba(212,146,42,0.1);
 }
 .form-textarea { min-height: 100px; resize: vertical; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-14); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
 @media (max-width: 500px) { .form-row { grid-template-columns: 1fr; } }
-.form-hint { font-size: var(--text-xxs); color: var(--text-muted); margin-top: var(--space-4); }
+.form-hint { font-size: var(--text-xxs); color: var(--text-muted); margin-top: var(--space-xs); }
 .form-error {
   color: var(--coral); font-size: var(--text-sm);
-  margin-bottom: var(--space-12); padding: var(--space-10) var(--space-14);
+  margin-bottom: var(--space-md); padding: var(--space-md) var(--space-lg);
   background: var(--coral-pale); border-radius: var(--radius-sm);
   border: var(--border-width-thin) solid rgba(196,83,42,0.2);
 }
 .btn-submit-form {
   width: 100%;
   background: var(--amber); color: var(--chip-active-txt);
-  border: none; border-radius: var(--radius-lg); padding: var(--space-14);
+  border: none; border-radius: var(--radius-lg); padding: var(--space-lg);
   font-family: var(--font-display);
   font-size: var(--text-lg); font-weight: 700;
-  cursor: pointer; margin-top: var(--space-6);
+  cursor: pointer; margin-top: var(--space-sm);
   transition: background var(--transition-medium); letter-spacing: 0.01em;
   display: block;
 }
@@ -69,19 +69,19 @@
 .btn-submit-form:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* Success state */
-.success-box { text-align: center; padding: var(--space-60) 0; }
+.success-box { text-align: center; padding: var(--space-5xl) 0; }
 .success-icon {
   width: 64px; height: 64px; border-radius: var(--radius-round);
   background: var(--amber-pale);
   color: var(--amber);
   font-size: var(--text-h2);
   display: flex; align-items: center; justify-content: center;
-  margin: 0 auto var(--space-20);
+  margin: 0 auto var(--space-xl);
   border: var(--border-width-thick) solid var(--amber-border);
 }
 .success-actions {
   display: flex;
-  gap: var(--space-12);
+  gap: var(--space-md);
   justify-content: center;
   max-width: 400px;
   margin: 0 auto;

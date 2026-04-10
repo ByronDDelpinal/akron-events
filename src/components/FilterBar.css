@@ -16,7 +16,7 @@
   border-bottom: var(--border-width-thin) solid var(--border);
   max-width: var(--width-full);
   margin: 0 auto;
-  padding: 0 var(--space-20);
+  padding: 0 var(--space-xl);
 }
 
 /* Scrollable date tab strip */
@@ -31,7 +31,7 @@
 
 .date-tab {
   flex-shrink: 0;
-  padding: var(--space-12) var(--space-16);
+  padding: var(--space-md) var(--space-lg);
   background: transparent;
   border: none;
   border-bottom: var(--border-width-thick) solid transparent;
@@ -59,12 +59,12 @@
   align-items: center;
   background: var(--chip-bg);
   border-radius: var(--radius-pill);
-  padding: var(--space-3);
-  gap: var(--space-2);
+  padding: var(--space-2xs);
+  gap: var(--space-2xs);
   flex-shrink: 0;
-  margin-left: var(--space-12);
+  margin-left: var(--space-md);
   border-left: var(--border-width-thin) solid var(--border);
-  padding-left: var(--space-14);
+  padding-left: var(--space-lg);
   background: transparent;
   border-radius: 0;
 }
@@ -72,8 +72,8 @@
 .view-toggle-btn {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-5);
-  padding: var(--space-5) var(--space-11);
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
   border-radius: var(--radius-pill);
   border: none;
   background: transparent;
@@ -98,10 +98,10 @@
 .filter-intents-row {
   max-width: var(--width-full);
   margin: 0 auto;
-  padding: var(--space-9) var(--space-20) 0;
+  padding: var(--space-sm) var(--space-xl) 0;
   display: flex;
   align-items: center;
-  gap: var(--space-8);
+  gap: var(--space-sm);
 }
 
 /* ════════════════════════════════
@@ -110,11 +110,11 @@
 .filter-actions-row {
   max-width: var(--width-full);
   margin: 0 auto;
-  padding: var(--space-6) var(--space-20) var(--space-9);
+  padding: var(--space-sm) var(--space-xl) var(--space-sm);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-8);
+  gap: var(--space-sm);
 }
 
 /* Hide the view-mode toggle inside filter bar on desktop (it shows in the grid area instead) */
@@ -123,7 +123,7 @@
 /* Scrollable pill area */
 .filter-chips {
   display: flex;
-  gap: var(--space-7);
+  gap: var(--space-sm);
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -137,8 +137,8 @@
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-5);
-  padding: var(--space-7) var(--space-14);
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-lg);
   border-radius: var(--radius-pill);
   background: var(--chip-bg);
   color: var(--chip-text);
@@ -186,7 +186,7 @@
 /* ── More button ── */
 .chip--more {
   background: var(--chip-bg);
-  gap: var(--space-6);
+  gap: var(--space-sm);
 }
 .chip--more.active {
   background: var(--amber-pale);
@@ -212,7 +212,7 @@
 .filter-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-7);
+  gap: var(--space-sm);
   flex-shrink: 0;
 }
 
@@ -222,11 +222,11 @@
 .filter-active-strip {
   display: flex;
   align-items: center;
-  gap: var(--space-7);
+  gap: var(--space-sm);
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  padding: 0 var(--space-20) var(--space-10);
+  padding: 0 var(--space-xl) var(--space-md);
   max-width: var(--width-full);
   margin: 0 auto;
   width: 100%;
@@ -236,8 +236,8 @@
 .active-pill {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-5);
-  padding: var(--space-3) var(--space-10) var(--space-3) var(--space-12);
+  gap: var(--space-xs);
+  padding: var(--space-2xs) var(--space-md) var(--space-2xs) var(--space-md);
   border-radius: var(--radius-pill);
   background: var(--amber-pale);
   border: var(--border-width-thin) solid var(--amber-border);
@@ -295,11 +295,11 @@
   .filter-date-row,
   .filter-intents-row,
   .filter-actions-row,
-  .filter-active-strip { padding-left: var(--space-14); padding-right: var(--space-14); }
+  .filter-active-strip { padding-left: var(--space-lg); padding-right: var(--space-lg); }
 
-  .date-tab { padding: var(--space-11) var(--space-12); font-size: var(--text-sm); }
+  .date-tab { padding: var(--space-md) var(--space-md); font-size: var(--text-sm); }
 
-  .view-toggle { border-left: none; padding-left: var(--space-8); }
+  .view-toggle { border-left: none; padding-left: var(--space-sm); }
 
   /* Show the view-mode toggle inside filter bar on mobile (desktop shows it
      in the grid area). justify-content: space-between on .filter-actions-row

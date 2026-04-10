@@ -3,7 +3,7 @@
 /* Hero */
 .tp-hero {
   background: var(--bg-nav);
-  padding: var(--space-52) var(--space-20) var(--space-44);
+  padding: var(--space-4xl) var(--space-xl) var(--space-4xl);
   text-align: center;
 }
 .tp-hero__inner { max-width: var(--width-narrow); margin: 0 auto; }
@@ -14,12 +14,12 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--green-mid);
-  margin-bottom: var(--space-10);
+  margin-bottom: var(--space-md);
 }
 .tp-hero__title {
   /* font-family / weight / size from global h1. Hero overrides only. */
   color: #fff;
-  margin-bottom: var(--space-12);
+  margin-bottom: var(--space-md);
 }
 .tp-hero__sub {
   font-size: var(--text-base);
@@ -31,21 +31,21 @@
 .tp-body {
   max-width: 960px;
   margin: 0 auto;
-  padding: var(--space-40) var(--space-20) 96px;
+  padding: var(--space-4xl) var(--space-xl) 96px;
 }
 
 /* Summary stats */
 .tp-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-12);
-  margin-bottom: var(--space-52);
+  gap: var(--space-md);
+  margin-bottom: var(--space-4xl);
 }
 .tp-stat {
   background: var(--bg-card);
   border: var(--border-width-thin) solid var(--border);
   border-radius: var(--radius-md);
-  padding: var(--space-20) var(--space-18);
+  padding: var(--space-xl) var(--space-lg);
   text-align: center;
 }
 .tp-stat__num {
@@ -56,7 +56,7 @@
   color: var(--amber);
   letter-spacing: -0.03em;
   line-height: 1;
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-sm);
 }
 .tp-stat__num--alert { color: var(--coral); }
 .tp-stat__label {
@@ -69,10 +69,10 @@
 
 /* Section wrapper */
 .tp-section {
-  margin-bottom: var(--space-60);
+  margin-bottom: var(--space-5xl);
 }
 .tp-section__hd {
-  margin-bottom: var(--space-22);
+  margin-bottom: var(--space-xl);
 }
 .tp-section__title {
   /* h2 inside the technical page — overriding the global --text-h2 down
@@ -80,7 +80,7 @@
      so they want a more compact treatment. font-family / weight come from
      the global rule. */
   font-size: var(--text-h4);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-sm);
 }
 .tp-section__desc {
   font-size: var(--text-base);
@@ -93,13 +93,13 @@
 .tp-sources {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--space-14);
+  gap: var(--space-lg);
 }
 .tp-source {
   background: var(--bg-card);
   border: var(--border-width-thin) solid var(--border);
   border-radius: var(--radius-md);
-  padding: var(--space-18) var(--space-18) var(--space-16);
+  padding: var(--space-lg) var(--space-lg) var(--space-lg);
   position: relative;
   transition: box-shadow var(--transition-medium);
 }
@@ -114,8 +114,8 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--space-8);
-  margin-bottom: var(--space-6);
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
 }
 .tp-source__name {
   font-family: var(--font-display);
@@ -129,19 +129,19 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: var(--space-4);
+  gap: var(--space-xs);
   flex-shrink: 0;
 }
 .tp-source__venue {
   font-size: var(--text-sm);
   color: var(--text-muted);
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-2xs);
 }
 .tp-source__detail {
   font-size: var(--text-xs);
   color: var(--amber);
   font-weight: 600;
-  margin-bottom: var(--space-9);
+  margin-bottom: var(--space-sm);
   font-family: var(--font-display);
   letter-spacing: 0.01em;
 }
@@ -150,14 +150,14 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
   line-height: 1.6;
-  margin-bottom: var(--space-12);
+  margin-bottom: var(--space-md);
 }
 .tp-source__meta {
   display: flex;
-  gap: var(--space-12);
+  gap: var(--space-md);
   flex-wrap: wrap;
   border-top: var(--border-width-thin) solid var(--border);
-  padding-top: var(--space-10);
+  padding-top: var(--space-md);
   margin-top: auto;
 }
 .tp-source__count,
@@ -174,7 +174,7 @@
   font-size: var(--text-tiny);
   font-weight: 700;
   letter-spacing: 0.05em;
-  padding: var(--space-2) var(--space-7);
+  padding: var(--space-2xs) var(--space-sm);
   border-radius: var(--radius-xs);
   white-space: nowrap;
 }
@@ -187,7 +187,7 @@
   font-size: var(--text-tiny);
   font-weight: 700;
   letter-spacing: 0.04em;
-  padding: var(--space-2) var(--space-7);
+  padding: var(--space-2xs) var(--space-sm);
   border-radius: var(--radius-xs);
   text-transform: uppercase;
   white-space: nowrap;
@@ -197,20 +197,20 @@
 .tp-method--html-scrape { background: var(--amber-pale); color: #7a4e08; }
 
 /* ── Health table ── */
-.tp-loading { font-size: var(--text-base); color: var(--text-muted); padding: var(--space-20) 0; }
+.tp-loading { font-size: var(--text-base); color: var(--text-muted); padding: var(--space-xl) 0; }
 .tp-error   {
   font-size: var(--text-sm); color: var(--coral);
   background: var(--coral-pale);
-  border-radius: var(--radius-sm); padding: var(--space-14) var(--space-16);
+  border-radius: var(--radius-sm); padding: var(--space-lg) var(--space-lg);
 }
 .tp-empty   {
   font-size: var(--text-base); color: var(--text-muted);
   background: var(--bg-secondary);
-  border-radius: var(--radius-sm); padding: var(--space-20) var(--space-18);
+  border-radius: var(--radius-sm); padding: var(--space-xl) var(--space-lg);
 }
 .tp-empty code {
   background: var(--border); border-radius: var(--radius-xs);
-  padding: 1px var(--space-6); font-size: var(--text-sm);
+  padding: 1px var(--space-sm); font-size: var(--text-sm);
 }
 
 .tp-table-wrap { overflow-x: auto; }
@@ -234,14 +234,14 @@
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--text-muted);
-  padding: var(--space-10) var(--space-14);
+  padding: var(--space-md) var(--space-lg);
   text-align: left;
   white-space: nowrap;
 }
 .tp-table__num { text-align: right !important; }
 
 .tp-row td {
-  padding: var(--space-12) var(--space-14);
+  padding: var(--space-md) var(--space-lg);
   border-bottom: var(--border-width-thin) solid var(--border);
   vertical-align: middle;
   color: var(--text-primary);
@@ -260,7 +260,7 @@
 .tp-row__time {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-2xs);
 }
 .tp-row__time-rel {
   font-weight: 600;
@@ -278,7 +278,7 @@
   font-size: var(--text-tiny);
   font-weight: 700;
   letter-spacing: 0.04em;
-  padding: var(--space-3) var(--space-8);
+  padding: var(--space-2xs) var(--space-sm);
   border-radius: var(--radius-xs);
   white-space: nowrap;
 }
@@ -289,7 +289,7 @@
 
 /* Alert list */
 .tp-alerts {
-  margin-top: var(--space-14);
+  margin-top: var(--space-lg);
   border: var(--border-width-thin) solid rgba(196,83,42,0.3);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -302,14 +302,14 @@
   letter-spacing: 0.07em;
   color: var(--coral);
   background: rgba(250,234,228,0.7);
-  padding: var(--space-8) var(--space-14);
+  padding: var(--space-sm) var(--space-lg);
   border-bottom: var(--border-width-thin) solid rgba(196,83,42,0.2);
 }
 .tp-alert {
   display: flex;
-  gap: var(--space-12);
+  gap: var(--space-md);
   align-items: baseline;
-  padding: var(--space-9) var(--space-14);
+  padding: var(--space-sm) var(--space-lg);
   font-size: var(--text-sm);
   border-bottom: var(--border-width-thin) solid rgba(196,83,42,0.15);
   background: rgba(250,234,228,0.3);
@@ -328,15 +328,15 @@
 .tp-how-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--space-14);
+  gap: var(--space-lg);
 }
 .tp-how-step {
   background: var(--bg-card);
   border: var(--border-width-thin) solid var(--border);
   border-radius: var(--radius-md);
-  padding: var(--space-18) var(--space-16);
+  padding: var(--space-lg) var(--space-lg);
   display: flex;
-  gap: var(--space-14);
+  gap: var(--space-lg);
   align-items: flex-start;
 }
 .tp-how-step__num {
@@ -354,7 +354,7 @@
   font-size: var(--text-base);
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-xs);
   letter-spacing: -0.01em;
 }
 .tp-how-step__body p {
@@ -365,7 +365,7 @@
 .tp-how-step__body code {
   background: var(--chip-bg);
   border-radius: var(--radius-xs);
-  padding: 1px var(--space-5);
+  padding: 1px var(--space-xs);
   font-size: var(--text-sm);
   color: var(--text-primary);
 }
@@ -374,9 +374,9 @@
 @media (max-width: 600px) {
   .tp-stats {
     grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-8);
+    gap: var(--space-sm);
   }
-  .tp-stat { padding: var(--space-14) var(--space-10); }
+  .tp-stat { padding: var(--space-lg) var(--space-md); }
 
   .tp-sources {
     grid-template-columns: 1fr;

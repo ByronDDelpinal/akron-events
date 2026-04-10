@@ -58,41 +58,31 @@
   --tag-other-bg:     #F0F0F0; --tag-other-txt:     #555555;
 
   /* ──────────────────────────────────────────────────────────────────
-     Spacing scale
-     Numeric naming: --space-N where N is the pixel value.
-     Tokens exist for every value used ≥ 5 times in the codebase;
-     rare one-offs stay as raw literals until the design-system pass.
+     Spacing scale — 10 constrained tiers
+     Close values absorb into the nearest tier (max ±2 px in the
+     dense range, proportional above 24 px).
 
-     Dense range (2-20, every 2 px + frequent odd values):
+       2xs  (2px)  — hairline gaps, icon insets
+       xs   (4px)  — tight padding, small gaps
+       sm   (8px)  — default inner padding, chip gaps
+       md   (12px) — card padding, list gaps
+       lg   (16px) — section padding, comfortable gaps
+       xl   (20px) — generous padding, card gaps
+       2xl  (24px) — section margins, large gaps
+       3xl  (32px) — hero insets, page gutters
+       4xl  (48px) — section breaks, large containers
+       5xl  (80px) — hero padding, page-level spacing
   ────────────────────────────────────────────────────────────────── */
-  --space-2:   2px;
-  --space-3:   3px;
-  --space-4:   4px;
-  --space-5:   5px;
-  --space-6:   6px;
-  --space-7:   7px;
-  --space-8:   8px;
-  --space-9:   9px;
-  --space-10:  10px;
-  --space-11:  11px;
-  --space-12:  12px;
-  --space-13:  13px;
-  --space-14:  14px;
-  --space-16:  16px;
-  --space-18:  18px;
-  --space-20:  20px;
-  /* Wider jumps (24+): */
-  --space-22:  22px;
-  --space-24:  24px;
-  --space-28:  28px;
-  --space-32:  32px;
-  --space-40:  40px;
-  --space-44:  44px;
-  --space-48:  48px;
-  --space-52:  52px;
-  --space-60:  60px;
-  --space-80:  80px;
-  --space-100: 100px;
+  --space-2xs: 2px;
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md:  12px;
+  --space-lg:  16px;
+  --space-xl:  20px;
+  --space-2xl: 24px;
+  --space-3xl: 32px;
+  --space-4xl: 48px;
+  --space-5xl: 80px;
 
   /* ──────────────────────────────────────────────────────────────────
      Heading type scale

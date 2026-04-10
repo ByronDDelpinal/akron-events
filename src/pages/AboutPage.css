@@ -1,6 +1,6 @@
 .about-hero {
   background: var(--bg-nav);
-  padding: var(--space-52) var(--space-20);
+  padding: var(--space-4xl) var(--space-xl);
   text-align: center;
 }
 .about-hero h1 {
@@ -8,48 +8,48 @@
      global h1 rule in globals.css. We override only color (white on the
      dark hero) and margin. font-size is left to default (--text-h1). */
   color: #FFFFFF;
-  margin-bottom: var(--space-12);
+  margin-bottom: var(--space-md);
 }
 .about-hero h1 span { color: var(--amber); }
 .about-hero p {
   font-size: var(--text-base); color: rgba(255,255,255,0.48);
   max-width: 460px; margin: 0 auto; line-height: 1.65;
 }
-.about-body-wrap { max-width: var(--width-full); margin: var(--space-44) auto; padding: 0 var(--space-20) var(--space-80); }
+.about-body-wrap { max-width: var(--width-full); margin: var(--space-4xl) auto; padding: 0 var(--space-xl) var(--space-5xl); }
 .about-bar {
-  height: 3px; width: 56px; border-radius: var(--radius-xxs); margin-bottom: var(--space-28);
+  height: 3px; width: 56px; border-radius: var(--radius-xxs); margin-bottom: var(--space-2xl);
   background: linear-gradient(90deg, var(--amber), var(--green-mid), var(--coral));
 }
 .about-p {
   font-size: var(--text-lg); line-height: 1.78;
-  color: var(--text-secondary); margin-bottom: var(--space-18);
+  color: var(--text-secondary); margin-bottom: var(--space-lg);
 }
 .about-p a { color: var(--amber); font-weight: 600; text-decoration: none; }
 .about-p a:hover { text-decoration: underline; }
 .about-divider {
   height: 1px; background: var(--border);
-  margin: var(--space-32) 0;
+  margin: var(--space-3xl) 0;
 }
 .about-section-title {
   /* h3 within long-form content. The global h3 (1.5rem) would be too
      loud here — these are intra-article subheads, not section titles —
      so we override down to body+ scale. */
   font-size: var(--text-md);
-  margin-bottom: var(--space-8);
+  margin-bottom: var(--space-sm);
   letter-spacing: -0.01em;
 }
 /* ── Persona cards ─────────────────────────────────────────────────────── */
 .about-personas {
   display: flex;
   flex-direction: column;
-  gap: var(--space-10);
-  margin-bottom: var(--space-4);
+  gap: var(--space-md);
+  margin-bottom: var(--space-xs);
 }
 .about-persona-card {
   display: flex;
   align-items: center;
-  gap: var(--space-14);
-  padding: var(--space-14) var(--space-16);
+  gap: var(--space-lg);
+  padding: var(--space-lg) var(--space-lg);
   background: var(--bg-card);
   border: var(--border-width-thin) solid var(--border);
   border-radius: var(--radius-md);
@@ -75,7 +75,7 @@
   font-size: var(--text-base);
   font-weight: 700;
   color: var(--text-primary);
-  margin: 0 0 var(--space-2);
+  margin: 0 0 var(--space-2xs);
   letter-spacing: -0.01em;
 }
 .persona-desc {
@@ -100,7 +100,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-20);
+  gap: var(--space-xl);
   flex-wrap: wrap;
 }
 .about-technical-btn {
@@ -112,7 +112,7 @@
   font-size: var(--text-sm);
   font-weight: 700;
   letter-spacing: 0.01em;
-  padding: var(--space-9) var(--space-18);
+  padding: var(--space-sm) var(--space-lg);
   border-radius: var(--radius-sm);
   text-decoration: none;
   transition: background var(--transition-medium), color var(--transition-medium);
