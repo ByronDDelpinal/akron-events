@@ -41,15 +41,17 @@ function parseImage(imageObj, descriptionHtml = '') {
 /** Map Tribe category slugs → our category enum */
 function parseCategory(categories = []) {
   const slugs = categories.map(c => c.slug?.toLowerCase() ?? '')
+  const has = (kw) => slugs.some(s => s.includes(kw))
+  const hasWord = (kw) => slugs.some(s => new RegExp(`\\b${kw}\\b`).test(s))
 
-  if (slugs.some(s => s.includes('music') || s.includes('concert') || s.includes('perform'))) return 'music'
-  if (slugs.some(s => s.includes('art') || s.includes('exhibit') || s.includes('gallery'))) return 'art'
-  if (slugs.some(s => s.includes('food') || s.includes('market') || s.includes('culinary'))) return 'food'
-  if (slugs.some(s => s.includes('fitness') || s.includes('run'))) return 'fitness'
-  if (slugs.some(s => s.includes('sport'))) return 'sports'
-  if (slugs.some(s => s.includes('educat') || s.includes('workshop') || s.includes('class'))) return 'education'
-  if (slugs.some(s => s.includes('nonprofit') || s.includes('fundrais') || s.includes('benefit'))) return 'nonprofit'
-  if (slugs.some(s => s.includes('communit') || s.includes('family'))) return 'community'
+  if (has('music') || has('concert') || has('perform')) return 'music'
+  if (has('art') || has('exhibit') || has('gallery')) return 'art'
+  if (has('food') || has('market') || has('culinary')) return 'food'
+  if (has('fitness') || hasWord('run')) return 'fitness'
+  if (hasWord('sport')) return 'sports'
+  if (has('educat') || has('workshop') || hasWord('class')) return 'education'
+  if (has('nonprofit') || has('fundrais') || has('benefit')) return 'nonprofit'
+  if (has('communit') || has('family')) return 'community'
 
   // Summit Artspace is primarily an arts org — default to 'art'
   return 'art'

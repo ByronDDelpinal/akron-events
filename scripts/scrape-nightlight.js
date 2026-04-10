@@ -44,11 +44,13 @@ function parseImage(imageObj, descriptionHtml = '') {
 function parseCategory(categories = [], title = '') {
   const slugs = categories.map(c => c.slug?.toLowerCase() ?? '')
   const t = title.toLowerCase()
+  const has = (kw) => slugs.some(s => s.includes(kw))
+  const hasWord = (kw) => slugs.some(s => new RegExp(`\\b${kw}\\b`).test(s))
 
-  if (slugs.some(s => s.includes('music') || s.includes('concert'))) return 'music'
-  if (slugs.some(s => s.includes('food') || s.includes('drink'))) return 'food'
-  if (slugs.some(s => s.includes('educat') || s.includes('workshop') || s.includes('class'))) return 'education'
-  if (slugs.some(s => s.includes('communit') || s.includes('family'))) return 'community'
+  if (has('music') || has('concert')) return 'music'
+  if (has('food') || has('drink')) return 'food'
+  if (has('educat') || has('workshop') || hasWord('class')) return 'education'
+  if (has('communit') || has('family')) return 'community'
   if (t.includes('fundrais') || t.includes('benefit') || t.includes('gala')) return 'nonprofit'
 
   // Default: cinema is art

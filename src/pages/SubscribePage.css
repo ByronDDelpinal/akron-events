@@ -3,25 +3,22 @@
 .subscribe-shell { max-width: var(--width-narrow); }
 
 .subscribe-title {
-  font-family: var(--font-display);
-  font-size: 1.9rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.02em;
-  margin-bottom: 6px;
+  /* Applied to <h1> alongside .page-title. Font sizing comes from the
+     global h1 rule; only the page-specific layout properties live here. */
+  margin-bottom: var(--space-6);
   text-align: center;
 }
 .subscribe-sub {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: var(--space-32);
 }
 
 /* ── Intent cards grid ── */
 .intent-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-bottom: 24px;
+  gap: var(--space-10);
+  margin-bottom: var(--space-24);
 }
 @media (max-width: 500px) {
   .intent-grid { grid-template-columns: repeat(2, 1fr); }
@@ -31,13 +28,13 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 16px 8px;
-  border: 1.5px solid var(--border);
-  border-radius: 12px;
+  gap: var(--space-6);
+  padding: var(--space-16) var(--space-8);
+  border: var(--border-width-medium) solid var(--border);
+  border-radius: var(--radius-lg);
   background: var(--bg-card);
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  transition: border-color var(--transition-medium), background var(--transition-medium), box-shadow var(--transition-medium);
   font-family: var(--font-body);
 }
 .intent-card:hover {
@@ -50,7 +47,7 @@
   box-shadow: 0 0 0 3px rgba(212,146,42,0.1);
 }
 .intent-emoji {
-  font-size: 1.5rem;
+  font-size: var(--text-h3);
   line-height: 1;
 }
 .intent-label {
@@ -66,21 +63,21 @@
 /* ── Pill toggles (frequency, lookahead) ── */
 .pill-group {
   display: flex;
-  gap: 8px;
-  margin-bottom: 24px;
+  gap: var(--space-8);
+  margin-bottom: var(--space-24);
 }
 .pill {
   flex: 1;
-  padding: 11px 12px;
-  border: 1.5px solid var(--border);
-  border-radius: 10px;
+  padding: var(--space-11) var(--space-12);
+  border: var(--border-width-medium) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--bg-card);
   color: var(--text-secondary);
   font-family: var(--font-display);
   font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  transition: border-color var(--transition-medium), background var(--transition-medium), color var(--transition-medium);
   text-align: center;
 }
 .pill:hover {
@@ -94,7 +91,7 @@
 
 /* ── Subscribe button ── */
 .subscribe-btn {
-  margin-top: 8px;
+  margin-top: var(--space-8);
 }
 
 /* ── Fine print ── */
@@ -102,16 +99,16 @@
   font-size: var(--text-xs);
   color: var(--text-muted);
   text-align: center;
-  margin-top: 14px;
+  margin-top: var(--space-14);
   line-height: 1.55;
-  padding: 0 12px;
+  padding: 0 var(--space-12);
 }
 
 /* ── Already subscribed section ── */
 .subscribe-existing {
   margin-top: 36px;
-  padding-top: 24px;
-  border-top: 1px solid var(--border);
+  padding-top: var(--space-24);
+  border-top: var(--border-width-thin) solid var(--border);
 }
 .subscribe-existing-text {
   font-size: var(--text-sm);
@@ -137,16 +134,16 @@
 .magic-link-label {
   font-size: var(--text-sm);
   color: var(--text-muted);
-  margin-bottom: 10px;
+  margin-bottom: var(--space-10);
 }
 .magic-link-row {
   display: flex;
-  gap: 8px;
+  gap: var(--space-8);
 }
 .magic-link-input { flex: 1; }
 .magic-link-btn {
   width: auto;
-  padding: 11px 20px;
+  padding: var(--space-11) var(--space-20);
   font-size: var(--text-sm);
   white-space: nowrap;
   margin-top: 0;
@@ -154,23 +151,20 @@
 .magic-link-sent {
   font-size: var(--text-xs);
   color: var(--green-mid);
-  margin-top: 10px;
+  margin-top: var(--space-10);
   font-weight: 600;
 }
 
 /* ── Success state ── */
 .success-title {
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 8px;
+  /* Applied to <h2> in the success state. Font sizing from global h2. */
+  margin-bottom: var(--space-8);
 }
 .success-text {
   font-size: var(--text-lg);
   color: var(--text-secondary);
   line-height: 1.6;
-  margin-bottom: 16px;
+  margin-bottom: var(--space-16);
 }
 .success-hint {
   font-size: var(--text-xs);

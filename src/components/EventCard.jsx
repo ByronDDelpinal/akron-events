@@ -9,15 +9,15 @@ const MIN_IMG_HEIGHT = 338
 
 // Map category → CSS class for thumbnail gradient
 const GRADIENT_MAP = {
-  music:     'g-jazz',
-  art:       'g-art',
-  community: 'g-market',
-  nonprofit: 'g-gala',
-  food:      'g-market',
-  sports:    'g-sports',
-  fitness:   'g-run',
-  education: 'g-openmic',
-  other:     'g-default',
+  music:     'gradient-jazz',
+  art:       'gradient-art',
+  community: 'gradient-market',
+  nonprofit: 'gradient-gala',
+  food:      'gradient-market',
+  sports:    'gradient-sports',
+  fitness:   'gradient-run',
+  education: 'gradient-openmic',
+  other:     'gradient-default',
 }
 
 // Map category → tag CSS class
@@ -121,7 +121,7 @@ function ComfortableCard({ event, featured, price, tagClass, catLabel, navigate 
   const rawUrl   = isUsableImageUrl(event.image_url) ? event.image_url : null
   const qualityOk = rawUrl && isImageQualityOk(event)
   const imageUrl  = qualityOk && !imgFailed ? rawUrl : null
-  const gradient  = imageUrl ? null : (GRADIENT_MAP[event.category] ?? 'g-default')
+  const gradient  = imageUrl ? null : (GRADIENT_MAP[event.category] ?? 'gradient-default')
 
   const handleImgError = useCallback(() => setImgFailed(true), [])
 

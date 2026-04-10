@@ -31,11 +31,14 @@ function parseCategory(categories = [], tags = []) {
     ...categories.map(c => (c.name ?? c.slug ?? '').toLowerCase()),
     ...tags.map(t => (t.name ?? t.slug ?? '').toLowerCase()),
   ]
-  if (names.some(n => n.includes('music') || n.includes('concert') || n.includes('performance'))) return 'music'
-  if (names.some(n => n.includes('art') || n.includes('photo'))) return 'art'
-  if (names.some(n => n.includes('fitness') || n.includes('run') || n.includes('bike') || n.includes('paddle') || n.includes('kayak'))) return 'fitness'
-  if (names.some(n => n.includes('sport'))) return 'sports'
-  if (names.some(n => n.includes('educat') || n.includes('workshop') || n.includes('program') || n.includes('class'))) return 'education'
+  const has = (kw) => names.some(n => n.includes(kw))
+  const hasWord = (kw) => names.some(n => new RegExp(`\\b${kw}\\b`).test(n))
+
+  if (has('music') || has('concert') || has('performance')) return 'music'
+  if (has('art') || has('photo')) return 'art'
+  if (has('fitness') || hasWord('run') || hasWord('bike') || has('paddle') || has('kayak')) return 'fitness'
+  if (hasWord('sport')) return 'sports'
+  if (has('educat') || has('workshop') || has('program') || hasWord('class')) return 'education'
   return 'community'
 }
 

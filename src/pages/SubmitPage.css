@@ -1,85 +1,87 @@
-.page-shell { max-width: var(--width-narrow); margin: 44px auto; padding: 0 20px 80px; }
+.page-shell { max-width: var(--width-narrow); margin: var(--space-44) auto; padding: 0 var(--space-20) var(--space-80); }
 .page-title {
-  font-family: var(--font-display);
-  font-size: 1.7rem; font-weight: 700;
-  color: var(--text-primary); margin-bottom: 6px;
-  letter-spacing: -0.02em;
+  /* Shared by every form page (Submit, Subscribe, Preferences, etc.).
+     This class is applied to <h1> on the form state and <h2> on the
+     success state — letting the global element rules drive font-size
+     means the heading size automatically matches whichever tag the
+     class lands on. We only override margin here. */
+  margin-bottom: var(--space-6);
 }
-.page-sub { font-size: var(--text-base); color: var(--text-muted); margin-bottom: 24px; line-height: 1.6; }
+.page-sub { font-size: var(--text-base); color: var(--text-muted); margin-bottom: var(--space-24); line-height: 1.6; }
 .notice-box {
-  border-left: 3px solid var(--amber);
+  border-left: var(--border-width-thickest) solid var(--amber);
   background: var(--amber-pale);
-  border-radius: 0 10px 10px 0;
-  padding: 12px 16px;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: var(--space-12) var(--space-16);
   font-size: var(--text-sm); color: var(--text-secondary);
-  margin-bottom: 28px; line-height: 1.55;
+  margin-bottom: var(--space-28); line-height: 1.55;
 }
 .form-section-label {
   font-family: var(--font-display);
   font-size: var(--text-tag); font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.1em;
   color: var(--text-muted);
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 8px;
-  margin: 28px 0 18px;
+  border-bottom: var(--border-width-thin) solid var(--border);
+  padding-bottom: var(--space-8);
+  margin: var(--space-28) 0 var(--space-18);
 }
-.form-group { margin-bottom: 18px; }
+.form-group { margin-bottom: var(--space-18); }
 .form-label {
   display: block;
   font-family: var(--font-display);
   font-size: var(--text-xxs); font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.07em;
-  color: var(--text-muted); margin-bottom: 6px;
+  color: var(--text-muted); margin-bottom: var(--space-6);
 }
 .req { color: var(--amber); }
 .form-input, .form-select, .form-textarea {
-  width: 100%; padding: 11px 14px;
-  border: 1.5px solid var(--border); border-radius: 10px;
+  width: 100%; padding: var(--space-11) var(--space-14);
+  border: var(--border-width-medium) solid var(--border); border-radius: var(--radius-md);
   background: var(--bg-card); color: var(--text-primary);
   font-family: var(--font-body); font-size: var(--text-lg);
-  outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+  outline: none; transition: border-color var(--transition-medium), box-shadow var(--transition-medium);
 }
 .form-input:focus, .form-select:focus, .form-textarea:focus {
   border-color: var(--amber);
   box-shadow: 0 0 0 3px rgba(212,146,42,0.1);
 }
 .form-textarea { min-height: 100px; resize: vertical; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-14); }
 @media (max-width: 500px) { .form-row { grid-template-columns: 1fr; } }
-.form-hint { font-size: var(--text-xxs); color: var(--text-muted); margin-top: 4px; }
+.form-hint { font-size: var(--text-xxs); color: var(--text-muted); margin-top: var(--space-4); }
 .form-error {
   color: var(--coral); font-size: var(--text-sm);
-  margin-bottom: 12px; padding: 10px 14px;
-  background: var(--coral-pale); border-radius: 8px;
-  border: 1px solid rgba(196,83,42,0.2);
+  margin-bottom: var(--space-12); padding: var(--space-10) var(--space-14);
+  background: var(--coral-pale); border-radius: var(--radius-sm);
+  border: var(--border-width-thin) solid rgba(196,83,42,0.2);
 }
 .btn-submit-form {
   width: 100%;
   background: var(--amber); color: var(--chip-active-txt);
-  border: none; border-radius: 12px; padding: 14px;
+  border: none; border-radius: var(--radius-lg); padding: var(--space-14);
   font-family: var(--font-display);
   font-size: var(--text-lg); font-weight: 700;
-  cursor: pointer; margin-top: 6px;
-  transition: background 0.15s; letter-spacing: 0.01em;
+  cursor: pointer; margin-top: var(--space-6);
+  transition: background var(--transition-medium); letter-spacing: 0.01em;
   display: block;
 }
 .btn-submit-form:hover:not(:disabled) { background: var(--amber-hover); }
 .btn-submit-form:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* Success state */
-.success-box { text-align: center; padding: 60px 0; }
+.success-box { text-align: center; padding: var(--space-60) 0; }
 .success-icon {
-  width: 64px; height: 64px; border-radius: 50%;
+  width: 64px; height: 64px; border-radius: var(--radius-round);
   background: var(--amber-pale);
   color: var(--amber);
-  font-size: 1.8rem;
+  font-size: var(--text-h2);
   display: flex; align-items: center; justify-content: center;
-  margin: 0 auto 20px;
-  border: 2px solid var(--amber-border);
+  margin: 0 auto var(--space-20);
+  border: var(--border-width-thick) solid var(--amber-border);
 }
 .success-actions {
   display: flex;
-  gap: 12px;
+  gap: var(--space-12);
   justify-content: center;
   max-width: 400px;
   margin: 0 auto;
@@ -91,7 +93,7 @@
 .btn-submit-outline {
   background: transparent;
   color: var(--amber);
-  border: 2px solid var(--amber);
+  border: var(--border-width-thick) solid var(--amber);
   text-decoration: none;
 }
 .btn-submit-outline:hover {

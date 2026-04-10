@@ -3,24 +3,24 @@
 
 .sms-wrap {
   position: relative;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-8);
 }
 
 /* ── Selected pills ── */
 .sms-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 8px;
+  gap: var(--space-6);
+  margin-bottom: var(--space-8);
 }
 .sms-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 8px 5px 12px;
+  gap: var(--space-6);
+  padding: var(--space-5) var(--space-8) var(--space-5) var(--space-12);
   background: var(--amber);
   color: var(--chip-active-txt);
-  border-radius: 20px;
+  border-radius: var(--radius-pill);
   font-size: var(--text-xs);
   font-weight: 600;
 }
@@ -32,11 +32,11 @@
   height: 18px;
   border: none;
   background: rgba(255,255,255,0.25);
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   font-size: var(--text-tiny);
   color: var(--chip-active-txt);
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background var(--transition-fast);
   line-height: 1;
 }
 .sms-pill-x:hover {
@@ -60,9 +60,9 @@
   right: 0;
   z-index: 20;
   background: var(--bg-card);
-  border: 1.5px solid var(--border);
+  border: var(--border-width-medium) solid var(--border);
   border-top: none;
-  border-radius: 0 0 10px 10px;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
   max-height: 240px;
   overflow-y: auto;
   box-shadow: 0 8px 24px rgba(0,0,0,0.12);
@@ -71,15 +71,15 @@
 .sms-option {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-2);
   width: 100%;
-  padding: 9px 14px;
+  padding: var(--space-9) var(--space-14);
   border: none;
   background: transparent;
   cursor: pointer;
   text-align: left;
   font-family: var(--font-body);
-  transition: background 0.1s;
+  transition: background var(--transition-fast);
 }
 .sms-option:hover {
   background: var(--amber-pale);
@@ -105,7 +105,7 @@
 }
 
 .sms-empty {
-  padding: 14px;
+  padding: var(--space-14);
   font-size: var(--text-sm);
   color: var(--text-muted);
   text-align: center;

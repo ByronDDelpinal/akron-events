@@ -32,7 +32,7 @@ export default function AboutPage() {
   return (
     <>
       <div className="about-hero">
-        <h2>Akron deserves <span>better</span></h2>
+        <h1>Akron deserves <span>better</span></h1>
         <p>
           There are concerts, gallery openings, community gatherings, and
           late-night shows happening in this city every single week.

@@ -8,40 +8,41 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: var(--space-20);
   background: var(--bg-secondary);
 }
 .admin-login-card {
   background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 40px 36px;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-xxl);
+  padding: var(--space-40) 36px;
   max-width: 360px;
   width: 100%;
   box-shadow: var(--shadow-card);
   text-align: center;
 }
-.admin-login-icon { font-size: 2rem; margin-bottom: 12px; }
+.admin-login-icon { font-size: var(--text-h2); margin-bottom: var(--space-12); }
 .admin-login-title {
-  font-family: var(--font-display);
-  font-size: 1.3rem; font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 4px;
+  /* h2 inside the login card — overriding the global --text-h2 down
+     to body+ scale. font-family / weight / color come from the global
+     rule. */
+  font-size: var(--text-h4);
+  margin-bottom: var(--space-4);
 }
 .admin-login-sub {
   font-size: var(--text-sm); color: var(--text-muted);
-  margin-bottom: 20px;
+  margin-bottom: var(--space-20);
 }
 .admin-login-err {
   font-size: var(--text-sm); color: var(--coral);
   background: var(--coral-pale);
-  border: 1px solid rgba(196,83,42,0.2);
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin-bottom: 12px;
+  border: var(--border-width-thin) solid rgba(196,83,42,0.2);
+  border-radius: var(--radius-sm);
+  padding: var(--space-8) var(--space-12);
+  margin-bottom: var(--space-12);
 }
 .admin-login-card .form-input {
-  margin-bottom: 14px;
+  margin-bottom: var(--space-14);
   text-align: center;
 }
 
@@ -52,13 +53,15 @@
 }
 .admin-topbar {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 24px;
+  padding: var(--space-14) var(--space-24);
   background: var(--bg-nav);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: var(--border-width-thin) solid rgba(255,255,255,0.06);
 }
 .admin-topbar-title {
-  font-family: var(--font-display);
-  font-size: 1rem; font-weight: 700;
+  /* h1 inside the persistent admin chrome — overriding the global
+     --text-h1 way down to body scale because this is a chrome label,
+     not a page title. font-family / weight come from the global rule. */
+  font-size: var(--text-md);
   color: #FFFFFF;
   letter-spacing: -0.01em;
 }
@@ -73,28 +76,28 @@
     flex-direction: row !important;
     overflow-x: auto;
     border-right: none !important;
-    border-bottom: 1px solid var(--border) !important;
-    padding: 8px !important;
-    gap: 4px !important;
+    border-bottom: var(--border-width-thin) solid var(--border) !important;
+    padding: var(--space-8) !important;
+    gap: var(--space-4) !important;
   }
-  .admin-nav-btn { padding: 8px 14px !important; font-size: var(--text-xs) !important; }
+  .admin-nav-btn { padding: var(--space-8) var(--space-14) !important; font-size: var(--text-xs) !important; }
 }
 
 /* ── Sidebar Nav ── */
 .admin-sidebar {
-  display: flex; flex-direction: column; gap: 2px;
+  display: flex; flex-direction: column; gap: var(--space-2);
   background: var(--bg-card);
-  border-right: 1px solid var(--border);
-  padding: 16px 10px;
+  border-right: var(--border-width-thin) solid var(--border);
+  padding: var(--space-16) var(--space-10);
 }
 .admin-nav-btn {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 14px; border: none;
-  border-radius: 10px; background: transparent;
+  display: flex; align-items: center; gap: var(--space-10);
+  padding: var(--space-10) var(--space-14); border: none;
+  border-radius: var(--radius-md); background: transparent;
   font-family: var(--font-display);
   font-size: var(--text-sm); font-weight: 600;
   color: var(--text-secondary);
-  cursor: pointer; transition: all 0.12s;
+  cursor: pointer; transition: all var(--transition-fast);
   text-align: left;
 }
 .admin-nav-btn:hover { background: var(--bg-secondary); }
@@ -102,11 +105,11 @@
   background: var(--amber-pale);
   color: var(--amber);
 }
-.admin-nav-icon { font-size: 1rem; }
+.admin-nav-icon { font-size: var(--text-md); }
 .admin-nav-back {
-  margin-bottom: 8px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-8);
+  padding-bottom: var(--space-12);
+  border-bottom: var(--border-width-thin) solid var(--border);
   color: var(--text-muted);
   text-decoration: none;
 }
@@ -114,51 +117,53 @@
 
 /* ── Main Area ── */
 .admin-main {
-  padding: 28px;
+  padding: var(--space-28);
   overflow-x: auto;
 }
 
 /* ── Section ── */
 .admin-section-header {
-  display: flex; align-items: center; gap: 10px;
-  margin-bottom: 18px;
+  display: flex; align-items: center; gap: var(--space-10);
+  margin-bottom: var(--space-18);
 }
 .admin-section-title {
-  font-family: var(--font-display);
-  font-size: 1.2rem; font-weight: 700;
-  color: var(--text-primary);
+  /* h2 inside the admin layout — overriding the global --text-h2 down
+     to body+ scale. Admin section titles want a quieter treatment than
+     marketing-page heroes. font-family / weight / color from the global
+     rule. */
+  font-size: var(--text-h4);
 }
 .admin-section-count {
   font-size: var(--text-xxs); font-weight: 700;
   color: var(--text-muted);
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  padding: 2px 10px; border-radius: 20px;
+  border: var(--border-width-thin) solid var(--border);
+  padding: var(--space-2) var(--space-10); border-radius: var(--radius-pill);
 }
 
 /* ── Toolbar ── */
 .admin-toolbar {
-  display: flex; gap: 10px; margin-bottom: 16px;
+  display: flex; gap: var(--space-10); margin-bottom: var(--space-16);
   flex-wrap: wrap;
 }
 .admin-search {
   flex: 1; min-width: 200px;
-  padding: 9px 14px;
-  border: 1.5px solid var(--border); border-radius: 10px;
+  padding: var(--space-9) var(--space-14);
+  border: var(--border-width-medium) solid var(--border); border-radius: var(--radius-md);
   background: var(--bg-card); color: var(--text-primary);
   font-size: var(--text-sm); outline: none;
-  transition: border-color 0.15s;
+  transition: border-color var(--transition-medium);
 }
 .admin-search:focus { border-color: var(--amber); }
 .btn-admin-create {
   white-space: nowrap;
-  padding: 9px 18px;
+  padding: var(--space-9) var(--space-18);
   font-size: var(--text-sm);
   flex-shrink: 0;
 }
 .admin-select {
-  padding: 9px 14px;
-  border: 1.5px solid var(--border); border-radius: 10px;
+  padding: var(--space-9) var(--space-14);
+  border: var(--border-width-medium) solid var(--border); border-radius: var(--radius-md);
   background: var(--bg-card); color: var(--text-primary);
   font-size: var(--text-sm); outline: none;
 }
@@ -166,8 +171,8 @@
 /* ── Table ── */
 .admin-table-wrap {
   background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-lg);
   overflow: auto;
 }
 .admin-table {
@@ -180,14 +185,14 @@
   font-size: var(--text-tiny); font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.07em;
   color: var(--text-muted);
-  padding: 12px 14px;
+  padding: var(--space-12) var(--space-14);
   text-align: left;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width-thin) solid var(--border);
   white-space: nowrap;
 }
 .admin-table td {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
+  padding: var(--space-10) var(--space-14);
+  border-bottom: var(--border-width-thin) solid var(--border);
   color: var(--text-secondary);
   vertical-align: middle;
 }
@@ -204,7 +209,7 @@
 .admin-td-link {
   color: inherit;
   text-decoration: none;
-  transition: color 0.12s;
+  transition: color var(--transition-fast);
 }
 .admin-td-link:hover { color: var(--amber); }
 .admin-td-nowrap { white-space: nowrap; }
@@ -216,7 +221,7 @@
   font-family: var(--font-display);
   font-size: var(--text-xxs); font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.06em;
-  padding: 3px 8px; border-radius: 5px;
+  padding: var(--space-3) var(--space-8); border-radius: var(--radius-xs);
 }
 .status-pending   { background: #FDF2DC; color: #7A4E08; }
 .status-published { background: #E4F0E6; color: #1A5428; }
@@ -224,43 +229,43 @@
 
 /* ── Buttons ── */
 .btn-admin-primary {
-  padding: 10px 22px;
+  padding: var(--space-10) var(--space-22);
   background: var(--amber); color: #FFFFFF;
-  border: none; border-radius: 10px;
+  border: none; border-radius: var(--radius-md);
   font-family: var(--font-display);
   font-size: var(--text-sm); font-weight: 700;
-  cursor: pointer; transition: background 0.15s;
+  cursor: pointer; transition: background var(--transition-medium);
 }
 .btn-admin-primary:hover { background: var(--amber-hover); }
 
 .btn-admin-ghost {
-  padding: 8px 16px;
+  padding: var(--space-8) var(--space-16);
   background: transparent; color: var(--text-muted);
-  border: 1.5px solid var(--border); border-radius: 10px;
+  border: var(--border-width-medium) solid var(--border); border-radius: var(--radius-md);
   font-family: var(--font-display);
   font-size: var(--text-sm); font-weight: 600;
-  cursor: pointer; transition: all 0.15s;
+  cursor: pointer; transition: all var(--transition-medium);
 }
 .btn-admin-ghost:hover { border-color: var(--amber); color: var(--amber); }
 
 .btn-admin-danger {
-  padding: 10px 22px;
+  padding: var(--space-10) var(--space-22);
   background: var(--coral); color: #FFFFFF;
-  border: none; border-radius: 10px;
+  border: none; border-radius: var(--radius-md);
   font-family: var(--font-display);
   font-size: var(--text-sm); font-weight: 700;
-  cursor: pointer; transition: background 0.15s;
+  cursor: pointer; transition: background var(--transition-medium);
 }
 .btn-admin-danger:hover { background: #A8401E; }
 
 .btn-admin-sm {
-  padding: 5px 12px;
+  padding: var(--space-5) var(--space-12);
   background: var(--bg-secondary);
-  border: 1px solid var(--border); border-radius: 7px;
+  border: var(--border-width-thin) solid var(--border); border-radius: var(--radius-sm);
   font-family: var(--font-display);
   font-size: var(--text-tag); font-weight: 700;
   color: var(--text-secondary);
-  cursor: pointer; transition: all 0.12s;
+  cursor: pointer; transition: all var(--transition-fast);
 }
 .btn-admin-sm:hover { border-color: var(--amber); color: var(--amber); }
 .btn-admin-sm-danger:hover { border-color: var(--coral); color: var(--coral); }
@@ -271,12 +276,12 @@
   background: rgba(0,0,0,0.4);
   z-index: 1000;
   display: flex; align-items: flex-start; justify-content: center;
-  padding: 40px 20px;
+  padding: var(--space-40) var(--space-20);
   overflow-y: auto;
 }
 .admin-modal {
   background: var(--bg-card);
-  border-radius: 16px;
+  border-radius: var(--radius-xxl);
   width: 100%; max-width: 680px;
   box-shadow: 0 20px 60px rgba(0,0,0,0.2);
   max-height: calc(100vh - 80px);
@@ -285,60 +290,61 @@
 .admin-modal--sm { max-width: 480px; }
 .admin-modal-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 18px 24px;
-  border-bottom: 1px solid var(--border);
+  padding: var(--space-18) var(--space-24);
+  border-bottom: var(--border-width-thin) solid var(--border);
 }
 .admin-modal-header h3 {
-  font-family: var(--font-display);
-  font-size: 1.05rem; font-weight: 700;
-  color: var(--text-primary);
+  /* Modals want a more compact heading than the global --text-h3
+     (1.5rem); we override down to --text-md (1rem) since the modal
+     header has its own visual hierarchy inside the dialog chrome. */
+  font-size: var(--text-md);
 }
 .admin-modal-close {
   width: 32px; height: 32px;
   display: flex; align-items: center; justify-content: center;
   border: none; background: var(--bg-secondary);
-  border-radius: 8px; font-size: 1rem;
+  border-radius: var(--radius-sm); font-size: var(--text-md);
   cursor: pointer; color: var(--text-muted);
-  transition: all 0.12s;
+  transition: all var(--transition-fast);
 }
 .admin-modal-close:hover { background: var(--coral-pale); color: var(--coral); }
 .admin-modal-body {
-  padding: 20px 24px;
+  padding: var(--space-20) var(--space-24);
   overflow-y: auto;
   flex: 1;
 }
 .admin-modal-footer {
-  display: flex; justify-content: flex-end; gap: 10px;
-  padding: 16px 24px;
-  border-top: 1px solid var(--border);
-  margin-top: 20px;
+  display: flex; justify-content: flex-end; gap: var(--space-10);
+  padding: var(--space-16) var(--space-24);
+  border-top: var(--border-width-thin) solid var(--border);
+  margin-top: var(--space-20);
 }
 
 /* ── Form fields in admin ── */
-.admin-field { margin-bottom: 14px; }
+.admin-field { margin-bottom: var(--space-14); }
 .admin-field label {
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: var(--space-6);
   font-family: var(--font-display);
   font-size: var(--text-tiny); font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.07em;
-  color: var(--text-muted); margin-bottom: 5px;
+  color: var(--text-muted); margin-bottom: var(--space-5);
 }
 .admin-field .form-input,
 .admin-field .form-select,
 .admin-field .form-textarea {
-  font-size: var(--text-sm); padding: 9px 12px;
+  font-size: var(--text-sm); padding: var(--space-9) var(--space-12);
 }
 .admin-field-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px;
+  gap: var(--space-12);
 }
 .admin-checkbox-label {
-  display: flex !important; align-items: center; gap: 8px;
+  display: flex !important; align-items: center; gap: var(--space-8);
   font-size: var(--text-sm) !important; font-weight: 500 !important;
   text-transform: none !important; letter-spacing: 0 !important;
   color: var(--text-secondary) !important;
-  cursor: pointer; padding-top: 6px;
+  cursor: pointer; padding-top: var(--space-6);
 }
 .admin-checkbox-label input[type="checkbox"] {
   width: 16px; height: 16px;
@@ -349,8 +355,8 @@
 .override-toggle {
   border: none; background: none;
   cursor: pointer; font-size: var(--text-xs);
-  padding: 2px 4px; border-radius: 4px;
-  transition: all 0.12s;
+  padding: var(--space-2) var(--space-4); border-radius: var(--radius-xs);
+  transition: all var(--transition-fast);
 }
 .override-toggle:hover { background: var(--bg-secondary); }
 .override-toggle.locked { background: var(--amber-pale); }
@@ -361,22 +367,22 @@
   font-size: var(--text-tiny); font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--text-muted);
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
-  margin: 18px 0 10px;
+  padding-bottom: var(--space-8);
+  border-bottom: var(--border-width-thin) solid var(--border);
+  margin: var(--space-18) 0 var(--space-10);
 }
 .admin-chip-list {
-  display: flex; flex-wrap: wrap; gap: 6px;
-  margin-bottom: 8px;
+  display: flex; flex-wrap: wrap; gap: var(--space-6);
+  margin-bottom: var(--space-8);
   max-height: 160px; overflow-y: auto;
-  padding: 4px 0;
+  padding: var(--space-4) 0;
 }
 .admin-chip {
-  padding: 5px 12px;
-  border: 1.5px solid var(--border); border-radius: 20px;
+  padding: var(--space-5) var(--space-12);
+  border: var(--border-width-medium) solid var(--border); border-radius: var(--radius-pill);
   background: var(--bg-card); color: var(--text-secondary);
   font-size: var(--text-xs); font-weight: 500;
-  cursor: pointer; transition: all 0.12s;
+  cursor: pointer; transition: all var(--transition-fast);
 }
 .admin-chip:hover { border-color: var(--amber); color: var(--amber); }
 .admin-chip.active {
@@ -391,25 +397,25 @@
 /* ── Override info ── */
 .admin-hint {
   font-size: var(--text-xs); color: var(--text-muted);
-  margin-bottom: 8px; line-height: 1.5;
+  margin-bottom: var(--space-8); line-height: 1.5;
 }
 .admin-override-list {
-  display: flex; flex-wrap: wrap; gap: 6px;
-  margin-bottom: 10px;
+  display: flex; flex-wrap: wrap; gap: var(--space-6);
+  margin-bottom: var(--space-10);
 }
 .admin-override-chip {
   font-size: var(--text-xxs); font-weight: 600;
   background: var(--amber-pale); color: var(--amber);
-  border: 1px solid var(--amber-border);
-  padding: 4px 10px; border-radius: 6px;
+  border: var(--border-width-thin) solid var(--amber-border);
+  padding: var(--space-4) var(--space-10); border-radius: var(--radius-sm);
 }
 .admin-override-date { font-weight: 400; opacity: 0.7; }
 
 /* ── Confirm Dialog ── */
 .admin-confirm-card {
   background: var(--bg-card);
-  border-radius: 14px;
-  padding: 28px 24px;
+  border-radius: var(--radius-xl);
+  padding: var(--space-28) var(--space-24);
   max-width: 400px; width: 100%;
   box-shadow: 0 20px 60px rgba(0,0,0,0.2);
   margin-top: 120px;
@@ -417,31 +423,31 @@
 .admin-confirm-msg {
   font-size: var(--text-base); font-weight: 500;
   color: var(--text-primary);
-  margin-bottom: 20px; line-height: 1.5;
+  margin-bottom: var(--space-20); line-height: 1.5;
 }
 .admin-confirm-actions {
-  display: flex; justify-content: flex-end; gap: 10px;
+  display: flex; justify-content: flex-end; gap: var(--space-10);
 }
 
 /* ── Loading ── */
 .admin-loading {
-  text-align: center; padding: 40px;
+  text-align: center; padding: var(--space-40);
   color: var(--text-muted); font-size: var(--text-sm);
 }
 
 /* ── Pagination ── */
 .admin-pagination {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 16px;
-  border-top: 1px solid var(--border);
+  padding: var(--space-14) var(--space-16);
+  border-top: var(--border-width-thin) solid var(--border);
   background: var(--bg-card);
-  border-radius: 0 0 12px 12px;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 .admin-pagination-info {
   font-size: var(--text-sm); color: var(--text-muted); font-weight: 500;
 }
 .admin-pagination-btns {
-  display: flex; gap: 6px;
+  display: flex; gap: var(--space-6);
 }
 .admin-pagination-btns .btn-admin-sm:disabled {
   opacity: 0.35; cursor: default;
@@ -452,96 +458,97 @@
   max-width: 720px;
 }
 .admin-edit-header {
-  display: flex; align-items: center; gap: 14px;
-  margin-bottom: 24px;
+  display: flex; align-items: center; gap: var(--space-14);
+  margin-bottom: var(--space-24);
 }
 .admin-edit-title {
-  font-family: var(--font-display);
-  font-size: 1.15rem; font-weight: 700;
-  color: var(--text-primary);
+  /* h2 inside an admin edit page — overriding the global --text-h2
+     down to body+ scale. font-family / weight / color from the global
+     rule. */
+  font-size: var(--text-h4);
 }
 .admin-edit-form {
   background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 24px;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-24);
 }
 /* ── Venue Areas ── */
 .admin-venue-areas {
-  margin-top: 24px;
+  margin-top: var(--space-24);
   background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 24px;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-24);
 }
 .admin-areas-list {
   display: flex; flex-direction: column; gap: 1px;
   background: var(--border);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 .admin-area-row {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; padding: 12px 14px;
+  gap: var(--space-12); padding: var(--space-12) var(--space-14);
   background: var(--bg-card);
 }
 .admin-area-info {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-6) var(--space-14);
   min-width: 0;
 }
 .admin-area-name { font-weight: 600; font-size: var(--text-base); }
 .admin-area-cap {
   font-size: var(--text-xs); color: var(--text-muted);
   background: var(--bg-secondary);
-  padding: 2px 8px; border-radius: 6px;
+  padding: var(--space-2) var(--space-8); border-radius: var(--radius-sm);
 }
 .admin-area-desc {
   font-size: var(--text-sm); color: var(--text-secondary);
   flex-basis: 100%;
 }
 .admin-area-actions {
-  display: flex; gap: 6px; flex-shrink: 0;
+  display: flex; gap: var(--space-6); flex-shrink: 0;
 }
 .admin-add-area-form {
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 16px;
-  margin-bottom: 12px;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-16);
+  margin-bottom: var(--space-12);
 }
 .admin-add-area-actions {
-  display: flex; justify-content: flex-end; gap: 8px;
-  margin-top: 10px;
+  display: flex; justify-content: flex-end; gap: var(--space-8);
+  margin-top: var(--space-10);
 }
 
 .admin-edit-footer {
-  display: flex; justify-content: flex-end; gap: 10px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
-  margin-top: 20px;
+  display: flex; justify-content: flex-end; gap: var(--space-10);
+  padding-top: var(--space-20);
+  border-top: var(--border-width-thin) solid var(--border);
+  margin-top: var(--space-20);
 }
 
 /* ── Email Admin ── */
 .email-stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 14px;
-  margin-bottom: 28px;
+  gap: var(--space-14);
+  margin-bottom: var(--space-28);
 }
 .email-stat-card {
   background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 18px 16px;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-18) var(--space-16);
   text-align: center;
 }
 .email-stat-value {
   font-family: var(--font-display);
-  font-size: 1.25rem;
+  font-size: var(--text-h4);
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 4px;
+  margin-bottom: var(--space-4);
 }
 .email-stat-label {
   font-size: var(--text-xs);
@@ -551,23 +558,23 @@
 
 .email-trigger-section {
   background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 24px;
-  margin-bottom: 28px;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-24);
+  margin-bottom: var(--space-28);
 }
 .email-trigger-title {
   font-family: var(--font-display);
   font-size: var(--text-base);
   font-weight: 700;
   color: var(--text-primary);
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-8);
 }
 .email-trigger-desc {
   font-size: var(--text-sm);
   color: var(--text-secondary);
   line-height: 1.5;
-  margin: 0 0 16px;
+  margin: 0 0 var(--space-16);
 }
 .email-send-btn {
   min-width: 160px;
@@ -575,17 +582,17 @@
 .email-trigger-result {
   font-size: var(--text-xs);
   font-weight: 600;
-  margin-top: 12px;
+  margin-top: var(--space-12);
 }
 .result-ok { color: var(--green-mid); }
 .result-err { color: var(--coral); }
 
-.email-sends-section { margin-top: 8px; }
+.email-sends-section { margin-top: var(--space-8); }
 
 .email-status-badge {
   display: inline-block;
-  padding: 2px 10px;
-  border-radius: 8px;
+  padding: var(--space-2) var(--space-10);
+  border-radius: var(--radius-sm);
   font-size: var(--text-xxs);
   font-weight: 600;
   text-transform: capitalize;
@@ -609,18 +616,18 @@
 }
 .email-empty {
   text-align: center;
-  padding: 32px;
+  padding: var(--space-32);
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
 
 /* ── Admin Feedback ── */
 .admin-feedback-filters {
-  display: flex; flex-wrap: wrap; gap: 16px;
-  margin-bottom: 18px;
+  display: flex; flex-wrap: wrap; gap: var(--space-16);
+  margin-bottom: var(--space-18);
 }
 .admin-feedback-filter-group {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: var(--space-8);
 }
 .admin-feedback-filter-label {
   font-family: var(--font-display);
@@ -630,16 +637,16 @@
   flex-shrink: 0;
 }
 .admin-feedback-chips {
-  display: flex; flex-wrap: wrap; gap: 4px;
+  display: flex; flex-wrap: wrap; gap: var(--space-4);
 }
 .admin-feedback-chip {
-  padding: 4px 10px;
-  border: 1.5px solid var(--border); border-radius: 20px;
+  padding: var(--space-4) var(--space-10);
+  border: var(--border-width-medium) solid var(--border); border-radius: var(--radius-pill);
   background: var(--bg-card); color: var(--text-secondary);
   font-family: var(--font-body);
   font-size: var(--text-xxs); font-weight: 500;
-  cursor: pointer; transition: all 0.12s;
-  display: inline-flex; align-items: center; gap: 3px;
+  cursor: pointer; transition: all var(--transition-fast);
+  display: inline-flex; align-items: center; gap: var(--space-3);
 }
 .admin-feedback-chip:hover { border-color: var(--amber); color: var(--amber); }
 .admin-feedback-chip.active {
@@ -652,6 +659,6 @@
   line-height: 1.5;
 }
 .admin-empty {
-  text-align: center; padding: 40px;
+  text-align: center; padding: var(--space-40);
   color: var(--text-muted); font-size: var(--text-sm);
 }

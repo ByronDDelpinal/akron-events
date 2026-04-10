@@ -47,18 +47,20 @@ function parseImage(imageObj, descriptionHtml = '') {
 /** Map Tribe category slugs to our category enum */
 function parseCategory(categories = []) {
   const slugs = categories.map(c => (c.slug ?? c.name ?? '').toLowerCase())
+  const has = (kw) => slugs.some(s => s.includes(kw))
+  const hasWord = (kw) => slugs.some(s => new RegExp(`\\b${kw}\\b`).test(s))
 
-  if (slugs.some(s => s.includes('music') || s.includes('concert')))         return 'music'
-  if (slugs.some(s => s.includes('art') || s.includes('gallery')))           return 'art'
-  if (slugs.some(s => s.includes('food') || s.includes('culinary')))         return 'food'
-  if (slugs.some(s => s.includes('fitness')))                                return 'fitness'
-  if (slugs.some(s => s.includes('sport')))                                 return 'sports'
-  if (slugs.some(s => s.includes('educat') || s.includes('workshop')))       return 'education'
-  if (slugs.some(s => s.includes('nonprofit') || s.includes('fundrais')))    return 'nonprofit'
-  if (slugs.some(s => s.includes('social') || s.includes('happy-hour')))     return 'community'
-  if (slugs.some(s => s.includes('volunteer') || s.includes('service')))     return 'nonprofit'
-  if (slugs.some(s => s.includes('committee') || s.includes('meeting')))     return 'community'
-  if (slugs.some(s => s.includes('gmm') || s.includes('general-member')))    return 'community'
+  if (has('music') || has('concert'))         return 'music'
+  if (has('art') || has('gallery'))           return 'art'
+  if (has('food') || has('culinary'))         return 'food'
+  if (has('fitness'))                         return 'fitness'
+  if (hasWord('sport'))                       return 'sports'
+  if (has('educat') || has('workshop'))       return 'education'
+  if (has('nonprofit') || has('fundrais'))    return 'nonprofit'
+  if (has('social') || has('happy-hour'))     return 'community'
+  if (has('volunteer') || has('service'))     return 'nonprofit'
+  if (has('committee') || has('meeting'))     return 'community'
+  if (has('gmm') || has('general-member'))    return 'community'
 
   // Torchbearers is a leadership/community org — default to 'community'
   return 'community'

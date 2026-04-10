@@ -10,9 +10,9 @@ const MIN_IMG_WIDTH  = 600
 const MIN_IMG_HEIGHT = 338
 
 const GRADIENT_MAP = {
-  music: 'g-jazz', art: 'g-art', community: 'g-market',
-  nonprofit: 'g-gala', food: 'g-market', sports: 'g-sports', fitness: 'g-run',
-  education: 'g-openmic', other: 'g-default',
+  music: 'gradient-jazz', art: 'gradient-art', community: 'gradient-market',
+  nonprofit: 'gradient-gala', food: 'gradient-market', sports: 'gradient-sports', fitness: 'gradient-run',
+  education: 'gradient-openmic', other: 'gradient-default',
 }
 const TAG_CLASS_MAP = {
   music: 'tag-music', art: 'tag-art', nonprofit: 'tag-nonprofit',
@@ -109,7 +109,7 @@ export default function EventPage() {
   // ── Image quality gating ──
   const rawUrl    = isUsableImageUrl(event.image_url) ? event.image_url : null
   const qualityOk = rawUrl && isImageQualityOk(event)
-  const gradient  = GRADIENT_MAP[event.category] ?? 'g-default'
+  const gradient  = GRADIENT_MAP[event.category] ?? 'gradient-default'
 
   // Determine if image is wide enough to span full page width (>=1120px content area)
   // If we know dimensions and the image is narrower, use float-left layout

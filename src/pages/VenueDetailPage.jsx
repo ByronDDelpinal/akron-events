@@ -13,9 +13,9 @@ const PARKING_LABEL = {
 }
 
 const GRADIENT_MAP = {
-  music: 'g-jazz', art: 'g-art', community: 'g-market',
-  nonprofit: 'g-gala', food: 'g-market', sports: 'g-sports', fitness: 'g-run',
-  education: 'g-openmic', other: 'g-default',
+  music: 'gradient-jazz', art: 'gradient-art', community: 'gradient-market',
+  nonprofit: 'gradient-gala', food: 'gradient-market', sports: 'gradient-sports', fitness: 'gradient-run',
+  education: 'gradient-openmic', other: 'gradient-default',
 }
 const TAG_CLASS_MAP = {
   music: 'tag-music', art: 'tag-art', nonprofit: 'tag-nonprofit',
@@ -196,7 +196,7 @@ export default function VenueDetailPage() {
                 <div className="venue-areas-grid">
                   {venueAreas.map(area => (
                     <div key={area.id} className="venue-area-card">
-                      <h3 className="venue-area-name">{area.name}</h3>
+                      <h2 className="venue-area-name">{area.name}</h2>
                       {area.description && <p className="venue-area-desc">{area.description}</p>}
                       {area.capacity && <p className="venue-area-cap">Capacity: {area.capacity}</p>}
                     </div>
@@ -244,7 +244,7 @@ function VenueEventRow({ event }) {
   const navigate  = useNavigate()
   const price     = formatPrice(event.price_min, event.price_max)
   const imageUrl  = event.image_url && /^https?:\/\//i.test(event.image_url) ? event.image_url : null
-  const gradient  = imageUrl ? null : (GRADIENT_MAP[event.category] ?? 'g-default')
+  const gradient  = imageUrl ? null : (GRADIENT_MAP[event.category] ?? 'gradient-default')
   const tagClass  = TAG_CLASS_MAP[event.category] ?? 'tag-other'
   const catLabel  = CATEGORY_LABEL[event.category] ?? event.category
 

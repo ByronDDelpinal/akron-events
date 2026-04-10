@@ -37,14 +37,16 @@ function parseCategory(ev) {
   const types  = (ev.event_types ?? []).map(t => (t.name ?? '').toLowerCase())
   const tags   = ev.tags ? (Array.isArray(ev.tags) ? ev.tags.map(t => (t.name ?? '').toLowerCase()) : []) : []
   const all    = [...types, ...tags, group]
+  const has = (kw) => all.some(s => s.includes(kw))
+  const hasWord = (kw) => all.some(s => new RegExp(`\\b${kw}\\b`).test(s))
 
   if (group.includes('ej thomas') || group.includes('performing arts')) return 'art'
   if (group.includes('music') || group.includes('school of music')) return 'music'
   if (group.includes('art') || group.includes('school of art')) return 'art'
-  if (all.some(s => s.includes('athletic') || s.includes('sport'))) return 'sports'
-  if (all.some(s => s.includes('recreation'))) return 'fitness'
-  if (all.some(s => s.includes('lecture') || s.includes('seminar') || s.includes('workshop') || s.includes('class'))) return 'education'
-  if (all.some(s => s.includes('performance') || s.includes('recital') || s.includes('concert'))) {
+  if (has('athletic') || hasWord('sport')) return 'sports'
+  if (has('recreation')) return 'fitness'
+  if (has('lecture') || has('seminar') || has('workshop') || hasWord('class')) return 'education'
+  if (has('performance') || has('recital') || has('concert')) {
     if (group.includes('music') || group.includes('school of music')) return 'music'
     return 'art'
   }

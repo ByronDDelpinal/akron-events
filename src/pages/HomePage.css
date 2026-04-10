@@ -3,9 +3,9 @@
   background: var(--bg-nav);
   margin-top: -65px;
   padding-top: calc(52px + 65px);
-  padding-bottom: 60px;
-  padding-left: 20px;
-  padding-right: 20px;
+  padding-bottom: var(--space-60);
+  padding-left: var(--space-20);
+  padding-right: var(--space-20);
   text-align: center;
   position: relative;
 }
@@ -20,14 +20,14 @@
 .hero-eyebrow {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
   font-family: var(--font-display);
   font-size: var(--text-tag);
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--amber);
-  margin-bottom: 18px;
+  margin-bottom: var(--space-18);
   position: relative;
   z-index: 1;
 }
@@ -38,13 +38,15 @@
   opacity: 0.45;
 }
 .hero h1 {
-  font-family: var(--font-display);
-  font-size: clamp(2.4rem, 6vw, 3.6rem);
-  font-weight: 700;
+  /* The homepage hero is intentionally bigger than every other h1 in
+     the app — it uses the dedicated --text-display token. font-family /
+     weight come from the global h1 rule; only the visual overrides
+     (color, line-height, letter-spacing, margin) live here. */
+  font-size: var(--text-display);
   color: #FFFFFF;
   line-height: 1.1;
   letter-spacing: -0.035em;
-  margin-bottom: 14px;
+  margin-bottom: var(--space-14);
   position: relative; z-index: 1;
 }
 .hero h1 span { color: var(--amber); }
@@ -66,15 +68,15 @@
 }
 .search-input {
   width: 100%;
-  padding: 14px 20px 14px 48px;
-  border-radius: 14px;
-  border: 1.5px solid rgba(255,255,255,0.1);
+  padding: var(--space-14) var(--space-20) var(--space-14) var(--space-48);
+  border-radius: var(--radius-xl);
+  border: var(--border-width-medium) solid rgba(255,255,255,0.1);
   background: rgba(255,255,255,0.08);
   color: #FFFFFF;
   font-family: var(--font-body);
   font-size: var(--text-lg);
   outline: none;
-  transition: border-radius 0.15s, border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  transition: border-radius var(--transition-medium), border-color var(--transition-slow), background var(--transition-slow), box-shadow var(--transition-slow);
 }
 .search-input::placeholder { color: rgba(255,255,255,0.33); }
 .search-input:focus {
@@ -84,7 +86,7 @@
 }
 /* When dropdown is open, square off the bottom corners */
 .search-input--open {
-  border-radius: 14px 14px 0 0;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   border-bottom-color: rgba(255,255,255,0.06);
   box-shadow: none;
 }
@@ -102,9 +104,9 @@
   top: 100%;
   left: 0; right: 0;
   background: #1e1c18;
-  border: 1.5px solid var(--amber);
-  border-top: 1px solid rgba(255,255,255,0.06);
-  border-radius: 0 0 14px 14px;
+  border: var(--border-width-medium) solid var(--amber);
+  border-top: var(--border-width-thin) solid rgba(255,255,255,0.06);
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
   overflow: hidden;
   box-shadow: 0 16px 40px rgba(10,12,8,0.55);
   z-index: 50;
@@ -117,7 +119,7 @@
 }
 
 .search-suggestions-label {
-  padding: 10px 16px 6px;
+  padding: var(--space-10) var(--space-16) var(--space-6);
   font-family: var(--font-body);
   font-size: var(--text-tiny);
   font-weight: 700;
@@ -130,22 +132,22 @@
 .search-suggestion-item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-12);
   width: 100%;
-  padding: 11px 16px;
+  padding: var(--space-11) var(--space-16);
   background: transparent;
   border: none;
-  border-top: 1px solid rgba(255,255,255,0.06);
+  border-top: var(--border-width-thin) solid rgba(255,255,255,0.06);
   color: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background var(--transition-fast);
 }
 .search-suggestion-item:first-of-type { border-top: none; }
 .search-suggestion-item:hover { background: rgba(255,255,255,0.05); }
 
 .suggestion-emoji {
-  font-size: 18px;
+  font-size: var(--text-h5);
   width: 28px;
   text-align: center;
   flex-shrink: 0;
@@ -155,7 +157,7 @@
 .suggestion-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-2);
   min-width: 0;
 }
 
@@ -178,7 +180,7 @@
 /* ── STAT BAR ── */
 .stat-bar {
   background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width-thin) solid var(--border);
   position: relative;
 }
 .stat-bar::after {
@@ -193,10 +195,10 @@
 .stat-bar-inner {
   max-width: var(--width-full);
   margin: 0 auto;
-  padding: 9px 20px;
+  padding: var(--space-9) var(--space-20);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-6);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -204,11 +206,11 @@
 .stat-pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-5);
   background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 5px 12px;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: var(--space-5) var(--space-12);
   font-size: var(--text-xs);
   font-weight: 500;
   color: var(--text-muted);
@@ -216,13 +218,13 @@
   flex-shrink: 0;
 }
 .stat-pill strong { color: var(--amber); font-weight: 700; }
-.stat-sep { width: 1px; height: 16px; background: var(--border); flex-shrink: 0; margin: 0 3px; }
+.stat-sep { width: 1px; height: 16px; background: var(--border); flex-shrink: 0; margin: 0 var(--space-3); }
 
 /* ── VIEW MODE TOGGLE ROW ── */
 .view-mode-row {
   display: flex;
   justify-content: flex-end;
-  padding: 12px 0 4px;
+  padding: var(--space-12) 0 var(--space-4);
 }
 @media (max-width: 640px) {
   .view-mode-row { display: none; }
@@ -232,14 +234,14 @@
 /* Dim old content while a new filter result is loading.
    We keep the old cards in the DOM so there's no height collapse. */
 .content {
-  transition: opacity 0.18s ease;
+  transition: opacity var(--transition-slow) ease;
 }
 .content--refreshing {
   opacity: 0.32;
   pointer-events: none;
   /* Subtle desaturation signals "stale" without being jarring */
   filter: saturate(0.4);
-  transition: opacity 0.1s ease, filter 0.1s ease;
+  transition: opacity var(--transition-fast) ease, filter var(--transition-fast) ease;
 }
 
 /* ── CARD ENTRANCE ANIMATION ── */
@@ -259,8 +261,8 @@
 }
 
 /* ── DATE HEADINGS ── */
-.date-group { padding: 26px 0 12px; }
-.date-heading { display: flex; align-items: center; gap: 12px; }
+.date-group { padding: 26px 0 var(--space-12); }
+.date-heading { display: flex; align-items: center; gap: var(--space-12); }
 .date-label {
   font-family: var(--font-display);
   font-size: var(--text-lg);
@@ -278,23 +280,23 @@
   letter-spacing: 0.12em;
   background: var(--amber);
   color: #FFFFFF;
-  padding: 3px 8px;
-  border-radius: 4px;
+  padding: var(--space-3) var(--space-8);
+  border-radius: var(--radius-xs);
 }
 
 /* ── LOAD MORE ── */
-.load-more { text-align: center; padding: 20px 0 64px; }
+.load-more { text-align: center; padding: var(--space-20) 0 64px; }
 .btn-load-more {
   background: transparent;
-  border: 1.5px solid var(--border-mid);
-  border-radius: 12px;
+  border: var(--border-width-medium) solid var(--border-mid);
+  border-radius: var(--radius-lg);
   color: var(--text-muted);
-  padding: 12px 38px;
+  padding: var(--space-12) 38px;
   font-family: var(--font-display);
   font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-slow);
 }
 .btn-load-more:hover { border-color: var(--amber); color: var(--amber); }
 .btn-load-more:disabled { opacity: 0.55; cursor: default; }
@@ -309,23 +311,23 @@
 /* ── EMPTY STATE ── */
 .empty-state {
   text-align: center;
-  padding: 80px 20px;
+  padding: var(--space-80) var(--space-20);
   color: var(--text-muted);
   font-size: var(--text-base);
 }
 .empty-state.error { color: var(--coral); }
 .btn-clear {
-  margin-top: 12px;
+  margin-top: var(--space-12);
   background: transparent;
-  border: 1.5px solid var(--border-mid);
-  border-radius: 10px;
+  border: var(--border-width-medium) solid var(--border-mid);
+  border-radius: var(--radius-md);
   color: var(--text-muted);
-  padding: 8px 20px;
+  padding: var(--space-8) var(--space-20);
   font-family: var(--font-display);
   font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--transition-medium);
   display: block;
   margin-left: auto;
   margin-right: auto;
@@ -335,7 +337,7 @@
 /* ── GRID PROMO ── */
 /* When used as a standalone end-of-grid block */
 .grid-promo {
-  margin: 8px 0 24px;
+  margin: var(--space-8) 0 var(--space-24);
   width: 100%;
   box-sizing: border-box;
 }
@@ -351,8 +353,8 @@
   flex-direction: column;
   gap: 0;
   background: var(--bg-card);
-  border: 1px solid var(--amber-border);
-  border-radius: 16px;
+  border: var(--border-width-thin) solid var(--amber-border);
+  border-radius: var(--radius-xxl);
   overflow: hidden;
 }
 
@@ -368,8 +370,8 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 8px;
-  padding: 24px 28px;
+  gap: var(--space-8);
+  padding: var(--space-24) var(--space-28);
 }
 
 .grid-promo-divider {
@@ -390,17 +392,17 @@
 }
 
 .grid-promo-icon {
-  font-size: 1.5rem;
+  font-size: var(--text-h3);
   line-height: 1;
-  margin-bottom: 2px;
+  margin-bottom: var(--space-2);
 }
 
 .grid-promo-text strong {
   display: block;
-  font-size: 1rem;
+  font-size: var(--text-md);
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 2px;
+  margin-bottom: var(--space-2);
 }
 
 .grid-promo-text p {
@@ -411,20 +413,20 @@
 }
 
 .grid-promo-btn {
-  margin-top: 10px;
+  margin-top: var(--space-10);
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-4);
   background: transparent;
-  border: 1.5px solid var(--amber);
+  border: var(--border-width-medium) solid var(--amber);
   color: var(--amber);
-  border-radius: 8px;
-  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-8) var(--space-16);
   font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
   text-decoration: none;
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--transition-medium), color var(--transition-medium);
   align-self: center;
 }
 
@@ -446,5 +448,5 @@
 /* Promo injected inside the event grid — spans all columns */
 .cards-grid-promo {
   grid-column: 1 / -1;
-  margin: 4px 0;
+  margin: var(--space-4) 0;
 }

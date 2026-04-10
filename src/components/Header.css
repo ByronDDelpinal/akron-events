@@ -3,8 +3,8 @@ header {
   position: sticky;
   top: 0;
   z-index: 100;
-  border-bottom: 1px solid transparent;
-  transition: background 0.35s ease, border-color 0.35s ease;
+  border-bottom: var(--border-width-thin) solid transparent;
+  transition: background var(--transition-slowest) ease, border-color var(--transition-slowest) ease;
 }
 header.scrolled,
 header.menu-open {
@@ -13,7 +13,7 @@ header.menu-open {
 }
 
 .header-inner {
-  padding: 0 32px;
+  padding: 0 var(--space-32);
   height: 64px;
   display: flex;
   align-items: center;
@@ -22,20 +22,20 @@ header.menu-open {
 
 .nav-logo {
   font-family: var(--font-display);
-  font-size: 1.15rem;
+  font-size: var(--text-h5);
   font-weight: 700;
   color: #FFFFFF;
   text-decoration: none;
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: var(--space-9);
   letter-spacing: -0.02em;
   flex-shrink: 0;
   margin-right: 36px;
 }
 .logo-dot {
   width: 9px; height: 9px;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: var(--amber);
   box-shadow: 0 0 0 3px rgba(212,146,42,0.22);
   flex-shrink: 0;
@@ -45,7 +45,7 @@ header.menu-open {
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-2);
   flex: 1;
 }
 .nav-link {
@@ -56,9 +56,9 @@ header.menu-open {
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 8px 14px;
-  border-radius: 8px;
-  transition: color 0.15s, background 0.15s;
+  padding: var(--space-8) var(--space-14);
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-medium), background var(--transition-medium);
   white-space: nowrap;
   text-decoration: none;
   display: inline-block;
@@ -71,21 +71,21 @@ header.menu-open {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
 }
 .btn-nav-cta {
   flex-shrink: 0;
   background: var(--amber);
   color: var(--bg-nav);
-  border: 2px solid var(--amber);
-  border-radius: 22px;
-  padding: 7px 18px;
+  border: var(--border-width-thick) solid var(--amber);
+  border-radius: var(--radius-pill);
+  padding: var(--space-7) var(--space-18);
   font-family: var(--font-display);
   font-size: var(--text-sm);
   font-weight: 700;
   cursor: pointer;
   letter-spacing: 0.01em;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background var(--transition-medium), color var(--transition-medium), border-color var(--transition-medium);
   white-space: nowrap;
   text-decoration: none;
   display: inline-block;
@@ -94,7 +94,7 @@ header.menu-open {
 .btn-nav-cta-outline {
   background: transparent;
   color: var(--amber);
-  border: 2px solid var(--amber);
+  border: var(--border-width-thick) solid var(--amber);
 }
 .btn-nav-cta-outline:hover {
   background: rgba(212,146,42,0.12);
@@ -106,10 +106,10 @@ header.menu-open {
 .btn-nav-feedback {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 16px;
-  border-radius: 22px;
-  border: 2px solid var(--coral);
+  gap: var(--space-6);
+  padding: var(--space-7) var(--space-16);
+  border-radius: var(--radius-pill);
+  border: var(--border-width-thick) solid var(--coral);
   background: rgba(196,83,42,0.12);
   color: #fff;
   font-family: var(--font-display);
@@ -117,7 +117,7 @@ header.menu-open {
   font-weight: 700;
   text-decoration: none;
   white-space: nowrap;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background var(--transition-medium), border-color var(--transition-medium);
 }
 .btn-nav-feedback:hover {
   background: rgba(196,83,42,0.25);
@@ -130,25 +130,25 @@ header.menu-open {
   letter-spacing: 0.05em;
   background: var(--coral);
   color: #fff;
-  padding: 1px 6px;
-  border-radius: 4px;
+  padding: 1px var(--space-6);
+  border-radius: var(--radius-xs);
 }
 .mobile-nav-feedback {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
   font-family: var(--font-body);
   font-size: var(--text-lg);
   font-weight: 600;
   color: #fff;
   background: rgba(196,83,42,0.15);
-  border: 1px solid rgba(196,83,42,0.3);
-  border-radius: 10px;
+  border: var(--border-width-thin) solid rgba(196,83,42,0.3);
+  border-radius: var(--radius-md);
   text-align: left;
   cursor: pointer;
-  padding: 13px 12px;
-  margin-bottom: 4px;
-  transition: background 0.15s;
+  padding: var(--space-13) var(--space-12);
+  margin-bottom: var(--space-4);
+  transition: background var(--transition-medium);
 }
 .mobile-nav-feedback:hover { background: rgba(196,83,42,0.25); }
 
@@ -158,10 +158,10 @@ header.menu-open {
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 6px;
-  margin-left: 12px;
+  padding: var(--space-6);
+  margin-left: var(--space-12);
   flex-direction: column;
-  gap: 5px;
+  gap: var(--space-5);
   align-items: center;
   justify-content: center;
 }
@@ -169,8 +169,8 @@ header.menu-open {
   display: block;
   width: 22px; height: 2px;
   background: rgba(255,255,255,0.8);
-  border-radius: 2px;
-  transition: all 0.22s ease;
+  border-radius: var(--radius-xxs);
+  transition: all var(--transition-slow) ease;
   transform-origin: center;
 }
 .btn-hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
@@ -183,10 +183,10 @@ header.menu-open {
   position: fixed;
   top: 64px; left: 0; right: 0; bottom: 0;
   background: var(--bg-nav);
-  border-top: 1px solid rgba(255,255,255,0.06);
-  padding: 8px 20px 16px;
+  border-top: var(--border-width-thin) solid rgba(255,255,255,0.06);
+  padding: var(--space-8) var(--space-20) var(--space-16);
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-2);
   animation: menuDrop 0.2s ease;
   z-index: 99;
   overflow-y: auto;
@@ -203,35 +203,41 @@ header.menu-open {
   color: rgba(255,255,255,0.65);
   background: transparent; border: none;
   text-align: left; cursor: pointer;
-  padding: 13px 4px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  transition: color 0.15s;
+  padding: var(--space-13) var(--space-4);
+  border-bottom: var(--border-width-thin) solid rgba(255,255,255,0.06);
+  transition: color var(--transition-medium);
 }
 .mobile-nav-link:last-of-type { border-bottom: none; }
 .mobile-nav-link:hover,
 .mobile-nav-link.active { color: var(--amber); }
 .mobile-menu-cta {
-  margin-top: 6px;
+  margin-top: var(--space-6);
   background: var(--amber); color: var(--bg-nav);
-  border: none; border-radius: 10px;
-  padding: 13px; font-family: var(--font-display);
+  border: none; border-radius: var(--radius-md);
+  padding: var(--space-13); font-family: var(--font-display);
   font-size: var(--text-base); font-weight: 700;
-  cursor: pointer; transition: background 0.15s;
+  cursor: pointer; transition: background var(--transition-medium);
 }
 .mobile-menu-cta:hover { background: var(--amber-hover); }
 .mobile-menu-cta-outline {
   background: transparent;
   color: var(--amber);
-  border: 2px solid var(--amber);
+  border: var(--border-width-thick) solid var(--amber);
 }
 .mobile-menu-cta-outline:hover {
   background: rgba(212,146,42,0.12);
   color: var(--amber);
 }
 
-@media (max-width: 640px) {
+/* Switch to hamburger menu below Tailwind's xl breakpoint (1280px). The full
+   desktop nav content (logo + 6 nav links + 3 CTA buttons + padding) needs
+   ~1220px to fit comfortably, so any narrower viewport — tablets, small
+   laptops, or partially-resized browser windows — gets the hamburger. */
+@media (max-width: 1279px) {
   .nav-links { display: none; }
-  .header-inner { padding: 0 20px; position: relative; }
-  .btn-hamburger { display: flex; }
+  .header-inner { padding: 0 var(--space-20); position: relative; }
+  /* With nav-links and nav-cta-group both hidden, nothing is pulling the
+     hamburger to the right edge. margin-left: auto does that job. */
+  .btn-hamburger { display: flex; margin-left: auto; }
   .nav-cta-group { display: none; }
 }

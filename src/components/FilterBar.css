@@ -1,7 +1,7 @@
 /* ── Wrapper ── */
 .filter-bar {
   background: var(--bg-page);
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width-thin) solid var(--border);
   position: sticky;
   top: 64px;
   z-index: 90;
@@ -13,10 +13,10 @@
 .filter-date-row {
   display: flex;
   align-items: center;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width-thin) solid var(--border);
   max-width: var(--width-full);
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 var(--space-20);
 }
 
 /* Scrollable date tab strip */
@@ -31,17 +31,17 @@
 
 .date-tab {
   flex-shrink: 0;
-  padding: 12px 16px;
+  padding: var(--space-12) var(--space-16);
   background: transparent;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-bottom: var(--border-width-thick) solid transparent;
   color: var(--text-muted);
   font-family: var(--font-body);
   font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  transition: color 0.14s, border-color 0.14s;
+  transition: color var(--transition-medium), border-color var(--transition-medium);
   position: relative;
   /* Counteract the parent border-bottom so our own sits flush */
   margin-bottom: -1px;
@@ -58,13 +58,13 @@
   display: flex;
   align-items: center;
   background: var(--chip-bg);
-  border-radius: 22px;
-  padding: 3px;
-  gap: 2px;
+  border-radius: var(--radius-pill);
+  padding: var(--space-3);
+  gap: var(--space-2);
   flex-shrink: 0;
-  margin-left: 12px;
-  border-left: 1px solid var(--border);
-  padding-left: 14px;
+  margin-left: var(--space-12);
+  border-left: var(--border-width-thin) solid var(--border);
+  padding-left: var(--space-14);
   background: transparent;
   border-radius: 0;
 }
@@ -72,9 +72,9 @@
 .view-toggle-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 11px;
-  border-radius: 18px;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-11);
+  border-radius: var(--radius-pill);
   border: none;
   background: transparent;
   color: var(--chip-text);
@@ -82,7 +82,7 @@
   font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--transition-medium);
   white-space: nowrap;
 }
 .view-toggle-btn:hover { color: var(--amber); }
@@ -98,23 +98,23 @@
 .filter-intents-row {
   max-width: var(--width-full);
   margin: 0 auto;
-  padding: 9px 20px 0;
+  padding: var(--space-9) var(--space-20) 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
 }
 
 /* ════════════════════════════════
-   ROW 3 — More + Sort + View mode
+   ROW 3 — Filter & Sort + View mode
 ════════════════════════════════ */
 .filter-actions-row {
   max-width: var(--width-full);
   margin: 0 auto;
-  padding: 6px 20px 9px;
+  padding: var(--space-6) var(--space-20) var(--space-9);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-8);
 }
 
 /* Hide the view-mode toggle inside filter bar on desktop (it shows in the grid area instead) */
@@ -123,7 +123,7 @@
 /* Scrollable pill area */
 .filter-chips {
   display: flex;
-  gap: 7px;
+  gap: var(--space-7);
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -137,19 +137,19 @@
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 7px 14px;
-  border-radius: 22px;
+  gap: var(--space-5);
+  padding: var(--space-7) var(--space-14);
+  border-radius: var(--radius-pill);
   background: var(--chip-bg);
   color: var(--chip-text);
-  border: 1.5px solid transparent;
+  border: var(--border-width-medium) solid transparent;
   font-family: var(--font-body);
   font-size: var(--text-sm);
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
   flex-shrink: 0;
-  transition: all 0.14s;
+  transition: all var(--transition-medium);
   user-select: none;
 }
 .chip:hover { border-color: var(--amber); color: var(--text-secondary); }
@@ -162,7 +162,7 @@
 
 /* ── Intent chip emoji ── */
 .intent-emoji {
-  font-size: 14px;
+  font-size: var(--text-base);
   line-height: 1;
 }
 
@@ -174,11 +174,11 @@
   width: 14px;
   height: 14px;
   margin-left: 1px;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   font-size: var(--text-tiny);
   line-height: 1;
   opacity: 0.6;
-  transition: opacity 0.12s;
+  transition: opacity var(--transition-fast);
   cursor: pointer;
 }
 .chip-clear:hover { opacity: 1; }
@@ -186,7 +186,7 @@
 /* ── More button ── */
 .chip--more {
   background: var(--chip-bg);
-  gap: 6px;
+  gap: var(--space-6);
 }
 .chip--more.active {
   background: var(--amber-pale);
@@ -200,7 +200,7 @@
   justify-content: center;
   width: 16px;
   height: 16px;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: var(--amber);
   color: var(--chip-active-txt);
   font-size: var(--text-tiny);
@@ -208,35 +208,13 @@
   margin-left: 1px;
 }
 
-/* ── Fixed right-hand controls ── */
+/* ── Fixed left-hand controls ── */
 .filter-actions {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--space-7);
   flex-shrink: 0;
 }
-
-.f-divider {
-  width: 1px;
-  height: 20px;
-  background: var(--border);
-  flex-shrink: 0;
-}
-
-.sort-select {
-  background: var(--chip-bg);
-  color: var(--chip-text);
-  border: 1.5px solid transparent;
-  border-radius: 22px;
-  padding: 7px 12px;
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  outline: none;
-  flex-shrink: 0;
-  transition: border-color 0.14s;
-}
-.sort-select:hover { border-color: var(--border-mid); }
 
 /* ════════════════════════════════
    Active filter summary strip
@@ -244,11 +222,11 @@
 .filter-active-strip {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--space-7);
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  padding: 0 20px 10px;
+  padding: 0 var(--space-20) var(--space-10);
   max-width: var(--width-full);
   margin: 0 auto;
   width: 100%;
@@ -258,11 +236,11 @@
 .active-pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 10px 3px 12px;
-  border-radius: 20px;
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-10) var(--space-3) var(--space-12);
+  border-radius: var(--radius-pill);
   background: var(--amber-pale);
-  border: 1px solid var(--amber-border);
+  border: var(--border-width-thin) solid var(--amber-border);
   color: var(--amber);
   font-family: var(--font-body);
   font-size: var(--text-xs);
@@ -278,10 +256,10 @@
   width: 13px;
   height: 13px;
   font-size: var(--text-tiny);
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   opacity: 0.65;
   cursor: pointer;
-  transition: opacity 0.12s;
+  transition: opacity var(--transition-fast);
 }
 .active-pill-x:hover { opacity: 1; }
 
@@ -317,12 +295,16 @@
   .filter-date-row,
   .filter-intents-row,
   .filter-actions-row,
-  .filter-active-strip { padding-left: 14px; padding-right: 14px; }
+  .filter-active-strip { padding-left: var(--space-14); padding-right: var(--space-14); }
 
-  .date-tab { padding: 11px 12px; font-size: var(--text-sm); }
+  .date-tab { padding: var(--space-11) var(--space-12); font-size: var(--text-sm); }
 
-  .view-toggle { border-left: none; padding-left: 8px; }
+  .view-toggle { border-left: none; padding-left: var(--space-8); }
 
-  /* Show the view-mode toggle inside filter bar on mobile */
-  .filter-actions-row .view-mode-toggle { display: inline-flex; }
+  /* Show the view-mode toggle inside filter bar on mobile (desktop shows it
+     in the grid area). justify-content: space-between on .filter-actions-row
+     keeps it right-aligned against the viewport edge. */
+  .filter-actions-row .view-mode-toggle {
+    display: inline-flex;
+  }
 }

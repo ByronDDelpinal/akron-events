@@ -68,14 +68,14 @@ export default function FilterTray({
 
   return (
     <div className="tray-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="tray-sheet" role="dialog" aria-modal="true" aria-label="More filters">
+      <div className="tray-sheet" role="dialog" aria-modal="true" aria-label="Filter and sort">
 
         {/* Drag handle */}
         <div className="tray-handle" />
 
         {/* Header */}
         <div className="tray-header">
-          <span className="tray-title">More Filters</span>
+          <span className="tray-title">Filter &amp; Sort</span>
           <button className="tray-clear-btn" onClick={clearAll}>Clear all</button>
         </div>
 

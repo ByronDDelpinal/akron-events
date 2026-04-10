@@ -4,17 +4,17 @@
 .venue-area-row {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  margin-bottom: 12px;
-  padding: 14px;
+  gap: var(--space-10);
+  margin-bottom: var(--space-12);
+  padding: var(--space-14);
   background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-md);
 }
 .venue-area-fields {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--space-10);
   flex: 1;
 }
 .venue-area-fields .form-input {
@@ -25,26 +25,26 @@
   width: 28px; height: 28px;
   display: flex; align-items: center; justify-content: center;
   border: none; background: var(--bg-card);
-  border-radius: 6px; font-size: var(--text-sm);
+  border-radius: var(--radius-sm); font-size: var(--text-sm);
   cursor: pointer; color: var(--text-muted);
-  transition: all 0.12s;
-  margin-top: 6px;
+  transition: all var(--transition-fast);
+  margin-top: var(--space-6);
   flex-shrink: 0;
 }
 .venue-area-remove:hover { color: var(--coral); background: var(--coral-pale); }
 
 .venue-add-area-btn {
   display: inline-flex; align-items: center;
-  padding: 8px 16px;
+  padding: var(--space-8) var(--space-16);
   background: var(--amber-pale);
-  border: 1px dashed var(--amber-border);
-  border-radius: 8px;
+  border: var(--border-width-thin) dashed var(--amber-border);
+  border-radius: var(--radius-sm);
   font-family: var(--font-display);
   font-size: var(--text-sm); font-weight: 600;
   color: var(--amber);
   cursor: pointer;
-  transition: all 0.12s;
-  margin-bottom: 18px;
+  transition: all var(--transition-fast);
+  margin-bottom: var(--space-18);
 }
 .venue-add-area-btn:hover {
   background: var(--amber);
@@ -56,17 +56,17 @@
    INLINE VENUE BLOCK (org submit page)
 ════════════════════════════════════════ */
 .inline-venue-block {
-  border: 1.5px solid var(--border);
-  border-radius: 12px;
-  padding: 20px 18px 8px;
+  border: var(--border-width-medium) solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-20) var(--space-18) var(--space-8);
   background: var(--bg-secondary);
-  margin-bottom: 22px;
+  margin-bottom: var(--space-22);
 }
 .inline-venue-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: var(--space-16);
 }
 .inline-venue-title {
   font-family: var(--font-display);
@@ -81,9 +81,9 @@
   font-size: var(--text-sm);
   color: var(--coral);
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
-  transition: background 0.12s;
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
 }
 .inline-venue-remove:hover {
   background: var(--coral-pale);

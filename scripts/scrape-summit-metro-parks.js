@@ -31,10 +31,15 @@ function parseCategory(categories = [], tags = []) {
     ...categories.map(c => (c.name ?? c.slug ?? '').toLowerCase()),
     ...tags.map(t => (t.name ?? t.slug ?? '').toLowerCase()),
   ]
-  if (names.some(n => n.includes('music') || n.includes('concert'))) return 'music'
-  if (names.some(n => n.includes('fitness') || n.includes('run') || n.includes('bike') || n.includes('paddle'))) return 'fitness'
-  if (names.some(n => n.includes('sport'))) return 'sports'
-  if (names.some(n => n.includes('educat') || n.includes('program') || n.includes('class') || n.includes('workshop') || n.includes('learn'))) return 'education'
+  // Word-boundary helpers — prevents substring false positives like
+  // "pruning" → fitness, "classical" → education, "transport" → sports.
+  const has    = (kw) => names.some(n => n.includes(kw))
+  const hasWord = (kw) => names.some(n => new RegExp(`\\b${kw}\\b`).test(n))
+
+  if (has('music') || has('concert')) return 'music'
+  if (has('fitness') || hasWord('run') || hasWord('bike') || has('paddle')) return 'fitness'
+  if (hasWord('sport')) return 'sports'
+  if (has('educat') || has('program') || hasWord('class') || has('workshop') || has('learn')) return 'education'
   return 'community'
 }
 

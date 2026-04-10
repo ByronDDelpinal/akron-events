@@ -279,7 +279,7 @@ export default function FeedbackPage() {
     <>
       {/* ── Hero ─────────────────────────────────────────────────────── */}
       <div className="fb-hero">
-        <h2>Town <span>Square</span></h2>
+        <h1>Town <span>Square</span></h1>
         <p>
           Turnout is shaped by the people who use it.
           Share what's working, what's not, and where we should go next.

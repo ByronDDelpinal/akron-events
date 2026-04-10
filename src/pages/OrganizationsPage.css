@@ -5,7 +5,7 @@
 /* ── Hero ── */
 .orgs-hero {
   background: var(--bg-nav);
-  padding: 52px 20px 44px;
+  padding: var(--space-52) var(--space-20) var(--space-44);
   text-align: center;
 }
 .orgs-hero-inner { max-width: 640px; margin: 0 auto; }
@@ -13,14 +13,13 @@
   font-family: var(--font-display);
   font-size: var(--text-tiny); font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.14em;
-  color: var(--amber); margin-bottom: 10px;
+  color: var(--amber); margin-bottom: var(--space-10);
 }
 .orgs-hero-title {
-  font-family: var(--font-display);
-  font-size: clamp(1.6rem, 4vw, 2.4rem);
-  font-weight: 700; color: #FFFFFF;
-  letter-spacing: -0.025em; line-height: 1.1;
-  margin-bottom: 10px;
+  /* font-family / weight / size from global h1. Hero overrides only. */
+  color: #FFFFFF;
+  line-height: 1.1;
+  margin-bottom: var(--space-10);
 }
 .orgs-hero-sub {
   font-size: var(--text-base); color: rgba(255,255,255,0.6);
@@ -31,13 +30,13 @@
 .orgs-body {
   max-width: var(--width-full);
   margin: 0 auto;
-  padding: 0 20px 80px;
+  padding: 0 var(--space-20) var(--space-80);
 }
 
 /* ── Search ── */
 .orgs-search-row {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 16px; padding: 28px 0 20px; flex-wrap: wrap;
+  gap: var(--space-16); padding: var(--space-28) 0 var(--space-20); flex-wrap: wrap;
 }
 .orgs-search-wrap {
   position: relative; flex: 1; max-width: 420px;
@@ -47,16 +46,16 @@
   color: var(--text-muted);
 }
 .orgs-search {
-  width: 100%; padding: 10px 14px 10px 40px;
-  border: 1.5px solid var(--border); border-radius: 10px;
+  width: 100%; padding: var(--space-10) var(--space-14) var(--space-10) var(--space-40);
+  border: var(--border-width-medium) solid var(--border); border-radius: var(--radius-md);
   background: var(--bg-card); font-size: var(--text-base);
   color: var(--text-primary); outline: none;
-  transition: border-color 0.15s;
+  transition: border-color var(--transition-medium);
 }
 .orgs-search:focus { border-color: var(--amber); }
 .orgs-search-clear {
   position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-  background: var(--bg-secondary); border: none; border-radius: 6px;
+  background: var(--bg-secondary); border: none; border-radius: var(--radius-sm);
   width: 22px; height: 22px; font-size: var(--text-tag);
   cursor: pointer; color: var(--text-muted);
 }
@@ -68,23 +67,23 @@
 
 /* ── States ── */
 .orgs-state {
-  text-align: center; padding: 60px 20px;
+  text-align: center; padding: var(--space-60) var(--space-20);
   color: var(--text-muted); font-size: var(--text-base);
 }
-.orgs-state-sub { font-size: var(--text-sm); margin-top: 4px; }
+.orgs-state-sub { font-size: var(--text-sm); margin-top: var(--space-4); }
 .orgs-spinner {
   width: 28px; height: 28px;
-  border: 3px solid var(--border);
+  border: var(--border-width-thickest) solid var(--border);
   border-top-color: var(--amber);
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   animation: spin 0.7s linear infinite;
-  margin: 0 auto 12px;
+  margin: 0 auto var(--space-12);
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 .orgs-clear-btn {
-  margin-top: 12px; padding: 8px 18px;
-  background: var(--amber-pale); border: 1px solid var(--amber-border);
-  border-radius: 8px; font-size: var(--text-sm); font-weight: 600;
+  margin-top: var(--space-12); padding: var(--space-8) var(--space-18);
+  background: var(--amber-pale); border: var(--border-width-thin) solid var(--amber-border);
+  border-radius: var(--radius-sm); font-size: var(--text-sm); font-weight: 600;
   color: var(--amber); cursor: pointer;
 }
 
@@ -92,18 +91,18 @@
 .orgs-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 18px;
+  gap: var(--space-18);
 }
 
 /* ── Org Card ── */
 .org-card {
   display: flex; flex-direction: column;
   background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-xl);
   overflow: hidden;
   text-decoration: none;
-  transition: box-shadow 0.2s, transform 0.2s;
+  transition: box-shadow var(--transition-slow), transform var(--transition-slow);
   cursor: pointer;
 }
 .org-card:hover {
@@ -126,29 +125,32 @@
   background: linear-gradient(140deg, var(--green-deep) 0%, var(--green-mid) 100%);
 }
 .org-card-initial {
+  /* Big single-letter avatar — sized like an h1 so it scales with the
+     heading scale rather than drifting on its own. */
   font-family: var(--font-display);
-  font-size: 2.4rem; font-weight: 700;
+  font-size: var(--text-h1);
+  font-weight: var(--font-weight-bold);
   color: rgba(255,255,255,0.7);
 }
-.org-card-body { padding: 16px 18px 18px; flex: 1; }
+.org-card-body { padding: var(--space-16) var(--space-18) var(--space-18); flex: 1; }
 .org-card-name {
-  font-family: var(--font-display);
-  font-size: 1rem; font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 3px;
+  /* h2 inside an org card — overriding the global --text-h2 down to
+     body+ scale. font-family / weight come from the global rule. */
+  font-size: var(--text-md);
+  margin-bottom: var(--space-3);
   line-height: 1.25;
 }
 .org-card-location {
   font-size: var(--text-sm); color: var(--text-muted);
-  margin-bottom: 6px;
+  margin-bottom: var(--space-6);
 }
 .org-card-desc {
   font-size: var(--text-sm); color: var(--text-secondary);
   line-height: 1.5;
-  margin-bottom: 10px;
+  margin-bottom: var(--space-10);
 }
 .org-card-stats {
-  display: flex; gap: 12px;
+  display: flex; gap: var(--space-12);
 }
 .org-stat {
   font-family: var(--font-display);
@@ -156,35 +158,35 @@
   text-transform: uppercase; letter-spacing: 0.06em;
   color: var(--text-muted);
   background: var(--bg-secondary);
-  padding: 3px 8px; border-radius: 5px;
+  padding: var(--space-3) var(--space-8); border-radius: var(--radius-xs);
 }
 
 /* ── CTA ── */
-.orgs-cta-section { margin-top: 48px; }
+.orgs-cta-section { margin-top: var(--space-48); }
 .orgs-cta-card {
   background: var(--amber-pale);
-  border: 1px solid var(--amber-border);
-  border-radius: 16px;
-  padding: 32px;
+  border: var(--border-width-thin) solid var(--amber-border);
+  border-radius: var(--radius-xxl);
+  padding: var(--space-32);
   text-align: center;
 }
 .orgs-cta-title {
-  font-family: var(--font-display);
-  font-size: 1.15rem; font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 6px;
+  /* h3 — but the CTA card wants a more compact heading than the global
+     --text-h3 (1.5rem). Override to --text-h4 (1.25rem). */
+  font-size: var(--text-h4);
+  margin-bottom: var(--space-6);
 }
 .orgs-cta-sub {
   font-size: var(--text-sm); color: var(--text-secondary);
-  margin-bottom: 18px;
+  margin-bottom: var(--space-18);
 }
 .orgs-cta-btn {
   display: inline-block;
   background: var(--amber); color: #FFFFFF;
-  padding: 12px 24px; border-radius: 10px;
+  padding: var(--space-12) var(--space-24); border-radius: var(--radius-md);
   font-family: var(--font-display);
   font-size: var(--text-sm); font-weight: 700;
   text-decoration: none;
-  transition: background 0.15s;
+  transition: background var(--transition-medium);
 }
 .orgs-cta-btn:hover { background: var(--amber-hover); }

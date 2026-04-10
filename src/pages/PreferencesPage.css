@@ -5,13 +5,13 @@
 .prefs-sub { text-align: left; }
 
 .prefs-hint {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-12);
   margin-top: 0;
 }
 
 .prefs-no-token {
   text-align: center;
-  padding: 60px 0;
+  padding: var(--space-60) 0;
 }
 
 .amber-link {
@@ -26,24 +26,24 @@
 .cat-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 24px;
+  gap: var(--space-8);
+  margin-bottom: var(--space-24);
 }
 
 .cat-chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 8px 14px;
-  border: 1.5px solid var(--border);
-  border-radius: 20px;
+  gap: var(--space-5);
+  padding: var(--space-8) var(--space-14);
+  border: var(--border-width-medium) solid var(--border);
+  border-radius: var(--radius-pill);
   background: var(--bg-card);
   color: var(--text-secondary);
   font-family: var(--font-body);
   font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color var(--transition-medium), background var(--transition-medium);
 }
 .cat-chip:hover:not(:disabled) {
   border-color: var(--border-mid);
@@ -67,9 +67,9 @@
 .prefs-checkbox {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-  margin-bottom: 20px;
+  gap: var(--space-8);
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-20);
   font-family: var(--font-body);
   font-size: var(--text-xxs);
   font-weight: 500;
@@ -90,11 +90,11 @@
 }
 .pill.pill-sm {
   flex: none;
-  padding: 8px 12px;
+  padding: var(--space-8) var(--space-12);
   font-size: var(--text-xs);
 }
 .prefs-row {
-  margin-bottom: 8px;
+  margin-bottom: var(--space-8);
 }
 @media (max-width: 500px) {
   .prefs-row { grid-template-columns: 1fr; }
@@ -103,21 +103,21 @@
 /* ── Day-of-week filter ── */
 .day-shortcuts {
   display: flex;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: var(--space-8);
+  margin-bottom: var(--space-10);
 }
 
 .day-grid {
   display: flex;
-  gap: 6px;
-  margin-bottom: 24px;
+  gap: var(--space-6);
+  margin-bottom: var(--space-24);
 }
 
 .day-chip {
   flex: 1;
-  padding: 10px 4px;
-  border: 1.5px solid var(--border);
-  border-radius: 10px;
+  padding: var(--space-10) var(--space-4);
+  border: var(--border-width-medium) solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--bg-card);
   color: var(--text-muted);
   font-family: var(--font-display);
@@ -125,7 +125,7 @@
   font-weight: 600;
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  transition: border-color var(--transition-medium), background var(--transition-medium), color var(--transition-medium);
 }
 .day-chip:hover {
   border-color: var(--border-mid);
@@ -139,33 +139,33 @@
 
 /* ── Location filter ── */
 .location-section {
-  margin-bottom: 24px;
+  margin-bottom: var(--space-24);
 }
 
 .location-mode-row {
   display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: var(--space-8);
+  margin-bottom: var(--space-12);
 }
 
 .area-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: var(--space-8);
+  margin-bottom: var(--space-12);
 }
 
 .area-chip {
-  padding: 8px 14px;
-  border: 1.5px solid var(--border);
-  border-radius: 20px;
+  padding: var(--space-8) var(--space-14);
+  border: var(--border-width-medium) solid var(--border);
+  border-radius: var(--radius-pill);
   background: var(--bg-card);
   color: var(--text-secondary);
   font-family: var(--font-body);
   font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color var(--transition-medium), background var(--transition-medium);
 }
 .area-chip:hover {
   border-color: var(--border-mid);
@@ -178,25 +178,25 @@
 }
 
 .zipcode-row {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-12);
 }
 .zipcode-input {
   max-width: 160px;
 }
 
 .radius-group {
-  margin-top: 4px;
+  margin-top: var(--space-4);
   margin-bottom: 0;
 }
 
 /* ── Save button state ── */
-.prefs-save-btn { margin-top: 12px; }
+.prefs-save-btn { margin-top: var(--space-12); }
 
 .prefs-saved-msg {
   font-size: var(--text-xs);
   color: var(--green-mid);
   text-align: center;
-  margin-top: 10px;
+  margin-top: var(--space-10);
   font-weight: 600;
 }
 
@@ -204,7 +204,7 @@
   font-size: var(--text-xs);
   color: var(--coral);
   text-align: center;
-  margin-top: 10px;
+  margin-top: var(--space-10);
   font-weight: 600;
 }
 
@@ -212,5 +212,5 @@
   text-align: center;
   color: var(--text-muted);
   font-size: var(--text-sm);
-  padding: 60px 0;
+  padding: var(--space-60) 0;
 }

@@ -15,10 +15,10 @@
 /* ── Sheet ── */
 .tray-sheet {
   background: var(--bg-card);
-  border-radius: 20px 20px 0 0;
-  border: 1px solid var(--border);
+  border-radius: var(--radius-pill) var(--radius-pill) 0 0;
+  border: var(--border-width-thin) solid var(--border);
   border-bottom: none;
-  padding: 0 24px 48px;
+  padding: 0 var(--space-24) var(--space-48);
   width: 100%;
   max-width: 640px;
   max-height: 88vh;
@@ -39,8 +39,8 @@
   width: 38px;
   height: 4px;
   background: var(--border-mid);
-  border-radius: 2px;
-  margin: 14px auto 0;
+  border-radius: var(--radius-xxs);
+  margin: var(--space-14) auto 0;
 }
 
 /* ── Header ── */
@@ -48,14 +48,14 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 0 18px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 22px;
+  padding: var(--space-16) 0 var(--space-18);
+  border-bottom: var(--border-width-thin) solid var(--border);
+  margin-bottom: var(--space-22);
 }
 
 .tray-title {
   font-family: var(--font-display);
-  font-size: 1rem;
+  font-size: var(--text-md);
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -68,14 +68,14 @@
   font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
-  padding: 4px 0;
-  transition: opacity 0.14s;
+  padding: var(--space-4) 0;
+  transition: opacity var(--transition-medium);
 }
 .tray-clear-btn:hover { opacity: 0.75; }
 
 /* ── Section ── */
 .tray-section {
-  margin-bottom: 24px;
+  margin-bottom: var(--space-24);
 }
 
 .tray-section-label {
@@ -85,29 +85,29 @@
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--text-muted);
-  margin: 0 0 10px;
+  margin: 0 0 var(--space-10);
 }
 
 /* ── Chip row ── */
 .tray-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-8);
 }
 
 .tray-chip {
   display: inline-flex;
   align-items: center;
-  padding: 7px 15px;
-  border-radius: 22px;
-  border: 1.5px solid var(--border);
+  padding: var(--space-7) 15px;
+  border-radius: var(--radius-pill);
+  border: var(--border-width-medium) solid var(--border);
   background: transparent;
   color: var(--text-secondary);
   font-family: var(--font-body);
   font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.14s;
+  transition: all var(--transition-medium);
   white-space: nowrap;
 }
 .tray-chip:hover {
@@ -124,13 +124,13 @@
 /* ── Date range ── */
 .tray-date-row {
   display: flex;
-  gap: 12px;
+  gap: var(--space-12);
 }
 
 .tray-date-label {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: var(--space-5);
   flex: 1;
   font-family: var(--font-body);
   font-size: var(--text-tag);
@@ -141,31 +141,31 @@
 }
 
 .tray-date-input {
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1.5px solid var(--border);
+  padding: var(--space-8) var(--space-10);
+  border-radius: var(--radius-md);
+  border: var(--border-width-medium) solid var(--border);
   background: var(--bg-secondary);
   color: var(--text-primary);
   font-family: var(--font-body);
   font-size: var(--text-sm);
   outline: none;
   cursor: pointer;
-  transition: border-color 0.14s;
+  transition: border-color var(--transition-medium);
   width: 100%;
 }
 .tray-date-input:focus { border-color: var(--amber); }
 
 .tray-date-clear {
-  margin-top: 10px;
-  padding: 7px 14px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
+  margin-top: var(--space-10);
+  padding: var(--space-7) var(--space-14);
+  border-radius: var(--radius-sm);
+  border: var(--border-width-thin) solid var(--border);
   background: transparent;
   color: var(--text-muted);
   font-family: var(--font-body);
   font-size: var(--text-xs);
   cursor: pointer;
-  transition: all 0.13s;
+  transition: all var(--transition-fast);
 }
 .tray-date-clear:hover {
   border-color: var(--coral);
@@ -176,9 +176,9 @@
 .tray-cta {
   display: block;
   width: 100%;
-  margin-top: 8px;
+  margin-top: var(--space-8);
   padding: 15px;
-  border-radius: 14px;
+  border-radius: var(--radius-xl);
   border: none;
   background: var(--amber);
   color: var(--chip-active-txt);
@@ -187,18 +187,18 @@
   font-weight: 700;
   letter-spacing: -0.01em;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--transition-medium);
 }
 .tray-cta:hover { background: var(--amber-hover); }
 
 /* ── Mobile tweaks ── */
 @media (max-width: 640px) {
   .tray-sheet {
-    padding: 0 16px 48px;
+    padding: 0 var(--space-16) var(--space-48);
     max-height: 92vh;
   }
   .tray-date-row {
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-8);
   }
 }

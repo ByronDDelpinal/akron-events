@@ -10,14 +10,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: var(--space-24);
   animation: modal-fadeIn 0.15s ease;
 }
 
 .modal-container {
   position: relative;
   background: var(--bg-card);
-  border-radius: 14px;
+  border-radius: var(--radius-xl);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
   max-height: calc(100vh - 48px);
   overflow: auto;
@@ -50,12 +50,12 @@
   justify-content: center;
   border: none;
   background: var(--bg-secondary);
-  border-radius: 8px;
-  font-size: 1.1rem;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-h5);
   line-height: 1;
   cursor: pointer;
   color: var(--text-muted);
-  transition: all 0.12s;
+  transition: all var(--transition-fast);
   z-index: 1;
 }
 .modal-close:hover {
@@ -67,7 +67,7 @@
 .modal--bare .modal-close {
   background: rgba(255, 255, 255, 0.9);
   color: #333;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 .modal--bare .modal-close:hover {
@@ -87,6 +87,6 @@
 
 /* Mobile */
 @media (max-width: 600px) {
-  .modal-backdrop { padding: 16px; }
+  .modal-backdrop { padding: var(--space-16); }
   .modal-container { max-height: calc(100vh - 32px); }
 }

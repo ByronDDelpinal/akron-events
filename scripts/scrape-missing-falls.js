@@ -41,12 +41,15 @@ function parseImage(imageObj, descriptionHtml = '') {
 function parseCategory(categories = [], title = '') {
   const slugs = categories.map(c => c.slug?.toLowerCase() ?? '')
   const t = title.toLowerCase()
-  if (slugs.some(s => s.includes('music') || s.includes('concert') || s.includes('live'))) return 'music'
-  if (slugs.some(s => s.includes('trivia') || s.includes('game') || s.includes('bingo'))) return 'community'
-  if (slugs.some(s => s.includes('art') || s.includes('comedy') || s.includes('show'))) return 'art'
-  if (slugs.some(s => s.includes('food') || s.includes('tasting') || s.includes('pairing'))) return 'food'
-  if (slugs.some(s => s.includes('fitness') || s.includes('run'))) return 'fitness'
-  if (slugs.some(s => s.includes('sport'))) return 'sports'
+  const has = (kw) => slugs.some(s => s.includes(kw))
+  const hasWord = (kw) => slugs.some(s => new RegExp(`\\b${kw}\\b`).test(s))
+
+  if (has('music') || has('concert') || has('live')) return 'music'
+  if (has('trivia') || has('game') || has('bingo')) return 'community'
+  if (has('art') || has('comedy') || has('show')) return 'art'
+  if (has('food') || has('tasting') || has('pairing')) return 'food'
+  if (has('fitness') || hasWord('run')) return 'fitness'
+  if (hasWord('sport')) return 'sports'
   if (t.includes('trivia') || t.includes('bingo') || t.includes('game night')) return 'community'
   if (t.includes('live') || t.includes('music') || t.includes('band') || t.includes('dj')) return 'music'
   // Brewery events default to community

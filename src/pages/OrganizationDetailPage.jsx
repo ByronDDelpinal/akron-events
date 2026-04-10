@@ -7,9 +7,9 @@ import './OrganizationDetailPage.css'
 const EVENTS_PAGE_SIZE = 25
 
 const GRADIENT_MAP = {
-  music: 'g-jazz', art: 'g-art', community: 'g-market',
-  nonprofit: 'g-gala', food: 'g-market', sports: 'g-sports', fitness: 'g-run',
-  education: 'g-openmic', other: 'g-default',
+  music: 'gradient-jazz', art: 'gradient-art', community: 'gradient-market',
+  nonprofit: 'gradient-gala', food: 'gradient-market', sports: 'gradient-sports', fitness: 'gradient-run',
+  education: 'gradient-openmic', other: 'gradient-default',
 }
 const TAG_CLASS_MAP = {
   music: 'tag-music', art: 'tag-art', nonprofit: 'tag-nonprofit',
@@ -209,7 +209,7 @@ function OrgVenuesSection({ venues }) {
               <Link key={v.id} to={`/venues/${v.id}`} className="org-venue-card">
                 <div className="org-venue-card-accent" />
                 <div className="org-venue-card-body">
-                  <h3 className="org-venue-card-name">{v.name}</h3>
+                  <h2 className="org-venue-card-name">{v.name}</h2>
                   <p className="org-venue-card-address">
                     {[v.address, v.city, v.state].filter(Boolean).join(', ')}
                   </p>
@@ -303,7 +303,7 @@ function OrgEventRow({ event }) {
   const navigate = useNavigate()
   const price = formatPrice(event.price_min, event.price_max)
   const imageUrl = event.image_url && /^https?:\/\//i.test(event.image_url) ? event.image_url : null
-  const gradient = imageUrl ? null : (GRADIENT_MAP[event.category] ?? 'g-default')
+  const gradient = imageUrl ? null : (GRADIENT_MAP[event.category] ?? 'gradient-default')
   const tagClass = TAG_CLASS_MAP[event.category] ?? 'tag-other'
   const catLabel = CATEGORY_LABEL[event.category] ?? event.category
   const venueName = event.venue?.name ?? event.venues?.[0]?.name

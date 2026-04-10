@@ -17,7 +17,8 @@ const DATE_TABS = [
  *
  * Row 1: Date tabs (All / Today / This Weekend / This Week / This Month) + List/Map toggle
  * Row 2: Curated intent pill bar (full-width scrollable)
- * Row 3: "More" button (opens FilterTray) + sort select + view mode toggle (mobile only)
+ * Row 3: "Filter & Sort" button (opens FilterTray, which houses sort + all advanced filters)
+ *        + compact/comfortable view-mode toggle (mobile only — desktop shows it in the grid area)
  *
  * Active filter summary strip renders below when any filter is on.
  */
@@ -124,7 +125,7 @@ export default function FilterBar({
           </div>
         </div>
 
-        {/* ── Row 3: More + Sort + View mode toggle ── */}
+        {/* ── Row 3: Filter & Sort + View mode toggle ── */}
         <div className="filter-actions-row">
           <div className="filter-actions">
             <button
@@ -132,24 +133,11 @@ export default function FilterBar({
               onClick={() => setTrayOpen(true)}
             >
               <SlidersIcon />
-              More
+              Filter &amp; Sort
               {trayActiveCount > 0 && (
                 <span className="more-badge">{trayActiveCount}</span>
               )}
             </button>
-
-            <div className="f-divider" />
-
-            <select
-              className="sort-select"
-              value={sort}
-              onChange={e => onSort(e.target.value)}
-              aria-label="Sort events"
-            >
-              <option value="soonest">Sort: Soonest</option>
-              <option value="latest">Sort: Latest</option>
-              <option value="recent">Sort: Recently Added</option>
-            </select>
           </div>
 
           {cardViewMode && onCardViewMode && (

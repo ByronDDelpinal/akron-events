@@ -56,6 +56,184 @@
   --tag-fitness-bg:   #E4F2EE; --tag-fitness-txt:   #0C5438;
   --tag-education-bg: #EAF0FA; --tag-education-txt: #1A3060;
   --tag-other-bg:     #F0F0F0; --tag-other-txt:     #555555;
+
+  /* ──────────────────────────────────────────────────────────────────
+     Spacing scale
+     Numeric naming: --space-N where N is the pixel value.
+     Tokens exist for every value used ≥ 5 times in the codebase;
+     rare one-offs stay as raw literals until the design-system pass.
+
+     Dense range (2-20, every 2 px + frequent odd values):
+  ────────────────────────────────────────────────────────────────── */
+  --space-2:   2px;
+  --space-3:   3px;
+  --space-4:   4px;
+  --space-5:   5px;
+  --space-6:   6px;
+  --space-7:   7px;
+  --space-8:   8px;
+  --space-9:   9px;
+  --space-10:  10px;
+  --space-11:  11px;
+  --space-12:  12px;
+  --space-13:  13px;
+  --space-14:  14px;
+  --space-16:  16px;
+  --space-18:  18px;
+  --space-20:  20px;
+  /* Wider jumps (24+): */
+  --space-22:  22px;
+  --space-24:  24px;
+  --space-28:  28px;
+  --space-32:  32px;
+  --space-40:  40px;
+  --space-44:  44px;
+  --space-48:  48px;
+  --space-52:  52px;
+  --space-60:  60px;
+  --space-80:  80px;
+  --space-100: 100px;
+
+  /* ──────────────────────────────────────────────────────────────────
+     Heading type scale
+     Drives the global h1–h6 element styles below. Pages get correct
+     heading sizes for free — class overrides only needed when a heading
+     deliberately deviates (the homepage hero, for example, uses
+     --text-display since it's intentionally bigger than h1).
+
+     h1 and h2 are fluid (clamp) so they breathe across viewport widths;
+     h3–h6 are static because they're used inside cards/modals where the
+     surrounding container already constrains width.
+  ────────────────────────────────────────────────────────────────── */
+  --text-display: clamp(2.4rem, 6vw, 3.6rem);  /* Homepage hero — bigger than h1 */
+  --text-h1:      clamp(2rem,   5vw,   2.6rem);
+  --text-h2:      clamp(1.5rem, 3.5vw, 2rem);
+  --text-h3:      1.5rem;   /* absorbs 1.4, 1.5 */
+  --text-h4:      1.25rem;  /* absorbs 1.15, 1.2, 1.25, 1.3 */
+  --text-h5:      1.1rem;
+  --text-h6:      1rem;     /* absorbs 1, 1.05 */
+
+  /* Non-heading body+ size for inputs/buttons that want to read a touch
+     bigger than --text-lg (0.95rem) without crossing into heading territory. */
+  --text-md: 1rem;
+
+  /* ──────────────────────────────────────────────────────────────────
+     Border radius
+     A 7-tier numerical scale plus two semantic tokens (pill, round).
+     Tiers absorb close-by values from the original codebase:
+       xxs (2px) — hairlines, accent dividers
+       xs  (5px) — absorbs 4, 5: tiny badges, age pills, tag chips
+       sm  (8px) — absorbs 6, 7, 8, 9: small buttons, chips, icon btns
+       md  (10px) — inputs, nav buttons, alerts, area rows
+       lg  (12px) — CTA buttons, info cards, action btns
+       xl  (14px) — search input, modal containers, large cards
+       xxl (16px) — event cards, hero containers, admin cards
+     pill (999px) absorbs the 18/20/22 px "pill-at-typical-height" values.
+     round (50%) for true circles.
+  ────────────────────────────────────────────────────────────────── */
+  --radius-xxs:   2px;
+  --radius-xs:    5px;
+  --radius-sm:    8px;
+  --radius-md:    10px;
+  --radius-lg:    12px;
+  --radius-xl:    14px;
+  --radius-xxl:   16px;
+  --radius-pill:  999px;
+  --radius-round: 50%;
+
+  /* ──────────────────────────────────────────────────────────────────
+     Border widths
+     Named --border-width-* (not --border-*) to avoid colliding with
+     the --border color variable above.
+       thin     (1px)   — hairline borders, most cards/dividers/inputs
+       medium   (1.5px) — light emphasis: chips, inputs, focused states
+       thick    (2px)   — medium emphasis: nav CTAs, active filter tabs
+       thicker  (2.5px) — strong emphasis: avatar rings, map markers
+       thickest (3px)   — heaviest: hero icon rings, accent stripes
+  ────────────────────────────────────────────────────────────────── */
+  --border-width-thin:     1px;
+  --border-width-medium:   1.5px;
+  --border-width-thick:    2px;
+  --border-width-thicker:  2.5px;
+  --border-width-thickest: 3px;
+
+  /* ──────────────────────────────────────────────────────────────────
+     Font weights
+  ────────────────────────────────────────────────────────────────── */
+  --font-weight-regular: 500;
+  --font-weight-medium:  600;
+  --font-weight-bold:    700;
+
+  /* ──────────────────────────────────────────────────────────────────
+     Letter spacing
+  ────────────────────────────────────────────────────────────────── */
+  --letter-spacing-tight:  -0.02em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide:   0.07em;
+  --letter-spacing-wider:  0.12em;
+
+  /* ──────────────────────────────────────────────────────────────────
+     Line heights
+  ────────────────────────────────────────────────────────────────── */
+  --line-height-tight:   1.2;
+  --line-height-normal:  1.5;
+  --line-height-relaxed: 1.7;
+
+  /* ──────────────────────────────────────────────────────────────────
+     Shadows (additions to existing --shadow-card / --shadow-hover)
+  ────────────────────────────────────────────────────────────────── */
+  --shadow-modal:   0 20px 60px rgba(0, 0, 0, 0.2);
+  --shadow-popover: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --shadow-focus:   0 0 0 3px rgba(212, 146, 42, 0.2);
+
+  /* ──────────────────────────────────────────────────────────────────
+     Transitions
+     A 4-tier duration scale absorbing all timings used in the codebase.
+     Differences under ~0.05s are visually indistinguishable, so close
+     values fold into the nearest tier:
+       fast    (0.12s) — absorbs 0.10, 0.13: hover tints, opacity flips
+       medium  (0.15s) — absorbs 0.14: default UI transitions (most common)
+       slow    (0.22s) — absorbs 0.18, 0.20: card lifts, transform/shadow
+       slowest (0.35s) — long background/border fades (intentional)
+  ────────────────────────────────────────────────────────────────── */
+  --transition-fast:    0.12s;
+  --transition-medium:  0.15s;
+  --transition-slow:    0.22s;
+  --transition-slowest: 0.35s;
+
+  /* ──────────────────────────────────────────────────────────────────
+     Z-index layers
+  ────────────────────────────────────────────────────────────────── */
+  --z-index-base:    1;
+  --z-index-sticky:  100;
+  --z-index-overlay: 400;
+  --z-index-modal:   1000;
+
+  /* ──────────────────────────────────────────────────────────────────
+     Overlay rgba helpers (dark-mode prep)
+     Used for translucent surfaces on dark backgrounds (light overlays)
+     and shadows / dim layers (dark overlays).
+  ────────────────────────────────────────────────────────────────── */
+  --overlay-light-06: rgba(255, 255, 255, 0.06);
+  --overlay-light-10: rgba(255, 255, 255, 0.10);
+  --overlay-light-25: rgba(255, 255, 255, 0.25);
+  --overlay-light-50: rgba(255, 255, 255, 0.50);
+  --overlay-dark-10:  rgba(0, 0, 0, 0.10);
+  --overlay-dark-20:  rgba(0, 0, 0, 0.20);
+
+  /* ──────────────────────────────────────────────────────────────────
+     Gradients
+     One full linear-gradient() string per variable. The .gradient-*
+     classes (Phase 2) will reference these via background.
+  ────────────────────────────────────────────────────────────────── */
+  --gradient-jazz:    linear-gradient(140deg, #162806 0%, #2A5C18 55%, #D4922A 100%);
+  --gradient-art:     linear-gradient(140deg, #180A26 0%, #481870 55%, #9848E0 100%);
+  --gradient-market:  linear-gradient(140deg, #082010 0%, #186030 50%, #68AF78 100%);
+  --gradient-gala:    linear-gradient(140deg, #180808 0%, #501828 50%, #D4922A 100%);
+  --gradient-openmic: linear-gradient(140deg, #100828 0%, #2E1060 45%, #8050D0 100%);
+  --gradient-sports:  linear-gradient(140deg, #081828 0%, #1040A0 50%, #60B8E8 100%);
+  --gradient-run:     linear-gradient(140deg, #0A2818 0%, #18784A 50%, #58C888 100%);
+  --gradient-default: linear-gradient(140deg, #1D2B1F 0%, #3A6B4A 55%, #D4922A 100%);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -70,28 +248,56 @@ a { color: inherit; }
 button { font-family: inherit; }
 
 /* ════════════════════════════════
-   GRADIENT THUMBNAILS
+   HEADINGS
+   Global element styles for h1–h6. Every heading in the app inherits
+   font-family, weight, line-height, letter-spacing, and color from this
+   block; only font-size differs per level. Pages override per-class only
+   when a heading needs different color (e.g. white-on-dark hero) or
+   margin (every component handles its own spacing).
+
+   The * { margin: 0 } reset above means class-level margin-bottom rules
+   layer on top cleanly without fighting browser defaults.
 ════════════════════════════════ */
-.g-jazz    { background: linear-gradient(140deg,#162806 0%,#2A5C18 55%,#D4922A 100%); }
-.g-art     { background: linear-gradient(140deg,#180A26 0%,#481870 55%,#9848E0 100%); }
-.g-market  { background: linear-gradient(140deg,#082010 0%,#186030 50%,#68AF78 100%); }
-.g-gala    { background: linear-gradient(140deg,#180808 0%,#501828 50%,#D4922A 100%); }
-.g-openmic { background: linear-gradient(140deg,#100828 0%,#2E1060 45%,#8050D0 100%); }
-.g-sports  { background: linear-gradient(140deg,#081828 0%,#1040A0 50%,#60B8E8 100%); }
-.g-run     { background: linear-gradient(140deg,#0A2818 0%,#18784A 50%,#58C888 100%); }
-.g-default { background: linear-gradient(140deg,#1D2B1F 0%,#3A6B4A 55%,#D4922A 100%); }
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-tight);
+  color: var(--text-primary);
+}
+h1 { font-size: var(--text-h1); }
+h2 { font-size: var(--text-h2); }
+h3 { font-size: var(--text-h3); }
+h4 { font-size: var(--text-h4); }
+h5 { font-size: var(--text-h5); }
+h6 { font-size: var(--text-h6); }
+
+/* ════════════════════════════════
+   GRADIENT THUMBNAILS
+   Each class pulls its full linear-gradient() from a --gradient-* token
+   defined in :root above, so swapping themes (or going dark mode) only
+   touches the variable definitions, not these utility classes.
+════════════════════════════════ */
+.gradient-jazz    { background: var(--gradient-jazz); }
+.gradient-art     { background: var(--gradient-art); }
+.gradient-market  { background: var(--gradient-market); }
+.gradient-gala    { background: var(--gradient-gala); }
+.gradient-openmic { background: var(--gradient-openmic); }
+.gradient-sports  { background: var(--gradient-sports); }
+.gradient-run     { background: var(--gradient-run); }
+.gradient-default { background: var(--gradient-default); }
 
 /* ════════════════════════════════
    EVENT TAGS
 ════════════════════════════════ */
 .event-tag {
   font-family: var(--font-display);
-  font-size: 0.64rem;
+  font-size: var(--text-tiny);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   padding: 3px 8px;
-  border-radius: 5px;
+  border-radius: var(--radius-xs);
 }
 .tag-music     { background: var(--tag-music-bg);     color: var(--tag-music-txt); }
 .tag-art       { background: var(--tag-art-bg);       color: var(--tag-art-txt); }

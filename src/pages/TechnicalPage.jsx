@@ -383,7 +383,7 @@ export default function TechnicalPage() {
       <div className="tp-hero">
         <div className="tp-hero__inner">
           <p className="tp-hero__eyebrow">Turnout / Open Infrastructure</p>
-          <h2 className="tp-hero__title">Technical Details</h2>
+          <h1 className="tp-hero__title">Technical Details</h1>
           <p className="tp-hero__sub">
             A transparent look at how event data flows into this site — every source,
             every scraper, and the live health of each pipeline.
@@ -414,7 +414,7 @@ export default function TechnicalPage() {
         {/* ── Data Sources ── */}
         <section className="tp-section">
           <div className="tp-section__hd">
-            <h3 className="tp-section__title">Data Sources</h3>
+            <h2 className="tp-section__title">Data Sources</h2>
             <p className="tp-section__desc">
               Events are pulled from {DATA_SOURCES.length} sources — official REST APIs,
               WordPress and Tribe Events endpoints, and direct HTML scrapers. All ingestion
@@ -461,7 +461,7 @@ export default function TechnicalPage() {
         {/* ── Scraper Health ── */}
         <section className="tp-section">
           <div className="tp-section__hd">
-            <h3 className="tp-section__title">Scraper Health</h3>
+            <h2 className="tp-section__title">Scraper Health</h2>
             <p className="tp-section__desc">
               Every time a scraper runs it writes a record here. An alert fires when a
               scraper hasn't run in 26+ hours, returns an error, or produces zero events
@@ -537,7 +537,7 @@ export default function TechnicalPage() {
         {/* ── How it works ── */}
         <section className="tp-section tp-section--how">
           <div className="tp-section__hd">
-            <h3 className="tp-section__title">How It Works</h3>
+            <h2 className="tp-section__title">How It Works</h2>
           </div>
           <div className="tp-how-grid">
             <div className="tp-how-step">

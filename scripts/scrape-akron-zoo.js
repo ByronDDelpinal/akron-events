@@ -114,7 +114,10 @@ function resolveUrl(href) {
 
 function parseCategory(title = '') {
   const lower = title.toLowerCase()
-  if (lower.includes('camp') || lower.includes('class') || lower.includes('program') || lower.includes('education') || lower.includes('learn')) return 'education'
+  const has = (kw) => lower.includes(kw)
+  const hasWord = (kw) => new RegExp(`\\b${kw}\\b`).test(lower)
+
+  if (has('camp') || hasWord('class') || has('program') || has('education') || has('learn')) return 'education'
   return 'community'
 }
 
