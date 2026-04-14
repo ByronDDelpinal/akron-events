@@ -14,7 +14,7 @@
   top: -80px; left: 50%;
   transform: translateX(-50%);
   width: min(780px, 100vw); height: 440px;
-  background: radial-gradient(ellipse, rgba(212,146,42,0.19) 0%, transparent 62%);
+  background: radial-gradient(ellipse, var(--amber-tint-25) 0%, transparent 62%);
   pointer-events: none;
 }
 .hero-eyebrow {
@@ -43,7 +43,7 @@
      weight come from the global h1 rule; only the visual overrides
      (color, line-height, letter-spacing, margin) live here. */
   font-size: var(--text-display);
-  color: #FFFFFF;
+  color: var(--white);
   line-height: 1.1;
   letter-spacing: -0.035em;
   margin-bottom: var(--space-lg);
@@ -54,7 +54,7 @@
   font-family: var(--font-body);
   font-size: var(--text-lg);
   font-weight: 300;
-  color: rgba(255,255,255,0.46);
+  color: var(--overlay-light-50);
   max-width: 340px;
   margin: 0 auto var(--space-3xl);
   line-height: 1.6;
@@ -70,31 +70,31 @@
   width: 100%;
   padding: var(--space-lg) var(--space-xl) var(--space-lg) var(--space-4xl);
   border-radius: var(--radius-xl);
-  border: var(--border-width-medium) solid rgba(255,255,255,0.1);
-  background: rgba(255,255,255,0.08);
-  color: #FFFFFF;
+  border: var(--border-width-medium) solid var(--overlay-light-12);
+  background: var(--overlay-light-05);
+  color: var(--white);
   font-family: var(--font-body);
   font-size: var(--text-lg);
   outline: none;
   transition: border-radius var(--transition-medium), border-color var(--transition-slow), background var(--transition-slow), box-shadow var(--transition-slow);
 }
-.search-input::placeholder { color: rgba(255,255,255,0.33); }
+.search-input::placeholder { color: var(--overlay-light-30); }
 .search-input:focus {
-  background: rgba(255,255,255,0.12);
+  background: var(--overlay-light-12);
   border-color: var(--amber);
-  box-shadow: 0 0 0 3px rgba(212,146,42,0.14);
+  box-shadow: 0 0 0 3px var(--amber-tint-10);
 }
 /* When dropdown is open, square off the bottom corners */
 .search-input--open {
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-  border-bottom-color: rgba(255,255,255,0.06);
+  border-bottom-color: var(--overlay-light-05);
   box-shadow: none;
 }
 .search-icon {
   position: absolute;
-  left: 16px; top: 50%;
+  left: var(--space-lg); top: 50%;
   transform: translateY(-50%);
-  color: rgba(255,255,255,0.33);
+  color: var(--overlay-light-30);
   pointer-events: none;
 }
 
@@ -103,12 +103,12 @@
   position: absolute;
   top: 100%;
   left: 0; right: 0;
-  background: #1e1c18;
+  background: var(--green-deep);
   border: var(--border-width-medium) solid var(--amber);
-  border-top: var(--border-width-thin) solid rgba(255,255,255,0.06);
+  border-top: var(--border-width-thin) solid var(--overlay-light-05);
   border-radius: 0 0 var(--radius-xl) var(--radius-xl);
   overflow: hidden;
-  box-shadow: 0 16px 40px rgba(10,12,8,0.55);
+  box-shadow: 0 16px 40px var(--overlay-dark-55);
   z-index: 50;
 
   animation: suggestIn 0.18s cubic-bezier(0.22, 1, 0.36, 1);
@@ -125,7 +125,7 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.3);
+  color: var(--overlay-light-30);
   margin: 0;
 }
 
@@ -137,14 +137,14 @@
   padding: var(--space-md) var(--space-lg);
   background: transparent;
   border: none;
-  border-top: var(--border-width-thin) solid rgba(255,255,255,0.06);
+  border-top: var(--border-width-thin) solid var(--overlay-light-05);
   color: inherit;
   text-align: left;
   cursor: pointer;
   transition: background var(--transition-fast);
 }
 .search-suggestion-item:first-of-type { border-top: none; }
-.search-suggestion-item:hover { background: rgba(255,255,255,0.05); }
+.search-suggestion-item:hover { background: var(--overlay-light-05); }
 
 .suggestion-emoji {
   font-size: var(--text-h5);
@@ -165,7 +165,7 @@
   font-family: var(--font-body);
   font-size: var(--text-base);
   font-weight: 500;
-  color: rgba(255,255,255,0.88);
+  color: var(--overlay-light-90);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -174,7 +174,7 @@
 .suggestion-tagline {
   font-family: var(--font-body);
   font-size: var(--text-xs);
-  color: rgba(255,255,255,0.38);
+  color: var(--overlay-light-30);
 }
 
 /* ── STAT BAR ── */
@@ -279,7 +279,7 @@
   text-transform: uppercase;
   letter-spacing: 0.12em;
   background: var(--amber);
-  color: #FFFFFF;
+  color: var(--white);
   padding: var(--space-2xs) var(--space-sm);
   border-radius: var(--radius-xs);
 }
@@ -432,7 +432,7 @@
 
 .grid-promo-btn:hover {
   background: var(--amber);
-  color: #fff;
+  color: var(--white);
 }
 
 .grid-promo-btn--subscribe {

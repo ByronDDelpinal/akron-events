@@ -39,14 +39,14 @@
 }
 .venue-detail-title {
   /* font-family / weight / size from global h1. Hero overrides only. */
-  color: #FFFFFF;
+  color: var(--white);
   letter-spacing: -0.03em;
   line-height: 1.1;
   margin-bottom: var(--space-md);
 }
 .venue-detail-address {
   font-size: var(--text-base);
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--overlay-light-50);
 }
 
 /* ── Content wrap ── */
@@ -307,7 +307,7 @@
   font-family: var(--font-display);
   font-size: var(--text-tiny); font-weight: 800;
   text-transform: uppercase; letter-spacing: 0.1em;
-  background: #FDF2DC; color: #7A4E08;
+  background: var(--amber-pale); color: var(--tag-nonprofit-txt);
   padding: var(--space-2xs) var(--space-sm); border-radius: var(--radius-xs);
 }
 

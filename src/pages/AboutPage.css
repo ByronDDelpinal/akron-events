@@ -7,12 +7,12 @@
   /* font-family, weight, line-height, letter-spacing all come from the
      global h1 rule in globals.css. We override only color (white on the
      dark hero) and margin. font-size is left to default (--text-h1). */
-  color: #FFFFFF;
+  color: var(--white);
   margin-bottom: var(--space-md);
 }
 .about-hero h1 span { color: var(--amber); }
 .about-hero p {
-  font-size: var(--text-base); color: rgba(255,255,255,0.48);
+  font-size: var(--text-base); color: var(--overlay-light-50);
   max-width: 460px; margin: 0 auto; line-height: 1.65;
 }
 .about-body-wrap { max-width: var(--width-full); margin: var(--space-4xl) auto; padding: 0 var(--space-xl) var(--space-5xl); }
@@ -107,7 +107,7 @@
   display: inline-block;
   flex-shrink: 0;
   background: var(--bg-nav);
-  color: rgba(255,255,255,0.88);
+  color: var(--overlay-light-90);
   font-family: var(--font-display);
   font-size: var(--text-sm);
   font-weight: 700;
@@ -120,6 +120,6 @@
 }
 .about-technical-btn:hover {
   background: var(--green-mid);
-  color: #fff;
+  color: var(--white);
   text-decoration: none;
 }

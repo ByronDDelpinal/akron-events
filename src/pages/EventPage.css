@@ -52,11 +52,11 @@
 .banner-scrim {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 55%);
+  background: linear-gradient(to top, var(--overlay-dark-55) 0%, transparent 55%);
 }
 .banner-tags {
   position: absolute;
-  bottom: 24px; left: 28px;
+  bottom: var(--space-2xl); left: var(--space-2xl);
   z-index: 1;
   display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center;
 }
@@ -94,7 +94,7 @@
   font-size: var(--text-tiny); font-weight: 800;
   text-transform: uppercase; letter-spacing: 0.1em;
   color: var(--coral); background: var(--coral-pale);
-  border: var(--border-width-thin) solid rgba(196,83,42,0.2);
+  border: var(--border-width-thin) solid var(--coral-tint-25);
   padding: var(--space-2xs) var(--space-sm); border-radius: var(--radius-xs);
   display: inline-block; margin-bottom: var(--space-md);
 }
@@ -209,7 +209,7 @@
 
 .btn-ticket {
   display: block; width: 100%;
-  background: var(--amber); color: #FFFFFF;
+  background: var(--amber); color: var(--bg-card);
   border: none; border-radius: var(--radius-lg); padding: var(--space-lg);
   font-family: var(--font-display);
   font-size: var(--text-base); font-weight: 700;

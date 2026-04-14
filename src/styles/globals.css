@@ -12,6 +12,8 @@
   --text-tag:  0.7rem;    /* Eyebrows, section labels, tags         */
   --text-tiny: 0.64rem;   /* Smallest labels, badges                */
 
+  --white:         #FFFFFF;
+
   --bg-page:       #FAF6EF;
   --bg-card:       #FFFFFF;
   --bg-secondary:  #F0EAE0;
@@ -30,6 +32,7 @@
   --green-mid:      #3A6B4A;
 
   --coral:          #C4532A;
+  --coral-hover:    #A8401E;
   --coral-pale:     #FAEAE4;
 
   --border:         #E0D9CA;
@@ -200,16 +203,52 @@
   --z-index-modal:   1000;
 
   /* ──────────────────────────────────────────────────────────────────
-     Overlay rgba helpers (dark-mode prep)
-     Used for translucent surfaces on dark backgrounds (light overlays)
-     and shadows / dim layers (dark overlays).
+     Overlay scales (dark-mode prep)
+     Constrained opacity tiers — close values absorb into the nearest
+     tier. Covers translucent surfaces on dark backgrounds (light),
+     dim / shadow layers (dark), and branded tints (amber, coral).
+
+     Light overlays — 6 tiers:
+       05  (5%)  — subtle hover tints on nav/dark surfaces
+       12  (12%) — moderate hover/focus highlights
+       30  (30%) — glass panels, translucent badges
+       50  (50%) — half-transparent masks
+       70  (70%) — near-opaque overlays
+       90  (90%) — almost-solid white surfaces
+
+     Dark overlays — 3 tiers:
+       15  (15%) — light dimming, subtle shadows
+       30  (30%) — medium overlays, backdrops
+       55  (55%) — heavy dimming, scrim layers
+
+     Amber tints — 3 tiers:
+       10  (10%) — subtle amber wash
+       25  (25%) — amber borders, light emphasis
+       50  (50%) — strong amber tint
+
+     Coral tints — 3 tiers:
+       15  (15%) — subtle coral wash
+       25  (25%) — coral borders, light emphasis
+       35  (35%) — strong coral tint
   ────────────────────────────────────────────────────────────────── */
-  --overlay-light-06: rgba(255, 255, 255, 0.06);
-  --overlay-light-10: rgba(255, 255, 255, 0.10);
-  --overlay-light-25: rgba(255, 255, 255, 0.25);
+  --overlay-light-05: rgba(255, 255, 255, 0.05);
+  --overlay-light-12: rgba(255, 255, 255, 0.12);
+  --overlay-light-30: rgba(255, 255, 255, 0.30);
   --overlay-light-50: rgba(255, 255, 255, 0.50);
-  --overlay-dark-10:  rgba(0, 0, 0, 0.10);
-  --overlay-dark-20:  rgba(0, 0, 0, 0.20);
+  --overlay-light-70: rgba(255, 255, 255, 0.70);
+  --overlay-light-90: rgba(255, 255, 255, 0.90);
+
+  --overlay-dark-15:  rgba(0, 0, 0, 0.15);
+  --overlay-dark-30:  rgba(0, 0, 0, 0.30);
+  --overlay-dark-55:  rgba(0, 0, 0, 0.55);
+
+  --amber-tint-10:    rgba(212, 146, 42, 0.10);
+  --amber-tint-25:    rgba(212, 146, 42, 0.25);
+  --amber-tint-50:    rgba(212, 146, 42, 0.50);
+
+  --coral-tint-15:    rgba(196, 83, 42, 0.15);
+  --coral-tint-25:    rgba(196, 83, 42, 0.25);
+  --coral-tint-35:    rgba(196, 83, 42, 0.35);
 
   /* ──────────────────────────────────────────────────────────────────
      Gradients

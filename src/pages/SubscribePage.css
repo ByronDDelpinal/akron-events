@@ -44,7 +44,7 @@
 .intent-card.intent-active {
   border-color: var(--amber);
   background: var(--amber-pale);
-  box-shadow: 0 0 0 3px rgba(212,146,42,0.1);
+  box-shadow: 0 0 0 3px var(--amber-tint-10);
 }
 .intent-emoji {
   font-size: var(--text-h3);

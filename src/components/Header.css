@@ -9,7 +9,7 @@ header {
 header.scrolled,
 header.menu-open {
   background: var(--bg-nav);
-  border-bottom-color: rgba(255,255,255,0.06);
+  border-bottom-color: var(--overlay-light-05);
 }
 
 .header-inner {
@@ -24,7 +24,7 @@ header.menu-open {
   font-family: var(--font-display);
   font-size: var(--text-h5);
   font-weight: 700;
-  color: #FFFFFF;
+  color: var(--white);
   text-decoration: none;
   display: flex;
   align-items: center;
@@ -37,7 +37,7 @@ header.menu-open {
   width: 9px; height: 9px;
   border-radius: var(--radius-round);
   background: var(--amber);
-  box-shadow: 0 0 0 3px rgba(212,146,42,0.22);
+  box-shadow: 0 0 0 3px var(--amber-tint-25);
   flex-shrink: 0;
 }
 .nav-logo .amber { color: var(--amber); }
@@ -52,7 +52,7 @@ header.menu-open {
   font-family: var(--font-body);
   font-size: var(--text-sm);
   font-weight: 500;
-  color: rgba(255,255,255,0.6);
+  color: var(--overlay-light-50);
   background: transparent;
   border: none;
   cursor: pointer;
@@ -63,7 +63,7 @@ header.menu-open {
   text-decoration: none;
   display: inline-block;
 }
-.nav-link:hover { color: #FFFFFF; background: rgba(255,255,255,0.07); }
+.nav-link:hover { color: var(--white); background: var(--overlay-light-05); }
 .nav-link.active { color: var(--amber); font-weight: 600; }
 
 .nav-cta-group {
@@ -97,7 +97,7 @@ header.menu-open {
   border: var(--border-width-thick) solid var(--amber);
 }
 .btn-nav-cta-outline:hover {
-  background: rgba(212,146,42,0.12);
+  background: var(--amber-tint-10);
   color: var(--amber);
   border-color: var(--amber);
 }
@@ -110,8 +110,8 @@ header.menu-open {
   padding: var(--space-sm) var(--space-lg);
   border-radius: var(--radius-pill);
   border: var(--border-width-thick) solid var(--coral);
-  background: rgba(196,83,42,0.12);
-  color: #fff;
+  background: var(--coral-tint-15);
+  color: var(--white);
   font-family: var(--font-display);
   font-size: var(--text-sm);
   font-weight: 700;
@@ -120,7 +120,7 @@ header.menu-open {
   transition: background var(--transition-medium), border-color var(--transition-medium);
 }
 .btn-nav-feedback:hover {
-  background: rgba(196,83,42,0.25);
+  background: var(--coral-tint-25);
 }
 .feedback-badge {
   font-family: var(--font-display);
@@ -129,7 +129,7 @@ header.menu-open {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   background: var(--coral);
-  color: #fff;
+  color: var(--white);
   padding: 1px var(--space-sm);
   border-radius: var(--radius-xs);
 }
@@ -140,9 +140,9 @@ header.menu-open {
   font-family: var(--font-body);
   font-size: var(--text-lg);
   font-weight: 600;
-  color: #fff;
-  background: rgba(196,83,42,0.15);
-  border: var(--border-width-thin) solid rgba(196,83,42,0.3);
+  color: var(--white);
+  background: var(--coral-tint-15);
+  border: var(--border-width-thin) solid var(--coral-tint-25);
   border-radius: var(--radius-md);
   text-align: left;
   cursor: pointer;
@@ -150,7 +150,7 @@ header.menu-open {
   margin-bottom: var(--space-xs);
   transition: background var(--transition-medium);
 }
-.mobile-nav-feedback:hover { background: rgba(196,83,42,0.25); }
+.mobile-nav-feedback:hover { background: var(--coral-tint-25); }
 
 /* ── HAMBURGER ── */
 .btn-hamburger {
@@ -168,7 +168,7 @@ header.menu-open {
 .btn-hamburger span {
   display: block;
   width: 22px; height: 2px;
-  background: rgba(255,255,255,0.8);
+  background: var(--overlay-light-90);
   border-radius: var(--radius-xxs);
   transition: all var(--transition-slow) ease;
   transform-origin: center;
@@ -183,7 +183,7 @@ header.menu-open {
   position: fixed;
   top: 64px; left: 0; right: 0; bottom: 0;
   background: var(--bg-nav);
-  border-top: var(--border-width-thin) solid rgba(255,255,255,0.06);
+  border-top: var(--border-width-thin) solid var(--overlay-light-05);
   padding: var(--space-sm) var(--space-xl) var(--space-lg);
   flex-direction: column;
   gap: var(--space-2xs);
@@ -200,11 +200,11 @@ header.menu-open {
 .mobile-nav-link {
   font-family: var(--font-body);
   font-size: var(--text-lg); font-weight: 500;
-  color: rgba(255,255,255,0.65);
+  color: var(--overlay-light-70);
   background: transparent; border: none;
   text-align: left; cursor: pointer;
   padding: var(--space-md) var(--space-xs);
-  border-bottom: var(--border-width-thin) solid rgba(255,255,255,0.06);
+  border-bottom: var(--border-width-thin) solid var(--overlay-light-05);
   transition: color var(--transition-medium);
 }
 .mobile-nav-link:last-of-type { border-bottom: none; }
@@ -225,7 +225,7 @@ header.menu-open {
   border: var(--border-width-thick) solid var(--amber);
 }
 .mobile-menu-cta-outline:hover {
-  background: rgba(212,146,42,0.12);
+  background: var(--amber-tint-10);
   color: var(--amber);
 }
 

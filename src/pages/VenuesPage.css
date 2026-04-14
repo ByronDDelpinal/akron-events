@@ -24,14 +24,14 @@
   /* font-family / weight / size all from the global h1 rule. We tighten
      line-height and letter-spacing for the hero look, and override color
      for white-on-dark. */
-  color: #FFFFFF;
+  color: var(--white);
   letter-spacing: -0.03em;
   line-height: 1.1;
   margin-bottom: var(--space-lg);
 }
 .venues-hero-sub {
   font-size: var(--text-base);
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--overlay-light-50);
   line-height: 1.65;
   max-width: 480px;
 }
@@ -61,7 +61,7 @@
 }
 .venues-search-wrap > svg {
   position: absolute;
-  left: 14px;
+  left: var(--space-lg);
   color: var(--text-muted);
   pointer-events: none;
   flex-shrink: 0;
@@ -82,7 +82,7 @@
 .venues-search::placeholder { color: var(--text-muted); }
 .venues-search-clear {
   position: absolute;
-  right: 12px;
+  right: var(--space-md);
   background: none;
   border: none;
   cursor: pointer;

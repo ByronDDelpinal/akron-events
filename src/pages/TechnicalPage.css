@@ -18,12 +18,12 @@
 }
 .tp-hero__title {
   /* font-family / weight / size from global h1. Hero overrides only. */
-  color: #fff;
+  color: var(--white);
   margin-bottom: var(--space-md);
 }
 .tp-hero__sub {
   font-size: var(--text-base);
-  color: rgba(255,255,255,0.46);
+  color: var(--overlay-light-50);
   line-height: 1.65;
 }
 
@@ -107,7 +107,7 @@
   box-shadow: var(--shadow-card);
 }
 .tp-source--degraded {
-  border-color: rgba(196,83,42,0.35);
+  border-color: var(--coral-tint-35);
   background: rgba(250,234,228,0.45);
 }
 .tp-source__top {
@@ -178,7 +178,7 @@
   border-radius: var(--radius-xs);
   white-space: nowrap;
 }
-.tp-badge--active   { background: #e4f0e6; color: #1a5428; }
+.tp-badge--active   { background: var(--tag-music-bg); color: var(--tag-music-txt); }
 .tp-badge--degraded { background: var(--coral-pale); color: var(--coral); }
 .tp-badge--planned  { background: var(--chip-bg);    color: var(--chip-text); }
 
@@ -192,9 +192,9 @@
   text-transform: uppercase;
   white-space: nowrap;
 }
-.tp-method--rest-api    { background: #e4eef8; color: #1a3e70; }
-.tp-method--hybrid-api  { background: #f2e8fa; color: #621a80; }
-.tp-method--html-scrape { background: var(--amber-pale); color: #7a4e08; }
+.tp-method--rest-api    { background: var(--tag-community-bg); color: var(--tag-community-txt); }
+.tp-method--hybrid-api  { background: var(--tag-art-bg); color: var(--tag-art-txt); }
+.tp-method--html-scrape { background: var(--amber-pale); color: var(--tag-nonprofit-txt); }
 
 /* ── Health table ── */
 .tp-loading { font-size: var(--text-base); color: var(--text-muted); padding: var(--space-xl) 0; }
@@ -282,15 +282,15 @@
   border-radius: var(--radius-xs);
   white-space: nowrap;
 }
-.tp-health--ok    { background: #e4f0e6; color: #1a5428; }
+.tp-health--ok    { background: var(--tag-music-bg); color: var(--tag-music-txt); }
 .tp-health--error { background: var(--coral-pale); color: var(--coral); }
-.tp-health--stale { background: var(--amber-pale); color: #7a4e08; }
-.tp-health--warn  { background: var(--amber-pale); color: #7a4e08; }
+.tp-health--stale { background: var(--amber-pale); color: var(--tag-nonprofit-txt); }
+.tp-health--warn  { background: var(--amber-pale); color: var(--tag-nonprofit-txt); }
 
 /* Alert list */
 .tp-alerts {
   margin-top: var(--space-lg);
-  border: var(--border-width-thin) solid rgba(196,83,42,0.3);
+  border: var(--border-width-thin) solid var(--coral-tint-25);
   border-radius: var(--radius-sm);
   overflow: hidden;
 }
@@ -303,7 +303,7 @@
   color: var(--coral);
   background: rgba(250,234,228,0.7);
   padding: var(--space-sm) var(--space-lg);
-  border-bottom: var(--border-width-thin) solid rgba(196,83,42,0.2);
+  border-bottom: var(--border-width-thin) solid var(--coral-tint-25);
 }
 .tp-alert {
   display: flex;
@@ -311,7 +311,7 @@
   align-items: baseline;
   padding: var(--space-sm) var(--space-lg);
   font-size: var(--text-sm);
-  border-bottom: var(--border-width-thin) solid rgba(196,83,42,0.15);
+  border-bottom: var(--border-width-thin) solid var(--coral-tint-15);
   background: rgba(250,234,228,0.3);
 }
 .tp-alert:last-child { border-bottom: none; }

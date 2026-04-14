@@ -24,7 +24,7 @@
 
 .vmt-btn:hover {
   opacity: 0.75;
-  background: rgba(212,146,42,0.08);
+  background: var(--amber-tint-10);
 }
 
 .vmt-btn--active {

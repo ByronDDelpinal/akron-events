@@ -22,13 +22,13 @@
 .org-detail-hero-img {
   width: 90px; height: 90px;
   border-radius: var(--radius-xl); object-fit: cover;
-  border: var(--border-width-thick) solid rgba(255,255,255,0.12);
+  border: var(--border-width-thick) solid var(--overlay-light-12);
   flex-shrink: 0;
 }
 .org-detail-hero-placeholder {
   width: 90px; height: 90px;
   border-radius: var(--radius-xl);
-  background: linear-gradient(140deg, #2A5C18 0%, #D4922A 100%);
+  background: linear-gradient(140deg, var(--green-mid) 0%, var(--amber) 100%);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
@@ -37,23 +37,23 @@
   font-family: var(--font-display);
   font-size: var(--text-h1);
   font-weight: var(--font-weight-bold);
-  color: rgba(255,255,255,0.7);
+  color: var(--overlay-light-70);
 }
 .org-detail-status-badge {
   font-family: var(--font-display);
   font-size: var(--text-tiny); font-weight: 800;
   text-transform: uppercase; letter-spacing: 0.1em;
-  background: #FDF2DC; color: #7A4E08;
+  background: var(--amber-pale); color: var(--tag-nonprofit-txt);
   padding: var(--space-2xs) var(--space-sm); border-radius: var(--radius-xs);
   display: inline-block; margin-bottom: var(--space-sm);
 }
 .org-detail-title {
   /* font-family / weight / size from global h1. Hero overrides only. */
-  color: #FFFFFF;
+  color: var(--white);
   line-height: 1.15;
 }
 .org-detail-location {
-  font-size: var(--text-sm); color: rgba(255,255,255,0.5);
+  font-size: var(--text-sm); color: var(--overlay-light-50);
   margin-top: var(--space-xs);
 }
 

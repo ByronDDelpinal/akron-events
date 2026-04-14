@@ -36,7 +36,7 @@
 .admin-login-err {
   font-size: var(--text-sm); color: var(--coral);
   background: var(--coral-pale);
-  border: var(--border-width-thin) solid rgba(196,83,42,0.2);
+  border: var(--border-width-thin) solid var(--coral-tint-25);
   border-radius: var(--radius-sm);
   padding: var(--space-sm) var(--space-md);
   margin-bottom: var(--space-md);
@@ -55,14 +55,14 @@
   display: flex; align-items: center; justify-content: space-between;
   padding: var(--space-lg) var(--space-2xl);
   background: var(--bg-nav);
-  border-bottom: var(--border-width-thin) solid rgba(255,255,255,0.06);
+  border-bottom: var(--border-width-thin) solid var(--overlay-light-05);
 }
 .admin-topbar-title {
   /* h1 inside the persistent admin chrome — overriding the global
      --text-h1 way down to body scale because this is a chrome label,
      not a page title. font-family / weight come from the global rule. */
   font-size: var(--text-md);
-  color: #FFFFFF;
+  color: var(--white);
   letter-spacing: -0.01em;
 }
 .admin-layout {
@@ -197,7 +197,7 @@
   vertical-align: middle;
 }
 .admin-table tbody tr:last-child td { border-bottom: none; }
-.admin-table tbody tr:hover { background: rgba(212,146,42,0.03); }
+.admin-table tbody tr:hover { background: var(--amber-tint-10); }
 .admin-td-title {
   font-weight: 600;
   color: var(--text-primary);
@@ -223,14 +223,14 @@
   text-transform: uppercase; letter-spacing: 0.06em;
   padding: var(--space-2xs) var(--space-sm); border-radius: var(--radius-xs);
 }
-.status-pending   { background: #FDF2DC; color: #7A4E08; }
-.status-published { background: #E4F0E6; color: #1A5428; }
-.status-cancelled { background: #FAE8E4; color: #882810; }
+.status-pending   { background: var(--amber-pale); color: var(--tag-nonprofit-txt); }
+.status-published { background: var(--tag-music-bg); color: var(--tag-music-txt); }
+.status-cancelled { background: var(--coral-pale); color: var(--tag-food-txt); }
 
 /* ── Buttons ── */
 .btn-admin-primary {
   padding: var(--space-md) var(--space-xl);
-  background: var(--amber); color: #FFFFFF;
+  background: var(--amber); color: var(--bg-card);
   border: none; border-radius: var(--radius-md);
   font-family: var(--font-display);
   font-size: var(--text-sm); font-weight: 700;
@@ -250,13 +250,13 @@
 
 .btn-admin-danger {
   padding: var(--space-md) var(--space-xl);
-  background: var(--coral); color: #FFFFFF;
+  background: var(--coral); color: var(--bg-card);
   border: none; border-radius: var(--radius-md);
   font-family: var(--font-display);
   font-size: var(--text-sm); font-weight: 700;
   cursor: pointer; transition: background var(--transition-medium);
 }
-.btn-admin-danger:hover { background: #A8401E; }
+.btn-admin-danger:hover { background: var(--coral-hover); }
 
 .btn-admin-sm {
   padding: var(--space-xs) var(--space-md);
@@ -273,7 +273,7 @@
 /* ── Modal ── */
 .admin-modal-backdrop {
   position: fixed; inset: 0;
-  background: rgba(0,0,0,0.4);
+  background: var(--overlay-dark-30);
   z-index: 1000;
   display: flex; align-items: flex-start; justify-content: center;
   padding: var(--space-4xl) var(--space-xl);
@@ -283,7 +283,7 @@
   background: var(--bg-card);
   border-radius: var(--radius-xxl);
   width: 100%; max-width: 680px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  box-shadow: 0 20px 60px var(--overlay-dark-15);
   max-height: calc(100vh - 80px);
   display: flex; flex-direction: column;
 }
@@ -417,7 +417,7 @@
   border-radius: var(--radius-xl);
   padding: var(--space-2xl) var(--space-2xl);
   max-width: 400px; width: 100%;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  box-shadow: 0 20px 60px var(--overlay-dark-15);
   margin-top: 120px;
 }
 .admin-confirm-msg {
@@ -597,7 +597,7 @@
   font-weight: 600;
   text-transform: capitalize;
 }
-.status-sent { background: #E4F0E6; color: #1A5428; }
+.status-sent { background: var(--tag-music-bg); color: var(--tag-music-txt); }
 .status-skipped { background: var(--bg-secondary); color: var(--text-muted); }
 .status-failed { background: var(--coral-pale); color: var(--coral); }
 
@@ -651,7 +651,7 @@
 .admin-feedback-chip:hover { border-color: var(--amber); color: var(--amber); }
 .admin-feedback-chip.active {
   background: var(--amber); border-color: var(--amber);
-  color: #fff;
+  color: var(--white);
 }
 .admin-feedback-body {
   max-width: 360px;

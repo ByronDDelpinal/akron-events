@@ -3,7 +3,7 @@
   position: fixed;
   inset: 0;
   z-index: 400;
-  background: rgba(10, 12, 8, 0.62);
+  background: var(--overlay-dark-55);
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
   display: flex;
@@ -23,7 +23,7 @@
   max-width: 640px;
   max-height: 88vh;
   overflow-y: auto;
-  box-shadow: 0 -8px 48px rgba(10, 12, 8, 0.3);
+  box-shadow: 0 -8px 48px var(--overlay-dark-30);
   overscroll-behavior: contain;
 
   animation: trayUp 0.26s cubic-bezier(0.22, 1, 0.36, 1);

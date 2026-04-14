@@ -5,7 +5,7 @@
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--overlay-dark-55);
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -18,7 +18,7 @@
   position: relative;
   background: var(--bg-card);
   border-radius: var(--radius-xl);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 20px 60px var(--overlay-dark-30);
   max-height: calc(100vh - 48px);
   overflow: auto;
   animation: modal-slideUp 0.2s ease;
@@ -41,8 +41,8 @@
 /* Close button */
 .modal-close {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: var(--space-md);
+  right: var(--space-md);
   width: 32px;
   height: 32px;
   display: flex;
@@ -65,13 +65,13 @@
 
 /* Bare mode close — white circle for dark backdrops */
 .modal--bare .modal-close {
-  background: rgba(255, 255, 255, 0.9);
-  color: #333;
+  background: var(--overlay-light-90);
+  color: var(--text-primary);
   border-radius: var(--radius-round);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 8px var(--overlay-dark-15);
 }
 .modal--bare .modal-close:hover {
-  background: #fff;
+  background: var(--bg-card);
   color: var(--coral);
 }
 
