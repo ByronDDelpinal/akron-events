@@ -1,422 +1,264 @@
 /**
  * test-nightlight.js
  *
- * Integration tests for the Nightlight Cinema scraper's data processing pipeline.
- * Tests every permutation of the Tribe API response structure to ensure proper
- * normalization, category mapping, tag parsing, and error handling.
- *
- * Nightlight Cinema is a cultural arts venue that defaults events to 'art' category.
- *
- * Run:
- *   node --test scripts/tests/test-nightlight.js
+ * Tests for the Nightlight Cinema scraper's HTML + JSON-LD parsing.
  */
-
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
-// ── Set dummy env vars before any imports ────────────────────────────────────
 process.env.VITE_SUPABASE_URL        = process.env.VITE_SUPABASE_URL        || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-// ── Import fixtures ──────────────────────────────────────────────────────────
 import {
-  COMPLETE_EVENT,
-  MUSIC_EVENT,
-  FOOD_EVENT,
-  EDUCATION_EVENT,
-  FAMILY_EVENT,
-  BENEFIT_EVENT,
-  MISSING_START_DATE,
-  NO_DESCRIPTION_EVENT,
-  DEFAULT_ART_EVENT,
-  FEATURED_EVENT,
-  IMAGE_IN_DESCRIPTION,
-  HTML_ENTITY_EVENT,
-  ALL_FIXTURES,
+  parseHomeScreenings,
+  extractMovieSlugs,
+  titleToSlug,
+  matchSlug,
+  showtimeToUtcIso,
+  todayEasternYmd,
+  mapAgeRestriction,
+  parseMoviePage,
+  buildEventRow,
+} from '../scrape-nightlight.js'
+
+import {
+  HOME_HTML,
+  HOME_HTML_EMPTY,
+  HOME_HTML_MISSING_SCREEN_LINE,
+  MOVIE_PAGE_HTML,
+  MOVIE_PAGE_NO_LD,
+  MOVIE_PAGE_GRAPH,
+  SITEMAP_XML,
 } from './fixtures/nightlight-events.js'
 
-// ── Import shared utilities (pure functions) ─────────────────────────────────
-import { stripHtml, parseCostFromTribe, parseTagsFromTribe } from '../lib/normalize.js'
+// ── parseHomeScreenings ───────────────────────────────────────────────────
 
-// ════════════════════════════════════════════════════════════════════════════
-// RE-IMPLEMENT SCRAPER LOGIC FOR TESTABILITY
-// ════════════════════════════════════════════════════════════════════════════
-
-// ── Image extraction with fallback ───────────────────────────────────────────
-
-function parseImage(imageObj, descriptionHtml = '') {
-  if (imageObj && imageObj.url) return imageObj.url
-  if (!descriptionHtml) return null
-  const match = descriptionHtml.match(/<img[^>]+src="([^"]+)"/)
-  return match?.[1] ?? null
-}
-
-// ── Category mapping (mirrors scraper) ───────────────────────────────────────
-
-function parseCategory(categories = [], title = '') {
-  const slugs = categories.map(c => c.slug?.toLowerCase() ?? '')
-  const t = title.toLowerCase()
-
-  if (slugs.some(s => s.includes('music') || s.includes('concert'))) return 'music'
-  if (slugs.some(s => s.includes('food') || s.includes('drink'))) return 'food'
-  if (slugs.some(s => s.includes('educat') || s.includes('workshop') || s.includes('class'))) return 'education'
-  if (slugs.some(s => s.includes('communit') || s.includes('family'))) return 'community'
-  if (t.includes('fundrais') || t.includes('benefit') || t.includes('gala')) return 'nonprofit'
-
-  // Default: cinema is art
-  return 'art'
-}
-
-function normalizeEvent(ev) {
-  const { price_min, price_max } = parseCostFromTribe(ev.cost, ev.cost_details)
-  const category = parseCategory(ev.categories, ev.title)
-  const tags = parseTagsFromTribe(ev.categories, ev.tags, ['film', 'cinema'])
-  const imageUrl = parseImage(ev.image, ev.description)
-  const descText = stripHtml(ev.description ?? '')
-
-  const row = {
-    title:           ev.title,
-    description:     descText || null,
-    start_at:        ev.utc_start_date ? ev.utc_start_date.replace(' ', 'T') + 'Z' : null,
-    end_at:          ev.utc_end_date   ? ev.utc_end_date.replace(' ', 'T') + 'Z'   : null,
-    category,
-    tags,
-    price_min,
-    price_max,
-    age_restriction: 'not_specified',
-    image_url:       imageUrl,
-    ticket_url:      ev.website || null,
-    source:          'nightlight_cinema',
-    source_id:       String(ev.id),
-    status:          'published',
-    featured:        ev.featured ?? false,
-  }
-
-  if (!row.start_at) return null
-  return row
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// TESTS: Category Mapping
-// ════════════════════════════════════════════════════════════════════════════
-
-describe('Nightlight Cinema: Category Mapping', () => {
-  it('maps music/concert to music', () => {
-    assert.equal(parseCategory([{ slug: 'music' }], ''), 'music')
-    assert.equal(parseCategory([{ slug: 'concert' }], ''), 'music')
+describe('Nightlight: parseHomeScreenings', () => {
+  it('extracts two screening blocks from a normal home page', () => {
+    const out = parseHomeScreenings(HOME_HTML)
+    assert.equal(out.length, 2)
+    assert.equal(out[0].title, 'The Christophers')
+    assert.equal(out[0].screen, 'Screen 2')
+    assert.equal(out[0].timeStr, '5:50 PM')
+    assert.equal(out[0].runtimeMin, 100)
+    assert.equal(out[0].genre, 'Crime')
+    assert.equal(out[1].title, 'Exit 8')
+    assert.equal(out[1].timeStr, '8:00 PM')
+    assert.equal(out[1].runtimeMin, 95)
+    assert.equal(out[1].genre, 'Horror')
   })
 
-  it('maps food/drink to food', () => {
-    assert.equal(parseCategory([{ slug: 'food' }], ''), 'food')
-    assert.equal(parseCategory([{ slug: 'drink' }], ''), 'food')
+  it('returns [] when no "Standard Screening" markers are present', () => {
+    assert.deepEqual(parseHomeScreenings(HOME_HTML_EMPTY), [])
   })
 
-  it('maps education/workshop/class to education', () => {
-    assert.equal(parseCategory([{ slug: 'education' }], ''), 'education')
-    assert.equal(parseCategory([{ slug: 'workshop' }], ''), 'education')
-    assert.equal(parseCategory([{ slug: 'class' }], ''), 'education')
+  it('tolerates a missing Screen line (optional field)', () => {
+    const out = parseHomeScreenings(HOME_HTML_MISSING_SCREEN_LINE)
+    assert.equal(out.length, 1)
+    assert.equal(out[0].title, 'Silence of the Lambs 35th Anniversary')
+    assert.equal(out[0].screen, null)
+    assert.equal(out[0].timeStr, '7:00 PM')
   })
 
-  it('maps community/family to community', () => {
-    assert.equal(parseCategory([{ slug: 'community' }], ''), 'community')
-    assert.equal(parseCategory([{ slug: 'family' }], ''), 'community')
-  })
-
-  it('maps fundraiser/benefit/gala in title to nonprofit', () => {
-    assert.equal(parseCategory([], 'Benefit Gala'), 'nonprofit')
-    assert.equal(parseCategory([], 'Fundraiser Event'), 'nonprofit')
-    assert.equal(parseCategory([], 'Gala Dinner'), 'nonprofit')
-  })
-
-  it('defaults to art for cinema events', () => {
-    assert.equal(parseCategory([], ''), 'art')
-    assert.equal(parseCategory([{ slug: 'unknown' }], ''), 'art')
-    assert.equal(parseCategory([{ slug: 'film' }], ''), 'art')
-  })
-
-  it('category slugs take precedence over title', () => {
-    assert.equal(parseCategory([{ slug: 'music' }], 'Benefit Concert'), 'music')
-    assert.equal(parseCategory([], 'Benefit Gala'), 'nonprofit')
+  it('does not crash on empty / null input', () => {
+    assert.deepEqual(parseHomeScreenings(null), [])
+    assert.deepEqual(parseHomeScreenings(''), [])
   })
 })
 
-// ════════════════════════════════════════════════════════════════════════════
-// TESTS: Image Parsing with Fallback
-// ════════════════════════════════════════════════════════════════════════════
+// ── extractMovieSlugs ─────────────────────────────────────────────────────
 
-describe('Nightlight Cinema: Image Parsing', () => {
-  it('extracts URL from image object', () => {
-    const url = parseImage({ url: 'https://example.com/film.jpg' })
-    assert.equal(url, 'https://example.com/film.jpg')
+describe('Nightlight: extractMovieSlugs', () => {
+  it('finds every /movie/{slug}/ reference in HTML', () => {
+    const slugs = extractMovieSlugs(HOME_HTML)
+    assert.ok(slugs.includes('the-christophers'))
+    assert.ok(slugs.includes('exit-8'))
+    assert.equal(slugs.length, 2)
   })
 
-  it('falls back to img src in description HTML', () => {
-    const desc = '<p>Info</p><img src="https://example.com/fallback.jpg">'
-    const url = parseImage(null, desc)
-    assert.equal(url, 'https://example.com/fallback.jpg')
+  it('finds slugs in sitemap XML', () => {
+    const slugs = extractMovieSlugs(SITEMAP_XML)
+    assert.ok(slugs.includes('the-christophers'))
+    assert.ok(slugs.includes('exit-8'))
+    assert.ok(slugs.includes('city-wide-fever'))
+    assert.ok(slugs.includes('the-silence-of-the-lambs-35th-anniversary'))
+    assert.equal(slugs.length, 4)
   })
 
-  it('prefers image object over description', () => {
-    const desc = '<img src="https://example.com/fallback.jpg">'
-    const url = parseImage({ url: 'https://example.com/primary.jpg' }, desc)
-    assert.equal(url, 'https://example.com/primary.jpg')
+  it('deduplicates repeated references', () => {
+    const html = '<a href="/movie/foo/">F</a><a href="/movie/foo/">F</a>'
+    assert.deepEqual(extractMovieSlugs(html), ['foo'])
   })
 
-  it('returns null if no image sources available', () => {
-    const url = parseImage(null, '<p>Just text</p>')
-    assert.equal(url, null)
-  })
-})
-
-// ════════════════════════════════════════════════════════════════════════════
-// TESTS: Tag Parsing
-// ════════════════════════════════════════════════════════════════════════════
-
-describe('Nightlight Cinema: Tag Parsing', () => {
-  it('extracts category and tag names to lowercase', () => {
-    const tags = parseTagsFromTribe(
-      [{ name: 'Film' }],
-      [{ name: 'International' }],
-      []
-    )
-    assert.ok(tags.includes('film'))
-    assert.ok(tags.includes('international'))
-  })
-
-  it('appends extra tags (film, cinema)', () => {
-    const tags = parseTagsFromTribe([], [], ['film', 'cinema'])
-    assert.ok(tags.includes('film'))
-    assert.ok(tags.includes('cinema'))
-  })
-
-  it('deduplicates tags', () => {
-    const tags = parseTagsFromTribe(
-      [{ name: 'Film' }],
-      [{ name: 'Film' }],
-      ['film']
-    )
-    const filmCount = tags.filter(t => t === 'film').length
-    assert.equal(filmCount, 1)
+  it('returns [] for empty input', () => {
+    assert.deepEqual(extractMovieSlugs(null), [])
+    assert.deepEqual(extractMovieSlugs(''), [])
   })
 })
 
-// ════════════════════════════════════════════════════════════════════════════
-// TESTS: Cost Parsing
-// ════════════════════════════════════════════════════════════════════════════
+// ── titleToSlug / matchSlug ───────────────────────────────────────────────
 
-describe('Nightlight Cinema: Cost Parsing', () => {
-  it('parses single ticket price', () => {
-    const { price_min, price_max } = parseCostFromTribe('$8', {})
-    assert.equal(price_min, 8)
-    assert.equal(price_max, null)
+describe('Nightlight: titleToSlug / matchSlug', () => {
+  it('kebab-cases titles', () => {
+    assert.equal(titleToSlug('The Christophers'), 'the-christophers')
+    assert.equal(titleToSlug("Kiki's Delivery Service"), 'kikis-delivery-service')
+    assert.equal(titleToSlug('Love, Brooklyn'), 'love-brooklyn')
+    assert.equal(titleToSlug('Cat & Mouse'), 'cat-and-mouse')
+    assert.equal(titleToSlug('The Silence Of The Lambs 35th Anniversary'), 'the-silence-of-the-lambs-35th-anniversary')
   })
 
-  it('parses price range', () => {
-    const { price_min, price_max } = parseCostFromTribe('$12 - $15', {})
-    assert.equal(price_min, 12)
-    assert.equal(price_max, 15)
+  it('returns null for unknown title', () => {
+    assert.equal(titleToSlug(null), '')
+    assert.equal(titleToSlug(''), '')
   })
 
-  it('parses cost_details.values array', () => {
-    const { price_min, price_max } = parseCostFromTribe(
-      'ignored',
-      { values: ['25'] }
-    )
-    assert.equal(price_min, 25)
-    assert.equal(price_max, null)
+  it('matches an exact candidate', () => {
+    const candidates = ['the-christophers', 'exit-8']
+    assert.equal(matchSlug('The Christophers', candidates), 'the-christophers')
   })
 
-  it('defaults to 0/null for free or empty cost', () => {
-    const free = parseCostFromTribe('Free', {})
-    assert.equal(free.price_min, 0)
-    assert.equal(free.price_max, null)
+  it('falls back to a prefix match when exact is missing', () => {
+    // Candidate has a suffix the title lacks
+    const candidates = ['silence-of-the-lambs-35th-anniversary']
+    assert.equal(matchSlug('Silence of the Lambs', candidates), 'silence-of-the-lambs-35th-anniversary')
+  })
+
+  it('returns null when nothing plausibly matches', () => {
+    assert.equal(matchSlug('Completely Unrelated Film', ['the-christophers']), null)
+    assert.equal(matchSlug(null, ['x']), null)
   })
 })
 
-// ════════════════════════════════════════════════════════════════════════════
-// TESTS: Full Event Normalization Pipeline
-// ════════════════════════════════════════════════════════════════════════════
+// ── Time conversion ──────────────────────────────────────────────────────
 
-describe('Nightlight Cinema: Event Normalization', () => {
-  it('normalizes a complete event correctly', () => {
-    const row = normalizeEvent(COMPLETE_EVENT)
+describe('Nightlight: showtimeToUtcIso', () => {
+  it('converts PM times on a DST date', () => {
+    // May 10 2026 is EDT (UTC-4): 5:50 PM → 21:50 UTC
+    assert.equal(showtimeToUtcIso('5:50 PM', '2026-05-10'), '2026-05-10T21:50:00.000Z')
+  })
+
+  it('converts PM times on a non-DST date', () => {
+    // Jan 10 2026 is EST (UTC-5): 5:50 PM → 22:50 UTC
+    assert.equal(showtimeToUtcIso('5:50 PM', '2026-01-10'), '2026-01-10T22:50:00.000Z')
+  })
+
+  it('converts 12:XX AM / PM correctly', () => {
+    // 12:00 AM = midnight local
+    assert.equal(showtimeToUtcIso('12:00 AM', '2026-05-10'), '2026-05-10T04:00:00.000Z') // EDT
+    // 12:00 PM = noon local
+    assert.equal(showtimeToUtcIso('12:00 PM', '2026-05-10'), '2026-05-10T16:00:00.000Z')
+  })
+
+  it('returns null on malformed input', () => {
+    assert.equal(showtimeToUtcIso(null, '2026-05-10'), null)
+    assert.equal(showtimeToUtcIso('5:50 PM', null), null)
+    assert.equal(showtimeToUtcIso('not a time', '2026-05-10'), null)
+  })
+})
+
+describe('Nightlight: todayEasternYmd', () => {
+  it('returns YYYY-MM-DD shape', () => {
+    const s = todayEasternYmd()
+    assert.match(s, /^\d{4}-\d{2}-\d{2}$/)
+  })
+
+  it('matches Eastern local date for a UTC instant near midnight', () => {
+    // 2026-05-10T03:30:00Z = 2026-05-09 23:30 EDT — yesterday in Eastern
+    const when = new Date('2026-05-10T03:30:00Z')
+    assert.equal(todayEasternYmd(when), '2026-05-09')
+  })
+})
+
+// ── mapAgeRestriction ─────────────────────────────────────────────────────
+
+describe('Nightlight: mapAgeRestriction', () => {
+  it('maps MPAA ratings', () => {
+    assert.equal(mapAgeRestriction('G'),     'all_ages')
+    assert.equal(mapAgeRestriction('PG'),    'all_ages')
+    assert.equal(mapAgeRestriction('PG-13'), 'teens_and_up')
+    assert.equal(mapAgeRestriction('R'),     'adults_only')
+    assert.equal(mapAgeRestriction('NC-17'), 'adults_only')
+  })
+
+  it('treats NR, null, odd strings as not_specified', () => {
+    assert.equal(mapAgeRestriction('NR'),      'not_specified')
+    assert.equal(mapAgeRestriction(null),      'not_specified')
+    assert.equal(mapAgeRestriction(''),        'not_specified')
+    assert.equal(mapAgeRestriction('Unrated'), 'not_specified')
+  })
+})
+
+// ── parseMoviePage ────────────────────────────────────────────────────────
+
+describe('Nightlight: parseMoviePage', () => {
+  it('extracts Movie metadata from JSON-LD', () => {
+    const meta = parseMoviePage(MOVIE_PAGE_HTML)
+    assert.equal(meta.title, 'The Silence Of The Lambs 35th Anniversary')
+    assert.ok(meta.description.includes('FBI trainee'))
+    assert.equal(meta.durationMin, 123)
+    assert.equal(meta.genre, 'Crime')
+    assert.equal(meta.contentRating, 'R')
+    assert.ok(meta.imageUrl.startsWith('https://indy-systems.imgix.net/'))
+  })
+
+  it('returns {} when no JSON-LD is present', () => {
+    assert.deepEqual(parseMoviePage(MOVIE_PAGE_NO_LD), {})
+  })
+
+  it('handles @graph-wrapped JSON-LD', () => {
+    const meta = parseMoviePage(MOVIE_PAGE_GRAPH)
+    assert.equal(meta.title, "Kiki's Delivery Service")
+    assert.equal(meta.durationMin, 103)
+    assert.equal(meta.genre, 'Animation')
+    assert.equal(meta.contentRating, 'G')
+    assert.equal(meta.imageUrl, 'https://indy-systems.imgix.net/kiki')
+  })
+})
+
+// ── buildEventRow end-to-end ─────────────────────────────────────────────
+
+describe('Nightlight: buildEventRow', () => {
+  const screening = { title: 'Exit 8', screen: 'Screen 1', timeStr: '8:00 PM', runtimeMin: 95, genre: 'Horror' }
+  const movieMeta = { title: 'Exit 8', description: 'A lost commuter.', durationMin: 95, genre: 'Horror', contentRating: 'PG-13', imageUrl: 'https://indy-systems.imgix.net/exit8' }
+
+  it('assembles a complete event row', () => {
+    const row = buildEventRow({ slug: 'exit-8', screening, movieMeta, easternDateYmd: '2026-05-10' })
     assert.ok(row)
-    assert.equal(row.title, 'Film Screening: Independent Documentary')
     assert.equal(row.source, 'nightlight_cinema')
-    assert.equal(row.source_id, '3001')
+    assert.equal(row.source_id, 'exit-8-2026-05-11T00:00:00.000Z')
+    assert.equal(row.start_at, '2026-05-11T00:00:00.000Z')      // 8PM EDT → midnight UTC next day
+    assert.equal(row.end_at,   '2026-05-11T01:35:00.000Z')      // +95 min
+    assert.equal(row.title, 'Exit 8')
     assert.equal(row.category, 'art')
-    assert.equal(row.price_min, 8)
-    assert.ok(row.tags.includes('film'))
-    assert.ok(row.tags.includes('cinema'))
-  })
-
-  it('maps music events correctly', () => {
-    const row = normalizeEvent(MUSIC_EVENT)
-    assert.ok(row)
-    assert.equal(row.category, 'music')
-    assert.equal(row.price_min, 12)
-    assert.equal(row.price_max, 15)
-  })
-
-  it('maps food/drink events to food category', () => {
-    const row = normalizeEvent(FOOD_EVENT)
-    assert.ok(row)
-    assert.equal(row.category, 'food')
-    assert.equal(row.price_min, 25)
-  })
-
-  it('maps education events correctly', () => {
-    const row = normalizeEvent(EDUCATION_EVENT)
-    assert.ok(row)
-    assert.equal(row.category, 'education')
-    assert.equal(row.price_min, 40)
-  })
-
-  it('maps family events to community', () => {
-    const row = normalizeEvent(FAMILY_EVENT)
-    assert.ok(row)
-    assert.equal(row.category, 'community')
+    assert.deepEqual(row.tags, ['film', 'cinema', 'horror'])
+    assert.equal(row.age_restriction, 'teens_and_up')
+    assert.equal(row.ticket_url, 'https://nightlightcinema.com/movie/exit-8/')
+    assert.equal(row.image_url, 'https://indy-systems.imgix.net/exit8')
     assert.equal(row.price_min, 0)
+    assert.equal(row.price_max, null)
   })
 
-  it('maps fundraiser/benefit events to nonprofit', () => {
-    const row = normalizeEvent(BENEFIT_EVENT)
-    assert.ok(row)
-    assert.equal(row.category, 'nonprofit')
-    assert.equal(row.price_min, 100)
-    assert.equal(row.featured, true)
+  it('falls back to screening title when movieMeta.title is missing', () => {
+    const row = buildEventRow({ slug: 'x', screening, movieMeta: {}, easternDateYmd: '2026-05-10' })
+    assert.equal(row.title, 'Exit 8')
   })
 
-  it('skips event with missing start date', () => {
-    const row = normalizeEvent(MISSING_START_DATE)
+  it('leaves end_at null when no duration is known', () => {
+    const bare = { title: 'Foo', timeStr: '7:00 PM' }
+    const row = buildEventRow({ slug: 'foo', screening: bare, movieMeta: {}, easternDateYmd: '2026-05-10' })
+    assert.equal(row.end_at, null)
+  })
+
+  it('synthesises a slug from title when none is passed', () => {
+    const bare = { title: 'Linda Linda Linda', timeStr: '7:00 PM' }
+    const row = buildEventRow({ slug: null, screening: bare, movieMeta: {}, easternDateYmd: '2026-05-10' })
+    assert.ok(row.source_id.startsWith('linda-linda-linda-'))
+    assert.equal(row.ticket_url, 'https://nightlightcinema.com/home/')   // no slug → home fallback
+  })
+
+  it('returns null when showtime cannot be parsed', () => {
+    const bad = { title: 'Foo', timeStr: 'whenever' }
+    const row = buildEventRow({ slug: 'foo', screening: bad, movieMeta: {}, easternDateYmd: '2026-05-10' })
     assert.equal(row, null)
-  })
-
-  it('handles event with no description', () => {
-    const row = normalizeEvent(NO_DESCRIPTION_EVENT)
-    assert.ok(row)
-    assert.equal(row.description, null)
-    assert.equal(row.category, 'art')
-  })
-
-  it('defaults to art category for unknown events', () => {
-    const row = normalizeEvent(DEFAULT_ART_EVENT)
-    assert.ok(row)
-    assert.equal(row.category, 'art')
-  })
-
-  it('handles featured flag', () => {
-    const row = normalizeEvent(FEATURED_EVENT)
-    assert.ok(row)
-    assert.equal(row.featured, true)
-  })
-
-  it('extracts image from description as fallback', () => {
-    const row = normalizeEvent(IMAGE_IN_DESCRIPTION)
-    assert.ok(row)
-    assert.equal(row.image_url, 'https://example.com/shorts.jpg')
-  })
-
-  it('decodes HTML entities in description', () => {
-    const row = normalizeEvent(HTML_ENTITY_EVENT)
-    assert.ok(row)
-    assert.ok(row.description)
-    assert.ok(!row.description.includes('&ldquo;'))
-    assert.ok(!row.description.includes('&rdquo;'))
-    assert.ok(!row.description.includes('&mdash;'))
-  })
-
-  it('strips HTML tags from description', () => {
-    const row = normalizeEvent(COMPLETE_EVENT)
-    assert.ok(row)
-    assert.ok(!row.description.includes('<p>'))
-    assert.ok(!row.description.includes('<strong>'))
-  })
-})
-
-// ════════════════════════════════════════════════════════════════════════════
-// TESTS: Batch Processing Invariants
-// ════════════════════════════════════════════════════════════════════════════
-
-describe('Nightlight Cinema: Batch Processing', () => {
-  it('every fixture produces a consistent source field', () => {
-    for (const fixture of ALL_FIXTURES) {
-      const row = normalizeEvent(fixture)
-      if (row) {
-        assert.equal(row.source, 'nightlight_cinema', `source wrong for fixture id=${fixture.id}`)
-      }
-    }
-  })
-
-  it('every non-null row has required fields', () => {
-    const REQUIRED = ['title', 'start_at', 'category', 'source', 'source_id', 'status']
-    for (const fixture of ALL_FIXTURES) {
-      const row = normalizeEvent(fixture)
-      if (!row) continue
-      for (const field of REQUIRED) {
-        assert.ok(row[field] != null, `fixture id=${fixture.id} missing required field '${field}'`)
-      }
-    }
-  })
-
-  it('every non-null row has price_min as a number', () => {
-    for (const fixture of ALL_FIXTURES) {
-      const row = normalizeEvent(fixture)
-      if (!row) continue
-      assert.equal(typeof row.price_min, 'number', `fixture id=${fixture.id} price_min not a number`)
-    }
-  })
-
-  it('tags array is always an array', () => {
-    for (const fixture of ALL_FIXTURES) {
-      const row = normalizeEvent(fixture)
-      if (!row) continue
-      assert.ok(Array.isArray(row.tags), `fixture id=${fixture.id} tags not an array`)
-      assert.ok(row.tags.length > 0, `fixture id=${fixture.id} tags array is empty`)
-    }
-  })
-
-  it('no row has HTML in title or description', () => {
-    for (const fixture of ALL_FIXTURES) {
-      const row = normalizeEvent(fixture)
-      if (!row) continue
-      assert.ok(!/<[a-zA-Z]/.test(row.title), `fixture id=${fixture.id} has HTML in title`)
-      if (row.description) {
-        assert.ok(!/<[a-zA-Z]/.test(row.description), `fixture id=${fixture.id} has HTML in description`)
-      }
-    }
-  })
-
-  it('exactly one fixture should be skipped (missing start date)', () => {
-    const skipped = ALL_FIXTURES.filter(f => normalizeEvent(f) === null)
-    assert.equal(skipped.length, 1)
-    assert.equal(skipped[0].id, MISSING_START_DATE.id)
-  })
-
-  it('all start_at values are valid ISO 8601 strings', () => {
-    for (const fixture of ALL_FIXTURES) {
-      const row = normalizeEvent(fixture)
-      if (!row) continue
-      const parsed = new Date(row.start_at)
-      assert.ok(!isNaN(parsed.getTime()), `fixture id=${fixture.id} has invalid start_at: ${row.start_at}`)
-      assert.ok(row.start_at.endsWith('Z'), `fixture id=${fixture.id} start_at should end with Z`)
-    }
-  })
-
-  it('source_id is always a string', () => {
-    for (const fixture of ALL_FIXTURES) {
-      const row = normalizeEvent(fixture)
-      if (!row) continue
-      assert.equal(typeof row.source_id, 'string', `fixture id=${fixture.id} source_id not a string`)
-    }
-  })
-
-  it('category is always one of the allowed values', () => {
-    const ALLOWED = ['music', 'art', 'community', 'education', 'sports', 'food', 'nonprofit', 'other']
-    for (const fixture of ALL_FIXTURES) {
-      const row = normalizeEvent(fixture)
-      if (!row) continue
-      assert.ok(ALLOWED.includes(row.category), `fixture id=${fixture.id} has invalid category: ${row.category}`)
-    }
   })
 })

@@ -289,9 +289,9 @@ const DATA_SOURCES = [
     key:         'nightlight_cinema',
     label:       'The Nightlight Cinema',
     method:      'HTML scrape',
-    methodDetail:'INDY Cinema platform (blocked)',
+    methodDetail:'INDY Cinema Vue/Quasar SPA — degraded until a browser renderer is added',
     venue:       'The Nightlight — 30 N High St',
-    notes:       'The INDY Cinema platform rewrites all /wp-json/ paths server-side and returns HTML for all API requests. Monitoring active; data currently unavailable.',
+    notes:       'The Nightlight runs on INDY Cinema Group\'s Vue SPA. Raw HTTP fetches return only an empty shell — showtimes are injected client-side after Apollo GraphQL calls. The scraper\'s parser is ready for hydrated DOM but needs either Playwright rendering, INDY partner API access, or a reverse-engineered session token on the /graphql endpoint. Monitoring active.',
     status:      'degraded',
   },
 
