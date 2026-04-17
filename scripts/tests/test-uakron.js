@@ -6,7 +6,8 @@ process.env.VITE_SUPABASE_URL = 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 
 import { stripHtml } from '../lib/normalize.js'
-import { EJ_THOMAS_EVENT, GENERAL_UAKRON_EVENT, SPORTS_EVENT, LECTURE_EVENT, MISSING_TITLE, MISSING_DATE, PAID_EVENT, PERFORMANCE_CONCERT, ALL_FIXTURES } from './fixtures/uakron-events.js'
+import { classifySource } from '../scrape-uakron-calendar.js'
+import { EJ_THOMAS_EVENT, GENERAL_UAKRON_EVENT, SPORTS_EVENT, LECTURE_EVENT, MISSING_TITLE, MISSING_DATE, PAID_EVENT, PERFORMANCE_CONCERT, MYERS_ART_EVENT, CHP_EVENT, NUMERIC_COST_EVENT, TIERED_COST_EVENT, OBJECT_COST_EVENT, ALL_FIXTURES } from './fixtures/uakron-events.js'
 
 const KNOWN_VENUES = {
   'E.J. Thomas Performing Arts Hall': { address: '198 Hill St', city: 'Akron', state: 'OH', zip: '44325', lat: 41.0756, lng: -81.5113 },
@@ -37,7 +38,23 @@ function parseTags(ev) {
 }
 
 function parsePrice(costStr) {
-  if (!costStr) return 0
+  // Mirror of scrape-uakron-calendar.js parsePrice(). LiveWhale's cost field
+  // can be a string, number, or array depending on the admin's entry.
+  if (costStr == null || costStr === '' || costStr === false) return 0
+
+  if (typeof costStr === 'number') {
+    return Number.isFinite(costStr) && costStr >= 0 ? costStr : 0
+  }
+
+  if (Array.isArray(costStr)) {
+    const nums = costStr
+      .map(v => typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.]/g, '')))
+      .filter(n => Number.isFinite(n) && n >= 0)
+    return nums.length ? Math.min(...nums) : 0
+  }
+
+  if (typeof costStr !== 'string') return 0
+
   const s = costStr.trim().toLowerCase()
   if (!s || s === 'free' || s === 'no charge') return 0
   const m = s.match(/\d+(\.\d+)?/)
@@ -55,7 +72,7 @@ function normalizeEvent(ev) {
   const price_min = parsePrice(ev.cost)
   const descText = stripHtml(ev.description ?? '')
 
-  const source = (ev.group_title === 'EJ Thomas Hall') ? 'ejthomas_hall' : 'uakron_calendar'
+  const source = classifySource(ev.group_title)
 
   return {
     title: ev.title,
@@ -108,6 +125,55 @@ describe('UAkron: Price Parsing', () => {
   it('defaults to 0 for null', () => {
     assert.equal(parsePrice(null), 0)
   })
+
+  // ── Non-string cost handling (Simonetti Awards incident, 2026-04-17) ─────
+  // LiveWhale's JSON API serialises the cost field by content type. A bare
+  // numeric price is emitted as a JSON number; tiered pricing as an array.
+  // parsePrice must accept these without calling .trim() on them.
+  it('accepts a bare number (no dollar sign in admin entry)', () => {
+    assert.equal(parsePrice(45), 45)
+    assert.equal(parsePrice(0), 0)
+    assert.equal(parsePrice(15.5), 15.5)
+  })
+
+  it('rejects negative / non-finite numbers', () => {
+    assert.equal(parsePrice(-10), 0)
+    assert.equal(parsePrice(NaN), 0)
+    assert.equal(parsePrice(Infinity), 0)
+  })
+
+  it('takes the minimum of a tiered price array', () => {
+    assert.equal(parsePrice([35, 60]), 35)
+    assert.equal(parsePrice([60, 35, 100]), 35)
+    assert.equal(parsePrice([5]), 5)
+  })
+
+  it('parses string entries inside a tiered array', () => {
+    assert.equal(parsePrice(['$35', '$60']), 35)
+    assert.equal(parsePrice(['alumni: $25', 'guest: $40']), 25)
+  })
+
+  it('falls back to 0 for empty or all-invalid arrays', () => {
+    assert.equal(parsePrice([]), 0)
+    assert.equal(parsePrice(['invalid', null]), 0)
+    assert.equal(parsePrice([-5, -10]), 0)
+  })
+
+  it('treats objects and booleans as unknown (0)', () => {
+    assert.equal(parsePrice({ amount: 50 }), 0)
+    assert.equal(parsePrice(true), 0)
+    assert.equal(parsePrice(undefined), 0)
+  })
+
+  it('does not throw on any of the observed shapes', () => {
+    // Regression guard: the incident crashed here with
+    // "costStr.trim is not a function".
+    assert.doesNotThrow(() => parsePrice(45))
+    assert.doesNotThrow(() => parsePrice([35, 60]))
+    assert.doesNotThrow(() => parsePrice({ amount: 50 }))
+    assert.doesNotThrow(() => parsePrice(null))
+    assert.doesNotThrow(() => parsePrice('Free'))
+  })
 })
 
 describe('UAkron: Event Normalization', () => {
@@ -122,6 +188,36 @@ describe('UAkron: Event Normalization', () => {
     const row = normalizeEvent(GENERAL_UAKRON_EVENT)
     assert.ok(row)
     assert.equal(row.source, 'uakron_calendar')
+  })
+
+  it('routes Myers School of Art to uakron_myers_art', () => {
+    const row = normalizeEvent(MYERS_ART_EVENT)
+    assert.ok(row)
+    assert.equal(row.source, 'uakron_myers_art')
+  })
+
+  it('routes Cummings Center to uakron_chp', () => {
+    const row = normalizeEvent(CHP_EVENT)
+    assert.ok(row)
+    assert.equal(row.source, 'uakron_chp')
+  })
+
+  it('normalizes event with numeric cost (Simonetti-shape)', () => {
+    const row = normalizeEvent(NUMERIC_COST_EVENT)
+    assert.ok(row, 'event with cost: 45 should normalize, not throw')
+    assert.equal(row.price_min, 45)
+  })
+
+  it('normalizes event with tiered array cost', () => {
+    const row = normalizeEvent(TIERED_COST_EVENT)
+    assert.ok(row, 'event with cost: [35, 60] should normalize')
+    assert.equal(row.price_min, 35, 'array cost should use the minimum tier')
+  })
+
+  it('normalizes event with object cost (graceful 0)', () => {
+    const row = normalizeEvent(OBJECT_COST_EVENT)
+    assert.ok(row, 'event with object cost should normalize, not throw')
+    assert.equal(row.price_min, 0, 'unknown-shape cost falls back to 0')
   })
 
   it('skips event without title', () => {
@@ -169,11 +265,12 @@ describe('UAkron: Batch Processing', () => {
     }
   })
 
-  it('source is either ejthomas_hall or uakron_calendar', () => {
+  it('source is one of the four known UAkron sub-calendars', () => {
+    const VALID = ['ejthomas_hall', 'uakron_myers_art', 'uakron_chp', 'uakron_calendar']
     for (const ev of ALL_FIXTURES) {
       const row = normalizeEvent(ev)
       if (!row) continue
-      assert.ok(['ejthomas_hall', 'uakron_calendar'].includes(row.source))
+      assert.ok(VALID.includes(row.source), `Unexpected source: ${row.source}`)
     }
   })
 

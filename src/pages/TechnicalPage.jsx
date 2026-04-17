@@ -12,9 +12,9 @@ const DATA_SOURCES = [
     key:         'ticketmaster',
     label:       'Ticketmaster',
     method:      'REST API',
-    methodDetail:'Ticketmaster Discovery API v2',
+    methodDetail:'Ticketmaster Discovery API v2 — 25-mile radius from Akron center',
     venue:       'Regional events (Akron / Summit County)',
-    notes:       'Queries by lat/lng radius. Covers major ticketed shows at Blossom, Akron Civic, etc.',
+    notes:       'Queries by lat/lng within 25 miles of downtown Akron over a 90-day window. The radius covers Blossom Music Center (~8 mi), Akron Civic Theatre, E.J. Thomas Hall, and most Cleveland-adjacent ticketed shows that travel through the area. Because the search is geographic rather than per-venue, new Ticketmaster-hosted venues inside the radius are picked up automatically.',
     status:      'active',
   },
   {
@@ -32,16 +32,34 @@ const DATA_SOURCES = [
     method:      'REST API',
     methodDetail:'LiveWhale calendar JSON API',
     venue:       'University of Akron campus — multiple locations',
-    notes:       'Single endpoint returns 90 days of all campus events. Non-EJ-Thomas events use this source key. Includes lectures, exhibitions, athletics, and community programs.',
+    notes:       'Single endpoint returns 90 days of all campus events. Acts as the default bucket for events that do not match a more specific sub-calendar (EJ Thomas, Myers School of Art, Cummings Center). Includes lectures, athletics, and general community programs.',
     status:      'active',
   },
   {
     key:         'ejthomas_hall',
     label:       'E.J. Thomas Performing Arts Hall',
     method:      'REST API',
-    methodDetail:'LiveWhale calendar JSON API — group filter gid=5',
+    methodDetail:'LiveWhale calendar JSON API — group_title substring match',
     venue:       'E.J. Thomas Hall — 198 Hill St',
-    notes:       'Filtered sub-source of the UAkron LiveWhale API (group_title = "EJ Thomas Hall"). Captures Akron Symphony, touring Broadway, and other major performances.',
+    notes:       'Sub-source of the UAkron LiveWhale feed. Events are routed here when their group_title matches "EJ Thomas" / "E.J. Thomas" / "performing arts hall". Captures Akron Symphony, touring Broadway, and other major performances.',
+    status:      'active',
+  },
+  {
+    key:         'uakron_myers_art',
+    label:       'Myers School of Art',
+    method:      'REST API',
+    methodDetail:'LiveWhale calendar JSON API — group_title substring match',
+    venue:       'Myers School of Art — Folk Hall, 150 E Exchange St',
+    notes:       'Sub-source of the UAkron LiveWhale feed. Events are routed here when their group_title matches "Myers School of Art" / "School of Art" / "Myers". Captures BFA thesis exhibitions, gallery openings, and visiting-artist lectures.',
+    status:      'active',
+  },
+  {
+    key:         'uakron_chp',
+    label:       'Cummings Center for the History of Psychology',
+    method:      'REST API',
+    methodDetail:'LiveWhale calendar JSON API — group_title substring match',
+    venue:       'Cummings Center — 73 S College St',
+    notes:       'Sub-source of the UAkron LiveWhale feed. Events are routed here when their group_title matches "Cummings Center" / "History of Psychology" / "CHP". Museum and archive programming from a Smithsonian-affiliated research center.',
     status:      'active',
   },
 
@@ -142,6 +160,49 @@ const DATA_SOURCES = [
     status:      'active',
   },
 
+  // ── iCalendar (ICS) feeds ──────────────────────────────────────────────
+  // These sources publish a machine-readable .ics file (RFC 5545). The shared
+  // scripts/lib/ics.js parser handles line folding, TZID conversion, and
+  // RFC 5545 TEXT escapes. Each per-source scraper is a thin wrapper that
+  // supplies the feed URL, default venue, category/tag mapping, and
+  // organization metadata.
+  {
+    key:         'akron_symphony',
+    label:       'Akron Symphony Orchestra',
+    method:      'ICS feed',
+    methodDetail:'Native iCalendar subscription (RFC 5545) — auto-discovered from /event/ page',
+    venue:       'E.J. Thomas Hall — 198 Hill St (default)',
+    notes:       'The Symphony advertises Google / Outlook / iCal subscription on their calendar page. Scraper auto-discovers the feed URL via the page\'s <link rel="alternate" type="text/calendar"> tag; the env var AKRON_SYMPHONY_ICS_URL can override. Handles EST↔EDT boundary correctly via Intl.DateTimeFormat.',
+    status:      'active',
+  },
+  {
+    key:         'north_hill_cdc',
+    label:       'North Hill Community Development Corp.',
+    method:      'ICS feed',
+    methodDetail:'Native iCalendar subscription — /events page',
+    venue:       'North Hill neighborhood — multiple venues',
+    notes:       'NHCDC exposes a public ICS export. Covers Maker Mondays, community markets, and neighborhood meetings. Venue is per-event from the VEVENT LOCATION field.',
+    status:      'active',
+  },
+  {
+    key:         'akron_public_schools',
+    label:       'Akron Public Schools',
+    method:      'ICS feed',
+    methodDetail:'District calendar iCal export — filtered for public-facing events',
+    venue:       'APS buildings across the district',
+    notes:       'The district calendar mixes public events (concerts, games, graduation, open houses) with internal dates (PTO meetings, PD days, closures). An inclusion/exclusion keyword filter surfaces only public-facing items before upsert. Filter lists live in scrape-akron-public-schools.js and are tunable as data accumulates.',
+    status:      'active',
+  },
+  {
+    key:         'akron_life',
+    label:       'Akron Life Magazine',
+    method:      'ICS feed',
+    methodDetail:'Community events calendar iCal — auto-discovered from /events page',
+    venue:       'Regional (Greater Akron)',
+    notes:       'Akron Life advertises both RSS and ICS subscription on their events calendar. The scraper prefers ICS because it gives structured start/end times and timezone info. Categorization maps VEVENT summary/description keywords to the canonical category set.',
+    status:      'active',
+  },
+
   // ── HTML scrapers ──────────────────────────────────────────────────────
   {
     key:         'akron_art_museum',
@@ -239,9 +300,9 @@ const DATA_SOURCES = [
     key:         'eventbrite',
     label:       'Eventbrite',
     method:      'HTML scrape',
-    methodDetail:'window.__SERVER_DATA__ + internal POST API',
+    methodDetail:'window.__SERVER_DATA__ + internal POST API — Akron geo-feed',
     venue:       'Regional events (Akron / Summit County)',
-    notes:       'Public API deprecated in 2020. Scraper fetches the Akron search page, extracts event buckets from window.__SERVER_DATA__, and paginates via the internal /api/v3/destination/search/ POST endpoint using session cookies for auth. Catches the long tail of community events not listed anywhere else.',
+    notes:       'Public API deprecated in 2020. Scraper fetches the Akron search page, extracts event buckets from window.__SERVER_DATA__, and paginates via the internal /api/v3/destination/search/ POST endpoint using session cookies for auth. Catches the long tail of community events — including many Akron organizers who publish only to Eventbrite (The Matinee, House Three Thirty, The Green Dragon Inn, Summit County Historical Society, Bounce Innovation Hub, Black Chamber of Commerce, Akron Black Artist Guild, Interbelt Nite Club, Akron-Canton Regional Foodbank, BLU-Tique). These organizers are all captured via the citywide geo-feed rather than per-organizer scrapes.',
     status:      'active',
   },
 ]
@@ -252,6 +313,8 @@ const SCRAPER_LABELS = {
   rubberducks:        'Akron RubberDucks',
   uakron_calendar:    'University of Akron',
   ejthomas_hall:      'E.J. Thomas Hall',
+  uakron_myers_art:   'Myers School of Art',
+  uakron_chp:         'Cummings Center',
   summit_artspace:    'Summit Artspace',
   summit_metro_parks: 'Summit Metro Parks',
   cvnp_conservancy:   'CVNP Conservancy',
@@ -272,6 +335,10 @@ const SCRAPER_LABELS = {
   torchbearers:       'Torchbearers',
   akron_childrens_museum: "Akron Children's Museum",
   leadership_akron:   'Leadership Akron',
+  akron_symphony:     'Akron Symphony',
+  north_hill_cdc:     'North Hill CDC',
+  akron_public_schools:'Akron Public Schools',
+  akron_life:         'Akron Life',
   eventbrite:         'Eventbrite',
 }
 

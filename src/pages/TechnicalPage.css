@@ -195,6 +195,7 @@
 .tp-method--rest-api    { background: var(--tag-community-bg); color: var(--tag-community-txt); }
 .tp-method--hybrid-api  { background: var(--tag-art-bg); color: var(--tag-art-txt); }
 .tp-method--html-scrape { background: var(--amber-pale); color: var(--tag-nonprofit-txt); }
+.tp-method--ics-feed    { background: var(--tag-fitness-bg); color: var(--tag-fitness-txt); }
 
 /* ── Health table ── */
 .tp-loading { font-size: var(--text-base); color: var(--text-muted); padding: var(--space-xl) 0; }

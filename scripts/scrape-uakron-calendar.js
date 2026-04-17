@@ -1,10 +1,19 @@
 /**
  * scrape-uakron-calendar.js
  *
- * Fetches upcoming events from the University of Akron's LiveWhale calendar API.
- * Splits events into two sources:
- *   - 'ejthomas_hall'    — events from the EJ Thomas Hall group (gid=5)
+ * Fetches upcoming events from the University of Akron's LiveWhale calendar API
+ * and splits them into four distinct sources so each sub-calendar surfaces as
+ * its own entity for filtering, display, and coverage tracking:
+ *
+ *   - 'ejthomas_hall'    — EJ Thomas Performing Arts Hall events
+ *   - 'uakron_myers_art' — Myers School of Art (calendar.uakron.edu/art)
+ *   - 'uakron_chp'       — Cummings Center for the History of Psychology
  *   - 'uakron_calendar'  — all other University of Akron events
+ *
+ * Matching is done on the event's LiveWhale `group_title` using substring
+ * patterns — this is forgiving of capitalization / wording drift. Events
+ * whose group doesn't match any specific sub-calendar fall through to
+ * 'uakron_calendar' so we never drop data.
  *
  * Usage:
  *   node scripts/scrape-uakron-calendar.js
@@ -15,6 +24,7 @@
  */
 
 import 'dotenv/config'
+import { fileURLToPath } from 'node:url'
 import {
   logUpsertResult,
   logScraperError,
@@ -27,8 +37,47 @@ import {
   ensureOrganization,
 } from './lib/normalize.js'
 
-const API_URL   = 'https://calendar.uakron.edu/live/json/events?days=90&user_tz=America/New_York'
-const EJ_THOMAS_GROUP = 'EJ Thomas Hall'
+const API_URL = 'https://calendar.uakron.edu/live/json/events?days=90&user_tz=America/New_York'
+
+// ── Sub-calendar classification ────────────────────────────────────────────
+//
+// Map an event's LiveWhale `group_title` to a specific source key. Each
+// pattern is matched as a case-insensitive substring against the group
+// field only — broader text (tags, description) is deliberately excluded
+// to keep the split deterministic and fast.
+//
+// Order matters: the first matching entry wins, so put more-specific
+// patterns ahead of broader ones.
+
+const SUB_CALENDARS = [
+  {
+    source:   'ejthomas_hall',
+    label:    'EJ Thomas Hall',
+    patterns: [/ej thomas/i, /e\.?j\.? thomas/i, /performing arts hall/i],
+  },
+  {
+    source:   'uakron_myers_art',
+    label:    'Myers School of Art',
+    patterns: [/myers school of art/i, /\bschool of art\b/i, /\bmyers\b/i],
+  },
+  {
+    source:   'uakron_chp',
+    label:    'Cummings Center',
+    patterns: [/cummings center/i, /history of psychology/i, /\bchp\b/i],
+  },
+]
+const DEFAULT_SOURCE = 'uakron_calendar'
+
+function classifySource(groupTitle = '') {
+  const g = String(groupTitle || '').trim()
+  if (!g) return DEFAULT_SOURCE
+  for (const sub of SUB_CALENDARS) {
+    if (sub.patterns.some(re => re.test(g))) return sub.source
+  }
+  return DEFAULT_SOURCE
+}
+
+export { classifySource, SUB_CALENDARS, DEFAULT_SOURCE }
 
 // ── Category mapping ───────────────────────────────────────────────────────
 
@@ -62,7 +111,27 @@ function parseTags(ev) {
 }
 
 function parsePrice(costStr) {
-  if (!costStr) return 0
+  // LiveWhale's JSON API v2 serialises the `cost` field as whatever type
+  // matches the admin's entry — string, number, or array (multiple tiers).
+  // See: docs.livewhale.com — "response values will be formatted as various
+  // types based on the field". Incident: 2026-04-17, "Dr. Frank L. Simonetti
+  // Awards Ceremony" returned a non-string and crashed on .trim().
+  if (costStr == null || costStr === '' || costStr === false) return 0
+
+  if (typeof costStr === 'number') {
+    return Number.isFinite(costStr) && costStr >= 0 ? costStr : 0
+  }
+
+  if (Array.isArray(costStr)) {
+    // Tiered pricing (e.g. [35, 60] for alumni/non-alumni). Use the min.
+    const nums = costStr
+      .map(v => typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.]/g, '')))
+      .filter(n => Number.isFinite(n) && n >= 0)
+    return nums.length ? Math.min(...nums) : 0
+  }
+
+  if (typeof costStr !== 'string') return 0  // objects, booleans → treat as unknown
+
   const s = costStr.trim().toLowerCase()
   if (!s || s === 'free' || s === 'no charge') return 0
   const m = s.match(/\d+(\.\d+)?/)
@@ -144,15 +213,17 @@ async function fetchEvents() {
 // ── Process ────────────────────────────────────────────────────────────────
 
 async function processEvents(rawEvents, organizerId) {
-  const ejThomasResults  = { inserted: 0, skipped: 0, total: 0 }
-  const uakronResults    = { inserted: 0, skipped: 0, total: 0 }
+  // One result bucket per source key — includes the default + each sub-calendar
+  const resultsBySource = {
+    [DEFAULT_SOURCE]: { inserted: 0, skipped: 0, total: 0 },
+  }
+  for (const sub of SUB_CALENDARS) resultsBySource[sub.source] = { inserted: 0, skipped: 0, total: 0 }
 
   for (const ev of rawEvents) {
     if (!ev.title || !ev.date_iso) continue
 
-    const isEJThomas = (ev.group_title === EJ_THOMAS_GROUP)
-    const source     = isEJThomas ? 'ejthomas_hall' : 'uakron_calendar'
-    const results    = isEJThomas ? ejThomasResults : uakronResults
+    const source  = classifySource(ev.group_title)
+    const results = resultsBySource[source]
     results.total++
 
     try {
@@ -204,7 +275,7 @@ async function processEvents(rawEvents, organizerId) {
     }
   }
 
-  return { ejThomasResults, uakronResults }
+  return resultsBySource
 }
 
 // ── Entry point ────────────────────────────────────────────────────────────
@@ -218,17 +289,18 @@ async function main() {
     const rawEvents   = await fetchEvents()
     console.log(`\n📥  Processing ${rawEvents.length} events…`)
 
-    const { ejThomasResults, uakronResults } = await processEvents(rawEvents, organizerId)
+    const resultsBySource = await processEvents(rawEvents, organizerId)
     const durationMs = Date.now() - start
 
-    await logUpsertResult('ejthomas_hall', ejThomasResults.inserted, 0, ejThomasResults.skipped, {
-      eventsFound: ejThomasResults.total,
-      durationMs,
-    })
-    await logUpsertResult('uakron_calendar', uakronResults.inserted, 0, uakronResults.skipped, {
-      eventsFound: uakronResults.total,
-      durationMs,
-    })
+    // Log one scraper_runs row per source — even zero-event sub-calendars get
+    // a row so scraper-health can tell the difference between "ran but empty"
+    // and "never ran".
+    for (const [source, r] of Object.entries(resultsBySource)) {
+      await logUpsertResult(source, r.inserted, 0, r.skipped, {
+        eventsFound: r.total,
+        durationMs,
+      })
+    }
 
     console.log(`\n✅  Done in ${(durationMs / 1000).toFixed(1)}s`)
   } catch (err) {
@@ -237,4 +309,8 @@ async function main() {
   }
 }
 
-main()
+// Only run when invoked directly — allows tests to import `classifySource`
+// without triggering a scrape.
+if (process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url)) {
+  main()
+}

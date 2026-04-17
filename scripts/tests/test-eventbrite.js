@@ -145,12 +145,17 @@ describe('Eventbrite: Category Mapping', () => {
   })
 
   it('maps known category IDs correctly', () => {
+    // Expectations follow Eventbrite's real category taxonomy:
+    //   103 = Music, 105 = Performing & Visual Arts, 110 = Food & Drink,
+    //   113 = Community & Culture, 115 = Family & Education,
+    //   107 = Health & Wellness (→ fitness, per migration 018 which split
+    //   fitness from sports), 102 = Science & Technology.
     assert.equal(EVENTBRITE_CATEGORY_MAP['103'], 'music')
     assert.equal(EVENTBRITE_CATEGORY_MAP['105'], 'art')
     assert.equal(EVENTBRITE_CATEGORY_MAP['110'], 'food')
     assert.equal(EVENTBRITE_CATEGORY_MAP['113'], 'community')
     assert.equal(EVENTBRITE_CATEGORY_MAP['115'], 'nonprofit')
-    assert.equal(EVENTBRITE_CATEGORY_MAP['107'], 'sports')
+    assert.equal(EVENTBRITE_CATEGORY_MAP['107'], 'fitness')
     assert.equal(EVENTBRITE_CATEGORY_MAP['102'], 'education')
   })
 
@@ -557,7 +562,10 @@ describe('Eventbrite: Batch Processing', () => {
   })
 
   it('category is always one of the allowed or "other"', () => {
-    const ALLOWED = ['music', 'art', 'community', 'education', 'sports', 'food', 'nonprofit', 'other']
+    // Canonical category set from supabase/migrations/018_fitness_category.sql:
+    //   check (category in ('music','art','community','nonprofit',
+    //                       'food','sports','fitness','education','other'))
+    const ALLOWED = ['music', 'art', 'community', 'nonprofit', 'food', 'sports', 'fitness', 'education', 'other']
     for (const fixture of ALL_FIXTURES) {
       const row = normaliseEvent(fixture)
       if (!row) continue

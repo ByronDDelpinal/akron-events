@@ -80,7 +80,7 @@ export const FREE_FLAG_NO_PRICING_DATA = {
   is_free: true,
   // NO ticket_availability
   // NO ticket_classes
-  category_id: '107', // sports
+  category_id: '107', // fitness (Eventbrite: "Health & Wellness")
   image: null,
   logo: null,
   banner_url: null,
@@ -308,7 +308,7 @@ export const DESCRIPTION_AS_STRING = {
   is_free: true,
   ticket_availability: { is_free: true, minimum_ticket_price: { major_value: '0' } },
   ticket_classes: [],
-  category_id: '107', // sports
+  category_id: '107', // fitness (Eventbrite: "Health & Wellness")
   image: null,
   logo: null,
   banner_url: null,
