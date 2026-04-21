@@ -36,11 +36,11 @@ header.menu-open {
 .logo-dot {
   width: 9px; height: 9px;
   border-radius: var(--radius-round);
-  background: var(--amber);
+  background: var(--amber-on-dark);
   box-shadow: 0 0 0 3px var(--amber-tint-25);
   flex-shrink: 0;
 }
-.nav-logo .amber { color: var(--amber); }
+.nav-logo .amber { color: var(--amber-on-dark); }
 
 .nav-links {
   display: flex;
@@ -64,7 +64,7 @@ header.menu-open {
   display: inline-block;
 }
 .nav-link:hover { color: var(--white); background: var(--overlay-light-05); }
-.nav-link.active { color: var(--amber); font-weight: 600; }
+.nav-link.active { color: var(--amber-on-dark); font-weight: 600; }
 
 .nav-cta-group {
   margin-left: auto;
@@ -76,7 +76,7 @@ header.menu-open {
 .btn-nav-cta {
   flex-shrink: 0;
   background: var(--amber);
-  color: var(--bg-nav);
+  color: var(--chip-active-txt);   /* white — passes AA on darkened primary across all themes */
   border: var(--border-width-thick) solid var(--amber);
   border-radius: var(--radius-pill);
   padding: var(--space-sm) var(--space-lg);
@@ -93,8 +93,8 @@ header.menu-open {
 .btn-nav-cta:hover { background: var(--amber-hover); border-color: var(--amber-hover); }
 .btn-nav-cta-outline {
   background: transparent;
-  color: var(--amber);
-  border: var(--border-width-thick) solid var(--amber);
+  color: var(--amber-on-dark);
+  border: var(--border-width-thick) solid var(--amber-on-dark);
 }
 .btn-nav-cta-outline:hover {
   background: var(--amber-tint-10);

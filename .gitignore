@@ -33,3 +33,10 @@ yarn-error.log*
 
 # local docs — diagrams, exports, reference material
 docs/
+
+# local design explorations — mood boards, palette studies, etc.
+design-proposals/
+
+# vendored skill content — managed by skills-lock.json; re-sync locally
+.agents/
+.claude/skills/

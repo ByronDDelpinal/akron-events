@@ -21,18 +21,19 @@
 
   --text-primary:   #17200F;
   --text-secondary: #3A4E30;
-  --text-muted:     #7A9068;
+  --text-muted:     #657756;   /* darkened from #7A9068 for WCAG AA on --bg-page */
 
-  --amber:          #D4922A;
-  --amber-hover:    #BC7E20;
+  --amber:          #96671E;   /* darkened from #D4922A so white text on primary passes AA (4.5:1) */
+  --amber-hover:    #7A5416;
   --amber-pale:     #FDF2DC;
-  --amber-border:   rgba(212,146,42,0.25);
+  --amber-border:   rgba(150,103,30,0.25);
+  --amber-on-dark:  #D4922A;   /* brighter — use wherever amber appears as text/accent on --bg-nav */
 
   --green-deep:     #1D2B1F;
   --green-mid:      #3A6B4A;
 
-  --coral:          #C4532A;
-  --coral-hover:    #A8401E;
+  --coral:          #BC4F28;   /* darkened from #C4532A for WCAG AA on --bg-page */
+  --coral-hover:    #A84220;
   --coral-pale:     #FAEAE4;
 
   --border:         #E0D9CA;
@@ -40,7 +41,7 @@
 
   --chip-bg:        #EBE4D5;
   --chip-text:      #5A6E50;
-  --chip-active-bg: #D4922A;
+  --chip-active-bg: #96671E;
   --chip-active-txt:#FFFFFF;
 
   --shadow-card:  0 1px 3px rgba(25,35,15,0.06), 0 4px 14px rgba(25,35,15,0.07);
@@ -177,7 +178,7 @@
   ────────────────────────────────────────────────────────────────── */
   --shadow-modal:   0 20px 60px rgba(0, 0, 0, 0.2);
   --shadow-popover: 0 8px 32px rgba(0, 0, 0, 0.3);
-  --shadow-focus:   0 0 0 3px rgba(212, 146, 42, 0.2);
+  --shadow-focus:   0 0 0 3px rgba(150, 103, 30, 0.2);
 
   /* ──────────────────────────────────────────────────────────────────
      Transitions
@@ -242,13 +243,13 @@
   --overlay-dark-30:  rgba(0, 0, 0, 0.30);
   --overlay-dark-55:  rgba(0, 0, 0, 0.55);
 
-  --amber-tint-10:    rgba(212, 146, 42, 0.10);
-  --amber-tint-25:    rgba(212, 146, 42, 0.25);
-  --amber-tint-50:    rgba(212, 146, 42, 0.50);
+  --amber-tint-10:    rgba(150, 103, 30, 0.10);
+  --amber-tint-25:    rgba(150, 103, 30, 0.25);
+  --amber-tint-50:    rgba(150, 103, 30, 0.50);
 
-  --coral-tint-15:    rgba(196, 83, 42, 0.15);
-  --coral-tint-25:    rgba(196, 83, 42, 0.25);
-  --coral-tint-35:    rgba(196, 83, 42, 0.35);
+  --coral-tint-15:    rgba(188, 79, 40, 0.15);
+  --coral-tint-25:    rgba(188, 79, 40, 0.25);
+  --coral-tint-35:    rgba(188, 79, 40, 0.35);
 
   /* ──────────────────────────────────────────────────────────────────
      Gradients

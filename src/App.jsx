@@ -31,12 +31,17 @@ import ScraperRunsPage from '@/pages/admin/scraper-runs/ScraperRunsPage'
 import EmailPage from '@/pages/admin/email/EmailPage'
 import AdminFeedbackPage from '@/pages/admin/feedback/AdminFeedbackPage'
 
+import { ThemeProvider } from '@/hooks/useTheme'
+
 import '@/styles/globals.css'
+import '@/styles/themes.css'
 
 export default function App() {
   return (
     <BrowserRouter>
-      <AppInner />
+      <ThemeProvider>
+        <AppInner />
+      </ThemeProvider>
     </BrowserRouter>
   )
 }

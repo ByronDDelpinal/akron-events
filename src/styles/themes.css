@@ -1,0 +1,322 @@
+/* ──────────────────────────────────────────────────────────────────
+   themes.css
+   Theme overlays. Each .theme-<id> class overrides only the
+   brand-coupled tokens defined in globals.css :root.
+
+   All color pairs that appear as foreground-on-background text meet
+   WCAG 2.1 AA (4.5:1 for body text). Audited pairs per palette:
+     - text-primary  on bg-page / bg-card
+     - text-secondary on bg-page
+     - text-muted    on bg-page
+     - white         on bg-nav
+     - white         on primary (amber)   ← CTA button text
+     - primary       on bg-page           ← accent / link text
+     - coral         on bg-page           ← error text
+
+   Intentionally untouched (these are not brand):
+     - Structural scales: spacing, radius, type, border-width, z-index
+     - Shadows: --shadow-card / --shadow-hover
+     - Event-category tag colors (--tag-*)
+     - Event-category gradients (--gradient-*)
+
+   Note on names: tokens still read --amber, --coral, --green-deep
+   even after a theme flip. That's a deliberate tradeoff for
+   zero-refactor cost; role-based tokens (--primary, --secondary,
+   --nav-dark) live on the design-system TODO.
+
+   Default palette ("civic-classic") lives in :root — no class needed.
+   ────────────────────────────────────────────────────────────────── */
+
+.theme-harbor-civic {
+  --bg-page:       #F2EEE8;
+  --bg-card:       #FFFFFF;
+  --bg-secondary:  #E8E2D6;
+  --bg-nav:        #0F2540;
+
+  --text-primary:   #1A1F28;
+  --text-secondary: #3E4A5A;
+  --text-muted:     #646C7C;
+
+  --amber:        #B04E31;
+  --amber-hover:  #963F24;
+  --amber-pale:   #F7E2D9;
+  --amber-border: rgba(176, 78, 49, 0.25);
+  --amber-on-dark: #E07050;   /* brighter terracotta for text on --bg-nav */
+
+  --green-deep:   #0F2540;
+  --green-mid:    #B8893E;
+
+  --coral:        #B04E31;
+  --coral-hover:  #963F24;
+  --coral-pale:   #F7E2D9;
+
+  --border:       #DED8CE;
+  --border-mid:   #C8BEB0;
+
+  --chip-bg:         #EAE4D8;
+  --chip-text:       #3E4A5A;
+  --chip-active-bg:  #B04E31;
+  --chip-active-txt: #FFFFFF;
+
+  --amber-tint-10: rgba(176, 78, 49, 0.10);
+  --amber-tint-25: rgba(176, 78, 49, 0.25);
+  --amber-tint-50: rgba(176, 78, 49, 0.50);
+
+  --coral-tint-15: rgba(176, 78, 49, 0.15);
+  --coral-tint-25: rgba(176, 78, 49, 0.25);
+  --coral-tint-35: rgba(176, 78, 49, 0.35);
+
+  --shadow-focus: 0 0 0 3px rgba(176, 78, 49, 0.2);
+}
+
+.theme-violet-hour {
+  --bg-page:       #F3EEF0;
+  --bg-card:       #FDFAFC;
+  --bg-secondary:  #E8DFE3;
+  --bg-nav:        #1E0E2E;
+
+  --text-primary:   #18121E;
+  --text-secondary: #3E2E48;
+  --text-muted:     #79667E;
+
+  --amber:        #663399;   /* primary — rebeccapurple (already passes AA) */
+  --amber-hover:  #4F2678;
+  --amber-pale:   #EBDDF5;
+  --amber-border: rgba(102, 51, 153, 0.25);
+  --amber-on-dark: #9A68CD;   /* brighter purple for text on --bg-nav */
+
+  --green-deep:   #1E0E2E;
+  --green-mid:    #2D9B9B;
+
+  --coral:        #C03F3F;
+  --coral-hover:  #A02E2E;
+  --coral-pale:   #FAE0E0;
+
+  --border:       #DCD1DE;
+  --border-mid:   #BFB0C4;
+
+  --chip-bg:         #E8DDEA;
+  --chip-text:       #3E2E48;
+  --chip-active-bg:  #663399;
+  --chip-active-txt: #FFFFFF;
+
+  --amber-tint-10: rgba(102, 51, 153, 0.10);
+  --amber-tint-25: rgba(102, 51, 153, 0.25);
+  --amber-tint-50: rgba(102, 51, 153, 0.50);
+
+  --coral-tint-15: rgba(192, 63, 63, 0.15);
+  --coral-tint-25: rgba(192, 63, 63, 0.25);
+  --coral-tint-35: rgba(192, 63, 63, 0.35);
+
+  --shadow-focus: 0 0 0 3px rgba(102, 51, 153, 0.2);
+}
+
+.theme-boardwalk {
+  --bg-page:       #FAF2E8;
+  --bg-card:       #FFFDF7;
+  --bg-secondary:  #F0E6D6;
+  --bg-nav:        #0F3D5E;   /* darkened from #2176AE so accent text passes AA on nav */
+
+  --text-primary:   #12243A;
+  --text-secondary: #3A4E66;
+  --text-muted:     #607082;
+
+  --amber:        #D62801;    /* darkened from Tomato #FE6847 */
+  --amber-hover:  #B42100;
+  --amber-pale:   #FFE0D7;
+  --amber-border: rgba(214, 40, 1, 0.25);
+  --amber-on-dark: #FE7F63;    /* brighter tomato for text on --bg-nav */
+
+  --green-deep:   #0F3D5E;
+  --green-mid:    #FBB13C;
+
+  --coral:        #C54123;
+  --coral-hover:  #A03319;
+  --coral-pale:   #FFE0D7;
+
+  --border:       #E5D9C8;
+  --border-mid:   #C8B89E;
+
+  --chip-bg:         #F0E6D6;
+  --chip-text:       #3A4E66;
+  --chip-active-bg:  #D62801;
+  --chip-active-txt: #FFFFFF;
+
+  --amber-tint-10: rgba(214, 40, 1, 0.10);
+  --amber-tint-25: rgba(214, 40, 1, 0.25);
+  --amber-tint-50: rgba(214, 40, 1, 0.50);
+
+  --coral-tint-15: rgba(197, 65, 35, 0.15);
+  --coral-tint-25: rgba(197, 65, 35, 0.25);
+  --coral-tint-35: rgba(197, 65, 35, 0.35);
+
+  --shadow-focus: 0 0 0 3px rgba(214, 40, 1, 0.2);
+}
+
+.theme-olive-grove {
+  --bg-page:       #F5EEDA;
+  --bg-card:       #FBF6E5;
+  --bg-secondary:  #E3DCC2;
+  --bg-nav:        #1B2021;
+
+  --text-primary:   #1B2021;
+  --text-secondary: #3A3A2C;
+  --text-muted:     #6E6E55;
+
+  --amber:        #51513D;    /* Ebony — already passes AA */
+  --amber-hover:  #3A3A2C;
+  --amber-pale:   #E3DC95;
+  --amber-border: rgba(81, 81, 61, 0.25);
+  --amber-on-dark: #A6A867;   /* Palm Leaf — passes on near-black nav */
+
+  --green-deep:   #1B2021;
+  --green-mid:    #A6A867;
+
+  --coral:        #B04D3D;
+  --coral-hover:  #933A2C;
+  --coral-pale:   #F4DED8;
+
+  --border:       #D8CFB8;
+  --border-mid:   #BFB39A;
+
+  --chip-bg:         #E3DCC2;
+  --chip-text:       #3A3A2C;
+  --chip-active-bg:  #51513D;
+  --chip-active-txt: #FFFFFF;
+
+  --amber-tint-10: rgba(81, 81, 61, 0.10);
+  --amber-tint-25: rgba(81, 81, 61, 0.25);
+  --amber-tint-50: rgba(81, 81, 61, 0.50);
+
+  --coral-tint-15: rgba(176, 77, 61, 0.15);
+  --coral-tint-25: rgba(176, 77, 61, 0.25);
+  --coral-tint-35: rgba(176, 77, 61, 0.35);
+
+  --shadow-focus: 0 0 0 3px rgba(81, 81, 61, 0.25);
+}
+
+.theme-arcade-night {
+  --bg-page:       #FDF2F8;
+  --bg-card:       #FFFDFB;
+  --bg-secondary:  #F5E0E8;
+  --bg-nav:        #272727;
+
+  --text-primary:   #272727;
+  --text-secondary: #5A3045;
+  --text-muted:     #836878;
+
+  --amber:        #D20099;    /* darkened from Plum #FF9FE5 so white text passes AA */
+  --amber-hover:  #A80078;
+  --amber-pale:   #FFD4D4;    /* Cotton Rose — kept light for bg wash */
+  --amber-border: rgba(210, 0, 153, 0.30);
+  --amber-on-dark: #FF9FE5;   /* the original bright Plum — passes on near-black nav */
+
+  --green-deep:   #272727;
+  --green-mid:    #2B50AA;
+
+  --coral:        #E3000F;    /* darkened from Grapefruit Pink #FF858D */
+  --coral-hover:  #B80000;
+  --coral-pale:   #FFDADE;
+
+  --border:       #E8D5DE;
+  --border-mid:   #C8A8BE;
+
+  --chip-bg:         #F5E0E8;
+  --chip-text:       #5A3045;
+  --chip-active-bg:  #D20099;
+  --chip-active-txt: #FFFFFF;  /* white now passes on the darker primary */
+
+  --amber-tint-10: rgba(210, 0, 153, 0.10);
+  --amber-tint-25: rgba(210, 0, 153, 0.25);
+  --amber-tint-50: rgba(210, 0, 153, 0.50);
+
+  --coral-tint-15: rgba(227, 0, 15, 0.15);
+  --coral-tint-25: rgba(227, 0, 15, 0.25);
+  --coral-tint-35: rgba(227, 0, 15, 0.35);
+
+  --shadow-focus: 0 0 0 3px rgba(210, 0, 153, 0.3);
+}
+
+.theme-stargazer {
+  --bg-page:       #F5F2F7;
+  --bg-card:       #FBF9FC;
+  --bg-secondary:  #EAEAEA;
+  --bg-nav:        #183642;
+
+  --text-primary:   #1A1A2E;
+  --text-secondary: #3A3A52;
+  --text-muted:     #6D6D83;
+
+  --amber:        #313D5A;    /* Twilight Indigo — already passes AA */
+  --amber-hover:  #1F2940;
+  --amber-pale:   #CBC5EA;
+  --amber-border: rgba(49, 61, 90, 0.25);
+  --amber-on-dark: #A89AD0;   /* brighter lavender for text on --bg-nav */
+
+  --green-deep:   #183642;
+  --green-mid:    #73628A;
+
+  --coral:        #B5496A;
+  --coral-hover:  #923854;
+  --coral-pale:   #F4D5E0;
+
+  --border:       #DCD6E6;
+  --border-mid:   #BFB8CE;
+
+  --chip-bg:         #E8E4F0;
+  --chip-text:       #3A3A52;
+  --chip-active-bg:  #313D5A;
+  --chip-active-txt: #FFFFFF;
+
+  --amber-tint-10: rgba(49, 61, 90, 0.10);
+  --amber-tint-25: rgba(49, 61, 90, 0.25);
+  --amber-tint-50: rgba(49, 61, 90, 0.50);
+
+  --coral-tint-15: rgba(181, 73, 106, 0.15);
+  --coral-tint-25: rgba(181, 73, 106, 0.25);
+  --coral-tint-35: rgba(181, 73, 106, 0.35);
+
+  --shadow-focus: 0 0 0 3px rgba(49, 61, 90, 0.25);
+}
+
+.theme-prime-time {
+  --bg-page:       #F9F4EC;
+  --bg-card:       #FFFDF8;
+  --bg-secondary:  #F0E8D6;
+  --bg-nav:        #0D2C54;
+
+  --text-primary:   #0A1E38;
+  --text-secondary: #2A3E58;
+  --text-muted:     #677181;
+
+  --amber:        #D03808;    /* darkened from Crimson Carrot #F6511D */
+  --amber-hover:  #B02E06;
+  --amber-pale:   #FDE0D3;
+  --amber-border: rgba(208, 56, 8, 0.25);
+  --amber-on-dark: #F76436;   /* brighter crimson for text on --bg-nav */
+
+  --green-deep:   #0D2C54;
+  --green-mid:    #FFB400;
+
+  --coral:        #CF360F;
+  --coral-hover:  #A82409;
+  --coral-pale:   #FADDD3;
+
+  --border:       #E4DCC8;
+  --border-mid:   #C8BEA0;
+
+  --chip-bg:         #F0E8D6;
+  --chip-text:       #2A3E58;
+  --chip-active-bg:  #D03808;
+  --chip-active-txt: #FFFFFF;
+
+  --amber-tint-10: rgba(208, 56, 8, 0.10);
+  --amber-tint-25: rgba(208, 56, 8, 0.25);
+  --amber-tint-50: rgba(208, 56, 8, 0.50);
+
+  --coral-tint-15: rgba(207, 54, 15, 0.15);
+  --coral-tint-25: rgba(207, 54, 15, 0.25);
+  --coral-tint-35: rgba(207, 54, 15, 0.35);
+
+  --shadow-focus: 0 0 0 3px rgba(208, 56, 8, 0.2);
+}

@@ -9,6 +9,20 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;1,9..40,400&display=swap" rel="stylesheet" />
+    <script>
+      // Apply the user's theme class before React mounts, to avoid a
+      // flash of the default palette on cold loads. Storage key must
+      // match THEME_STORAGE_KEY in src/lib/themes.js; React re-validates
+      // the value on mount, so any invalid class here is harmless.
+      (function () {
+        try {
+          var t = localStorage.getItem('turnout.theme');
+          if (t && /^[a-z-]+$/.test(t) && t !== 'civic-classic') {
+            document.documentElement.classList.add('theme-' + t);
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
