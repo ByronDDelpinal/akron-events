@@ -3,6 +3,12 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { useEvent } from '@/hooks/useEvents'
 import { VenueMap } from '@/components/MapView'
+import {
+  SEO,
+  buildGraph,
+  eventSchema,
+  breadcrumbSchema,
+} from '@/lib/seo'
 import './EventPage.css'
 
 // ── Minimum dimensions to consider an image "quality enough" ──
@@ -115,8 +121,38 @@ export default function EventPage() {
   // If we know dimensions and the image is narrower, use float-left layout
   const isNarrowImage = qualityOk && event.image_width != null && event.image_width < 1120
 
+  // ── Build SEO metadata for this event ────────────────────────────
+  const venueName = event.venue?.name
+  const dateLabel = format(new Date(event.start_at), 'EEE MMM d, yyyy')
+  const seoTitle  = venueName
+    ? `${event.title} — ${dateLabel} at ${venueName}`
+    : `${event.title} — ${dateLabel}`
+  const seoDesc = (event.description || `${event.title} — ${dateLabel}${venueName ? ' at ' + venueName : ''} in Akron, OH.`)
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 155)
+  const seoImage = qualityOk ? rawUrl : undefined
+
+  const seoGraph = buildGraph(
+    eventSchema(event),
+    breadcrumbSchema([
+      { name: 'Home',   url: '/' },
+      { name: 'Events', url: '/' },
+      { name: event.title, url: `/events/${event.id}` },
+    ]),
+  )
+
   return (
     <div className="page-event">
+
+      <SEO
+        title={seoTitle}
+        description={seoDesc}
+        path={`/events/${event.id}`}
+        image={seoImage}
+        type="event"
+        jsonLd={seoGraph}
+      />
 
       {/* ── BANNER / IMAGE ── */}
       {qualityOk ? (

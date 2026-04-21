@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useOrganizations } from '@/hooks/useEvents'
+import { SEO, buildGraph, itemListSchema, breadcrumbSchema } from '@/lib/seo'
 import './OrganizationsPage.css'
 
 export default function OrganizationsPage() {
@@ -17,8 +18,27 @@ export default function OrganizationsPage() {
     )
   }, [organizations, search])
 
+  const seoGraph = buildGraph(
+    breadcrumbSchema([
+      { name: 'Home',          url: '/' },
+      { name: 'Organizations', url: '/organizations' },
+    ]),
+    itemListSchema(
+      (filtered || []).slice(0, 50).map((o) => ({
+        name: o.name,
+        url:  `/organizations/${o.id}`,
+      }))
+    ),
+  )
+
   return (
     <>
+      <SEO
+        title="Event Organizations & Nonprofits in Akron, OH"
+        description="The people and groups making things happen in Akron — nonprofits, arts councils, community groups, and local businesses putting on events in Summit County."
+        path="/organizations"
+        jsonLd={seoGraph}
+      />
       {/* ── HERO ── */}
       <div className="orgs-hero">
         <div className="orgs-hero-inner">

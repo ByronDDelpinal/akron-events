@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { SEO } from '@/lib/seo'
 import './SubmitPage.css'
 
 const CATEGORIES = [
@@ -76,6 +77,11 @@ export default function SubmitPage() {
 
   return (
     <div className="page-shell">
+      <SEO
+        title="Submit an Event in Akron — Free Listing on Turnout"
+        description="Have an event happening in Akron or Summit County? Submit it to Turnout for free and reach locals looking for things to do."
+        path="/submit"
+      />
       <h1 className="page-title">Submit an Event</h1>
       <p className="page-sub">Have an event happening in Akron or Summit County? Share it with the community.</p>
 

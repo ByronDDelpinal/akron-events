@@ -10,7 +10,7 @@
   color: var(--white);
   margin-bottom: var(--space-md);
 }
-.about-hero h1 span { color: var(--amber); }
+.about-hero h1 span { color: var(--amber-on-dark); }
 .about-hero p {
   font-size: var(--text-base); color: var(--overlay-light-50);
   max-width: 460px; margin: 0 auto; line-height: 1.65;
@@ -122,4 +122,27 @@
   background: var(--green-mid);
   color: var(--white);
   text-decoration: none;
+}
+
+/* ── FAQ section ──
+   Also rendered as FAQPage JSON-LD from AboutPage.jsx. Schema must
+   match visible content, so keep question/answer strings in both places
+   identical. */
+.about-faqs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+  margin-top: var(--space-lg);
+}
+.about-faq-q {
+  font-family: var(--font-display);
+  font-size: var(--text-h6);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-xs);
+}
+.about-faq-a {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
 }

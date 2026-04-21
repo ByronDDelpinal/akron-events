@@ -1,5 +1,37 @@
 import { Link } from 'react-router-dom'
+import { SEO, buildGraph, faqPageSchema, breadcrumbSchema } from '@/lib/seo'
 import './AboutPage.css'
+
+// FAQ content pulled into structured data. Each question/answer is also
+// visible elsewhere on the site (homepage hero, footer, About body). Keep
+// answers under ~300 chars so they read well as LLM citations.
+const FAQS = [
+  {
+    question: 'What is Turnout?',
+    answer:
+      'Turnout is a free directory of local events in Akron, Ohio and Summit County. We track concerts, art shows, community gatherings, fundraisers, farmers markets, sports events, and more — so locals and visitors can find everything happening in one place.',
+  },
+  {
+    question: 'How much does Turnout cost?',
+    answer:
+      'Turnout is free to use and free to submit events to. We exist to make local events easier to discover, not to gatekeep them.',
+  },
+  {
+    question: 'What areas does Turnout cover?',
+    answer:
+      'Turnout covers events in Akron and the broader Summit County, Ohio area, including surrounding neighborhoods like Downtown Akron, Highland Square, North Hill, Cuyahoga Falls, and beyond.',
+  },
+  {
+    question: 'How do I submit an event to Turnout?',
+    answer:
+      'Anyone can submit an event through the Submit page. Submissions are reviewed before being published. We also aggregate events from venue websites and partner organizations.',
+  },
+  {
+    question: 'How often is Turnout updated?',
+    answer:
+      'Turnout is updated daily. New events from partner venues are added continuously, and community-submitted events are reviewed and published within a day or two.',
+  },
+]
 
 const PERSONAS = [
   {
@@ -29,8 +61,22 @@ const PERSONAS = [
 ]
 
 export default function AboutPage() {
+  const seoGraph = buildGraph(
+    breadcrumbSchema([
+      { name: 'Home',  url: '/' },
+      { name: 'About', url: '/about' },
+    ]),
+    faqPageSchema(FAQS),
+  )
+
   return (
     <>
+      <SEO
+        title="About Turnout — Local Events in Akron, OH"
+        description="Turnout is a free directory of local events in Akron and Summit County. Learn what we cover, how often we update, and how to submit your own event."
+        path="/about"
+        jsonLd={seoGraph}
+      />
       <div className="about-hero">
         <h1>Akron deserves <span>better</span></h1>
         <p>
@@ -87,6 +133,18 @@ export default function AboutPage() {
           happening in Akron, we'd love to feature it.{' '}
           <Link to="/submit">Submit your event →</Link>
         </p>
+
+        <div className="about-divider" />
+
+        <h3 className="about-section-title">Frequently asked</h3>
+        <div className="about-faqs">
+          {FAQS.map(({ question, answer }) => (
+            <div key={question} className="about-faq">
+              <h4 className="about-faq-q">{question}</h4>
+              <p className="about-faq-a">{answer}</p>
+            </div>
+          ))}
+        </div>
 
         <h3 className="about-section-title">See something missing?</h3>
         <p className="about-p">

@@ -10,6 +10,7 @@ import FilterBar from '@/components/FilterBar'
 import MapView from '@/components/MapView'
 import ViewModeToggle from '@/components/ViewModeToggle'
 import { INTENTS, SEARCH_SUGGESTIONS } from '@/lib/intents'
+import { SEO } from '@/lib/seo'
 import './HomePage.css'
 
 // ── localStorage key for persisting card view mode ──
@@ -206,6 +207,13 @@ export default function HomePage() {
 
   return (
     <>
+      <SEO
+        titleExact
+        title="Akron Events — Concerts, Art Shows, Markets & More | Turnout"
+        description="Discover events happening in Akron, Ohio and Summit County. Browse concerts, art shows, community gatherings, fundraisers, farmers markets, and more — updated daily."
+        path="/"
+      />
+
       {/* ── HERO ── */}
       <div className="hero">
         <div className="hero-glow" />

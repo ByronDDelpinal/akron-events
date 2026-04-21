@@ -2,6 +2,13 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { format, isToday, isTomorrow } from 'date-fns'
 import { useVenue, useVenueEvents } from '@/hooks/useEvents'
 import { VenueMap } from '@/components/MapView'
+import {
+  SEO,
+  buildGraph,
+  placeSchema,
+  breadcrumbSchema,
+  itemListSchema,
+} from '@/lib/seo'
 import './VenueDetailPage.css'
 
 const PARKING_LABEL = {
@@ -66,8 +73,39 @@ export default function VenueDetailPage() {
   const venueAreas = venue.areas ?? []
   const venueOrg = venue.organization ?? null
 
+  // ── SEO: Place schema + breadcrumb + list of upcoming events ────
+  const seoTitle = `${venue.name} — Upcoming Events in ${venue.city || 'Akron'}`
+  const seoDesc = (
+    venue.description
+    || `See upcoming events at ${venue.name} in ${venue.city || 'Akron'}, ${venue.state || 'OH'}. Concerts, community gatherings, and more.`
+  ).replace(/\s+/g, ' ').trim().slice(0, 155)
+
+  const seoGraph = buildGraph(
+    placeSchema(venue),
+    breadcrumbSchema([
+      { name: 'Home',   url: '/' },
+      { name: 'Venues', url: '/venues' },
+      { name: venue.name, url: `/venues/${venue.id}` },
+    ]),
+    itemListSchema(
+      (events || []).slice(0, 25).map((e) => ({
+        name: e.title,
+        url:  `/events/${e.id}`,
+      }))
+    ),
+  )
+
   return (
     <div className="page-venue-detail">
+
+      <SEO
+        title={seoTitle}
+        description={seoDesc}
+        path={`/venues/${venue.id}`}
+        image={venue.image_url || undefined}
+        type="place"
+        jsonLd={seoGraph}
+      />
 
       {/* ── HERO ── */}
       <div className="venue-detail-hero">

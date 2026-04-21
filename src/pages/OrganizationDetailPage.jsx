@@ -2,6 +2,13 @@ import { useState, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { format, isToday, isTomorrow } from 'date-fns'
 import { useOrganization } from '@/hooks/useEvents'
+import {
+  SEO,
+  buildGraph,
+  organizerSchema,
+  breadcrumbSchema,
+  itemListSchema,
+} from '@/lib/seo'
 import './OrganizationDetailPage.css'
 
 const EVENTS_PAGE_SIZE = 25
@@ -58,8 +65,39 @@ export default function OrganizationDetailPage() {
   const events = org.events ?? []
   const venues = org.venues ?? []
 
+  // ── SEO: Organization schema + breadcrumb + event list ──────────
+  const seoTitle = `${org.name} — Events & Programs in Akron, OH`
+  const seoDesc = (
+    org.description
+    || `Upcoming events and programs from ${org.name}, a local organization in Akron, OH.`
+  ).replace(/\s+/g, ' ').trim().slice(0, 155)
+
+  const seoGraph = buildGraph(
+    organizerSchema(org),
+    breadcrumbSchema([
+      { name: 'Home',          url: '/' },
+      { name: 'Organizations', url: '/organizations' },
+      { name: org.name,        url: `/organizations/${org.id}` },
+    ]),
+    itemListSchema(
+      events.slice(0, 25).map((e) => ({
+        name: e.title,
+        url:  `/events/${e.id}`,
+      }))
+    ),
+  )
+
   return (
     <div className="page-org-detail">
+
+      <SEO
+        title={seoTitle}
+        description={seoDesc}
+        path={`/organizations/${org.id}`}
+        image={hasImage ? org.image_url : undefined}
+        type="profile"
+        jsonLd={seoGraph}
+      />
       {/* ── HERO ── */}
       <div className="org-detail-hero">
         <div className="org-detail-hero-inner">

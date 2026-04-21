@@ -2,12 +2,17 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { EMAIL_THEME } from '@/lib/emailTheme'
+import { SEO } from '@/lib/seo'
 import './UnsubscribePage.css'
 
 export default function UnsubscribePage() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token')
   const [status, setStatus] = useState(token ? 'processing' : 'no-token')
+
+  // Private user flow — explicitly noindex.
+  const seo = <SEO title="Unsubscribe" path="/unsubscribe" noindex />
+
 
   useEffect(() => {
     if (!token) return
@@ -30,6 +35,7 @@ export default function UnsubscribePage() {
   if (status === 'no-token') {
     return (
       <div className="page-shell unsub-shell">
+        {seo}
         <div className="unsub-box">
           <h1 className="page-title">Unsubscribe</h1>
           <p className="page-sub">
@@ -44,6 +50,7 @@ export default function UnsubscribePage() {
   if (status === 'processing') {
     return (
       <div className="page-shell unsub-shell">
+        {seo}
         <div className="unsub-box">
           <div className="unsub-spinner" />
           <p className="unsub-processing">Unsubscribing…</p>
@@ -54,6 +61,7 @@ export default function UnsubscribePage() {
 
   return (
     <div className="page-shell unsub-shell">
+      {seo}
       <div className="unsub-box">
         <div className="unsub-icon">👋</div>
         <h1 className="unsub-title">You've been unsubscribed</h1>

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { INTENTS } from '@/lib/intents'
 import { EMAIL_THEME } from '@/lib/emailTheme'
+import { SEO } from '@/lib/seo'
 import './SubscribePage.css'
 
 const FREQUENCIES = [
@@ -124,6 +125,11 @@ export default function SubscribePage() {
 
   return (
     <div className="page-shell subscribe-shell">
+      <SEO
+        title="Get the Turnout Newsletter — Akron Events in Your Inbox"
+        description="A free digest of upcoming events in Akron and Summit County. Pick your categories and how often you want to hear from us — no spam, easy one-click unsubscribe."
+        path="/subscribe"
+      />
       {/* ── Hero messaging ── */}
       <h1 className="page-title subscribe-title">
         Get {EMAIL_THEME.brandName} in your inbox

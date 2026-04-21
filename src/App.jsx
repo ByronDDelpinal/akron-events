@@ -32,6 +32,7 @@ import EmailPage from '@/pages/admin/email/EmailPage'
 import AdminFeedbackPage from '@/pages/admin/feedback/AdminFeedbackPage'
 
 import { ThemeProvider } from '@/hooks/useTheme'
+import { SEO, buildGraph, organizationSchema, webSiteSchema } from '@/lib/seo'
 
 import '@/styles/globals.css'
 import '@/styles/themes.css'
@@ -47,8 +48,15 @@ export default function App() {
 }
 
 function AppInner() {
+  // Site-wide JSON-LD — appears on every page as a default. Individual
+  // pages still render their own <SEO /> for page-specific meta +
+  // page-specific structured data (Event, Place, etc.). react-helmet-async
+  // deep-merges tags so later <Helmet> calls override these safely.
+  const siteGraph = buildGraph(organizationSchema(), webSiteSchema())
+
   return (
     <>
+      <SEO jsonLd={siteGraph} />
       <Header />
       <main>
         <Routes>

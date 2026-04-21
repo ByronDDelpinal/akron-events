@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useVenues } from '@/hooks/useEvents'
+import { SEO, buildGraph, itemListSchema, breadcrumbSchema } from '@/lib/seo'
 import './VenuesPage.css'
 
 const PARKING_LABEL = {
@@ -25,8 +26,27 @@ export default function VenuesPage() {
     )
   }, [venues, search])
 
+  const seoGraph = buildGraph(
+    breadcrumbSchema([
+      { name: 'Home',   url: '/' },
+      { name: 'Venues', url: '/venues' },
+    ]),
+    itemListSchema(
+      (filtered || []).slice(0, 50).map((v) => ({
+        name: v.name,
+        url:  `/venues/${v.id}`,
+      }))
+    ),
+  )
+
   return (
     <>
+      <SEO
+        title="Event Venues in Akron & Summit County"
+        description="A directory of concert halls, gallery spaces, parks, theatres, and more around Akron and Summit County. Browse venues to find where events are happening."
+        path="/venues"
+        jsonLd={seoGraph}
+      />
       {/* ── HERO ── */}
       <div className="venues-hero">
         <div className="venues-hero-inner">
