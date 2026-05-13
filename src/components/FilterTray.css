@@ -15,7 +15,7 @@
 /* ── Sheet ── */
 .tray-sheet {
   background: var(--bg-card);
-  border-radius: var(--radius-pill) var(--radius-pill) 0 0;
+  border-radius: var(--radius-xxl) var(--radius-xxl) 0 0;
   border: var(--border-width-thin) solid var(--border);
   border-bottom: none;
   padding: 0 var(--space-2xl) var(--space-4xl);
