@@ -121,6 +121,18 @@ export default function EventPage() {
   // If we know dimensions and the image is narrower, use float-left layout
   const isNarrowImage = qualityOk && event.image_width != null && event.image_width < 1120
 
+  // ── POC: force float-thumbnail treatment for known-bad-image events ──
+  // Temporary override so we can evaluate the float-under-About layout
+  // without waiting on scraper-side quality detection. Remove once the
+  // scraper exposes a real `image_quality` signal we can route on.
+  const POC_FORCE_FLOAT_IDS = ['8b3e2484-adfc-4b50-bc75-6ac94ea38c33']
+  const pocForceFloat = POC_FORCE_FLOAT_IDS.includes(event.id)
+
+  // Composite routing: banner only for quality+wide+not-overridden; everything
+  // else with a usable URL goes to the float thumbnail under About.
+  const showBanner = qualityOk && !isNarrowImage && !pocForceFloat
+  const showFloat  = qualityOk && (isNarrowImage || pocForceFloat)
+
   // ── Build SEO metadata for this event ────────────────────────────
   const venueName = event.venue?.name
   const dateLabel = format(new Date(event.start_at), 'EEE MMM d, yyyy')
@@ -154,26 +166,22 @@ export default function EventPage() {
         jsonLd={seoGraph}
       />
 
-      {/* ── BANNER / IMAGE ── */}
-      {qualityOk ? (
-        isNarrowImage ? null : (
-          <EventBannerImage
-            imageUrl={rawUrl}
-            event={event}
-            tagClass={tagClass}
-            catLabel={catLabel}
-            gradient={gradient}
-          />
-        )
+      {/* ── BANNER / IMAGE ──
+       * Visual states:
+       *   - showBanner → full-width image banner (good wide image)
+       *   - showFloat  → no top banner; image floats under About section
+       *   - otherwise  → 20px gradient accent
+       * Category + Featured badges live in the content section either way. */}
+      {showBanner ? (
+        <EventBannerImage
+          imageUrl={rawUrl}
+          event={event}
+          tagClass={tagClass}
+          catLabel={catLabel}
+          gradient={gradient}
+        />
       ) : (
-        <div className="event-detail-banner">
-          <div className={`thumb-fill ${gradient}`} style={{ height: '100%' }} />
-          <div className="banner-scrim" />
-          <div className="banner-tags">
-            {event.featured && <span className="featured-tag">Featured</span>}
-            <span className={`event-tag ${tagClass}`}>{catLabel}</span>
-          </div>
-        </div>
+        <div className={`event-detail-accent ${gradient}`} aria-hidden="true" />
       )}
 
       {/* ── CONTENT ── */}
@@ -217,12 +225,16 @@ export default function EventPage() {
               <ActionButtons event={event} price={price} />
             </div>
 
-            {/* Narrow image: float left alongside text */}
-            {qualityOk && isNarrowImage && (
+            <p className="event-section-label">About this event</p>
+
+            {/* Narrow or low-quality images render here as a float-left
+             * thumbnail. Description text wraps around it. The float
+             * is positioned UNDER the section label so the heading
+             * spans the full width above. */}
+            {showFloat && (
               <EventFloatImage imageUrl={rawUrl} event={event} />
             )}
 
-            <p className="event-section-label">About this event</p>
             {event.description
               ? <EventDescription text={event.description} />
               : <p className="event-detail-desc">No description available.</p>
@@ -302,17 +314,9 @@ function EventBannerImage({ imageUrl, event, tagClass, catLabel, gradient }) {
   const handleError = useCallback(() => setImgFailed(true), [])
 
   if (imgFailed) {
-    // Fall back to gradient banner on load failure
-    return (
-      <div className="event-detail-banner">
-        <div className={`thumb-fill ${gradient}`} style={{ height: '100%' }} />
-        <div className="banner-scrim" />
-        <div className="banner-tags">
-          {event.featured && <span className="featured-tag">Featured</span>}
-          <span className={`event-tag ${tagClass}`}>{catLabel}</span>
-        </div>
-      </div>
-    )
+    // Image URL was valid but failed to load — fall back to the same
+    // 20px accent the page uses when no quality image is available.
+    return <div className={`event-detail-accent ${gradient}`} aria-hidden="true" />
   }
 
   // Use native aspect ratio: let the image determine its own height

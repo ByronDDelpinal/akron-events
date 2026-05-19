@@ -61,6 +61,17 @@
   display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center;
 }
 
+/* Shown at the top of the page when no quality image is available
+ * (or when an image fails to load). Mirrors the .card-accent treatment
+ * on event cards — same 20px height so the visual language is shared
+ * between grid and detail page. Future refactor: extract a shared
+ * .category-accent utility once a third consumer wants it. */
+.event-detail-accent {
+  width: 100%;
+  height: 20px;
+  flex-shrink: 0;
+}
+
 .event-detail-content {
   max-width: var(--width-full);
   margin: 0 auto;
