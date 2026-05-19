@@ -88,6 +88,22 @@ function randomUA()      { return USER_AGENTS[Math.floor(Math.random() * USER_AG
 function jitter()        { return new Promise(r => setTimeout(r, MIN_DELAY_MS    + Math.random() * (MAX_DELAY_MS    - MIN_DELAY_MS))) }
 function detailJitter()  { return new Promise(r => setTimeout(r, DETAIL_MIN_MS   + Math.random() * (DETAIL_MAX_MS   - DETAIL_MIN_MS))) }
 
+/**
+ * Pick the highest-resolution image URL from an Eventbrite image object.
+ *
+ * Eventbrite's API returns image-shaped objects like:
+ *   { url: 'https://img.evbuc.com/...?w=400&h=200', original: { url: 'https://cdn.evbuc.com/...' } }
+ *
+ * `.url` is a pre-resized listing-page thumbnail optimized for their grid
+ * (typically 400×200). `.original.url` is the full-resolution source.
+ * Always prefer original. Accepts a string URL too, for JSON-LD payloads.
+ */
+function pickBestImageUrl(img) {
+  if (!img) return null
+  if (typeof img === 'string') return img
+  return img.original?.url ?? img.url ?? null
+}
+
 // ── Sentinel errors ──────────────────────────────────────────────────────────
 class BlockedError extends Error {
   constructor(msg) { super(msg); this.name = 'BlockedError' }
@@ -395,7 +411,7 @@ function extractJsonLdEvents(html) {
             start: { utc: item.startDate ? new Date(item.startDate).toISOString() : null },
             end:   { utc: item.endDate   ? new Date(item.endDate).toISOString()   : null },
             is_free: false,
-            logo:  { url: typeof item.image === 'string' ? item.image : (item.image?.url ?? null) },
+            logo:  { url: pickBestImageUrl(item.image) },
             venue: item.location ? {
               name:    item.location.name ?? null,
               address: {
@@ -611,8 +627,9 @@ function normaliseEvent(ev) {
   const category = EVENTBRITE_CATEGORY_MAP[ev.category_id] ?? 'other'
 
   const rawImg =
-    ev.image?.url ?? ev.logo?.url ?? ev.banner_url ?? ev.hero_image_url ??
-    (typeof ev.logo === 'string' ? ev.logo : null)
+    pickBestImageUrl(ev.image) ??
+    pickBestImageUrl(ev.logo) ??
+    ev.banner_url ?? ev.hero_image_url ?? null
   const image_url = rawImg && /^https?:\/\//i.test(rawImg) ? rawImg : null
 
   return {
@@ -823,7 +840,7 @@ async function fetchEventDetail(url, cookie) {
       if (DEBUG && ev) console.log(`  [debug]   event keys: ${Object.keys(ev).join(', ')}`)
 
       // Try to get image from __SERVER_DATA__ event object too
-      const sdImage = ev?.image?.url ?? ev?.logo?.url ?? ev?.logo?.original?.url ?? null
+      const sdImage = pickBestImageUrl(ev?.image) ?? pickBestImageUrl(ev?.logo)
       const imageUrl = ogImageUrl ?? sdImage ?? null
 
       // Format 1a: legacy description object
@@ -969,7 +986,7 @@ async function fetchEventDetail(url, cookie) {
 
       if (ndDesc && ndDesc.trim().length > 10) {
         if (DEBUG) console.log(`  [debug]   → found via __NEXT_DATA__ (${ndDesc.length} chars)`)
-        const ndImage = ndEv?.image?.url ?? ndEv?.logo?.url ?? null
+        const ndImage = pickBestImageUrl(ndEv?.image) ?? pickBestImageUrl(ndEv?.logo)
         return { description: stripHtml(ndDesc), summary: ndEv?.summary ?? null, imageUrl: ogImageUrl ?? ndImage }
       }
       if (DEBUG) console.log(`  [debug]   __NEXT_DATA__ had no usable description`)
@@ -989,7 +1006,7 @@ async function fetchEventDetail(url, cookie) {
           // by checking for description + startDate rather than enumerating every @type value.
           if (item.startDate && item.description && item.description.trim().length > 10) {
             if (DEBUG) console.log(`  [debug]   → found via JSON-LD @type=${item['@type']} (${item.description.length} chars)`)
-            const ldImage = typeof item.image === 'string' ? item.image : (item.image?.url ?? null)
+            const ldImage = pickBestImageUrl(item.image)
             return { description: stripHtml(item.description), summary: null, imageUrl: ogImageUrl ?? ldImage }
           }
         }
