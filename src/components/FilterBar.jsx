@@ -13,14 +13,15 @@ const DATE_TABS = [
 ]
 
 /**
- * FilterBar — sticky filter zone.
+ * FilterBar — sticky filter zone, consolidated to two rows.
  *
  * Row 1: Date tabs (All / Today / This Weekend / This Week / This Month) + List/Map toggle
- * Row 2: Curated intent pill bar (full-width scrollable)
- * Row 3: "Filter & Sort" button (opens FilterTray, which houses sort + all advanced filters)
- *        + compact/comfortable view-mode toggle (mobile only — desktop shows it in the grid area)
+ * Row 2: "Filter & Sort" button + card view-mode toggle
  *
- * Active filter summary strip renders below when any filter is on.
+ * Curated intents (Date Night, Family Fun, Give Back) now live inside the
+ * FilterTray alongside raw categories — a single unified picker rather than
+ * a competing pill bar above. Active filter summary strip renders below when
+ * any filter is on so users can deselect inline.
  */
 export default function FilterBar({
   activeIntentId,  onIntentId,
@@ -38,8 +39,10 @@ export default function FilterBar({
 
   const activeIntent = INTENTS.find(i => i.id === activeIntentId) ?? null
 
-  // Count tray-specific active filters for the badge
+  // Count tray-specific active filters for the badge — intents now count too
+  // since they live inside the tray after the consolidation.
   const trayActiveCount = [
+    activeIntentId !== null,
     rawCategories.length > 0,
     priceFilter !== null,
     dateFrom || dateTo,
@@ -48,10 +51,6 @@ export default function FilterBar({
 
   // Any filter active at all (for the summary strip)
   const hasAnyFilter = activeIntentId || dateRange || rawCategories.length > 0 || priceFilter || dateFrom || dateTo
-
-  function toggleIntent(id) {
-    onIntentId(activeIntentId === id ? null : id)
-  }
 
   function removeRawCat(cat) {
     onRawCategories(rawCategories.filter(c => c !== cat))
@@ -95,37 +94,11 @@ export default function FilterBar({
           </div>
         </div>
 
-        {/* ── Row 2: Intent pill bar ── */}
-        <div className="filter-intents-row">
-          <div className="filter-chips">
-            {INTENTS.map(intent => {
-              const active = activeIntentId === intent.id
-              return (
-                <button
-                  key={intent.id}
-                  className={`chip intent-chip ${active ? 'active' : ''}`}
-                  onClick={() => toggleIntent(intent.id)}
-                  aria-pressed={active}
-                >
-                  <span className="intent-emoji">{intent.emoji}</span>
-                  {intent.label}
-                  {active && (
-                    <span
-                      className="chip-clear"
-                      role="button"
-                      aria-label={`Remove ${intent.label} filter`}
-                      onClick={e => { e.stopPropagation(); onIntentId(null) }}
-                    >
-                      ✕
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* ── Row 3: Filter & Sort + View mode toggle ── */}
+        {/* ── Row 2: Filter & Sort + View mode toggle ──
+         * Intents (Date Night, Family Fun, Give Back) used to occupy a full
+         * pill-bar row between the date tabs and this row. They now live
+         * inside the Filter & Sort tray alongside raw categories so the
+         * sticky filter zone stays a tight two rows. */}
         <div className="filter-actions-row">
           <div className="filter-actions">
             <button
@@ -188,6 +161,7 @@ export default function FilterBar({
       <FilterTray
         open={trayOpen}
         onClose={() => setTrayOpen(false)}
+        activeIntentId={activeIntentId} onIntentId={onIntentId}
         rawCategories={rawCategories}   onRawCategories={onRawCategories}
         priceFilter={priceFilter}       onPriceFilter={onPriceFilter}
         dateFrom={dateFrom}             onDateFrom={onDateFrom}

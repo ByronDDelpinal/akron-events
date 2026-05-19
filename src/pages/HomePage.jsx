@@ -421,15 +421,9 @@ function GridPromo() {
   return (
     <div className="grid-promo">
       <div className="grid-promo-inner">
-        <div className="grid-promo-col">
-          <span className="grid-promo-icon">📣</span>
-          <div className="grid-promo-text">
-            <strong>Got an event?</strong>
-            <p>Submit it and we'll add it to the grid.</p>
-          </div>
-          <Link to="/submit" className="grid-promo-btn">Submit an event →</Link>
-        </div>
-        <div className="grid-promo-divider" />
+        {/* Order: Subscribe → Share → Submit. Subscribe owns the leftmost
+         * (strongest reading position) since it's our primary engagement
+         * driver — owned audience compounds, one-off submissions don't. */}
         <div className="grid-promo-col">
           <span className="grid-promo-icon">✉️</span>
           <div className="grid-promo-text">
@@ -448,6 +442,15 @@ function GridPromo() {
           <button className="grid-promo-btn" onClick={handleShare}>
             {copied ? '✓ Link copied!' : 'Share Turnout →'}
           </button>
+        </div>
+        <div className="grid-promo-divider" />
+        <div className="grid-promo-col">
+          <span className="grid-promo-icon">📣</span>
+          <div className="grid-promo-text">
+            <strong>Got an event?</strong>
+            <p>Submit it and we'll add it to the grid.</p>
+          </div>
+          <Link to="/submit" className="grid-promo-btn">Submit an event →</Link>
         </div>
       </div>
     </div>

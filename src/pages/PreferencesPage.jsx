@@ -15,6 +15,7 @@ const CATEGORIES = [
   { id: 'sports',     label: 'Sports',     emoji: '🏟' },
   { id: 'fitness',    label: 'Fitness',    emoji: '🏃' },
   { id: 'education',  label: 'Education',  emoji: '📚' },
+  { id: 'nature',     label: 'Nature',     emoji: '🌿' },
   { id: 'other',      label: 'Other',      emoji: '📌' },
 ]
 

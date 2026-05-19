@@ -12,6 +12,7 @@ const CATEGORIES = [
   { value: 'sports',    label: 'Sports' },
   { value: 'fitness',   label: 'Fitness' },
   { value: 'education', label: 'Education' },
+  { value: 'nature',    label: 'Nature' },
   { value: 'other',     label: 'Other' },
 ]
 

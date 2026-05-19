@@ -59,6 +59,7 @@
   --tag-sports-bg:    #E0ECF8; --tag-sports-txt:    #1A3870;
   --tag-fitness-bg:   #E4F2EE; --tag-fitness-txt:   #0C5438;
   --tag-education-bg: #EAF0FA; --tag-education-txt: #1A3060;
+  --tag-nature-bg:    #E4EFD2; --tag-nature-txt:    #3A5A1A;
   --tag-other-bg:     #F0F0F0; --tag-other-txt:     #555555;
 
   /* ──────────────────────────────────────────────────────────────────
@@ -263,6 +264,7 @@
   --gradient-openmic: linear-gradient(140deg, #100828 0%, #2E1060 45%, #8050D0 100%);
   --gradient-sports:  linear-gradient(140deg, #081828 0%, #1040A0 50%, #60B8E8 100%);
   --gradient-run:     linear-gradient(140deg, #0A2818 0%, #18784A 50%, #58C888 100%);
+  --gradient-forest:  linear-gradient(140deg, #1A2A0E 0%, #4A6818 55%, #B5C268 100%);
   --gradient-default: linear-gradient(140deg, #1D2B1F 0%, #3A6B4A 55%, #D4922A 100%);
 }
 
@@ -315,6 +317,7 @@ h6 { font-size: var(--text-h6); }
 .gradient-openmic { background: var(--gradient-openmic); }
 .gradient-sports  { background: var(--gradient-sports); }
 .gradient-run     { background: var(--gradient-run); }
+.gradient-forest  { background: var(--gradient-forest); }
 .gradient-default { background: var(--gradient-default); }
 
 /* ════════════════════════════════
@@ -345,6 +348,7 @@ h6 { font-size: var(--text-h6); }
 .tag-sports    { background: var(--tag-sports-bg);    color: var(--tag-sports-txt); }
 .tag-fitness   { background: var(--tag-fitness-bg);   color: var(--tag-fitness-txt); }
 .tag-education { background: var(--tag-education-bg); color: var(--tag-education-txt); }
+.tag-nature    { background: var(--tag-nature-bg);    color: var(--tag-nature-txt); }
 .tag-other     { background: var(--tag-other-bg);     color: var(--tag-other-txt); }
 
 /* ════════════════════════════════

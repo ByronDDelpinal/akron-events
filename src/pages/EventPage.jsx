@@ -18,16 +18,17 @@ const MIN_IMG_HEIGHT = 338
 const GRADIENT_MAP = {
   music: 'gradient-jazz', art: 'gradient-art', community: 'gradient-market',
   nonprofit: 'gradient-gala', food: 'gradient-market', sports: 'gradient-sports', fitness: 'gradient-run',
-  education: 'gradient-openmic', other: 'gradient-default',
+  education: 'gradient-openmic', nature: 'gradient-forest', other: 'gradient-default',
 }
 const TAG_CLASS_MAP = {
   music: 'tag-music', art: 'tag-art', nonprofit: 'tag-nonprofit',
   community: 'tag-community', food: 'tag-food', sports: 'tag-sports', fitness: 'tag-fitness',
-  education: 'tag-education', other: 'tag-other',
+  education: 'tag-education', nature: 'tag-nature', other: 'tag-other',
 }
 const CATEGORY_LABEL = {
   music: 'Music', art: 'Art', nonprofit: 'Non-Profit', community: 'Community',
-  food: 'Food & Drink', sports: 'Sports', fitness: 'Fitness', education: 'Education', other: 'Other',
+  food: 'Food & Drink', sports: 'Sports', fitness: 'Fitness', education: 'Education',
+  nature: 'Nature', other: 'Other',
 }
 const AGE_LABEL = {
   all_ages: 'All ages', '18_plus': '18+', '21_plus': '21+',

@@ -4,33 +4,45 @@ import './FilterTray.css'
 
 const TODAY = new Date().toISOString().split('T')[0]
 
-const RAW_CATEGORIES = [
-  { value: 'music',     label: '🎵 Music' },
-  { value: 'art',       label: '🎨 Art' },
-  { value: 'food',      label: '🍺 Food & Drink' },
-  { value: 'community', label: '🤝 Community' },
-  { value: 'nonprofit', label: '💛 Non-Profit' },
-  { value: 'sports',    label: '🏟 Sports' },
-  { value: 'fitness',   label: '🏃 Fitness' },
-  { value: 'education', label: '📚 Education' },
+/**
+ * Unified category list. Intents and raw categories live side-by-side so the
+ * user picks a vibe (Date Night) or a specific bucket (Music) from the same
+ * row, no UI hierarchy to learn. `kind` decides which state bucket the chip
+ * toggles when clicked. Order follows partner's preferred sequencing.
+ */
+const CATEGORY_OPTIONS = [
+  { kind: 'intent', value: 'date-night', label: '🌙 Date Night' },
+  { kind: 'raw',    value: 'music',      label: '🎵 Music' },
+  { kind: 'raw',    value: 'art',        label: '🎨 Art' },
+  { kind: 'raw',    value: 'food',       label: '🍺 Food & Drink' },
+  { kind: 'intent', value: 'family-fun', label: '👨‍👩‍👧 Family Fun' },
+  { kind: 'raw',    value: 'nonprofit',  label: '🤲 Non-Profit' },
+  { kind: 'raw',    value: 'sports',     label: '🏟 Sports' },
+  { kind: 'raw',    value: 'fitness',    label: '🏃 Fitness' },
+  { kind: 'raw',    value: 'education',  label: '📚 Education' },
+  { kind: 'raw',    value: 'nature',     label: '🌿 Nature' },
+  { kind: 'intent', value: 'give-back',  label: '💛 Give Back' },
+  { kind: 'raw',    value: 'community',  label: '🤝 Community' },
 ]
 
 /**
  * FilterTray — bottom-sheet modal for advanced filtering.
  *
  * Props:
- *   open          {boolean}
- *   onClose       {function}
- *   rawCategories {string[]}   onRawCategories {function}
- *   priceFilter   {string|null} onPriceFilter  {function}  null | 'free' | 'under10' | 'under25'
- *   dateFrom      {string|null} onDateFrom     {function}  'YYYY-MM-DD'
- *   dateTo        {string|null} onDateTo       {function}  'YYYY-MM-DD'
- *   sort          {string}     onSort          {function}
- *   total         {number}     — live result count for the CTA
+ *   open            {boolean}
+ *   onClose         {function}
+ *   activeIntentId  {string|null} onIntentId      {function}
+ *   rawCategories   {string[]}    onRawCategories {function}
+ *   priceFilter     {string|null} onPriceFilter   {function}  null | 'free' | 'under10' | 'under25'
+ *   dateFrom        {string|null} onDateFrom      {function}  'YYYY-MM-DD'
+ *   dateTo          {string|null} onDateTo        {function}  'YYYY-MM-DD'
+ *   sort            {string}      onSort          {function}
+ *   total           {number}      — live result count for the CTA
  */
 export default function FilterTray({
   open,
   onClose,
+  activeIntentId, onIntentId,
   rawCategories,  onRawCategories,
   priceFilter,    onPriceFilter,
   dateFrom,       onDateFrom,
@@ -50,15 +62,29 @@ export default function FilterTray({
 
   if (!open) return null
 
-  function toggleCat(value) {
-    if (rawCategories.includes(value)) {
-      onRawCategories(rawCategories.filter(c => c !== value))
+  // Dispatch chip clicks to the right state bucket — intents are single-select,
+  // raw categories are multi-select, both can coexist (intent stays "selected"
+  // but rawCategories override at the query level when both are set).
+  function toggleOption(opt) {
+    if (opt.kind === 'intent') {
+      onIntentId(activeIntentId === opt.value ? null : opt.value)
+      return
+    }
+    if (rawCategories.includes(opt.value)) {
+      onRawCategories(rawCategories.filter(c => c !== opt.value))
     } else {
-      onRawCategories([...rawCategories, value])
+      onRawCategories([...rawCategories, opt.value])
     }
   }
 
+  function isOptionActive(opt) {
+    return opt.kind === 'intent'
+      ? activeIntentId === opt.value
+      : rawCategories.includes(opt.value)
+  }
+
   function clearAll() {
+    onIntentId(null)
     onRawCategories([])
     onPriceFilter(null)
     onDateFrom(null)
@@ -98,16 +124,16 @@ export default function FilterTray({
           </div>
         </TraySection>
 
-        {/* ── Category ── */}
+        {/* ── Category (intents + raw categories, unified) ── */}
         <TraySection label="Category">
           <div className="tray-chips">
-            {RAW_CATEGORIES.map(cat => (
+            {CATEGORY_OPTIONS.map(opt => (
               <button
-                key={cat.value}
-                className={`tray-chip ${rawCategories.includes(cat.value) ? 'active' : ''}`}
-                onClick={() => toggleCat(cat.value)}
+                key={`${opt.kind}:${opt.value}`}
+                className={`tray-chip ${isOptionActive(opt) ? 'active' : ''}`}
+                onClick={() => toggleOption(opt)}
               >
-                {cat.label}
+                {opt.label}
               </button>
             ))}
           </div>

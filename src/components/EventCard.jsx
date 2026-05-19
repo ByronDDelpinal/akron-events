@@ -15,6 +15,7 @@ const GRADIENT_MAP = {
   sports:    'gradient-sports',
   fitness:   'gradient-run',
   education: 'gradient-openmic',
+  nature:    'gradient-forest',
   other:     'gradient-default',
 }
 
@@ -28,6 +29,7 @@ const TAG_CLASS_MAP = {
   sports:    'tag-sports',
   fitness:   'tag-fitness',
   education: 'tag-education',
+  nature:    'tag-nature',
   other:     'tag-other',
 }
 
@@ -40,6 +42,7 @@ const CATEGORY_LABEL = {
   sports:    'Sports',
   fitness:   'Fitness',
   education: 'Education',
+  nature:    'Nature',
   other:     'Other',
 }
 
@@ -290,6 +293,12 @@ function CategoryIcon({ category }) {
         <path d="M22 10 12 5 2 10l10 5 10-5z"/>
         <path d="M22 10v6"/>
         <path d="M6 12v4c0 1.66 2.69 3 6 3s6-1.34 6-3v-4"/>
+      </svg>
+    )
+    case 'nature': return (
+      <svg {...props}>
+        <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/>
+        <path d="M2 21c0-3 1.85-5.36 5.08-6"/>
       </svg>
     )
     default: return (

@@ -93,19 +93,7 @@
 }
 
 /* ════════════════════════════════
-   ROW 2 — Intent pills
-════════════════════════════════ */
-.filter-intents-row {
-  max-width: var(--width-full);
-  margin: 0 auto;
-  padding: var(--space-sm) var(--space-xl) 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-/* ════════════════════════════════
-   ROW 3 — Filter & Sort + View mode
+   ROW 2 — Filter & Sort + View mode
 ════════════════════════════════ */
 .filter-actions-row {
   max-width: var(--width-full);
@@ -159,29 +147,6 @@
   border-color: var(--amber-border);
   font-weight: 700;
 }
-
-/* ── Intent chip emoji ── */
-.intent-emoji {
-  font-size: var(--text-base);
-  line-height: 1;
-}
-
-/* ── Chip clear × ── */
-.chip-clear {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  margin-left: 1px;
-  border-radius: var(--radius-round);
-  font-size: var(--text-tiny);
-  line-height: 1;
-  opacity: 0.6;
-  transition: opacity var(--transition-fast);
-  cursor: pointer;
-}
-.chip-clear:hover { opacity: 1; }
 
 /* ── More button ── */
 .chip--more {
@@ -267,11 +232,9 @@
    Scroll fade hints
    Right-edge gradient showing more content is scrollable.
 ════════════════════════════════ */
-.filter-intents-row,
 .filter-active-strip {
   position: relative;
 }
-.filter-intents-row::after,
 .filter-active-strip::after {
   content: '';
   position: absolute;
@@ -293,7 +256,6 @@
   .filter-bar { top: 56px; } /* shorter header on mobile */
 
   .filter-date-row,
-  .filter-intents-row,
   .filter-actions-row,
   .filter-active-strip { padding-left: var(--space-lg); padding-right: var(--space-lg); }
 
