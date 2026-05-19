@@ -197,11 +197,9 @@ export default function HomePage() {
     if (!loading && hasMore) setOffset(prev => prev + activePageSize)
   }
 
-  // ── Stat bar numbers ─────────────────────────────────────────────────
-  // `total` is the exact count from Supabase for the current filters.
-  // Loaded/weekend/free counts reflect what's actually been fetched so far.
-  const loadedCount  = allEvents.length
-  const weekendCount = allEvents.filter(e => { const d = new Date(e.start_at).getDay(); return d === 0 || d === 6 }).length
+  // `loadedCount` is used by the "Load more" button below to show
+  // how many results are still un-fetched relative to `total`.
+  const loadedCount = allEvents.length
 
   const isEfficient = cardViewMode === 'efficient'
 
@@ -266,17 +264,13 @@ export default function HomePage() {
       </div>
 
       {/* ── STAT BAR ── */}
-      <div className="stat-bar">
-        <div className="stat-bar-inner">
-          <div className="stat-pill">
-            <strong>{total}</strong> upcoming {total === 1 ? 'event' : 'events'}
+      {lastUpdated && (
+        <div className="stat-bar">
+          <div className="stat-bar-inner">
+            <div className="stat-pill">Updated <strong>{lastUpdated}</strong></div>
           </div>
-          <div className="stat-sep" />
-          <div className="stat-pill"><strong>{weekendCount}</strong> this weekend</div>
-          <div className="stat-sep" />
-          {lastUpdated && <div className="stat-pill">Updated <strong>{lastUpdated}</strong></div>}
         </div>
-      </div>
+      )}
 
       {/* ── FILTER BAR ── */}
       <FilterBar

@@ -218,7 +218,6 @@
   flex-shrink: 0;
 }
 .stat-pill strong { color: var(--amber); font-weight: 700; }
-.stat-sep { width: 1px; height: 16px; background: var(--border); flex-shrink: 0; margin: 0 var(--space-2xs); }
 
 /* ── VIEW MODE TOGGLE ROW ── */
 .view-mode-row {
