@@ -11,12 +11,13 @@ import {
  *
  * Wrap the app in <ThemeProvider>; any component can call useTheme()
  * to read or update the current theme. The provider:
- *   - reads the initial value from sessionStorage (with validation)
+ *   - reads the initial value from localStorage (with validation)
  *   - applies the .theme-<id> class to <html> whenever it changes
- *   - persists the choice back to sessionStorage
+ *   - persists the choice back to localStorage
  *
- * The default theme uses :root directly (no class), so no class is
- * applied for it.
+ * Every theme is applied via a class — including the default. globals.css
+ * still defines a safe fallback palette at :root for brief pre-mount
+ * paints, but the visible theme is whatever class is on <html>.
  */
 const ThemeContext = createContext(null)
 
@@ -39,9 +40,7 @@ export function ThemeProvider({ children }) {
   useEffect(() => {
     const root = document.documentElement
     THEMES.forEach((t) => root.classList.remove(`theme-${t.id}`))
-    if (theme !== DEFAULT_THEME) {
-      root.classList.add(`theme-${theme}`)
-    }
+    root.classList.add(`theme-${theme}`)
     window.localStorage.setItem(THEME_STORAGE_KEY, theme)
   }, [theme])
 

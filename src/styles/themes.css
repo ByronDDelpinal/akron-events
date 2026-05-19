@@ -24,8 +24,252 @@
    zero-refactor cost; role-based tokens (--primary, --secondary,
    --nav-dark) live on the design-system TODO.
 
-   Default palette ("civic-classic") lives in :root — no class needed.
+   Default palette is "akron-pulse" (Civic Teal) — its tokens live in
+   globals.css :root so first paint matches the brand without waiting
+   for React to apply a class. The .theme-akron-pulse block below
+   mirrors those values for symmetry; toggling between themes still
+   adds/removes the class as usual.
+
+   The original Turnout-era default (civic-classic) was moved out of
+   :root into its own class here so it remains selectable from the
+   theme dropdown without polluting first-paint defaults.
    ────────────────────────────────────────────────────────────────── */
+
+/* ──────────────────────────────────────────────────────────────────
+   Civic Classic — the original Turnout palette
+   Preserved as a selectable option after the Akron Pulse rebrand made
+   Civic Teal the default. Was previously at :root in globals.css.
+   ────────────────────────────────────────────────────────────────── */
+.theme-civic-classic {
+  --bg-page:       #FAF6EF;
+  --bg-card:       #FFFFFF;
+  --bg-secondary:  #F0EAE0;
+  --bg-nav:        #1D2B1F;
+
+  --text-primary:   #17200F;
+  --text-secondary: #3A4E30;
+  --text-muted:     #657756;
+
+  --amber:        #96671E;
+  --amber-hover:  #7A5416;
+  --amber-pale:   #FDF2DC;
+  --amber-border: rgba(150, 103, 30, 0.25);
+  --amber-on-dark: #D4922A;
+
+  --green-deep:   #1D2B1F;
+  --green-mid:    #3A6B4A;
+
+  --coral:        #BC4F28;
+  --coral-hover:  #A84220;
+  --coral-pale:   #FAEAE4;
+
+  --border:       #E0D9CA;
+  --border-mid:   #C8BFA8;
+
+  --chip-bg:         #EBE4D5;
+  --chip-text:       #5A6E50;
+  --chip-active-bg:  #96671E;
+  --chip-active-txt: #FFFFFF;
+
+  --amber-tint-10: rgba(150, 103, 30, 0.10);
+  --amber-tint-25: rgba(150, 103, 30, 0.25);
+  --amber-tint-50: rgba(150, 103, 30, 0.50);
+
+  --coral-tint-15: rgba(188, 79, 40, 0.15);
+  --coral-tint-25: rgba(188, 79, 40, 0.25);
+  --coral-tint-35: rgba(188, 79, 40, 0.35);
+
+  --shadow-focus: 0 0 0 3px rgba(150, 103, 30, 0.2);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Akron Pulse — Civic Teal (default)
+   Petrol teal primary with a warm coral accent. Trustworthy with
+   warmth — feels like a well-designed civic platform.
+   ────────────────────────────────────────────────────────────────── */
+.theme-akron-pulse {
+  --bg-page:       #FCFAF4;
+  --bg-card:       #FFFFFF;
+  --bg-secondary:  #F3EAD7;
+  --bg-nav:        #0A3B48;
+
+  --text-primary:   #1F2A30;
+  --text-secondary: #3E5560;
+  --text-muted:     #5F7886;
+
+  --amber:        #0E5163;
+  --amber-hover:  #0A3E4D;
+  --amber-pale:   #D6E8EE;
+  --amber-border: rgba(14, 81, 99, 0.25);
+  --amber-on-dark: #56B0C2;   /* brighter teal for text on --bg-nav */
+
+  --green-deep:   #0A3B48;
+  --green-mid:    #2A8A9D;
+
+  --coral:        #BB4E3E;    /* darkened from #E37060 for AA on bg-page */
+  --coral-hover:  #9A3F31;
+  --coral-pale:   #F8DBD2;
+
+  --border:       #DAD5C8;
+  --border-mid:   #C0B8A8;
+
+  --chip-bg:         #EFE7D2;
+  --chip-text:       #3E5560;
+  --chip-active-bg:  #0E5163;
+  --chip-active-txt: #FCFAF4;
+
+  --amber-tint-10: rgba(14, 81, 99, 0.10);
+  --amber-tint-25: rgba(14, 81, 99, 0.25);
+  --amber-tint-50: rgba(14, 81, 99, 0.50);
+
+  --coral-tint-15: rgba(187, 78, 62, 0.15);
+  --coral-tint-25: rgba(187, 78, 62, 0.25);
+  --coral-tint-35: rgba(187, 78, 62, 0.35);
+
+  --shadow-focus: 0 0 0 3px rgba(14, 81, 99, 0.2);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Pulse Red — Heartbeat literal
+   Vermilion on cream with deep navy support. Strongest brand
+   personality of the four candidates. Primary darkened from #D93B30
+   to #C03423 so white-on-primary passes AA.
+   ────────────────────────────────────────────────────────────────── */
+.theme-pulse-red {
+  --bg-page:       #FBF8F2;
+  --bg-card:       #FFFFFF;
+  --bg-secondary:  #F4DAC9;
+  --bg-nav:        #1F2A40;
+
+  --text-primary:   #1F2A40;
+  --text-secondary: #3A4458;
+  --text-muted:     #5C6776;
+
+  --amber:        #C03423;
+  --amber-hover:  #9F2A1A;
+  --amber-pale:   #FAE0DA;
+  --amber-border: rgba(192, 52, 35, 0.25);
+  --amber-on-dark: #F26352;
+
+  --green-deep:   #1F2A40;
+  --green-mid:    #4A5878;
+
+  --coral:        #C03423;
+  --coral-hover:  #9F2A1A;
+  --coral-pale:   #FAE0DA;
+
+  --border:       #DDD3C2;
+  --border-mid:   #C3B7A2;
+
+  --chip-bg:         #F0E5D6;
+  --chip-text:       #3A4458;
+  --chip-active-bg:  #C03423;
+  --chip-active-txt: #FBF8F2;
+
+  --amber-tint-10: rgba(192, 52, 35, 0.10);
+  --amber-tint-25: rgba(192, 52, 35, 0.25);
+  --amber-tint-50: rgba(192, 52, 35, 0.50);
+
+  --coral-tint-15: rgba(192, 52, 35, 0.15);
+  --coral-tint-25: rgba(192, 52, 35, 0.25);
+  --coral-tint-35: rgba(192, 52, 35, 0.35);
+
+  --shadow-focus: 0 0 0 3px rgba(192, 52, 35, 0.2);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Twilight Plum — Elevated and editorial
+   Deep plum primary lifted by dusty gold accent. Reads sophisticated
+   without being formal. Gold accent darkened to #8F6818 for AA on cream.
+   ────────────────────────────────────────────────────────────────── */
+.theme-twilight-plum {
+  --bg-page:       #FBF8F2;
+  --bg-card:       #FFFFFF;
+  --bg-secondary:  #E8DCC2;
+  --bg-nav:        #2D1A28;
+
+  --text-primary:   #2D1A28;
+  --text-secondary: #4A2640;
+  --text-muted:     #6B5060;
+
+  --amber:        #4A2640;
+  --amber-hover:  #371A30;
+  --amber-pale:   #EBDDE6;
+  --amber-border: rgba(74, 38, 64, 0.25);
+  --amber-on-dark: #B888AE;
+
+  --green-deep:   #2D1A28;
+  --green-mid:    #8B5D7D;
+
+  --coral:        #8F6818;    /* darkened from #D4A95C for AA on bg-page */
+  --coral-hover:  #735012;
+  --coral-pale:   #F6ECD6;
+
+  --border:       #D6CABC;
+  --border-mid:   #BBA89C;
+
+  --chip-bg:         #EBDDC4;
+  --chip-text:       #4A2640;
+  --chip-active-bg:  #4A2640;
+  --chip-active-txt: #FBF8F2;
+
+  --amber-tint-10: rgba(74, 38, 64, 0.10);
+  --amber-tint-25: rgba(74, 38, 64, 0.25);
+  --amber-tint-50: rgba(74, 38, 64, 0.50);
+
+  --coral-tint-15: rgba(143, 104, 24, 0.15);
+  --coral-tint-25: rgba(143, 104, 24, 0.25);
+  --coral-tint-35: rgba(143, 104, 24, 0.35);
+
+  --shadow-focus: 0 0 0 3px rgba(74, 38, 64, 0.2);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Forest & Amber — Grounded Midwest
+   Deep forest green with honey amber accent. Feels earned, evergreen.
+   Amber accent darkened to #B8761A for AA on bone background.
+   ────────────────────────────────────────────────────────────────── */
+.theme-forest-amber {
+  --bg-page:       #FAF6EC;
+  --bg-card:       #FFFFFF;
+  --bg-secondary:  #E5DDC8;
+  --bg-nav:        #1F2D24;
+
+  --text-primary:   #1F2D24;
+  --text-secondary: #3A4F40;
+  --text-muted:     #5F7368;
+
+  --amber:        #234F35;
+  --amber-hover:  #1A3A28;
+  --amber-pale:   #D8E5DC;
+  --amber-border: rgba(35, 79, 53, 0.25);
+  --amber-on-dark: #6BA47E;
+
+  --green-deep:   #1F2D24;
+  --green-mid:    #5C9476;
+
+  --coral:        #B8761A;    /* darkened from #E89A3C for AA on bg-page */
+  --coral-hover:  #9A6112;
+  --coral-pale:   #F8E8D0;
+
+  --border:       #D6CFB8;
+  --border-mid:   #BFB6A0;
+
+  --chip-bg:         #EAE2CA;
+  --chip-text:       #3A4F40;
+  --chip-active-bg:  #234F35;
+  --chip-active-txt: #FAF6EC;
+
+  --amber-tint-10: rgba(35, 79, 53, 0.10);
+  --amber-tint-25: rgba(35, 79, 53, 0.25);
+  --amber-tint-50: rgba(35, 79, 53, 0.50);
+
+  --coral-tint-15: rgba(184, 118, 26, 0.15);
+  --coral-tint-25: rgba(184, 118, 26, 0.25);
+  --coral-tint-35: rgba(184, 118, 26, 0.35);
+
+  --shadow-focus: 0 0 0 3px rgba(35, 79, 53, 0.2);
+}
 
 .theme-harbor-civic {
   --bg-page:       #F2EEE8;
