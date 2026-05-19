@@ -52,19 +52,22 @@ export default function Header() {
           Turn<span className="amber">out</span>
         </Link>
 
+        {/* Primary nav: About is the only text link; logo handles "browse
+         * events", and Submit Event + Subscribe live in the CTA group below
+         * for visual emphasis. Venues + Organizations remain reachable via
+         * direct URLs and admin tools; Admin login moved to the footer. */}
         <nav className="nav-links">
-          <Link to="/"              className={`nav-link ${isActive('/')              ? 'active' : ''}`}>Browse Events</Link>
-          <Link to="/venues"        className={`nav-link ${isActive('/venues')        ? 'active' : ''}`}>Venues</Link>
-          <Link to="/organizations" className={`nav-link ${isActive('/organizations') ? 'active' : ''}`}>Organizations</Link>
-          <Link to="/subscribe"     className={`nav-link ${isActive('/subscribe')     ? 'active' : ''}`}>Subscribe</Link>
-          <Link to="/about"         className={`nav-link ${isActive('/about')         ? 'active' : ''}`}>About</Link>
-          <Link to="/admin"         className={`nav-link ${isActive('/admin')         ? 'active' : ''}`}>Admin</Link>
+          <Link to="/about" className={`nav-link ${isActive('/about') ? 'active' : ''}`}>About</Link>
         </nav>
 
+        {/* CTA group: Subscribe is the highlighted primary action per partner
+         * direction ("Subscribe is our #2 driver"). Submit Event sits as the
+         * secondary outline button. Register Organization removed from
+         * header — reach via the submit-event flow when needed. */}
         <div className="nav-cta-group">
           <Link to="/feedback" className="btn-nav-feedback">Feedback<span className="feedback-badge">Beta</span></Link>
-          <Link to="/submit" className="btn-nav-cta">+ Submit Event</Link>
-          <Link to="/organizations/submit" className="btn-nav-cta btn-nav-cta-outline">+ Register Organization</Link>
+          <Link to="/submit" className="btn-nav-cta btn-nav-cta-outline">+ Submit Event</Link>
+          <Link to="/subscribe" className="btn-nav-cta">Subscribe</Link>
         </div>
 
         <button
@@ -79,15 +82,10 @@ export default function Header() {
 
       {menuOpen && (
         <div className="mobile-menu open">
-          <button className={`mobile-nav-link ${isActive('/')              ? 'active' : ''}`} onClick={() => navTo('/')}>Browse Events</button>
-          <button className={`mobile-nav-link ${isActive('/venues')        ? 'active' : ''}`} onClick={() => navTo('/venues')}>Venues</button>
-          <button className={`mobile-nav-link ${isActive('/organizations') ? 'active' : ''}`} onClick={() => navTo('/organizations')}>Organizations</button>
-          <button className={`mobile-nav-link ${isActive('/subscribe')     ? 'active' : ''}`} onClick={() => navTo('/subscribe')}>Subscribe</button>
-          <button className={`mobile-nav-link ${isActive('/about')         ? 'active' : ''}`} onClick={() => navTo('/about')}>About</button>
-          <button className={`mobile-nav-link ${isActive('/admin')         ? 'active' : ''}`} onClick={() => navTo('/admin')}>Admin</button>
+          <button className={`mobile-nav-link ${isActive('/about') ? 'active' : ''}`} onClick={() => navTo('/about')}>About</button>
           <button className="mobile-nav-feedback" onClick={() => navTo('/feedback')}>Feedback<span className="feedback-badge">Beta</span></button>
-          <button className="mobile-menu-cta" onClick={() => navTo('/submit')}>+ Submit Event</button>
-          <button className="mobile-menu-cta mobile-menu-cta-outline" onClick={() => navTo('/organizations/submit')}>+ Register Organization</button>
+          <button className="mobile-menu-cta mobile-menu-cta-outline" onClick={() => navTo('/submit')}>+ Submit Event</button>
+          <button className="mobile-menu-cta" onClick={() => navTo('/subscribe')}>Subscribe</button>
         </div>
       )}
     </header>

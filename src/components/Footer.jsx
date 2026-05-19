@@ -41,7 +41,11 @@ export default function Footer() {
         </select>
       </div>
 
-      <p className="footer-copy">© {new Date().getFullYear()} Turnout · Made with ♥ in Akron, OH</p>
+      <p className="footer-copy">
+        © {new Date().getFullYear()} Turnout · Made with ♥ in Akron, OH
+        <span className="footer-copy-sep" aria-hidden="true"> · </span>
+        <Link to="/admin" className="footer-admin-link">Admin</Link>
+      </p>
     </footer>
   )
 }

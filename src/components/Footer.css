@@ -79,3 +79,14 @@ footer {
 }
 
 .footer-copy { font-size: var(--text-tag); color: var(--overlay-light-12); }
+/* Discreet Admin entry point — same muted tone as the copyright text,
+ * picks up a clearer color on hover/focus so it's still findable. */
+.footer-admin-link {
+  color: inherit;
+  text-decoration: none;
+}
+.footer-admin-link:hover,
+.footer-admin-link:focus-visible {
+  color: var(--overlay-light-50);
+  text-decoration: underline;
+}
