@@ -1,13 +1,11 @@
-import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, isToday, isTomorrow } from 'date-fns'
 import './EventCard.css'
 
-// ── Minimum dimensions to consider an image "quality enough" ──
-const MIN_IMG_WIDTH  = 600
-const MIN_IMG_HEIGHT = 338
-
-// Map category → CSS class for thumbnail gradient
+// Map category → CSS class for the colored accent bar at the top of each card.
+// Same gradient palette previously used for thumbnails — now repurposed as
+// a thin category-identifying stripe. Image rendering was removed because
+// scraper image yield is too sparse to justify the inconsistent grid.
 const GRADIENT_MAP = {
   music:     'gradient-jazz',
   art:       'gradient-art',
@@ -65,23 +63,6 @@ function AgeRestrictionPill({ value }) {
   return <span className="age-pill">{label}</span>
 }
 
-// Reject data URIs and blob URLs — they are scraper placeholder artifacts,
-// not real hostable images. Fall back to the gradient thumb instead.
-function isUsableImageUrl(url) {
-  return url && /^https?:\/\//i.test(url)
-}
-
-/**
- * Check if the image meets the quality threshold.
- * If dimensions are stored in the DB, use those. If dimensions are unknown
- * (null), show the image optimistically (it will fallback on error).
- */
-function isImageQualityOk(event) {
-  // No dimensions stored → show optimistically
-  if (event.image_width == null || event.image_height == null) return true
-  return event.image_width >= MIN_IMG_WIDTH && event.image_height >= MIN_IMG_HEIGHT
-}
-
 // ── COMFORTABLE MODE (default) ──────────────────────────────────────────────
 
 export default function EventCard({ event, featured = false, viewMode = 'comfortable' }) {
@@ -116,14 +97,7 @@ export default function EventCard({ event, featured = false, viewMode = 'comfort
 }
 
 function ComfortableCard({ event, featured, price, tagClass, catLabel, navigate }) {
-  const [imgFailed, setImgFailed] = useState(false)
-
-  const rawUrl   = isUsableImageUrl(event.image_url) ? event.image_url : null
-  const qualityOk = rawUrl && isImageQualityOk(event)
-  const imageUrl  = qualityOk && !imgFailed ? rawUrl : null
-  const gradient  = imageUrl ? null : (GRADIENT_MAP[event.category] ?? 'gradient-default')
-
-  const handleImgError = useCallback(() => setImgFailed(true), [])
+  const gradient = GRADIENT_MAP[event.category] ?? 'gradient-default'
 
   return (
     <div
@@ -133,22 +107,16 @@ function ComfortableCard({ event, featured, price, tagClass, catLabel, navigate 
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && navigate(`/events/${event.id}`)}
     >
-      <div className="card-thumb">
-        {imageUrl
-          ? <img src={imageUrl} alt={event.title} className="card-img" referrerPolicy="no-referrer" onError={handleImgError} />
-          : (
-            <div className={`thumb-fill ${gradient}`}>
-              <span className="thumb-lbl">{event.title}</span>
-            </div>
-          )
-        }
-      </div>
+      <div className={`card-accent ${gradient}`} aria-hidden="true" />
 
       <div className="card-body">
         <div className="card-top">
           <div className="card-tags">
             {featured && <span className="featured-tag">Featured</span>}
-            <span className={`event-tag ${tagClass}`}>{catLabel}</span>
+            <span className={`event-tag ${tagClass}`}>
+              <CategoryIcon category={event.category} />
+              {catLabel}
+            </span>
           </div>
           <span className={`card-price ${price.free ? 'free' : ''}`}>{price.label}</span>
         </div>
@@ -215,7 +183,10 @@ function EfficientCard({ event, featured, price, tagClass, catLabel, navigate })
         </div>
       </div>
       <div className="card-efficient-end">
-        <span className={`event-tag ${tagClass}`}>{catLabel}</span>
+        <span className={`event-tag ${tagClass}`}>
+          <CategoryIcon category={event.category} />
+          {catLabel}
+        </span>
         <span className={`card-efficient-price ${price.free ? 'free' : ''}`}>{price.label}</span>
       </div>
     </div>
@@ -241,4 +212,90 @@ function PinIcon() {
       <circle cx="12" cy="10" r="3"/>
     </svg>
   )
+}
+
+/**
+ * CategoryIcon — small glyph rendered inside the category badge to provide
+ * a redundant non-color signal per category (WCAG 1.4.1). Uses currentColor
+ * stroke so each icon inherits its parent badge's text color automatically.
+ * Decorative — wrapped span carries the readable category label, so the
+ * icon is marked aria-hidden.
+ */
+function CategoryIcon({ category }) {
+  const props = {
+    width: 13, height: 13, viewBox: '0 0 24 24', fill: 'none',
+    stroke: 'currentColor', strokeWidth: 2.5,
+    strokeLinecap: 'round', strokeLinejoin: 'round',
+    'aria-hidden': true, focusable: false,
+  }
+  switch (category) {
+    case 'music': return (
+      <svg {...props}>
+        <path d="M9 18V5l12-2v13"/>
+        <circle cx="6" cy="18" r="3"/>
+        <circle cx="18" cy="16" r="3"/>
+      </svg>
+    )
+    case 'art': return (
+      <svg {...props}>
+        <path d="M12 2a10 10 0 0 0 0 20c1 0 2-.8 2-2 0-.5-.2-.9-.5-1.2-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2H17a5 5 0 0 0 5-5c0-5-4.5-8.5-10-8.5z"/>
+        <circle cx="7.5" cy="11" r="1"/>
+        <circle cx="12" cy="6.5" r="1"/>
+        <circle cx="16.5" cy="9" r="1"/>
+      </svg>
+    )
+    case 'nonprofit': return (
+      <svg {...props}>
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+      </svg>
+    )
+    case 'community': return (
+      <svg {...props}>
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+    )
+    case 'food': return (
+      <svg {...props}>
+        <path d="M3 2v7c0 1.1.9 2 2 2h2v11"/>
+        <path d="M7 2v20"/>
+        <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3z"/>
+      </svg>
+    )
+    case 'sports': return (
+      <svg {...props}>
+        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
+        <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+        <path d="M4 22h16"/>
+        <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+        <path d="M14 14.66V17c0 .55.47.98.97 1.21 1.18.53 2.03 2.02 2.03 3.79"/>
+        <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+      </svg>
+    )
+    case 'fitness': return (
+      <svg {...props}>
+        <path d="M2 12h2"/>
+        <path d="M20 12h2"/>
+        <path d="M5 8v8"/>
+        <path d="M19 8v8"/>
+        <path d="M8 6v12"/>
+        <path d="M16 6v12"/>
+        <path d="M8 12h8"/>
+      </svg>
+    )
+    case 'education': return (
+      <svg {...props}>
+        <path d="M22 10 12 5 2 10l10 5 10-5z"/>
+        <path d="M22 10v6"/>
+        <path d="M6 12v4c0 1.66 2.69 3 6 3s6-1.34 6-3v-4"/>
+      </svg>
+    )
+    default: return (
+      <svg {...props}>
+        <path d="m12 3-2 6-6 2 6 2 2 6 2-6 6-2-6-2z"/>
+      </svg>
+    )
+  }
 }

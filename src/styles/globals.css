@@ -321,6 +321,9 @@ h6 { font-size: var(--text-h6); }
    EVENT TAGS
 ════════════════════════════════ */
 .event-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-family: var(--font-display);
   font-size: var(--text-tiny);
   font-weight: 700;
@@ -328,6 +331,11 @@ h6 { font-size: var(--text-h6); }
   letter-spacing: 0.07em;
   padding: 3px 8px;
   border-radius: var(--radius-xs);
+}
+.event-tag svg {
+  flex-shrink: 0;
+  /* Inherit current color so the glyph picks up each category's text color */
+  stroke: currentColor;
 }
 .tag-music     { background: var(--tag-music-bg);     color: var(--tag-music-txt); }
 .tag-art       { background: var(--tag-art-bg);       color: var(--tag-art-txt); }
