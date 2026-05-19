@@ -11,29 +11,39 @@ import https from 'https'
 import http from 'http'
 
 /**
- * Probe an image URL and return { width, height } or null on failure.
+ * Probe an image URL and return { width, height, fileSize } or null on failure.
+ *   - width/height come from parsing the image header bytes
+ *   - fileSize comes from the response's Content-Length header (null if the
+ *     server doesn't expose it — some CDNs strip it on chunked responses)
+ *
  * Respects a timeout (default 8s) and follows up to 5 redirects.
  *
  * @param {string} url
  * @param {object} [opts]
  * @param {number} [opts.timeout=8000]
  * @param {number} [opts.maxRedirects=5]
- * @returns {Promise<{width: number, height: number} | null>}
+ * @returns {Promise<{width: number, height: number, fileSize: number|null} | null>}
  */
 export async function getImageDimensions(url, { timeout = 8000, maxRedirects = 5 } = {}) {
   if (!url || !/^https?:\/\//i.test(url)) return null
 
   try {
-    const buffer = await fetchImageBuffer(url, { timeout, maxRedirects })
-    if (!buffer || buffer.length < 24) return null
-    return parseDimensions(buffer)
+    const result = await fetchImageBuffer(url, { timeout, maxRedirects })
+    if (!result || !result.buffer || result.buffer.length < 24) return null
+    const dims = parseDimensions(result.buffer)
+    if (!dims) return null
+    return { ...dims, fileSize: result.fileSize }
   } catch {
     return null
   }
 }
 
 /**
- * Fetch the first ~32KB of an image (enough for all common header formats).
+ * Fetch the first ~32KB of an image (enough for all common image headers)
+ * and capture the Content-Length header for the file-size signal.
+ * Returns { buffer, fileSize } where fileSize is null if the server
+ * doesn't send Content-Length.
+ *
  * Follows redirects manually.
  */
 function fetchImageBuffer(url, { timeout, maxRedirects, _redirectCount = 0 } = {}) {
@@ -61,6 +71,10 @@ function fetchImageBuffer(url, { timeout, maxRedirects, _redirectCount = 0 } = {
         return resolve(null)
       }
 
+      // Capture file size from Content-Length while the response is still open.
+      const clHeader = res.headers['content-length']
+      const fileSize = clHeader != null ? parseInt(clHeader, 10) : null
+
       const chunks = []
       let totalBytes = 0
       const MAX_BYTES = 32 * 1024 // 32KB is enough for any image header
@@ -73,8 +87,12 @@ function fetchImageBuffer(url, { timeout, maxRedirects, _redirectCount = 0 } = {
         }
       })
 
-      res.on('end', () => resolve(Buffer.concat(chunks)))
-      res.on('close', () => resolve(Buffer.concat(chunks)))
+      const done = () => resolve({
+        buffer: Buffer.concat(chunks),
+        fileSize: Number.isFinite(fileSize) ? fileSize : null,
+      })
+      res.on('end',   done)
+      res.on('close', done)
       res.on('error', () => resolve(null))
     })
 

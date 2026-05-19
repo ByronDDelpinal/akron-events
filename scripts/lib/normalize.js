@@ -8,6 +8,7 @@
 
 import { supabaseAdmin } from './supabase-admin.js'
 import { getImageDimensions } from './image-dimensions.js'
+import { normalizeImageUrl } from './image-url-normalizer.js'
 
 // ════════════════════════════════════════════════════════════════════════════
 // HTML / TEXT UTILITIES
@@ -103,17 +104,33 @@ export function parseEventbritePrice(ticketClasses = [], isFree = false) {
 // IMAGE DIMENSION ENRICHMENT
 // ════════════════════════════════════════════════════════════════════════════
 
+/**
+ * Enriches a row with image metadata: width, height, file size.
+ *
+ * Also runs the per-source URL normalizer first, so the URL we probe AND
+ * the URL we store is the highest-resolution variant the source serves.
+ * Sources without a known transform are pass-through (the normalizer
+ * just returns the original URL).
+ */
 export async function enrichWithImageDimensions(row) {
   if (!await _hasImageDimensionColumns()) return row
-  if (!row.image_url) return { ...row, image_width: null, image_height: null }
-  const dims = await getImageDimensions(row.image_url)
+  if (!row.image_url) {
+    return { ...row, image_width: null, image_height: null, image_file_size: null }
+  }
+  const normalizedUrl = normalizeImageUrl(row.image_url, row.source)
+  const meta = await getImageDimensions(normalizedUrl)
   return {
     ...row,
-    image_width:  dims?.width  ?? null,
-    image_height: dims?.height ?? null,
+    image_url:       normalizedUrl,
+    image_width:     meta?.width    ?? null,
+    image_height:    meta?.height   ?? null,
+    image_file_size: meta?.fileSize ?? null,
   }
 }
 
+// Cache for the column-existence probe. We're checking both image_width
+// (the original gate) and image_file_size (new) — they were added in
+// separate migrations so either may be missing in older deployments.
 let _dimColumnsCache = null
 async function _hasImageDimensionColumns() {
   if (_dimColumnsCache !== null) return _dimColumnsCache

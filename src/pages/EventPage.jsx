@@ -12,9 +12,8 @@ import {
 } from '@/lib/seo'
 import './EventPage.css'
 
-// ── Minimum dimensions to consider an image "quality enough" ──
-const MIN_IMG_WIDTH  = 600
-const MIN_IMG_HEIGHT = 338
+// Banner needs to span the page content area; sub-1120 images become thumbnails.
+const BANNER_MIN_WIDTH = 1120
 
 const GRADIENT_MAP = {
   music: 'gradient-jazz', art: 'gradient-art', community: 'gradient-market',
@@ -38,11 +37,6 @@ function formatPrice(min, max) {
 
 function isUsableImageUrl(url) {
   return url && /^https?:\/\//i.test(url)
-}
-
-function isImageQualityOk(event) {
-  if (event.image_width == null || event.image_height == null) return true
-  return event.image_width >= MIN_IMG_WIDTH && event.image_height >= MIN_IMG_HEIGHT
 }
 
 function buildGoogleCalUrl(event) {
@@ -102,26 +96,23 @@ export default function EventPage() {
 
   const price = formatPrice(event.price_min, event.price_max)
 
-  // ── Image quality gating ──
-  const rawUrl    = isUsableImageUrl(event.image_url) ? event.image_url : null
-  const qualityOk = rawUrl && isImageQualityOk(event)
-  const gradient  = GRADIENT_MAP[event.category] ?? 'gradient-default'
+  // ── Image routing ──
+  // `banner_eligible` is a generated DB column derived from image dimensions
+  // and bytes-per-pixel; it's the authoritative "is this image good enough
+  // for a full-bleed banner" signal. Pair it with a width gate so we don't
+  // try to banner a square 600×600 image that fails to fill the content area.
+  const rawUrl   = isUsableImageUrl(event.image_url) ? event.image_url : null
+  const gradient = GRADIENT_MAP[event.category] ?? 'gradient-default'
 
-  // Determine if image is wide enough to span full page width (>=1120px content area)
-  // If we know dimensions and the image is narrower, use float-left layout
-  const isNarrowImage = qualityOk && event.image_width != null && event.image_width < 1120
+  const showBanner = !!rawUrl
+    && event.banner_eligible
+    && event.image_width != null
+    && event.image_width >= BANNER_MIN_WIDTH
 
-  // ── POC: force float-thumbnail treatment for known-bad-image events ──
-  // Temporary override so we can evaluate the float-under-About layout
-  // without waiting on scraper-side quality detection. Remove once the
-  // scraper exposes a real `image_quality` signal we can route on.
-  const POC_FORCE_FLOAT_IDS = ['8b3e2484-adfc-4b50-bc75-6ac94ea38c33']
-  const pocForceFloat = POC_FORCE_FLOAT_IDS.includes(event.id)
-
-  // Composite routing: banner only for quality+wide+not-overridden; everything
-  // else with a usable URL goes to the float thumbnail under About.
-  const showBanner = qualityOk && !isNarrowImage && !pocForceFloat
-  const showFloat  = qualityOk && (isNarrowImage || pocForceFloat)
+  // Anything else with a usable URL renders as a float thumbnail under
+  // "About this event". Sub-banner-quality images still get shown — they
+  // look fine at thumbnail scale.
+  const showFloat = !!rawUrl && !showBanner
 
   // ── Build SEO metadata for this event ────────────────────────────
   const venueName = event.venue?.name
@@ -133,7 +124,8 @@ export default function EventPage() {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 155)
-  const seoImage = qualityOk ? rawUrl : undefined
+  // Only feed banner-eligible URLs to OpenGraph — same quality bar as the page banner.
+  const seoImage = (event.banner_eligible && rawUrl) ? rawUrl : undefined
 
   const seoGraph = buildGraph(
     eventSchema(event),
