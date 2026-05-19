@@ -34,9 +34,22 @@ function decodeEntities(str) {
     .replace(/&([a-zA-Z]+);/g, (match, name) => NAMED_ENTITIES[name] ?? NAMED_ENTITIES[name.toLowerCase()] ?? match)
 }
 
+/**
+ * Remove HTML constructs whose *contents* are not human-readable text:
+ * <style>, <script>, <noscript> blocks, and HTML comments. The naive
+ * /<[^>]*>/ tag stripper used below only removes delimiters and would
+ * otherwise leak inline CSS rules and JS code into descriptions.
+ * Run this BEFORE the tag stripper, not after.
+ */
+function stripDangerousBlocks(html) {
+  return html
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<(style|script|noscript)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
+}
+
 export function stripHtml(html = '') {
   return decodeEntities(
-    html.replace(/<[^>]*>/g, ' ')
+    stripDangerousBlocks(html).replace(/<[^>]*>/g, ' ')
   )
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201c\u201d]/g, '"')
@@ -49,7 +62,7 @@ export function stripHtml(html = '') {
  */
 export function htmlToText(html = '') {
   return decodeEntities(
-    html
+    stripDangerousBlocks(html)
       .replace(/<br\s*\/?>/gi,   '\n')
       .replace(/<\/p>/gi,        '\n\n')
       .replace(/<\/h[1-6]>/gi,   '\n\n')
