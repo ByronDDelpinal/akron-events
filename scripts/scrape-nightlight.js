@@ -46,7 +46,7 @@ const BASE_URL    = 'https://nightlightcinema.com'
 const HOME_URL    = `${BASE_URL}/home/`
 const SITEMAP_URL = `${BASE_URL}/sitemap.xml`
 
-const USER_AGENT = 'Mozilla/5.0 (compatible; Turnout-bot/1.0; +https://events.supportlocalakron.com)'
+const USER_AGENT = 'Mozilla/5.0 (compatible; AkronPulse-bot/1.0; +https://events.supportlocalakron.com)'
 
 const DETAIL_RATE_LIMIT_MS = 1000   // polite per-request delay
 const DETAIL_TIMEOUT_MS    = 15_000

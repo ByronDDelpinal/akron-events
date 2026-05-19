@@ -20,13 +20,13 @@ const BASE_URL = Deno.env.get('PUBLIC_SITE_URL') || 'https://events.supportlocal
 
 // ── Brand theme (mirrors src/lib/emailTheme.js — update both together) ──
 const THEME = {
-  brandName: 'Turnout',
-  from: 'Turnout <digest@events.supportlocalakron.com>',
+  brandName: 'Akron Pulse',
+  from: 'Akron Pulse <digest@events.supportlocalakron.com>',
   colors: {
-    primary:       '#D4922A',
-    textPrimary:   '#17200F',
-    textSecondary: '#3A4E30',
-    textMuted:     '#7A9068',
+    primary:       '#0E5163',
+    textPrimary:   '#1F2A30',
+    textSecondary: '#3E5560',
+    textMuted:     '#5F7886',
     white:         '#FFFFFF',
   },
   fonts: {

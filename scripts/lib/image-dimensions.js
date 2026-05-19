@@ -52,7 +52,7 @@ function fetchImageBuffer(url, { timeout, maxRedirects, _redirectCount = 0 } = {
 
     const req = client.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; TurnoutBot/1.0)',
+        'User-Agent': 'Mozilla/5.0 (compatible; AkronPulseBot/1.0)',
         'Accept': 'image/*',
       },
       timeout,

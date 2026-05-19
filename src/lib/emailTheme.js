@@ -8,29 +8,29 @@
 
 export const EMAIL_THEME = {
   // Brand identity
-  brandName: 'Turnout',
+  brandName: 'Akron Pulse',
   tagline: 'Everything happening in Akron & Summit County',
-  copyrightHolder: 'Turnout',
+  copyrightHolder: 'Akron Pulse',
   location: 'Akron, OH',
 
   // URLs (update when domain changes)
   baseUrl: 'https://events.supportlocalakron.com',      // production domain
   logoUrl: null,                         // set when logo is hosted
 
-  // Colors (matches CSS variables in globals.css)
+  // Colors — synced with the Civic Teal palette in globals.css :root
   colors: {
-    primary:       '#D4922A',            // --amber
-    primaryHover:  '#BC7E20',            // --amber-hover
-    primaryPale:   '#FDF2DC',            // --amber-pale
-    background:    '#FAF6EF',            // --bg-page
+    primary:       '#0E5163',            // --amber  (deep petrol teal)
+    primaryHover:  '#0A3E4D',            // --amber-hover
+    primaryPale:   '#D6E8EE',            // --amber-pale
+    background:    '#FCFAF4',            // --bg-page
     card:          '#FFFFFF',            // --bg-card
-    dark:          '#1D2B1F',            // --bg-nav
-    textPrimary:   '#17200F',            // --text-primary
-    textSecondary: '#3A4E30',            // --text-secondary
-    textMuted:     '#7A9068',            // --text-muted
-    border:        '#E0D9CA',            // --border
-    greenMid:      '#3A6B4A',            // --green-mid (free badge)
-    coral:         '#C4532A',            // --coral (errors)
+    dark:          '#0A3B48',            // --bg-nav
+    textPrimary:   '#1F2A30',            // --text-primary
+    textSecondary: '#3E5560',            // --text-secondary
+    textMuted:     '#5F7886',            // --text-muted
+    border:        '#DAD5C8',            // --border
+    greenMid:      '#2A8A9D',            // --green-mid (free badge)
+    coral:         '#BC4F3E',            // --coral (errors)
   },
 
   // Typography
@@ -41,7 +41,7 @@ export const EMAIL_THEME = {
 
   // Email-specific
   email: {
-    fromName: 'Turnout',
+    fromName: 'Akron Pulse',
     fromAddress: 'digest@events.supportlocalakron.com',   // update with verified domain
     replyTo: null,                        // optional
   },

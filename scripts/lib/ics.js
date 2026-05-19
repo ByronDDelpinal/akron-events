@@ -352,7 +352,7 @@ export function normaliseIcsEvent(ev, config = {}) {
 // FEED FETCH + DISCOVERY
 // ════════════════════════════════════════════════════════════════════════════
 
-const DEFAULT_USER_AGENT = 'Mozilla/5.0 (compatible; Turnout-bot/1.0; +https://events.supportlocalakron.com)'
+const DEFAULT_USER_AGENT = 'Mozilla/5.0 (compatible; AkronPulse-bot/1.0; +https://events.supportlocalakron.com)'
 
 /**
  * Fetch an ICS feed URL. Throws on HTTP error or obviously wrong content.

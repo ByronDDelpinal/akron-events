@@ -13,7 +13,7 @@ import { SITE, canonicalUrl } from './constants'
  *   - Optional <script type="application/ld+json"> for structured data
  *
  * Props:
- *   title       — page title (wrapped as "{title} | Turnout" unless
+ *   title       — page title (wrapped as "{title} | Akron Pulse" unless
  *                 `titleExact` is passed; home page uses titleExact)
  *   titleExact  — use the title as-is, no suffix
  *   description — meta description (155 char soft cap)

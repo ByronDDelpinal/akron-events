@@ -1,4 +1,4 @@
-# robots.txt — Turnout
+# robots.txt — Akron Pulse
 # https://events.supportlocalakron.com
 #
 # Strategy (April 2026): allow all mainstream search + AI crawlers so we

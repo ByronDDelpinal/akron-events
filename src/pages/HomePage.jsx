@@ -13,10 +13,17 @@ import { SEO } from '@/lib/seo'
 import './HomePage.css'
 
 // ── localStorage key for persisting card view mode ──
-const VIEW_MODE_KEY = 'turnout_card_view_mode'
+const VIEW_MODE_KEY = 'akronpulse_card_view_mode'
+const LEGACY_VIEW_MODE_KEY = 'turnout_card_view_mode'
 
 function getStoredViewMode() {
   try {
+    // Rebrand migration: move pre-rebrand value into the new key on first read.
+    const legacy = localStorage.getItem(LEGACY_VIEW_MODE_KEY)
+    if (legacy && !localStorage.getItem(VIEW_MODE_KEY)) {
+      localStorage.setItem(VIEW_MODE_KEY, legacy)
+      localStorage.removeItem(LEGACY_VIEW_MODE_KEY)
+    }
     const v = localStorage.getItem(VIEW_MODE_KEY)
     return v === 'efficient' ? 'efficient' : 'comfortable'
   } catch { return 'comfortable' }
@@ -206,7 +213,7 @@ export default function HomePage() {
     <>
       <SEO
         titleExact
-        title="Akron Events — Concerts, Art Shows, Markets & More | Turnout"
+        title="Akron Events — Concerts, Art Shows, Markets & More | Akron Pulse"
         description="Discover events happening in Akron, Ohio and Summit County. Browse concerts, art shows, community gatherings, fundraisers, farmers markets, and more — updated daily."
         path="/"
       />
@@ -395,8 +402,8 @@ function GridPromo() {
 
   const handleShare = async () => {
     const shareData = {
-      title: 'Turnout — Akron Events',
-      text: "Check out Turnout — it's where I find everything happening in Akron & Summit County.",
+      title: 'Akron Pulse — Akron Events',
+      text: "Check out Akron Pulse — it's where I find everything happening in Akron & Summit County.",
       url: window.location.origin,
     }
     if (navigator.share) {
@@ -432,7 +439,7 @@ function GridPromo() {
             <p>The more events on here, the better. Send them the link.</p>
           </div>
           <button className="grid-promo-btn" onClick={handleShare}>
-            {copied ? '✓ Link copied!' : 'Share Turnout →'}
+            {copied ? '✓ Link copied!' : 'Share Akron Pulse →'}
           </button>
         </div>
         <div className="grid-promo-divider" />

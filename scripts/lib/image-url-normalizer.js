@@ -4,7 +4,7 @@
  * Transforms a scraped image URL into its highest-resolution variant.
  *
  * Many sources we scrape from serve resized/cropped variants by default —
- * fine for their own listing pages but bad as event banners on Turnout.
+ * fine for their own listing pages but bad as event banners on Akron Pulse.
  * Each per-source transform here un-resizes the URL so the scraper stores
  * the full-fidelity image. Verified bytes-gain notes are in comments.
  *

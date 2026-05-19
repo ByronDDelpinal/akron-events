@@ -7,29 +7,29 @@ import './AboutPage.css'
 // answers under ~300 chars so they read well as LLM citations.
 const FAQS = [
   {
-    question: 'What is Turnout?',
+    question: 'What is Akron Pulse?',
     answer:
-      'Turnout is a free directory of local events in Akron, Ohio and Summit County. We track concerts, art shows, community gatherings, fundraisers, farmers markets, sports events, and more — so locals and visitors can find everything happening in one place.',
+      'Akron Pulse is a free directory of local events in Akron, Ohio and Summit County. We track concerts, art shows, community gatherings, fundraisers, farmers markets, sports events, and more — so locals and visitors can find everything happening in one place.',
   },
   {
-    question: 'How much does Turnout cost?',
+    question: 'How much does Akron Pulse cost?',
     answer:
-      'Turnout is free to use and free to submit events to. We exist to make local events easier to discover, not to gatekeep them.',
+      'Akron Pulse is free to use and free to submit events to. We exist to make local events easier to discover, not to gatekeep them.',
   },
   {
-    question: 'What areas does Turnout cover?',
+    question: 'What areas does Akron Pulse cover?',
     answer:
-      'Turnout covers events in Akron and the broader Summit County, Ohio area, including surrounding neighborhoods like Downtown Akron, Highland Square, North Hill, Cuyahoga Falls, and beyond.',
+      'Akron Pulse covers events in Akron and the broader Summit County, Ohio area, including surrounding neighborhoods like Downtown Akron, Highland Square, North Hill, Cuyahoga Falls, and beyond.',
   },
   {
-    question: 'How do I submit an event to Turnout?',
+    question: 'How do I submit an event to Akron Pulse?',
     answer:
       'Anyone can submit an event through the Submit page. Submissions are reviewed before being published. We also aggregate events from venue websites and partner organizations.',
   },
   {
-    question: 'How often is Turnout updated?',
+    question: 'How often is Akron Pulse updated?',
     answer:
-      'Turnout is updated daily. New events from partner venues are added continuously, and community-submitted events are reviewed and published within a day or two.',
+      'Akron Pulse is updated daily. New events from partner venues are added continuously, and community-submitted events are reviewed and published within a day or two.',
   },
 ]
 
@@ -72,8 +72,8 @@ export default function AboutPage() {
   return (
     <>
       <SEO
-        title="About Turnout — Local Events in Akron, OH"
-        description="Turnout is a free directory of local events in Akron and Summit County. Learn what we cover, how often we update, and how to submit your own event."
+        title="About Akron Pulse — Local Events in Akron, OH"
+        description="Akron Pulse is a free directory of local events in Akron and Summit County. Learn what we cover, how often we update, and how to submit your own event."
         path="/about"
         jsonLd={seoGraph}
       />
@@ -100,7 +100,7 @@ export default function AboutPage() {
         </p>
 
         <p className="about-p">
-          Turnout is one place to look. We pull from local venue calendars, ticketing
+          Akron Pulse is one place to look. We pull from local venue calendars, ticketing
           platforms, and community submissions — updated daily, no duplicates, no noise.
           If it's happening in Akron, it should be here.
         </p>

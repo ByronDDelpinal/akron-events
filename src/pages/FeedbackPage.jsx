@@ -281,7 +281,7 @@ export default function FeedbackPage() {
       <div className="fb-hero">
         <h1>Town <span>Square</span></h1>
         <p>
-          Turnout is shaped by the people who use it.
+          Akron Pulse is shaped by the people who use it.
           Share what's working, what's not, and where we should go next.
         </p>
       </div>
@@ -406,7 +406,7 @@ export default function FeedbackPage() {
               </span>
               <span className="fb-private-label">
                 <span className="fb-private-title">Keep this on the down low</span>
-                <span className="fb-private-hint">Only visible to the Turnout team</span>
+                <span className="fb-private-hint">Only visible to the Akron Pulse team</span>
               </span>
             </div>
 

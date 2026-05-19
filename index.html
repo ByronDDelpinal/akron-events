@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Turnout — discover what's happening in Akron, OH and Summit County. Concerts, art shows, community gatherings, fundraisers, and more, all in one place." />
-    <title>Turnout — Akron & Summit County Events</title>
+    <meta name="description" content="Akron Pulse — discover what's happening in Akron, OH and Summit County. Concerts, art shows, community gatherings, fundraisers, and more, all in one place." />
+    <title>Akron Pulse — Akron & Summit County Events</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;1,9..40,400&display=swap" rel="stylesheet" />
@@ -14,10 +14,12 @@
       // flash of the default palette on cold loads. Storage key must
       // match THEME_STORAGE_KEY in src/lib/themes.js; React re-validates
       // the value on mount, so any invalid class here is harmless.
+      // Handles the rebrand migration from 'turnout.theme' too.
       (function () {
         try {
-          var t = localStorage.getItem('turnout.theme');
-          if (t && /^[a-z-]+$/.test(t) && t !== 'civic-classic') {
+          var t = localStorage.getItem('akronpulse.theme')
+               || localStorage.getItem('turnout.theme');
+          if (t && /^[a-z-]+$/.test(t) && t !== 'akron-pulse') {
             document.documentElement.classList.add('theme-' + t);
           }
         } catch (e) {}

@@ -78,6 +78,10 @@ export const THEMES = [
 ]
 
 export const DEFAULT_THEME = 'akron-pulse'
-export const THEME_STORAGE_KEY = 'turnout.theme'
+export const THEME_STORAGE_KEY = 'akronpulse.theme'
+// Pre-rebrand key. useTheme migrates this into THEME_STORAGE_KEY on first
+// load so users' saved palette survives the rename. Safe to remove after
+// enough time has passed that no live user still has the old key.
+export const LEGACY_THEME_STORAGE_KEY = 'turnout.theme'
 
 export const isValidTheme = (id) => THEMES.some((t) => t.id === id)

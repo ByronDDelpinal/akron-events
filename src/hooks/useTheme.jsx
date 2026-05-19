@@ -3,6 +3,7 @@ import {
   THEMES,
   DEFAULT_THEME,
   THEME_STORAGE_KEY,
+  LEGACY_THEME_STORAGE_KEY,
   isValidTheme,
 } from '@/lib/themes'
 
@@ -23,13 +24,22 @@ const ThemeContext = createContext(null)
 
 function readStoredTheme() {
   if (typeof window === 'undefined') return DEFAULT_THEME
+
   // One-time migration: earlier pre-launch builds used sessionStorage.
-  // If a value is there and localStorage is empty, carry it over.
   const sessionValue = window.sessionStorage.getItem(THEME_STORAGE_KEY)
   if (sessionValue && !window.localStorage.getItem(THEME_STORAGE_KEY)) {
     window.localStorage.setItem(THEME_STORAGE_KEY, sessionValue)
     window.sessionStorage.removeItem(THEME_STORAGE_KEY)
   }
+
+  // Rebrand migration: pre-rebrand users had 'turnout.theme' in localStorage.
+  // Move that into the new key on first load so their pick survives.
+  const legacyValue = window.localStorage.getItem(LEGACY_THEME_STORAGE_KEY)
+  if (legacyValue && !window.localStorage.getItem(THEME_STORAGE_KEY)) {
+    window.localStorage.setItem(THEME_STORAGE_KEY, legacyValue)
+    window.localStorage.removeItem(LEGACY_THEME_STORAGE_KEY)
+  }
+
   const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
   return stored && isValidTheme(stored) ? stored : DEFAULT_THEME
 }

@@ -36,7 +36,7 @@ export function organizationSchema() {
 
 /**
  * WebSite — enables the Sitelinks Search Box in Google results when a
- * user searches for "Turnout" (or any brand-intent query).
+ * user searches for "Akron Pulse" (or any brand-intent query).
  */
 export function webSiteSchema() {
   return {
@@ -174,7 +174,7 @@ function offerSchema(event) {
 }
 
 /**
- * Build an Event object from a Turnout event row. Matches the exact
+ * Build an Event object from an Akron Pulse event row. Matches the exact
  * shape Google requires + recommends. If a value is missing, omit the
  * field rather than emitting null — validators flag nulls.
  *

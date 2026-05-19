@@ -49,7 +49,7 @@ export default function Header() {
       <div className="header-inner">
         <Link to="/" className="nav-logo">
           <div className="logo-dot" />
-          Turn<span className="amber">out</span>
+          Akron <span className="amber">Pulse</span>
         </Link>
 
         {/* Primary nav: About is the only text link; logo handles "browse

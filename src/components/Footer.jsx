@@ -13,7 +13,7 @@ export default function Footer() {
     <footer>
       <div className="footer-logo">
         <div className="logo-dot" />
-        Turn<span className="amber">out</span>
+        Akron <span className="amber">Pulse</span>
       </div>
       <p className="footer-tagline">Everything happening in Akron &amp; Summit County, all in one place.</p>
       <div className="footer-links">
@@ -42,7 +42,7 @@ export default function Footer() {
       </div>
 
       <p className="footer-copy">
-        © {new Date().getFullYear()} Turnout · Made with ♥ in Akron, OH
+        © {new Date().getFullYear()} Akron Pulse · Made with ♥ in Akron, OH
         <span className="footer-copy-sep" aria-hidden="true"> · </span>
         <Link to="/admin" className="footer-admin-link">Admin</Link>
       </p>

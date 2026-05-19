@@ -18,7 +18,7 @@ export async function geocodeAddress({ address, city, state, zip }) {
 
   try {
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Turnout-Akron-Events/1.0' },
+      headers: { 'User-Agent': 'AkronPulse-Akron-Events/1.0' },
     })
     if (!res.ok) return null
 

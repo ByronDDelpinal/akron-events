@@ -152,7 +152,7 @@ export default function OrganizationSubmitPage() {
     <div className="page-shell">
       <h1 className="page-title">Register an Organization</h1>
       <p className="page-sub">
-        Add your organization to Turnout so people in Akron can discover your events and venues.
+        Add your organization to Akron Pulse so people in Akron can discover your events and venues.
       </p>
 
       <div className="notice-box">

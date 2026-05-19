@@ -100,7 +100,7 @@ export default function AdminPage() {
   return (
     <div className="admin-page">
       <div className="admin-topbar">
-        <h1 className="admin-topbar-title">Turnout Admin</h1>
+        <h1 className="admin-topbar-title">Akron Pulse Admin</h1>
         <button className="btn-admin-ghost" onClick={logout}>Log out</button>
       </div>
       <div className="admin-layout">

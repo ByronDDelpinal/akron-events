@@ -112,7 +112,7 @@ export default function OrganizationsPage() {
         <div className="orgs-cta-section">
           <div className="orgs-cta-card">
             <h3 className="orgs-cta-title">Run an organization in Akron?</h3>
-            <p className="orgs-cta-sub">Add your organization to Turnout so people can discover your events.</p>
+            <p className="orgs-cta-sub">Add your organization to Akron Pulse so people can discover your events.</p>
             <Link to="/organizations/submit" className="orgs-cta-btn">Register Your Organization</Link>
           </div>
         </div>

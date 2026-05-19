@@ -79,8 +79,8 @@ export default function SubmitPage() {
   return (
     <div className="page-shell">
       <SEO
-        title="Submit an Event in Akron — Free Listing on Turnout"
-        description="Have an event happening in Akron or Summit County? Submit it to Turnout for free and reach locals looking for things to do."
+        title="Submit an Event in Akron — Free Listing on Akron Pulse"
+        description="Have an event happening in Akron or Summit County? Submit it to Akron Pulse for free and reach locals looking for things to do."
         path="/submit"
       />
       <h1 className="page-title">Submit an Event</h1>

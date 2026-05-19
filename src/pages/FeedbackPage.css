@@ -85,7 +85,7 @@
   flex-shrink: 0;
 }
 
-/* ── Chips (reuses Turnout pill pattern) ───────────────────────────────── */
+/* ── Chips (reuses the app-wide pill pattern) ──────────────────────────── */
 .fb-chip {
   display: inline-flex;
   align-items: center;
