@@ -8,7 +8,6 @@ const COMPACT_PAGE_SIZE = 48
 import EventCard from '@/components/EventCard'
 import FilterBar from '@/components/FilterBar'
 import MapView from '@/components/MapView'
-import ViewModeToggle from '@/components/ViewModeToggle'
 import { INTENTS, SEARCH_SUGGESTIONS } from '@/lib/intents'
 import { SEO } from '@/lib/seo'
 import './HomePage.css'
@@ -297,14 +296,7 @@ export default function HomePage() {
       {view === 'list' && (
         <div className={`content${isRefreshing ? ' content--refreshing' : ''}`}>
 
-          {/* ── View mode toggle (right-aligned above grid) ── */}
-          {allEvents.length > 0 && (
-            <div className="view-mode-row">
-              <ViewModeToggle mode={cardViewMode} onChange={handleCardViewMode} />
-            </div>
-          )}
-
-          {/* Initial load — only show spinner when we have nothing to show yet */}
+          {/* ── Initial load — only show spinner when we have nothing to show yet ── */}
           {loading && allEvents.length === 0 && !isRefreshing && (
             <div className="empty-state">Loading events…</div>
           )}

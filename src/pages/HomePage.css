@@ -219,16 +219,6 @@
 }
 .stat-pill strong { color: var(--amber); font-weight: 700; }
 
-/* ── VIEW MODE TOGGLE ROW ── */
-.view-mode-row {
-  display: flex;
-  justify-content: flex-end;
-  padding: var(--space-md) 0 var(--space-xs);
-}
-@media (max-width: 640px) {
-  .view-mode-row { display: none; }
-}
-
 /* ── CONTENT TRANSITION ── */
 /* Dim old content while a new filter result is loading.
    We keep the old cards in the DOM so there's no height collapse. */

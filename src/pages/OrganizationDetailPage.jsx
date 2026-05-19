@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { format, isToday, isTomorrow } from 'date-fns'
 import { useOrganization } from '@/hooks/useEvents'
+import CategoryBadge from '@/components/CategoryBadge'
 import {
   SEO,
   buildGraph,
@@ -16,16 +17,7 @@ const EVENTS_PAGE_SIZE = 25
 const GRADIENT_MAP = {
   music: 'gradient-jazz', art: 'gradient-art', community: 'gradient-market',
   nonprofit: 'gradient-gala', food: 'gradient-market', sports: 'gradient-sports', fitness: 'gradient-run',
-  education: 'gradient-openmic', other: 'gradient-default',
-}
-const TAG_CLASS_MAP = {
-  music: 'tag-music', art: 'tag-art', nonprofit: 'tag-nonprofit',
-  community: 'tag-community', food: 'tag-food', sports: 'tag-sports', fitness: 'tag-fitness',
-  education: 'tag-education', other: 'tag-other',
-}
-const CATEGORY_LABEL = {
-  music: 'Music', art: 'Art', nonprofit: 'Non-Profit', community: 'Community',
-  food: 'Food & Drink', sports: 'Sports', fitness: 'Fitness', education: 'Education', other: 'Other',
+  education: 'gradient-openmic', nature: 'gradient-forest', other: 'gradient-default',
 }
 
 function formatPrice(min, max) {
@@ -342,8 +334,6 @@ function OrgEventRow({ event }) {
   const price = formatPrice(event.price_min, event.price_max)
   const imageUrl = event.image_url && /^https?:\/\//i.test(event.image_url) ? event.image_url : null
   const gradient = imageUrl ? null : (GRADIENT_MAP[event.category] ?? 'gradient-default')
-  const tagClass = TAG_CLASS_MAP[event.category] ?? 'tag-other'
-  const catLabel = CATEGORY_LABEL[event.category] ?? event.category
   const venueName = event.venue?.name ?? event.venues?.[0]?.name
 
   return (
@@ -362,7 +352,7 @@ function OrgEventRow({ event }) {
       </div>
       <div className="org-event-info">
         <div className="org-event-top">
-          <span className={`event-tag ${tagClass}`}>{catLabel}</span>
+          <CategoryBadge category={event.category} />
           <span className={`org-event-price ${price.free ? 'free' : ''}`}>{price.label}</span>
         </div>
         <p className="org-event-title">{event.title}</p>

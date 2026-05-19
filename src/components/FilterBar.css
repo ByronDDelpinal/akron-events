@@ -105,9 +105,6 @@
   gap: var(--space-sm);
 }
 
-/* Hide the view-mode toggle inside filter bar on desktop (it shows in the grid area instead) */
-.filter-actions-row .view-mode-toggle { display: none; }
-
 /* Scrollable pill area */
 .filter-chips {
   display: flex;
@@ -262,11 +259,4 @@
   .date-tab { padding: var(--space-md) var(--space-md); font-size: var(--text-sm); }
 
   .view-toggle { border-left: none; padding-left: var(--space-sm); }
-
-  /* Show the view-mode toggle inside filter bar on mobile (desktop shows it
-     in the grid area). justify-content: space-between on .filter-actions-row
-     keeps it right-aligned against the viewport edge. */
-  .filter-actions-row .view-mode-toggle {
-    display: inline-flex;
-  }
 }

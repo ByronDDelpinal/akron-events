@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { useEvent } from '@/hooks/useEvents'
 import { VenueMap } from '@/components/MapView'
+import CategoryBadge from '@/components/CategoryBadge'
 import {
   SEO,
   buildGraph,
@@ -19,16 +20,6 @@ const GRADIENT_MAP = {
   music: 'gradient-jazz', art: 'gradient-art', community: 'gradient-market',
   nonprofit: 'gradient-gala', food: 'gradient-market', sports: 'gradient-sports', fitness: 'gradient-run',
   education: 'gradient-openmic', nature: 'gradient-forest', other: 'gradient-default',
-}
-const TAG_CLASS_MAP = {
-  music: 'tag-music', art: 'tag-art', nonprofit: 'tag-nonprofit',
-  community: 'tag-community', food: 'tag-food', sports: 'tag-sports', fitness: 'tag-fitness',
-  education: 'tag-education', nature: 'tag-nature', other: 'tag-other',
-}
-const CATEGORY_LABEL = {
-  music: 'Music', art: 'Art', nonprofit: 'Non-Profit', community: 'Community',
-  food: 'Food & Drink', sports: 'Sports', fitness: 'Fitness', education: 'Education',
-  nature: 'Nature', other: 'Other',
 }
 const AGE_LABEL = {
   all_ages: 'All ages', '18_plus': '18+', '21_plus': '21+',
@@ -109,9 +100,7 @@ export default function EventPage() {
     </div>
   )
 
-  const price    = formatPrice(event.price_min, event.price_max)
-  const tagClass = TAG_CLASS_MAP[event.category] ?? 'tag-other'
-  const catLabel = CATEGORY_LABEL[event.category] ?? event.category
+  const price = formatPrice(event.price_min, event.price_max)
 
   // ── Image quality gating ──
   const rawUrl    = isUsableImageUrl(event.image_url) ? event.image_url : null
@@ -177,8 +166,6 @@ export default function EventPage() {
         <EventBannerImage
           imageUrl={rawUrl}
           event={event}
-          tagClass={tagClass}
-          catLabel={catLabel}
           gradient={gradient}
         />
       ) : (
@@ -214,7 +201,7 @@ export default function EventPage() {
               </p>
             ) : null}
             <div className="event-detail-type-row">
-              <span className={`event-tag ${tagClass}`}>{catLabel}</span>
+              <CategoryBadge category={event.category} />
               {event.tags?.map(tag => (
                 <span key={tag} className="user-tag">{tag}</span>
               ))}
@@ -310,7 +297,7 @@ export default function EventPage() {
  * Full-width banner image that respects native aspect ratio.
  * Uses the actual image_width/image_height from DB when available.
  */
-function EventBannerImage({ imageUrl, event, tagClass, catLabel, gradient }) {
+function EventBannerImage({ imageUrl, event, gradient }) {
   const [imgFailed, setImgFailed] = useState(false)
   const handleError = useCallback(() => setImgFailed(true), [])
 
@@ -333,7 +320,7 @@ function EventBannerImage({ imageUrl, event, tagClass, catLabel, gradient }) {
       <div className="banner-scrim" />
       <div className="banner-tags">
         {event.featured && <span className="featured-tag">Featured</span>}
-        <span className={`event-tag ${tagClass}`}>{catLabel}</span>
+        <CategoryBadge category={event.category} />
       </div>
     </div>
   )
