@@ -124,6 +124,14 @@ export function parseEventbritePrice(ticketClasses = [], isFree = false) {
  * the URL we store is the highest-resolution variant the source serves.
  * Sources without a known transform are pass-through (the normalizer
  * just returns the original URL).
+ *
+ * Probe-failure recovery: some origins (e.g. Cloudflare-protected
+ * akronsymphony.org) block our datacenter-IP probes with HTTP 403 even
+ * though a browser can load the image fine. If the probe fails AND the
+ * image_url hasn't changed since the previous scrape, we preserve the
+ * dimensions already stored in the DB rather than overwriting them with
+ * null. Without this, a single Cloudflare challenge would erase good
+ * dimension data captured from a friendlier IP on a prior run.
  */
 export async function enrichWithImageDimensions(row) {
   if (!await _hasImageDimensionColumns()) return row
@@ -132,12 +140,57 @@ export async function enrichWithImageDimensions(row) {
   }
   const normalizedUrl = normalizeImageUrl(row.image_url, row.source)
   const meta = await getImageDimensions(normalizedUrl)
+
+  if (meta) {
+    return {
+      ...row,
+      image_url:       normalizedUrl,
+      image_width:     meta.width    ?? null,
+      image_height:    meta.height   ?? null,
+      image_file_size: meta.fileSize ?? null,
+    }
+  }
+
+  // Probe failed — try to keep previously-captured dimensions if the URL
+  // is unchanged for this (source, source_id). This guards against bot
+  // detection / transient origin errors silently degrading our data.
+  const existing = await _getExistingImageMeta(row.source, row.source_id)
+  if (existing && existing.image_url === normalizedUrl) {
+    return {
+      ...row,
+      image_url:       normalizedUrl,
+      image_width:     existing.image_width,
+      image_height:    existing.image_height,
+      image_file_size: existing.image_file_size,
+    }
+  }
+
   return {
     ...row,
     image_url:       normalizedUrl,
-    image_width:     meta?.width    ?? null,
-    image_height:    meta?.height   ?? null,
-    image_file_size: meta?.fileSize ?? null,
+    image_width:     null,
+    image_height:    null,
+    image_file_size: null,
+  }
+}
+
+/**
+ * Fetch the previously-stored image fields for a (source, source_id) tuple.
+ * Returns null if the event doesn't exist yet or on query failure.
+ */
+async function _getExistingImageMeta(source, sourceId) {
+  if (!source || !sourceId) return null
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('events')
+      .select('image_url, image_width, image_height, image_file_size')
+      .eq('source', source)
+      .eq('source_id', String(sourceId))
+      .maybeSingle()
+    if (error || !data) return null
+    return data
+  } catch {
+    return null
   }
 }
 

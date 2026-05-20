@@ -50,10 +50,19 @@ function fetchImageBuffer(url, { timeout, maxRedirects, _redirectCount = 0 } = {
   return new Promise((resolve, reject) => {
     const client = url.startsWith('https') ? https : http
 
+    // Use a real-browser header signature so origins doing UA-based bot
+    // blocking (Cloudflare, Sucuri, Wordfence) treat us like a browser
+    // image fetch. This won't defeat TLS fingerprinting (JA3/JA4), but it
+    // does pass weaker UA/header-only filters. The Accept and Sec-Fetch-*
+    // headers mirror what Chrome sends when loading an <img>.
     const req = client.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; AkronPulseBot/1.0)',
-        'Accept': 'image/*',
+        'User-Agent':      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept':          'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Sec-Fetch-Dest':  'image',
+        'Sec-Fetch-Mode':  'no-cors',
+        'Sec-Fetch-Site':  'cross-site',
       },
       timeout,
     }, (res) => {

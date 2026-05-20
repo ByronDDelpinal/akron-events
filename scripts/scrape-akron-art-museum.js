@@ -147,9 +147,14 @@ function parseCalendarPage(html) {
     const textColMatch = block.match(/me-event-list-item__text-column[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/)
     const rawDateTime = textColMatch ? stripHtml(textColMatch[1]) : ''
 
-    // Image from .me-event-list-item__image-column
-    const imgMatch = block.match(/me-event-list-item__image-column[\s\S]*?<img[^>]+src="([^"]+)"/)
-    const imageUrl = imgMatch ? imgMatch[1] : null
+    // Image from .me-event-list-item__image-column.
+    // Lazy-loaded — the bare `src` attribute is a 1×1 SVG placeholder
+    // until JS swaps it. Real URL lives in one of data-src / data-lazy-src /
+    // data-original / data-srcset / srcset. Reject any non-http result;
+    // we'd rather let the detail-page extractor (JSON-LD + og:image) win
+    // than store a placeholder.
+    const imgBlock = block.match(/me-event-list-item__image-column[\s\S]*?<img\s[^>]*>/)
+    const imageUrl = imgBlock ? pickRealImageUrl(imgBlock[0]) : null
 
     // Event types from <ul><li> list
     const types = []
@@ -170,6 +175,49 @@ function parseCalendarPage(html) {
   }
 
   return events
+}
+
+/**
+ * Pick the real image URL out of a single <img ...> tag's HTML.
+ *
+ * The Art Museum's listing markup lazy-loads images: the bare `src`
+ * attribute is a 1×1 placeholder SVG (data: URI) until JavaScript swaps
+ * it. The real URL is on data-src / data-lazy-src / data-original, OR
+ * inside data-srcset / srcset. Returns the first plausible http(s) URL,
+ * or null. Rejects data:, blob:, and javascript: URIs unconditionally.
+ */
+function pickRealImageUrl(imgTagHtml) {
+  if (!imgTagHtml) return null
+
+  const isReal = (u) =>
+    typeof u === 'string' &&
+    u.length > 0 &&
+    !/^(?:data:|blob:|javascript:)/i.test(u) &&
+    /^https?:\/\//i.test(u)
+
+  // Single-URL lazy-load attributes first.
+  for (const attr of ['data-src', 'data-lazy-src', 'data-original']) {
+    const m = imgTagHtml.match(new RegExp(`${attr}=["']([^"']+)["']`, 'i'))
+    if (m && isReal(m[1])) return m[1]
+  }
+
+  // srcset / data-srcset: comma-separated "<url> <descriptor>" pairs.
+  // Take the largest plausible URL (usually the last entry).
+  for (const attr of ['data-srcset', 'srcset']) {
+    const m = imgTagHtml.match(new RegExp(`${attr}=["']([^"']+)["']`, 'i'))
+    if (m) {
+      const candidates = m[1].split(',').map((s) => s.trim().split(/\s+/)[0])
+      for (let i = candidates.length - 1; i >= 0; i--) {
+        if (isReal(candidates[i])) return candidates[i]
+      }
+    }
+  }
+
+  // Bare src last — only useful if the page isn't actually lazy-loading.
+  const srcMatch = imgTagHtml.match(/\bsrc=["']([^"']+)["']/i)
+  if (srcMatch && isReal(srcMatch[1])) return srcMatch[1]
+
+  return null
 }
 
 /**
