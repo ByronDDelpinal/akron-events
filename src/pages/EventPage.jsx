@@ -124,8 +124,11 @@ export default function EventPage() {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 155)
-  // Only feed banner-eligible URLs to OpenGraph — same quality bar as the page banner.
-  const seoImage = (event.banner_eligible && rawUrl) ? rawUrl : undefined
+  // Always use the dynamic OG image — branded, consistent, and works for
+  // every event regardless of whether it has a banner-eligible photo.
+  // The Vercel Edge Function at /api/og/event/[id] renders the image
+  // on-demand and caches at the edge.
+  const seoImage = `/api/og/event/${event.id}`
 
   const seoGraph = buildGraph(
     eventSchema(event),

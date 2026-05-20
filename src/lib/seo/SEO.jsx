@@ -44,6 +44,13 @@ export default function SEO({
       : `${title} | ${SITE.name}`
 
   const url = canonicalUrl(path)
+  // Social crawlers reject relative og:image / twitter:image URLs. If a
+  // caller passes a relative path (starts with '/'), resolve it to an
+  // absolute URL via the site origin. Strings that already start with
+  // 'http' pass through unchanged.
+  const absoluteImage = image && image.startsWith('/')
+    ? `${SITE.baseUrl}${image}`
+    : image
   const ldArray = Array.isArray(jsonLd) ? jsonLd.filter(Boolean) : jsonLd ? [jsonLd] : []
 
   return (
@@ -60,13 +67,13 @@ export default function SEO({
       <meta property="og:url"         content={url} />
       <meta property="og:type"        content={type} />
       <meta property="og:locale"      content={SITE.locale} />
-      <meta property="og:image"       content={image} />
+      <meta property="og:image"       content={absoluteImage} />
 
       {/* Twitter */}
       <meta name="twitter:card"        content="summary_large_image" />
       <meta name="twitter:title"       content={fullTitle} />
       <meta name="twitter:description" content={description} />
-      <meta name="twitter:image"       content={image} />
+      <meta name="twitter:image"       content={absoluteImage} />
 
       {/* JSON-LD. Each fragment becomes its own <script> tag so a bad
           one doesn't break the others. */}
