@@ -4,7 +4,7 @@
  * Detects link-unfurler and search/AI crawler User-Agents. When such a
  * client requests an event detail URL, rewrites it to the preview
  * function at /api/preview/event/[id], which returns SSR'd HTML with
- * event-specific <title>/<meta>/og:*/twitter:* tags.
+ * event-specific title, description, OpenGraph, and Twitter Card tags.
  *
  * Real users (browsers) are no-op'd — they keep getting the SPA from
  * the catch-all rewrite in vercel.json, with React hydrating as normal.
