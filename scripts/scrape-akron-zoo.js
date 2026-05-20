@@ -117,8 +117,12 @@ function parseCategory(title = '') {
   const has = (kw) => lower.includes(kw)
   const hasWord = (kw) => new RegExp(`\\b${kw}\\b`).test(lower)
 
-  if (has('camp') || hasWord('class') || has('program') || has('education') || has('learn')) return 'education'
-  return 'community'
+  // Zoo events are inherently nature/animal-focused. Education-flavored
+  // titles (kids' camps, classes, programs) are still nature in spirit,
+  // and the May 2026 Nature backfill treated this source's would-be
+  // community/education events as nature. Mirror that here.
+  if (has('camp') || hasWord('class') || has('program') || has('education') || has('learn')) return 'nature'
+  return 'nature'
 }
 
 function parseTags(title = '') {

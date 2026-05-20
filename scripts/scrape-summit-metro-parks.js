@@ -39,8 +39,13 @@ function parseCategory(categories = [], tags = []) {
   if (has('music') || has('concert')) return 'music'
   if (has('fitness') || hasWord('run') || hasWord('bike') || has('paddle')) return 'fitness'
   if (hasWord('sport')) return 'sports'
-  if (has('educat') || has('program') || hasWord('class') || has('workshop') || has('learn')) return 'education'
-  return 'community'
+  // Everything else from Summit Metro Parks is nature-flavored. The
+  // education-keyword branch (workshops, programs, classes) and the
+  // generic fallback used to return 'community' / 'education' — both
+  // were re-tagged to 'nature' by the May 2026 backfill, so future
+  // scrapes match that decision.
+  if (has('educat') || has('program') || hasWord('class') || has('workshop') || has('learn')) return 'nature'
+  return 'nature'
 }
 
 // ── Venue cache ────────────────────────────────────────────────────────────

@@ -50,8 +50,11 @@ function parseCategory(categories = [], tags = []) {
   ]
   if (names.some(n => n.includes('music') || n.includes('concert'))) return 'music'
   if (names.some(n => n.includes('sport') || n.includes('fitness') || n.includes('run') || n.includes('bike') || n.includes('paddle'))) return 'sports'
-  if (names.some(n => n.includes('educat') || n.includes('program') || n.includes('class') || n.includes('workshop') || n.includes('learn'))) return 'education'
-  return 'community'
+  // Education-keyword and default branches both route to 'nature' for
+  // Summit Metro Parks — matches the May 2026 backfill that re-tagged
+  // park programs/workshops as nature.
+  if (names.some(n => n.includes('educat') || n.includes('program') || n.includes('class') || n.includes('workshop') || n.includes('learn'))) return 'nature'
+  return 'nature'
 }
 
 /**
@@ -114,17 +117,17 @@ describe('Summit Metro Parks: Category Mapping', () => {
     assert.equal(parseCategory([{ name: 'Paddle', slug: 'paddle' }], []), 'sports')
   })
 
-  it('maps education/program/class/workshop/learn to education', () => {
-    assert.equal(parseCategory([{ name: 'Education', slug: 'education' }], []), 'education')
-    assert.equal(parseCategory([{ name: 'Program', slug: 'program' }], []), 'education')
-    assert.equal(parseCategory([{ name: 'Class', slug: 'class' }], []), 'education')
-    assert.equal(parseCategory([{ name: 'Workshop', slug: 'workshop' }], []), 'education')
+  it('maps education/program/class/workshop/learn to nature', () => {
+    assert.equal(parseCategory([{ name: 'Education', slug: 'education' }], []), 'nature')
+    assert.equal(parseCategory([{ name: 'Program', slug: 'program' }], []), 'nature')
+    assert.equal(parseCategory([{ name: 'Class', slug: 'class' }], []), 'nature')
+    assert.equal(parseCategory([{ name: 'Workshop', slug: 'workshop' }], []), 'nature')
   })
 
-  it('defaults to community for unknown categories', () => {
-    assert.equal(parseCategory([], []), 'community')
-    assert.equal(parseCategory([{ name: 'Outdoor Activities', slug: 'outdoor-activities' }], []), 'community')
-    assert.equal(parseCategory([{ name: 'Community Event', slug: 'community-event' }], []), 'community')
+  it('defaults to nature for unknown categories (park source)', () => {
+    assert.equal(parseCategory([], []), 'nature')
+    assert.equal(parseCategory([{ name: 'Outdoor Activities', slug: 'outdoor-activities' }], []), 'nature')
+    assert.equal(parseCategory([{ name: 'Community Event', slug: 'community-event' }], []), 'nature')
   })
 
   it('prioritizes music when multiple categories include music', () => {
@@ -232,7 +235,7 @@ describe('Summit Metro Parks: Event Normalization', () => {
     assert.equal(row.title, 'Spring Trail Cleanup')
     assert.equal(row.source, 'summit_metro_parks')
     assert.equal(row.source_id, '1001')
-    assert.equal(row.category, 'community')
+    assert.equal(row.category, 'nature')
     assert.equal(row.price_min, 0)
     assert.equal(row.price_max, null)
     assert.ok(row.start_at.includes('2026-05-15'))
@@ -250,7 +253,7 @@ describe('Summit Metro Parks: Event Normalization', () => {
     assert.ok(row)
     assert.equal(row.price_min, 0)
     assert.equal(row.price_max, null)
-    assert.equal(row.category, 'education')
+    assert.equal(row.category, 'nature')
   })
 
   it('handles paid event with range', () => {
@@ -273,7 +276,7 @@ describe('Summit Metro Parks: Event Normalization', () => {
     assert.ok(row)
     // The normalization uses website || url, so website ('https://www.summitmetroparks.org') is used
     assert.equal(row.ticket_url, 'https://www.summitmetroparks.org')
-    assert.equal(row.category, 'community')
+    assert.equal(row.category, 'nature')
   })
 
   it('skips event with missing start date', () => {
@@ -291,7 +294,7 @@ describe('Summit Metro Parks: Event Normalization', () => {
   it('handles event with no categories or tags', () => {
     const row = normalizeTribalEvent(NO_CATEGORIES_OR_TAGS)
     assert.ok(row)
-    assert.equal(row.category, 'community') // defaults to community
+    assert.equal(row.category, 'nature') // defaults to nature for park events
     assert.ok(row.tags.includes('parks'))
     assert.ok(row.tags.includes('outdoors'))
     assert.ok(row.tags.includes('nature'))
@@ -335,10 +338,10 @@ describe('Summit Metro Parks: Event Normalization', () => {
     assert.equal(row.price_max, null)
   })
 
-  it('maps education categories correctly', () => {
+  it('maps education-keyword titles to nature (park source)', () => {
     const row = normalizeTribalEvent(EDUCATION_EVENT)
     assert.ok(row)
-    assert.equal(row.category, 'education')
+    assert.equal(row.category, 'nature')
   })
 
   it('converts UTC start/end dates to ISO 8601 format', () => {
@@ -401,7 +404,7 @@ describe('Summit Metro Parks: Batch Processing', () => {
   })
 
   it('category is always one of the allowed values', () => {
-    const ALLOWED = ['music', 'art', 'community', 'education', 'sports', 'food', 'nonprofit', 'other']
+    const ALLOWED = ['music', 'art', 'community', 'education', 'sports', 'fitness', 'food', 'nonprofit', 'nature', 'other']
     for (const fixture of ALL_FIXTURES) {
       const row = normalizeTribalEvent(fixture)
       if (!row) continue

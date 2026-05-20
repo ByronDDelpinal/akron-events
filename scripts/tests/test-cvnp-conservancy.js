@@ -50,8 +50,11 @@ function parseCategory(categories = [], tags = []) {
   if (names.some(n => n.includes('music') || n.includes('concert') || n.includes('performance'))) return 'music'
   if (names.some(n => n.includes('art') || n.includes('photo'))) return 'art'
   if (names.some(n => n.includes('sport') || n.includes('fitness') || n.includes('run') || n.includes('bike') || n.includes('paddle') || n.includes('kayak'))) return 'sports'
-  if (names.some(n => n.includes('educat') || n.includes('workshop') || n.includes('program') || n.includes('class'))) return 'education'
-  return 'community'
+  // Education-keyword and default branches both route to 'nature' for
+  // CVNP Conservancy — matches the May 2026 backfill that re-tagged
+  // park-program / class / workshop events as nature.
+  if (names.some(n => n.includes('educat') || n.includes('workshop') || n.includes('program') || n.includes('class'))) return 'nature'
+  return 'nature'
 }
 
 function normalizeEvent(ev) {
@@ -107,16 +110,16 @@ describe('CVNP Conservancy: Category Mapping', () => {
     assert.equal(parseCategory([{ slug: 'kayak' }], []), 'sports')
   })
 
-  it('maps education/workshop/program/class to education', () => {
-    assert.equal(parseCategory([{ slug: 'education' }], []), 'education')
-    assert.equal(parseCategory([], [{ name: 'Workshop' }]), 'education')
-    assert.equal(parseCategory([], [{ name: 'Program' }]), 'education')
-    assert.equal(parseCategory([{ slug: 'class' }], []), 'education')
+  it('maps education/workshop/program/class to nature', () => {
+    assert.equal(parseCategory([{ slug: 'education' }], []), 'nature')
+    assert.equal(parseCategory([], [{ name: 'Workshop' }]), 'nature')
+    assert.equal(parseCategory([], [{ name: 'Program' }]), 'nature')
+    assert.equal(parseCategory([{ slug: 'class' }], []), 'nature')
   })
 
-  it('defaults to community for unknown categories', () => {
-    assert.equal(parseCategory([], []), 'community')
-    assert.equal(parseCategory([{ slug: 'unknown' }], []), 'community')
+  it('defaults to nature for unknown categories (CVNP source)', () => {
+    assert.equal(parseCategory([], []), 'nature')
+    assert.equal(parseCategory([{ slug: 'unknown' }], []), 'nature')
   })
 
   it('checks both categories and tags arrays', () => {
@@ -220,7 +223,7 @@ describe('CVNP Conservancy: Event Normalization', () => {
     assert.equal(row.title, 'Spring Wildflower Walk')
     assert.equal(row.source, 'cvnp_conservancy')
     assert.equal(row.source_id, '1001')
-    assert.equal(row.category, 'education') // 'Nature Program' includes 'program'
+    assert.equal(row.category, 'nature') // 'Nature Program' includes 'program' → nature
     assert.equal(row.price_min, 0)
     assert.equal(row.price_max, null)
     assert.ok(row.start_at.includes('2026-05-15'))
@@ -233,7 +236,7 @@ describe('CVNP Conservancy: Event Normalization', () => {
   it('handles paid event with cost range', () => {
     const row = normalizeEvent(PAID_EVENT)
     assert.ok(row)
-    assert.equal(row.category, 'education')
+    assert.equal(row.category, 'nature')
     assert.equal(row.price_min, 25)
     assert.equal(row.price_max, 40)
     assert.equal(row.title, 'Landscape Painting Workshop')
@@ -277,13 +280,13 @@ describe('CVNP Conservancy: Event Normalization', () => {
     const row = normalizeEvent(NO_VENUE_EVENT)
     assert.ok(row)
     assert.equal(row.title, 'Cuyahoga Valley National Park Information Session')
-    assert.equal(row.category, 'education')
+    assert.equal(row.category, 'nature')
   })
 
   it('handles minimal event (no categories/tags)', () => {
     const row = normalizeEvent(MINIMAL_EVENT)
     assert.ok(row)
-    assert.equal(row.category, 'community')
+    assert.equal(row.category, 'nature')
     assert.ok(Array.isArray(row.tags))
     assert.ok(row.tags.includes('national-park'))
   })
@@ -394,7 +397,7 @@ describe('CVNP Conservancy: Batch Processing', () => {
   })
 
   it('category is always one of the allowed values', () => {
-    const ALLOWED = ['music', 'art', 'community', 'education', 'sports', 'food', 'nonprofit', 'other']
+    const ALLOWED = ['music', 'art', 'community', 'education', 'sports', 'fitness', 'food', 'nonprofit', 'nature', 'other']
     for (const fixture of ALL_FIXTURES) {
       const row = normalizeEvent(fixture)
       if (!row) continue
