@@ -59,7 +59,12 @@ export default function middleware(req) {
   if (!match) return next()
 
   // Rewrite path — keep the original host so canonical URLs in the
-  // preview HTML come out right.
+  // preview HTML come out right. Explicitly pass the event id as a
+  // query param too: Vercel's auto-mapping of dynamic-route segments
+  // ([id]) into searchParams isn't always applied to URLs reached via
+  // middleware rewrite, and a missing id sends the function down its
+  // fallback path.
   const rewriteUrl = new URL(`/api/preview/event/${match[1]}`, url)
+  rewriteUrl.searchParams.set('id', match[1])
   return rewrite(rewriteUrl)
 }

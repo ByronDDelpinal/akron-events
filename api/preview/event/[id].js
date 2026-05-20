@@ -53,7 +53,9 @@ function formatDateLine(iso) {
 
 // Fallback HTML when something goes wrong — minimal brand chrome so
 // shares don't render a "Not Found" preview even when Supabase blips.
-function fallbackHtml(message) {
+// `reason` is echoed in an x-preview-fallback header so we can diagnose
+// which branch fired without parsing response bodies.
+function fallbackHtml(message, reason = 'unknown') {
   const title = `${SITE_NAME} — ${SITE_TAGLINE}`
   const desc  = message || `${SITE_NAME} is a free directory of local events in Akron, Ohio and Summit County.`
   const html = `<!DOCTYPE html>
@@ -71,19 +73,29 @@ function fallbackHtml(message) {
 <body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(desc)}</p></body>
 </html>`
   return new Response(html, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'x-preview-fallback': reason,
+    },
   })
 }
 
 export default async function handler(req) {
   try {
-    const { searchParams } = new URL(req.url)
-    const id = searchParams.get('id')
-    if (!id) return fallbackHtml('Missing event id')
+    const url = new URL(req.url)
+    // Primary path: explicit ?id= query param (set by middleware).
+    // Fallback: parse from the pathname, since Vercel's auto-mapping of
+    // [id] segments isn't always present on middleware-rewritten URLs.
+    let id = url.searchParams.get('id')
+    if (!id) {
+      const m = url.pathname.match(/\/event\/([a-f0-9-]{8,})/i)
+      if (m) id = m[1]
+    }
+    if (!id) return fallbackHtml('Missing event id', 'no-id')
 
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
     const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
-    if (!supabaseUrl || !supabaseKey) return fallbackHtml()
+    if (!supabaseUrl || !supabaseKey) return fallbackHtml(null, 'no-env')
 
     const resp = await fetch(
       `${supabaseUrl}/rest/v1/events?id=eq.${encodeURIComponent(id)}` +
@@ -96,10 +108,10 @@ export default async function handler(req) {
         },
       },
     )
-    if (!resp.ok) return fallbackHtml()
+    if (!resp.ok) return fallbackHtml(null, `fetch-${resp.status}`)
     const rows = await resp.json()
     const event = Array.isArray(rows) ? rows[0] : null
-    if (!event) return fallbackHtml('Event not found')
+    if (!event) return fallbackHtml('Event not found', 'no-row')
 
     // Build display strings
     const dateLine  = formatDateLine(event.start_at)
@@ -176,6 +188,9 @@ ${body}
         // age together. 1h browser, 1d edge, 1w stale-while-revalidate.
         'Cache-Control':
           'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800',
+        // Lets us confirm "the function ran the success path" with one
+        // curl, without parsing the HTML body.
+        'x-preview-ok': '1',
       },
     })
   } catch (err) {
