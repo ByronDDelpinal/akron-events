@@ -1,26 +1,29 @@
 /**
  * /api/og/event/[id] — dynamic Open Graph image per event.
  *
- * Renders a branded 1200×630 PNG on-demand using @vercel/og (Satori under
- * the hood). Every event gets a beautiful, consistent share preview
- * regardless of whether it has a banner-eligible photo, so social posts
- * (Slack, iMessage, Discord, Twitter, etc.) always show event-specific
- * details + Akron Pulse branding instead of a generic placeholder.
+ * Renders a branded 1200×630 PNG on-demand using @vercel/og. Every event
+ * gets a consistent share preview regardless of whether it has a banner-
+ * eligible photo, so social shares (Slack, iMessage, Discord, Twitter)
+ * always show event-specific details + Akron Pulse branding instead of
+ * a generic placeholder.
+ *
+ * Plain .js (not .jsx) using React.createElement — Vercel's auto-
+ * discovery for /api/ functions reliably picks up .js across project
+ * types; .jsx is only consistent inside Next.js projects.
  *
  * Cached at the edge for a day with a week-long stale-while-revalidate
- * window — event titles and dates rarely change after publish, and even
- * if they do, the stale image being served briefly is harmless.
+ * window — event details rarely change after publish.
  *
  * Vercel Edge runtime, not Node — required by @vercel/og.
  */
 
 import { ImageResponse } from '@vercel/og'
+import { createElement as h } from 'react'
 
 export const config = { runtime: 'edge' }
 
-// Mirrors --gradient-* tokens in src/styles/globals.css. Satori can't read
-// CSS variables, so the values are inlined. Keep in sync when palettes
-// shift; ideally extract to a shared lib once we have a second consumer.
+// Mirrors --gradient-* tokens in src/styles/globals.css. Satori can't
+// read CSS vars; values are inlined. Keep in sync when palettes shift.
 const GRADIENTS = {
   music:     'linear-gradient(140deg, #162806 0%, #2A5C18 55%, #D4922A 100%)',
   art:       'linear-gradient(140deg, #180A26 0%, #481870 55%, #9848E0 100%)',
@@ -57,13 +60,43 @@ function formatDateLine(iso) {
   return `${day}, ${month} ${date} · ${hours}${minStr} ${ampm}`
 }
 
-// Errors should still return a 200 with a fallback image so social
-// previews don't break when something goes sideways. This is the
-// fallback layout — minimal Akron Pulse branding, no event-specific data.
+// Brand mark — pulse dot + "Akron Pulse" wordmark with teal accent on
+// "Pulse". Reused in both the primary layout and the fallback.
+function brandMark({ size = 'large' } = {}) {
+  const fontSize = size === 'large' ? '34px' : '56px'
+  const dotPx    = size === 'large' ? 14 : 22
+  return h('div', {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '14px',
+      fontSize,
+      fontWeight: 500,
+      letterSpacing: '-0.01em',
+    },
+  },
+    h('div', {
+      style: {
+        width:  `${dotPx}px`,
+        height: `${dotPx}px`,
+        borderRadius: '50%',
+        background: '#FCFAF4',
+        opacity: 0.95,
+      },
+    }),
+    h('span', { style: { display: 'flex', gap: '8px' } },
+      h('span', { style: { opacity: 0.92 } }, 'Akron'),
+      h('span', { style: { color: '#56B0C2', fontWeight: 600 } }, 'Pulse'),
+    ),
+  )
+}
+
+// Fallback layout when something goes wrong — always returns a 200 with
+// minimal Akron Pulse branding so a broken event never breaks the share.
 function fallbackImage(message) {
   return new ImageResponse(
-    (
-      <div style={{
+    h('div', {
+      style: {
         width:  '100%',
         height: '100%',
         display: 'flex',
@@ -73,15 +106,12 @@ function fallbackImage(message) {
         background: GRADIENTS.other,
         color: '#FCFAF4',
         fontFamily: 'system-ui, -apple-system, sans-serif',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '56px', fontWeight: 700 }}>
-          <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#FCFAF4' }} />
-          <span>Akron <span style={{ color: '#56B0C2' }}>Pulse</span></span>
-        </div>
-        <div style={{ marginTop: '20px', fontSize: '28px', opacity: 0.75 }}>
-          {message || 'Akron events · in one place'}
-        </div>
-      </div>
+      },
+    },
+      brandMark({ size: 'xl' }),
+      h('div', {
+        style: { display: 'flex', marginTop: '20px', fontSize: '28px', opacity: 0.75 },
+      }, message || 'Akron events · in one place'),
     ),
     { width: 1200, height: 630 },
   )
@@ -97,8 +127,7 @@ export default async function handler(req) {
     const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
     if (!supabaseUrl || !supabaseKey) return fallbackImage()
 
-    // Direct REST query — avoids pulling the supabase-js client into the
-    // Edge bundle just for one read.
+    // Direct REST query — avoids pulling supabase-js into the Edge bundle.
     const resp = await fetch(
       `${supabaseUrl}/rest/v1/events?id=eq.${encodeURIComponent(id)}` +
         `&select=title,start_at,category,venue:venues(name)`,
@@ -122,15 +151,15 @@ export default async function handler(req) {
     const title     = (event.title || 'Event').slice(0, 200)
 
     // Heuristic title sizing — long titles drop a tier so they don't
-    // overflow the canvas. Satori wraps on word boundaries inside flex.
+    // overflow. Satori wraps on word boundaries inside flex.
     const titleSize =
       title.length > 80 ? '54px' :
       title.length > 50 ? '68px' :
                           '88px'
 
     return new ImageResponse(
-      (
-        <div style={{
+      h('div', {
+        style: {
           width:  '100%',
           height: '100%',
           display: 'flex',
@@ -139,77 +168,60 @@ export default async function handler(req) {
           background: gradient,
           color: '#FCFAF4',
           fontFamily: 'system-ui, -apple-system, sans-serif',
-        }}>
-          {/* Brand mark, top-left */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '14px',
-            fontSize: '34px',
-            fontWeight: 500,
-            letterSpacing: '-0.01em',
-          }}>
-            <div style={{
-              width:  '14px',
-              height: '14px',
-              borderRadius: '50%',
-              background: '#FCFAF4',
-              opacity: 0.95,
-            }} />
-            <span style={{ display: 'flex', gap: '8px' }}>
-              <span style={{ opacity: 0.92 }}>Akron</span>
-              <span style={{ color: '#56B0C2', fontWeight: 600 }}>Pulse</span>
-            </span>
-          </div>
+        },
+      },
+        // Brand mark, top-left
+        brandMark(),
 
-          {/* Title + meta — pushed to the bottom-left so the page reads
-              brand → headline → details from top to bottom-left. */}
-          <div style={{
+        // Title + meta — pushed to bottom-left
+        h('div', {
+          style: {
             display: 'flex',
             flexDirection: 'column',
             gap: '22px',
             marginTop: 'auto',
-          }}>
-            <div style={{
+          },
+        },
+          h('div', {
+            style: {
               display: 'flex',
               fontSize: titleSize,
               fontWeight: 700,
               lineHeight: 1.08,
               letterSpacing: '-0.025em',
               maxWidth: '1056px',
-            }}>{title}</div>
+            },
+          }, title),
+          subtitle && h('div', {
+            style: {
+              display: 'flex',
+              fontSize: '32px',
+              fontWeight: 400,
+              opacity: 0.85,
+              maxWidth: '1056px',
+            },
+          }, subtitle),
+        ),
 
-            {subtitle && (
-              <div style={{
-                display: 'flex',
-                fontSize: '32px',
-                fontWeight: 400,
-                opacity: 0.85,
-                maxWidth: '1056px',
-              }}>{subtitle}</div>
-            )}
-          </div>
-
-          {/* Tagline — bottom-right, low emphasis. Doubles as a brand
-              repeat for shares where the top mark gets cropped. */}
-          <div style={{
+        // Tagline — bottom, low emphasis. Doubles as a brand repeat
+        // for shares where the top mark gets cropped.
+        h('div', {
+          style: {
             display: 'flex',
             marginTop: '36px',
             fontSize: '22px',
             opacity: 0.55,
             letterSpacing: '0.04em',
             textTransform: 'uppercase',
-          }}>
-            Akron events · in one place
-          </div>
-        </div>
+          },
+        }, 'Akron events · in one place'),
       ),
       {
         width: 1200,
         height: 630,
         headers: {
-          // Browser holds for an hour; edge holds for a day; stale-while-
-          // revalidate covers a week so a slow regeneration never blocks.
+          // Browser holds for an hour; edge holds for a day; SWR covers a
+          // week so slow regeneration never blocks.
           'Cache-Control':
             'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800',
         },
