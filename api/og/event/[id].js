@@ -128,9 +128,11 @@ export default async function handler(req) {
     if (!supabaseUrl || !supabaseKey) return fallbackImage()
 
     // Direct REST query — avoids pulling supabase-js into the Edge bundle.
+    // Venues live in event_venues (many-to-many junction); nested select
+    // matches what useEvents/useEvent does in the SPA.
     const resp = await fetch(
       `${supabaseUrl}/rest/v1/events?id=eq.${encodeURIComponent(id)}` +
-        `&select=title,start_at,category,venue:venues(name)`,
+        `&select=title,start_at,category,event_venues(venue:venues(name))`,
       {
         headers: {
           apikey: supabaseKey,
@@ -146,7 +148,7 @@ export default async function handler(req) {
 
     const gradient  = GRADIENTS[event.category] || GRADIENTS.other
     const dateLine  = formatDateLine(event.start_at)
-    const venueName = event.venue?.name || event.venue?.[0]?.name || ''
+    const venueName = event.event_venues?.[0]?.venue?.name || ''
     const subtitle  = [dateLine, venueName].filter(Boolean).join(' · ')
     const title     = (event.title || 'Event').slice(0, 200)
 

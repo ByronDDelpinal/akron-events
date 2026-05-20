@@ -97,9 +97,12 @@ export default async function handler(req) {
     const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
     if (!supabaseUrl || !supabaseKey) return fallbackHtml(null, 'no-env')
 
+    // Venues live in event_venues (many-to-many junction). Nested
+    // select pattern matches what useEvents/useEvent does in the SPA.
     const resp = await fetch(
       `${supabaseUrl}/rest/v1/events?id=eq.${encodeURIComponent(id)}` +
-        `&select=id,title,description,start_at,end_at,category,venue:venues(name,city,address_1)`,
+        `&select=id,title,description,start_at,end_at,category,` +
+        `event_venues(venue:venues(name,city))`,
       {
         headers: {
           apikey: supabaseKey,
@@ -113,10 +116,12 @@ export default async function handler(req) {
     const event = Array.isArray(rows) ? rows[0] : null
     if (!event) return fallbackHtml('Event not found', 'no-row')
 
-    // Build display strings
-    const dateLine  = formatDateLine(event.start_at)
-    const venue     = event.venue?.name || event.venue?.[0]?.name || ''
-    const venueCity = event.venue?.city || event.venue?.[0]?.city || ''
+    // Build display strings. event_venues is an array of junction rows;
+    // each has a nested `venue` (or null if the FK is unresolved).
+    const venueRel  = event.event_venues?.[0]?.venue ?? null
+    const venue     = venueRel?.name || ''
+    const venueCity = venueRel?.city || ''
+    const dateLine   = formatDateLine(event.start_at)
     const eventTitle = event.title || 'Event'
 
     // Page title format mirrors what EventPage.jsx builds for SEO:
