@@ -260,6 +260,24 @@
 .mobile-info-val { font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); }
 .mobile-info-val.amber { color: var(--amber); font-weight: 700; }
 
+/* Mobile venue card — venue + map, shown only on mobile where the sidebar
+ * is hidden. Uses --bg-secondary to match the mobile-info-cells aesthetic
+ * (rather than --bg-card, which the sticky desktop sidebar uses). The first
+ * info-row's default top border is suppressed so the card opens with clean
+ * padding instead of a divider line floating in the padding gap. */
+.mobile-venue-card {
+  background: var(--bg-secondary);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+.mobile-venue-card .info-row {
+  border-top: none;
+  padding: 0;
+  padding-bottom: var(--space-md);
+}
+
 @media (max-width: 820px) {
   .event-detail-sidebar { display: none; }
   .event-mobile-info { display: block; }

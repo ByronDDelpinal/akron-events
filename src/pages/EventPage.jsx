@@ -203,9 +203,27 @@ export default function EventPage() {
               ))}
             </div>
 
-            {/* Mobile info (shown below 820px, before the description) */}
+            {/* Mobile info (shown below 820px, before the description).
+             * The sidebar is hidden on mobile, so anything riders need before
+             * they decide to act — venue + map especially — has to live here. */}
             <div className="event-mobile-info">
               <MobileInfoGrid event={event} price={price} />
+              {event.venue && (
+                <div className="mobile-venue-card">
+                  <InfoRow icon={<PinIcon />} label="Venue"
+                    value={`${event.venue.name}\n${event.venue.address ?? ''}, ${event.venue.city}`}
+                    link={`https://maps.google.com/?q=${encodeURIComponent(event.venue.name + ' ' + (event.venue.address ?? '') + ' ' + event.venue.city)}`}
+                    linkLabel="Get directions"
+                    internalLink={`/venues/${event.venue.id}`}
+                    internalLinkLabel="View venue"
+                  />
+                  <VenueMap
+                    lat={event.venue.lat}
+                    lng={event.venue.lng}
+                    venueName={event.venue.name}
+                  />
+                </div>
+              )}
               <ActionButtons event={event} price={price} />
             </div>
 
