@@ -329,6 +329,73 @@ export function useEvent(id) {
 }
 
 /**
+ * Fetch upcoming events related to a given event for the "More like this"
+ * block on the event detail page.
+ *
+ * Strategy:
+ *   1. Same category as the source event.
+ *   2. Different event id (don't link to self).
+ *   3. status = 'published'.
+ *   4. start_at in the future (no past events).
+ *   5. Order by start_at ascending — soonest next is most relevant.
+ *   6. Limit 6 so the UI has room to drop any with broken data.
+ *
+ * Returns an empty array (not null) when there's nothing to show; the
+ * caller's render path treats empty as "render nothing."
+ */
+export function useRelatedEvents(eventId, category, { limit = 6 } = {}) {
+  const [events,  setEvents]  = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState(null)
+
+  useEffect(() => {
+    if (!eventId || !category) {
+      setEvents([])
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+
+    async function fetchRelated() {
+      setLoading(true)
+      setError(null)
+
+      try {
+        const { data, error: fetchError } = await supabase
+          .from('events')
+          .select(`
+            id, title, start_at, end_at, category,
+            price_min, price_max, image_url, image_width, image_height,
+            ticket_url, age_restriction, status, featured, tags,
+            event_venues ( venue:venues ( id, name, city ) ),
+            event_organizations ( organization:organizations ( id, name ) )
+          `)
+          .eq('status', 'published')
+          .eq('category', category)
+          .neq('id', eventId)
+          .gte('start_at', new Date(Date.now() - 3 * 3600_000).toISOString())
+          .order('start_at', { ascending: true })
+          .limit(limit)
+
+        if (!cancelled) {
+          if (fetchError) setError(fetchError.message)
+          else setEvents((data ?? []).map(normalizeEventJoins))
+        }
+      } catch (err) {
+        if (!cancelled) setError(err.message ?? 'Failed to load related events.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    fetchRelated()
+    return () => { cancelled = true }
+  }, [eventId, category, limit])
+
+  return { events, loading, error }
+}
+
+/**
  * Fetch ALL published events matching the current filters — no pagination.
  * Used exclusively by MapView so it can display every matching venue/event.
  *

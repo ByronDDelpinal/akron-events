@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { useEvent } from '@/hooks/useEvents'
 import { VenueMap } from '@/components/MapView'
 import CategoryBadge from '@/components/CategoryBadge'
+import RelatedEvents from '@/components/RelatedEvents'
 import {
   SEO,
   buildGraph,
@@ -281,6 +282,13 @@ export default function EventPage() {
           </aside>
 
         </div>
+
+        {/* ── RELATED EVENTS ──
+         * 4 upcoming events in the same category, fetched client-side
+         * (hidden until data lands, hidden entirely when none exist).
+         * Internal-link topology + sibling discovery — see SEO punch
+         * list item #3. */}
+        <RelatedEvents currentEvent={event} />
       </div>
     </div>
   )

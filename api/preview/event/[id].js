@@ -36,6 +36,101 @@ function escapeHtml(s) {
     .replace(/'/g, '&#39;')
 }
 
+// JSON-LD lives inside a <script> tag, so any '<' in the payload could
+// terminate the script context early. JSON.stringify can produce '</', so
+// we defensively escape the slash. Also escape U+2028/U+2029 which break
+// some older JSON parsers.
+function safeJsonLd(obj) {
+  return JSON.stringify(obj)
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// SCHEMA BUILDERS (inlined so this Edge function stays self-contained)
+//
+// Keep these shapes aligned with src/lib/seo/schema.js — both run for the
+// same event, so the SPA (after hydration) and the SSR preview (for bots)
+// should describe events identically. If we change one builder, change
+// the other.
+// ────────────────────────────────────────────────────────────────────────
+
+function buildPlaceSchema(venue) {
+  if (!venue?.name) return undefined
+  const place = { '@type': 'Place', name: venue.name }
+  if (venue.address || venue.city) {
+    place.address = {
+      '@type': 'PostalAddress',
+      streetAddress:   venue.address || undefined,
+      addressLocality: venue.city    || 'Akron',
+      addressRegion:   venue.state   || 'OH',
+      postalCode:      venue.zip     || undefined,
+      addressCountry:  'US',
+    }
+  }
+  return place
+}
+
+function buildEventSchema(ev, origin) {
+  const venue = ev.event_venues?.[0]?.venue ?? null
+  const schema = {
+    '@type': 'Event',
+    '@id': `${origin}/events/${ev.id}#event`,
+    name: ev.title,
+    startDate: ev.start_at,
+    url: `${origin}/events/${ev.id}`,
+    eventStatus: 'https://schema.org/EventScheduled',
+    eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+  }
+  if (ev.end_at)      schema.endDate = ev.end_at
+  if (ev.description) schema.description = ev.description
+  if (ev.image_url)   schema.image = [ev.image_url]
+  const place = buildPlaceSchema(venue)
+  if (place) schema.location = place
+
+  if (ev.price_min != null) {
+    schema.offers = {
+      '@type': 'Offer',
+      price: String(ev.price_min),
+      priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
+      url: ev.ticket_url || `${origin}/events/${ev.id}`,
+    }
+  }
+  return schema
+}
+
+function buildBreadcrumbSchema(crumbs, origin) {
+  return {
+    '@type': 'BreadcrumbList',
+    itemListElement: crumbs.map((c, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: c.name,
+      item: `${origin}${c.path}`,
+    })),
+  }
+}
+
+// Related events become a full schema.org ItemList with embedded Event
+// items. Richer than a bare URL list — gives LLMs enough metadata to
+// summarize ("here are other family events you might like…") without
+// having to follow each link separately.
+function buildRelatedItemListSchema(events, origin, categoryLabel) {
+  if (!events || events.length === 0) return undefined
+  return {
+    '@type': 'ItemList',
+    name: `More ${categoryLabel} events in Akron`,
+    numberOfItems: events.length,
+    itemListElement: events.map((ev, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      item: buildEventSchema(ev, origin),
+    })),
+  }
+}
+
 function formatDateLine(iso) {
   if (!iso) return ''
   const d = new Date(iso)
@@ -99,22 +194,52 @@ export default async function handler(req) {
 
     // Venues live in event_venues (many-to-many junction). Nested
     // select pattern matches what useEvents/useEvent does in the SPA.
+    // Pulls the fields needed for a complete schema.org Event (price +
+    // ticket + image + full venue address).
+    const supabaseHeaders = {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`,
+      Accept: 'application/json',
+    }
+    const eventSelect =
+      'id,title,description,start_at,end_at,category,' +
+      'price_min,price_max,ticket_url,image_url,' +
+      'event_venues(venue:venues(id,name,address,city,state,zip))'
+
     const resp = await fetch(
       `${supabaseUrl}/rest/v1/events?id=eq.${encodeURIComponent(id)}` +
-        `&select=id,title,description,start_at,end_at,category,` +
-        `event_venues(venue:venues(name,city))`,
-      {
-        headers: {
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`,
-          Accept: 'application/json',
-        },
-      },
+        `&select=${eventSelect}`,
+      { headers: supabaseHeaders },
     )
     if (!resp.ok) return fallbackHtml(null, `fetch-${resp.status}`)
     const rows = await resp.json()
     const event = Array.isArray(rows) ? rows[0] : null
     if (!event) return fallbackHtml('Event not found', 'no-row')
+
+    // Related events: same category, different id, upcoming, status=published,
+    // ordered by start_at, limit 5. Defensive — if this fetch fails, we
+    // still emit the main event schema. Don't let related-events failure
+    // tank the whole preview response.
+    let related = []
+    if (event.category) {
+      try {
+        const nowIso = new Date(Date.now() - 3 * 3600_000).toISOString()
+        const relResp = await fetch(
+          `${supabaseUrl}/rest/v1/events?` +
+            `category=eq.${encodeURIComponent(event.category)}` +
+            `&id=neq.${encodeURIComponent(event.id)}` +
+            `&status=eq.published` +
+            `&start_at=gte.${encodeURIComponent(nowIso)}` +
+            `&order=start_at.asc&limit=5` +
+            `&select=${eventSelect}`,
+          { headers: supabaseHeaders },
+        )
+        if (relResp.ok) {
+          const relRows = await relResp.json()
+          if (Array.isArray(relRows)) related = relRows
+        }
+      } catch { /* swallow — preview still works without related */ }
+    }
 
     // Build display strings. event_venues is an array of junction rows;
     // each has a nested `venue` (or null if the FK is unresolved).
@@ -143,15 +268,49 @@ export default async function handler(req) {
     const canonical = `${SITE_ORIGIN}/events/${event.id}`
     const ogImage   = `${SITE_ORIGIN}/api/og/event/${event.id}`
 
+    // ── JSON-LD graph ────────────────────────────────────────────────
+    // Event + BreadcrumbList for the current event, plus an ItemList of
+    // related events when we have any. AI crawlers (GPTBot, ClaudeBot,
+    // PerplexityBot, Google-Extended) extract this structured data and
+    // use it as primary signal for citations and answer composition.
+    const graph = [
+      buildEventSchema(event, SITE_ORIGIN),
+      buildBreadcrumbSchema([
+        { name: 'Home',        path: '/' },
+        { name: 'Events',      path: '/' },
+        { name: eventTitle,    path: `/events/${event.id}` },
+      ], SITE_ORIGIN),
+      buildRelatedItemListSchema(related, SITE_ORIGIN, event.category || 'related'),
+    ].filter(Boolean)
+
+    const jsonLd = {
+      '@context': 'https://schema.org',
+      '@graph': graph,
+    }
+
     // Minimal but real body content — gives non-JS readers and AI
-    // crawlers something useful to extract beyond the meta tags.
+    // crawlers something useful to extract beyond the meta tags. Includes
+    // a visible related-events list with internal links so the crawl
+    // topology in the SSR'd HTML matches what client-side React renders.
     const venueLine = [venue, venueCity].filter(Boolean).join(', ')
+    const relatedListHtml = related.length > 0
+      ? `<h2>More ${escapeHtml(event.category || 'related')} events in Akron</h2>\n<ul>\n` +
+        related.map(ev => {
+          const evVenue = ev.event_venues?.[0]?.venue?.name || ''
+          const evDate  = formatDateLine(ev.start_at)
+          const suffix  = [evDate, evVenue].filter(Boolean).join(' · ')
+          return `  <li><a href="${SITE_ORIGIN}/events/${ev.id}">${escapeHtml(ev.title)}</a>` +
+                 (suffix ? ` — ${escapeHtml(suffix)}` : '') + `</li>`
+        }).join('\n') +
+        `\n</ul>`
+      : ''
     const body = [
       `<h1>${escapeHtml(eventTitle)}</h1>`,
       dateLine && `<p><strong>When:</strong> ${escapeHtml(dateLine)}</p>`,
       venueLine && `<p><strong>Where:</strong> ${escapeHtml(venueLine)}</p>`,
       `<p>${escapeHtml(description)}</p>`,
       `<p><a href="${canonical}">View event on ${escapeHtml(SITE_NAME)} →</a></p>`,
+      relatedListHtml,
     ].filter(Boolean).join('\n')
 
     const html = `<!DOCTYPE html>
@@ -176,6 +335,8 @@ export default async function handler(req) {
 <meta name="twitter:title" content="${escapeHtml(titleCore)}">
 <meta name="twitter:description" content="${escapeHtml(description)}">
 <meta name="twitter:image" content="${ogImage}">
+
+<script type="application/ld+json">${safeJsonLd(jsonLd)}</script>
 
 <!-- Defense in depth: middleware should keep real users out of here,
      but if one lands, send them to the real SPA URL. Crawlers ignore. -->

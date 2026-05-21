@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback, Fragment } from 'react'
 import { format, isToday, isTomorrow } from 'date-fns'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useEvents, useMapEvents, PAGE_SIZE } from '@/hooks/useEvents'
 import { supabase } from '@/lib/supabase'
 
@@ -59,7 +59,26 @@ export default function HomePage() {
   const [dateRange,      setDateRange]      = useState(null)  // 'today' | 'this_weekend' | 'this_week' | 'this_month' | null
   const [dateFrom,       setDateFrom]       = useState(null)  // custom 'YYYY-MM-DD'
   const [dateTo,         setDateTo]         = useState(null)  // custom 'YYYY-MM-DD'
-  const [rawCategories,  setRawCategories]  = useState([])   // from FilterTray only
+  // ── Category filter is URL-backed ─────────────────────────────────────
+  // Drives the FilterTray category chips AND lets external links land
+  // pre-filtered (e.g. "/?categories=music" from the related-events
+  // block, or the About-page persona links). The URL is the single
+  // source of truth — setRawCategories rewrites the query string and
+  // the next render re-derives the array.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const rawCategories = useMemo(() => {
+    const raw = searchParams.get('categories') || ''
+    return raw.split(',').map((c) => c.trim()).filter(Boolean)
+  }, [searchParams])
+
+  const setRawCategories = useCallback((next) => {
+    const arr = Array.isArray(next) ? next : []
+    const params = new URLSearchParams(searchParams)
+    if (arr.length > 0) params.set('categories', arr.join(','))
+    else params.delete('categories')
+    // replace, not push — filter toggles shouldn't clutter back-history.
+    setSearchParams(params, { replace: true })
+  }, [searchParams, setSearchParams])
   const [priceFilter,    setPriceFilter]    = useState(null) // null | 'free' | 'under10' | 'under25'
   const [sort,           setSort]           = useState('soonest')
   const [search,         setSearch]         = useState('')

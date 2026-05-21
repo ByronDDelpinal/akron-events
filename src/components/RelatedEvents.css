@@ -1,0 +1,62 @@
+/*
+ * RelatedEvents — "More like this" block at the bottom of EventPage.
+ *
+ * Visually distinct from the main content above (heavier top border, more
+ * breathing room) so users perceive it as a separate section, not a
+ * continuation of the description. Reuses EventCard so the cards match
+ * the homepage grid exactly.
+ */
+
+.related-events {
+  margin-top: var(--space-5xl);
+  padding-top: var(--space-3xl);
+  border-top: var(--border-width-thin) solid var(--border);
+}
+
+.related-events-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-2xl);
+  flex-wrap: wrap;
+}
+
+.related-events-heading {
+  font-family: var(--font-display);
+  font-size: var(--text-h3);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  text-transform: capitalize;
+}
+
+.related-events-link {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--amber);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--transition-medium);
+}
+.related-events-link:hover {
+  color: var(--amber-hover);
+}
+
+/* 4-up grid, collapsing gracefully. Matches cards-grid feel from HomePage
+ * but is constrained to the event-detail-content max-width above it. */
+.related-events-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-lg);
+}
+@media (max-width: 1100px) {
+  .related-events-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 820px) {
+  .related-events-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 540px) {
+  .related-events-grid { grid-template-columns: 1fr; }
+}
