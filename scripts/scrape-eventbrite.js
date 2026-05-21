@@ -415,9 +415,13 @@ function extractJsonLdEvents(html) {
             venue: item.location ? {
               name:    item.location.name ?? null,
               address: {
+                // Do NOT default city/region to Akron/OH. Eventbrite occasionally
+                // returns international events with no address (online webinars,
+                // foreign events). Falsifying their city as "Akron" causes them
+                // to slip past the locality filter in isAkronEvent().
                 address_1:   item.location.address?.streetAddress ?? null,
-                city:        item.location.address?.addressLocality ?? 'Akron',
-                region:      item.location.address?.addressRegion ?? 'OH',
+                city:        item.location.address?.addressLocality ?? null,
+                region:      item.location.address?.addressRegion ?? null,
                 postal_code: item.location.address?.postalCode ?? null,
               },
             } : null,
@@ -574,6 +578,68 @@ async function upsertOrganizer(ev) {
   return ensureOrganization(o.name, {
     website: o.website ?? o.url ?? null,
   })
+}
+
+// ── Locality filter ──────────────────────────────────────────────────────────
+/**
+ * Reject events that aren't actually local to the Akron / Summit County area.
+ *
+ * Background: Eventbrite's Akron place search bleeds in online webinars from
+ * around the world (Germany, Italy, UK, Singapore, etc.) because passing
+ * `online_events_only: false` does NOT exclude online events — it only means
+ * "don't restrict to only online events." Eventbrite then surfaces popular
+ * online events globally as filler in the Akron results.
+ *
+ * We reject on three signals (any one is sufficient):
+ *   1. Ticket URL host is not eventbrite.com. Localized TLDs (.de, .it, .at,
+ *      .co.uk, .sg, .ca, .fr) are used exclusively for non-US events on
+ *      Eventbrite — none of our legit Akron events ever appear on these.
+ *   2. The event is explicitly flagged as online-only (no physical venue).
+ *   3. There's no venue attached at all, OR the attached venue is outside
+ *      Ohio. Online events have no venue; foreign events have foreign venues.
+ *
+ * We deliberately do NOT restrict to a fixed Akron-area city allow-list —
+ * legit Summit County events occasionally have venues in surrounding towns,
+ * and Eventbrite's "oh--akron" place filter is already doing geographic
+ * filtering at the source. State == OH is a sufficient post-filter.
+ */
+function isAkronEvent(ev) {
+  // 1. Ticket URL must be on eventbrite.com (not .de/.it/.at/.co.uk/.sg/.ca/.fr)
+  const url = ev.url ?? ev.ticket_url ?? ''
+  if (url) {
+    let host = ''
+    try { host = new URL(url).hostname.toLowerCase() } catch {}
+    if (host && !/(^|\.)eventbrite\.com$/.test(host)) {
+      if (DEBUG) console.log(`  [filter] rejected (non-.com host ${host}): ${ev.name?.text ?? ev.name}`)
+      return false
+    }
+  }
+
+  // 2. Explicit online-only flag
+  if (ev.is_online_event === true || ev.online_event === true) {
+    if (DEBUG) console.log(`  [filter] rejected (online_event=true): ${ev.name?.text ?? ev.name}`)
+    return false
+  }
+
+  // 3. Physical venue presence and locality
+  const venue = ev.primary_venue ?? ev.venue
+  if (!venue?.name) {
+    if (DEBUG) console.log(`  [filter] rejected (no venue): ${ev.name?.text ?? ev.name}`)
+    return false
+  }
+  const addr    = venue.address ?? venue.location ?? {}
+  const country = addr.country ?? addr.country_code ?? null
+  if (country && country !== 'US' && country !== 'USA' && country !== 'United States') {
+    if (DEBUG) console.log(`  [filter] rejected (country=${country}): ${ev.name?.text ?? ev.name}`)
+    return false
+  }
+  const region = addr.region ?? addr.state ?? null
+  if (region && region !== 'OH' && region !== 'Ohio') {
+    if (DEBUG) console.log(`  [filter] rejected (region=${region}): ${ev.name?.text ?? ev.name}`)
+    return false
+  }
+
+  return true
 }
 
 // ── Event normalisation ──────────────────────────────────────────────────────
@@ -1119,7 +1185,17 @@ async function main() {
       process.exit(0)
     }
 
-    const rawEvents = await fetchAllEvents()
+    const rawEventsAll = await fetchAllEvents()
+
+    // Filter out non-Akron / online / international events BEFORE the detail
+    // pass so we don't burn detail-fetch quota on events we'll throw away.
+    // See isAkronEvent() for rationale.
+    const rawEvents   = rawEventsAll.filter(isAkronEvent)
+    const filteredOut = rawEventsAll.length - rawEvents.length
+    if (filteredOut > 0) {
+      console.log(`\n🧹  Filtered out ${filteredOut} non-Akron event(s) ` +
+                  `(international/online/no-venue) — ${rawEvents.length} remain`)
+    }
 
     if (rawEvents.length === 0) {
       // fall through to zero-event log below
