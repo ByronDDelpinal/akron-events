@@ -39,11 +39,20 @@ const CATEGORY_OPTIONS = [
  *   sort            {string}      onSort          {function}
  *   total           {number}      — live result count for the CTA
  */
+// Sources that can be hidden — ordered by volume (most prolific first)
+const FILTERABLE_SOURCES = [
+  { value: 'akron_library',      label: 'Akron Library' },
+  { value: 'summit_metro_parks', label: 'Metro Parks' },
+  { value: 'eventbrite',         label: 'Eventbrite' },
+  { value: 'ticketmaster',       label: 'Ticketmaster' },
+]
+
 export default function FilterTray({
   open,
   onClose,
   activeIntentId, onIntentId,
   rawCategories,  onRawCategories,
+  hiddenSources,  onHiddenSources,
   priceFilter,    onPriceFilter,
   dateFrom,       onDateFrom,
   dateTo,         onDateTo,
@@ -86,10 +95,19 @@ export default function FilterTray({
   function clearAll() {
     onIntentId(null)
     onRawCategories([])
+    onHiddenSources([])
     onPriceFilter(null)
     onDateFrom(null)
     onDateTo(null)
     onSort('soonest')
+  }
+
+  function toggleHiddenSource(value) {
+    if (hiddenSources.includes(value)) {
+      onHiddenSources(hiddenSources.filter(s => s !== value))
+    } else {
+      onHiddenSources([...hiddenSources, value])
+    }
   }
 
   return (
@@ -134,6 +152,21 @@ export default function FilterTray({
                 onClick={() => toggleOption(opt)}
               >
                 {opt.label}
+              </button>
+            ))}
+          </div>
+        </TraySection>
+
+        {/* ── Hide sources ── */}
+        <TraySection label="Hide sources">
+          <div className="tray-chips">
+            {FILTERABLE_SOURCES.map(({ value, label }) => (
+              <button
+                key={value}
+                className={`tray-chip ${hiddenSources.includes(value) ? 'active' : ''}`}
+                onClick={() => toggleHiddenSource(value)}
+              >
+                {hiddenSources.includes(value) ? `✕ ${label}` : label}
               </button>
             ))}
           </div>

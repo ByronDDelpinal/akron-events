@@ -13,16 +13,17 @@ export const PAGE_SIZE = 24
  * We fetch venues and organizations as nested arrays.
  */
 export function useEvents({
-  categories = [],
-  dateRange  = null,
-  dateFrom   = null,
-  dateTo     = null,
-  search     = null,
-  freeOnly   = false,
-  priceMax   = null,
-  sort       = 'soonest',
-  limit      = PAGE_SIZE,
-  offset     = 0,
+  categories    = [],
+  dateRange     = null,
+  dateFrom      = null,
+  dateTo        = null,
+  search        = null,
+  freeOnly      = false,
+  priceMax      = null,
+  hiddenSources = [],
+  sort          = 'soonest',
+  limit         = PAGE_SIZE,
+  offset        = 0,
 } = {}) {
   const [events,  setEvents]  = useState([])
   const [loading, setLoading] = useState(true)
@@ -49,6 +50,10 @@ export function useEvents({
 
         if (categories.length > 0) {
           query = query.in('category', categories)
+        }
+
+        if (hiddenSources.length > 0) {
+          query = query.not('source', 'in', `(${hiddenSources.join(',')})`)
         }
 
         if (dateFrom || dateTo) {
@@ -126,7 +131,7 @@ export function useEvents({
 
     fetchEvents()
     return () => { cancelled = true }
-  }, [categories.join(','), dateRange, dateFrom, dateTo, search, freeOnly, priceMax, sort, limit, offset])
+  }, [categories.join(','), dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSources.join(','), sort, limit, offset])
 
   const hasMore = offset + limit < total
 
@@ -403,13 +408,14 @@ export function useRelatedEvents(eventId, category, { limit = 6 } = {}) {
  * the payload small even when there are hundreds of events.
  */
 export function useMapEvents({
-  categories = [],
-  dateRange  = null,
-  dateFrom   = null,
-  dateTo     = null,
-  search     = null,
-  freeOnly   = false,
-  priceMax   = null,
+  categories    = [],
+  dateRange     = null,
+  dateFrom      = null,
+  dateTo        = null,
+  search        = null,
+  freeOnly      = false,
+  priceMax      = null,
+  hiddenSources = [],
 } = {}) {
   const [events,  setEvents]  = useState([])
   const [loading, setLoading] = useState(true)
@@ -436,6 +442,10 @@ export function useMapEvents({
 
         if (categories.length > 0) {
           query = query.in('category', categories)
+        }
+
+        if (hiddenSources.length > 0) {
+          query = query.not('source', 'in', `(${hiddenSources.join(',')})`)
         }
 
         if (dateFrom || dateTo) {
@@ -508,7 +518,7 @@ export function useMapEvents({
 
     fetchMapEvents()
     return () => { cancelled = true }
-  }, [categories.join(','), dateRange, dateFrom, dateTo, search, freeOnly, priceMax])
+  }, [categories.join(','), dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSources.join(',')])
 
   return { events, loading, error, total }
 }

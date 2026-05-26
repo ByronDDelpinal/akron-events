@@ -79,6 +79,7 @@ export default function HomePage() {
     // replace, not push — filter toggles shouldn't clutter back-history.
     setSearchParams(params, { replace: true })
   }, [searchParams, setSearchParams])
+  const [hiddenSources,  setHiddenSources]  = useState([])   // source strings to exclude
   const [priceFilter,    setPriceFilter]    = useState(null) // null | 'free' | 'under10' | 'under25'
   const [sort,           setSort]           = useState('soonest')
   const [search,         setSearch]         = useState('')
@@ -150,7 +151,7 @@ export default function HomePage() {
 
   // Track the filter signature so we can reset pagination on any change
   const activePageSize = cardViewMode === 'efficient' ? COMPACT_PAGE_SIZE : PAGE_SIZE
-  const filterKey = `${activeIntentId}|${effectiveCategories.join(',')}|${dateRange}|${dateFrom}|${dateTo}|${search}|${effectiveFreeOnly}|${effectivePriceMax}|${sort}|${cardViewMode}`
+  const filterKey = `${activeIntentId}|${effectiveCategories.join(',')}|${dateRange}|${dateFrom}|${dateTo}|${search}|${effectiveFreeOnly}|${effectivePriceMax}|${hiddenSources.join(',')}|${sort}|${cardViewMode}`
   const prevFilterKey = useRef(filterKey)
 
   // On filter change: signal a refresh but keep old events visible
@@ -168,8 +169,9 @@ export default function HomePage() {
     categories: effectiveCategories,
     dateRange, dateFrom, dateTo,
     search,
-    freeOnly:  effectiveFreeOnly,
-    priceMax:  effectivePriceMax,
+    freeOnly:      effectiveFreeOnly,
+    priceMax:      effectivePriceMax,
+    hiddenSources,
     sort,
     limit: activePageSize,
     offset,
@@ -180,8 +182,9 @@ export default function HomePage() {
     categories: effectiveCategories,
     dateRange, dateFrom, dateTo,
     search,
-    freeOnly:  effectiveFreeOnly,
-    priceMax:  effectivePriceMax,
+    freeOnly:      effectiveFreeOnly,
+    priceMax:      effectivePriceMax,
+    hiddenSources,
   })
 
   // Append each incoming page to the accumulated list
@@ -209,6 +212,7 @@ export default function HomePage() {
     setDateFrom(null)
     setDateTo(null)
     setPriceFilter(null)
+    setHiddenSources([])
     setSort('soonest')
     setSearch('')
     setSearchInput('')
@@ -304,6 +308,7 @@ export default function HomePage() {
         dateFrom={dateFrom}              onDateFrom={setDateFrom}
         dateTo={dateTo}                  onDateTo={setDateTo}
         rawCategories={rawCategories}    onRawCategories={setRawCategories}
+        hiddenSources={hiddenSources}    onHiddenSources={setHiddenSources}
         priceFilter={priceFilter}        onPriceFilter={setPriceFilter}
         sort={sort}                      onSort={setSort}
         view={view}                      onView={setView}

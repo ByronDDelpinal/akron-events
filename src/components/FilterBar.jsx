@@ -4,6 +4,14 @@ import FilterTray from './FilterTray'
 import ViewModeToggle from './ViewModeToggle'
 import './FilterBar.css'
 
+// Human-readable labels for source keys shown in the active-filter strip
+const SOURCE_LABELS = {
+  akron_library:     'Akron Library',
+  summit_metro_parks: 'Metro Parks',
+  eventbrite:        'Eventbrite',
+  ticketmaster:      'Ticketmaster',
+}
+
 const DATE_TABS = [
   { id: null,            label: 'All' },
   { id: 'today',         label: 'Today' },
@@ -29,6 +37,7 @@ export default function FilterBar({
   dateFrom,        onDateFrom,
   dateTo,          onDateTo,
   rawCategories,   onRawCategories,
+  hiddenSources,   onHiddenSources,
   priceFilter,     onPriceFilter,
   sort,            onSort,
   view,            onView,
@@ -44,13 +53,14 @@ export default function FilterBar({
   const trayActiveCount = [
     activeIntentId !== null,
     rawCategories.length > 0,
+    hiddenSources.length > 0,
     priceFilter !== null,
     dateFrom || dateTo,
     sort !== 'soonest',
   ].filter(Boolean).length
 
   // Any filter active at all (for the summary strip)
-  const hasAnyFilter = activeIntentId || dateRange || rawCategories.length > 0 || priceFilter || dateFrom || dateTo
+  const hasAnyFilter = activeIntentId || dateRange || rawCategories.length > 0 || hiddenSources.length > 0 || priceFilter || dateFrom || dateTo
 
   function removeRawCat(cat) {
     onRawCategories(rawCategories.filter(c => c !== cat))
@@ -146,6 +156,13 @@ export default function FilterBar({
                 onRemove={() => removeRawCat(cat)}
               />
             ))}
+            {hiddenSources.map(src => (
+              <ActivePill
+                key={`hide:${src}`}
+                label={`Hide: ${SOURCE_LABELS[src] ?? src}`}
+                onRemove={() => onHiddenSources(hiddenSources.filter(s => s !== src))}
+              />
+            ))}
             {priceFilter && (
               <ActivePill
                 label={priceFilter === 'free' ? 'Free only' : priceFilter === 'under10' ? 'Under $10' : 'Under $25'}
@@ -163,6 +180,7 @@ export default function FilterBar({
         onClose={() => setTrayOpen(false)}
         activeIntentId={activeIntentId} onIntentId={onIntentId}
         rawCategories={rawCategories}   onRawCategories={onRawCategories}
+        hiddenSources={hiddenSources}   onHiddenSources={onHiddenSources}
         priceFilter={priceFilter}       onPriceFilter={onPriceFilter}
         dateFrom={dateFrom}             onDateFrom={onDateFrom}
         dateTo={dateTo}                 onDateTo={onDateTo}
