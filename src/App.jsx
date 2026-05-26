@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
 import Header   from '@/components/Header'
 import Footer   from '@/components/Footer'
 import HomePage  from '@/pages/HomePage'
@@ -31,6 +32,7 @@ import ScraperRunsPage from '@/pages/admin/scraper-runs/ScraperRunsPage'
 import EmailPage from '@/pages/admin/email/EmailPage'
 import AdminFeedbackPage from '@/pages/admin/feedback/AdminFeedbackPage'
 
+import { trackPageView } from '@/lib/analytics'
 import { ThemeProvider } from '@/hooks/useTheme'
 import { SEO, buildGraph, organizationSchema, webSiteSchema } from '@/lib/seo'
 
@@ -48,6 +50,12 @@ export default function App() {
 }
 
 function AppInner() {
+  const location = useLocation()
+
+  useEffect(() => {
+    trackPageView(location.pathname + location.search)
+  }, [location])
+
   // Site-wide JSON-LD — appears on every page as a default. Individual
   // pages still render their own <SEO /> for page-specific meta +
   // page-specific structured data (Event, Place, etc.). react-helmet-async

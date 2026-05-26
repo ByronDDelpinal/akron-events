@@ -1,0 +1,77 @@
+{
+  "_comment": "Manual snapshot of akronsymphony.org/?post_type=tribe_events&ical=1 — the live feed is behind a Kinsta JS bot challenge that headless requests can't solve. The scraper falls back to this file when the live fetch is blocked. Refresh by opening the Symphony calendar in a real browser, fetching the ICS feed, parsing into the shape below, and replacing this file.",
+  "source": "akron_symphony",
+  "fetched_at": "2026-05-21T14:57:32.298Z",
+  "events": [
+    {
+      "uid": "10000456-1780513200-1780520400@akronsymphony.org",
+      "summary": "Broadway Karaoke",
+      "description": "Join us for Broadway Karaoke! This fun and free event is open to all voices and ages*, taking place the first Wednesday from 7-9 PM, every month at Jilly's Music Room. Come grab a few minutes of limelight alongside our live piano accompanists and rotating musical hosts, singing your favorite showtunes and Broadway classics. No experience necessary! \n*under 18 with adult",
+      "dtstart": "20260603T190000",
+      "dtend": "20260603T210000",
+      "url": "https://akronsymphony.org/event/broadway-karaoke/2026-06-03/",
+      "location": "Jilly's Music Room",
+      "categories": "Events"
+    },
+    {
+      "uid": "10000469-1784073600-1784159999@akronsymphony.org",
+      "summary": "Lakes Tour 2026",
+      "description": "Lakes Tour tickets on sale Monday, May 18 at 9AM.\nTake a leisurely cruise on a pontoon boat, enjoy lunch, tour wonderful homes, and appreciate the beauty of the Portage Lakes. This July, the Akron Symphony Orchestra and Akron Symphony Friends are bringing back one of Northeast Ohio's favorite summer traditions… the 2026 Lakes Tour. Spend the day lake-hopping through some of the Portage Lakes' most interesting homes, then relax and mingle at the after-party at the Upper Deck. Plus, exclusive raffle prizes that you won't want to miss out on.\n\nLAUNCH SITE: The Upper Deck at 357 W. Turkeyfoot Lake Road, Akron, Ohio 44319 (DIRECTIONS: Main St. south, turn right on Turkeyfoot Lake Road. Parking on right or across street at golf course.)\n\nWe will TOUR rain or shine, so please come prepared with rain gear. If the weather is too difficult, you may drive to homes and the Tudor House for the Commodore Luncheon. The After Party at the Upper Deck is from 4p-6:30p, so plan to stay for the fun!\n\nTICKET LEVELS\n\nCommodore: $150 ($100 tax-deductible)\nEarly Boarding: 9:00 am arrival for a 9:15 am departure\n• Lakes Tour Program Book listing\n• Exclusive luncheon at the historic Tudor House\n• Lake cruise\n• Home tours\n• Commemorative 2026 Lakes Tour suncatcher\n• Souvenir Lakes Tour lunch tote\n\nPriority Sailor: $75 ($60 tax-deductible)\nThose invited to be on a captain's reserved boat. Please specify Captain by name in the comments. Staggered Boarding: 10 am–11:45 am\n• Lake cruise\n• Home tours\n• Boxed lunch and a bottle of water\n• Souvenir Lakes Tour lunch tote\n\nGeneral Boarding Sailor: $75 ($60 tax-deductible)\nNo pre-arranged captain is required. Staggered Boarding: 10 am–11:45 am\n• Lake cruise\n• Home tours\n• Boxed lunch and a bottle of water\n• Souvenir Lakes Tour lunch tote\n\nPick-a-Prize Raffle 2026\n$10 for 1 ticket, 25 for 3 tickets. Pick the prize you want to win! Tickets available until Monday, 7/13 at 3 PM, or on event day at our launch site (8:30 AM–11:30 AM), the Tudor House (11:30 AM-1:30 PM), or at the Upper Deck (4:00 PM – drawing time). Winner does not need to be present to win.\n• Choice #1 – Dinner and Sunset Cruise for 4 people on the Portage Lakes\n• Choice #2 – Two night stay for 2 people at the historic Turkeyfoot Island Club\n• Choice #3 – Win, Wine, and Dine Package\n\nCaptain's Challenge Raffle: 5 tickets for $5, 12 tickets for $10\n• First docking privileges! Ensure your boat docks first at each venue! Your boatmates will love it!\n• Summer fun supplies, restaurant gift cards, and more: value $200\n• Drawing done the MONDAY JULY 6TH. Winner need not be present.\n\nTOUR INFORMATION\nTour Departure: LAUNCH SITE: The Upper Deck at 357 W. Turkeyfoot Lake Road, Akron, Ohio 44319 (DIRECTIONS: Main St. south, turn right on Turkeyfoot Lake Road. Parking on right or across street at golf course.)\n\nWe will sail rain or shine, so please come prepared with rain gear. If the weather is too difficult, you may drive to homes and the Tudor House for the Commodore Luncheon.\n\nAdmission by prepaid reservation through www.akronsymphony.org or by phone to Sandy at 330-701-9011. No mailed-in reservations will be accepted unless otherwise arranged.\n\nRain: We tour rain or shine! In the event of a force majeure, this event may be canceled. This includes but is not limited to public health restrictions, dangerous weather conditions, or any other acts of God. No refunds will be offered. If you are unable to attend, however, you may transfer your tickets to another party.\n\nA vegetarian meal option is available by pre-order only. Lakeside homes and boats are NOT handicap accessible. We regret that we cannot admit infants or children under age 12. Captain's Challenge raffle winner will be drawn the week of the event.\n\nQuestions? Please contact Sandy Becker-Neidert, chairman, at 330-701-9011 or at becker.neidert@gmail.com.\n\nAll proceeds benefit the Akron Symphony Orchestra, Akron Symphony Chorus, and Akron Youth Orchestras.",
+      "dtstart": "20260715",
+      "dtend": "20260716",
+      "url": "https://akronsymphony.org/event/lakes-tour-2026/",
+      "location": "",
+      "categories": "Events,Friends Events,Guild Events"
+    },
+    {
+      "uid": "10000457-1785956400-1785963600@akronsymphony.org",
+      "summary": "Broadway Karaoke",
+      "description": "Join us for Broadway Karaoke! This fun and free event is open to all voices and ages*, taking place the first Wednesday from 7-9 PM, every month at Jilly's Music Room. Come grab a few minutes of limelight alongside our live piano accompanists and rotating musical hosts, singing your favorite showtunes and Broadway classics. No experience necessary! \n*under 18 with adult",
+      "dtstart": "20260805T190000",
+      "dtend": "20260805T210000",
+      "url": "https://akronsymphony.org/event/broadway-karaoke/2026-08-05/",
+      "location": "Jilly's Music Room",
+      "categories": "Events"
+    },
+    {
+      "uid": "10000458-1788375600-1788382800@akronsymphony.org",
+      "summary": "Broadway Karaoke",
+      "description": "Join us for Broadway Karaoke! This fun and free event is open to all voices and ages*, taking place the first Wednesday from 7-9 PM, every month at Jilly's Music Room. Come grab a few minutes of limelight alongside our live piano accompanists and rotating musical hosts, singing your favorite showtunes and Broadway classics. No experience necessary! \n*under 18 with adult",
+      "dtstart": "20260902T190000",
+      "dtend": "20260902T210000",
+      "url": "https://akronsymphony.org/event/broadway-karaoke/2026-09-02/",
+      "location": "Jilly's Music Room",
+      "categories": "Events"
+    },
+    {
+      "uid": "10000459-1791399600-1791406800@akronsymphony.org",
+      "summary": "Broadway Karaoke",
+      "description": "Join us for Broadway Karaoke! This fun and free event is open to all voices and ages*, taking place the first Wednesday from 7-9 PM, every month at Jilly's Music Room. Come grab a few minutes of limelight alongside our live piano accompanists and rotating musical hosts, singing your favorite showtunes and Broadway classics. No experience necessary! \n*under 18 with adult",
+      "dtstart": "20261007T190000",
+      "dtend": "20261007T210000",
+      "url": "https://akronsymphony.org/event/broadway-karaoke/2026-10-07/",
+      "location": "Jilly's Music Room",
+      "categories": "Events"
+    },
+    {
+      "uid": "10000460-1793818800-1793826000@akronsymphony.org",
+      "summary": "Broadway Karaoke",
+      "description": "Join us for Broadway Karaoke! This fun and free event is open to all voices and ages*, taking place the first Wednesday from 7-9 PM, every month at Jilly's Music Room. Come grab a few minutes of limelight alongside our live piano accompanists and rotating musical hosts, singing your favorite showtunes and Broadway classics. No experience necessary! \n*under 18 with adult",
+      "dtstart": "20261104T190000",
+      "dtend": "20261104T210000",
+      "url": "https://akronsymphony.org/event/broadway-karaoke/2026-11-04/",
+      "location": "Jilly's Music Room",
+      "categories": "Events"
+    },
+    {
+      "uid": "10000461-1796238000-1796245200@akronsymphony.org",
+      "summary": "Broadway Karaoke",
+      "description": "Join us for Broadway Karaoke! This fun and free event is open to all voices and ages*, taking place the first Wednesday from 7-9 PM, every month at Jilly's Music Room. Come grab a few minutes of limelight alongside our live piano accompanists and rotating musical hosts, singing your favorite showtunes and Broadway classics. No experience necessary! \n*under 18 with adult",
+      "dtstart": "20261202T190000",
+      "dtend": "20261202T210000",
+      "url": "https://akronsymphony.org/event/broadway-karaoke/2026-12-02/",
+      "location": "Jilly's Music Room",
+      "categories": "Events"
+    }
+  ]
+}

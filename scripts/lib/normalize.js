@@ -101,6 +101,156 @@ export const EVENTBRITE_CATEGORY_MAP = {
   '114': 'community',
 }
 
+/**
+ * Map Eventbrite's human-readable category/subcategory strings (as they
+ * appear on the public event detail page) to our taxonomy. The /v3/events
+ * API requires auth, but the detail-page HTML exposes these strings for
+ * free under `"category":"…","subcategory":"…"`. Subcategory is tried
+ * first since it's more specific.
+ */
+export const EVENTBRITE_CATEGORY_NAME_MAP = {
+  // Top-level
+  'music':                     'music',
+  'performing & visual arts':  'art',
+  'film, media & entertainment': 'art',
+  'food & drink':              'food',
+  'health':                    'fitness',
+  'sports & fitness':          'fitness',
+  'family & education':        'education',
+  'science & technology':      'education',
+  'business':                  'education',
+  'travel & outdoor':          'nature',
+  'community':                 'community',
+  'charity & causes':          'nonprofit',
+  'religion & spirituality':   'community',
+  'government':                'community',
+  // A few common subcategories that disambiguate when top-level is generic
+  'concerts':                  'music',
+  'theatre':                   'art',
+  'comedy':                    'art',
+  'visual arts':               'art',
+  'fine art':                  'art',
+  'dance':                     'art',
+  'metal':                     'music',
+  'rock':                      'music',
+  'jazz':                      'music',
+  'classical':                 'music',
+  'country':                   'music',
+  'r&b':                       'music',
+  'hip hop / rap':             'music',
+  'electronic':                'music',
+  'indie':                     'music',
+  'folk':                      'music',
+  'blues':                     'music',
+  'pop':                       'music',
+  'opera':                     'art',
+  'fitness':                   'fitness',
+  'yoga':                      'fitness',
+  'running':                   'fitness',
+  'cycling':                   'fitness',
+  'outdoor & nature':          'nature',
+  'hiking':                    'nature',
+}
+
+/**
+ * Pick a valid event category from raw Eventbrite category / subcategory
+ * strings. Returns null when neither maps cleanly so the caller can fall
+ * back to text inference.
+ */
+export function categoryFromEventbriteNames(categoryName, subcategoryName) {
+  const norm = s => (s || '').toLowerCase().trim()
+  return EVENTBRITE_CATEGORY_NAME_MAP[norm(subcategoryName)]
+      ?? EVENTBRITE_CATEGORY_NAME_MAP[norm(categoryName)]
+      ?? null
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TEXT-BASED CATEGORY INFERENCE
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Many event sources (Eventbrite's search-result JSON, some ICS feeds) don't
+// give us a category. This heuristic reads the title + description and picks
+// the best match. Returns 'other' when nothing matches, so callers can
+// distinguish "we tried and don't know" from "we know it's miscellaneous."
+//
+// Pattern order matters: specific signals (concert/tribute/EP release) win
+// over generic ones (band/tour/show). Calibrated against ~250 already-
+// labeled Akron events and ~250 currently-'other' Eventbrite events.
+
+// Match "@ Venue" or "at Venue" allowing one or two intervening words
+// (e.g. "at the Akron Barmacy"). Limited to known Akron-area music spots.
+const _MUSIC_VENUES = /(@|\bat)\s+(the\s+)?(?:\w+\s+){0,2}(old 97|vortex|matinee|musica|jilly'?s|barmacy|blu jazz|empire concert|goodyear theat(er|re)|akron civic|knight stage|tangier|stage door|lock 4|kent stage|civic theatre)\b/i
+const _GENERIC_TOUR_EXCLUSION = /(walking|guided|historical|garden|home|food|brewery|trolley|architecture|museum|self[- ]guided|virtual|haunted|farm|driving|kayak|free|weekly|exhibit|art|behind[- ]?the[- ]?scenes|members'?|public|private|holiday|cemetery|winery|wine|history|ghost)\s+tour|tour\s*:/i
+
+/**
+ * Infer an events.category value from free text. Pure function, no I/O.
+ * @param {string} title       — event title
+ * @param {string} description — event description (optional)
+ * @returns {string}             — one of: music, art, food, community,
+ *                                  nonprofit, sports, fitness, education,
+ *                                  nature, other
+ */
+export function inferCategory(title = '', description = '') {
+  const text  = `${title || ''} ${description || ''}`.toLowerCase()
+  const tLow  = (title || '').toLowerCase()
+
+  // ── Comedy open mic → art (must run before music's open-mic rule) ───────
+  if (/\bcomedy (open mic|night)\b/.test(text) || (/\bopen mic\b/.test(text) && /\bcomedy|comedians?\b/.test(text))) return 'art'
+
+  // ── Music — strong, unambiguous signals ─────────────────────────────────
+  if (/\b(concert|symphony|orchestra|recital|live music|live band|open mic|karaoke|sing[- ]along|songwriter night|jazz night|blues night|dj set|sound check|album release|ep release|single release|musical guest|tribute (band|act|show|to)|spotify|on spotify)\b/.test(text)) return 'music'
+  if (/\btribute\b/.test(text)) return 'music'
+  // "Tour" in the title is overwhelmingly a music-tour signal *except* when
+  // qualified by walking/guided/garden/etc.
+  if (/\btour\b/.test(tLow) && !_GENERIC_TOUR_EXCLUSION.test(text)) return 'music'
+  // Known Akron-area music venues
+  if (_MUSIC_VENUES.test(title)) return 'music'
+
+  // ── Sports — specific teams and game language ──────────────────────────
+  if (/\b(rubberducks|cleveland cavaliers|cleveland browns|cleveland guardians|cleveland indians|cavs|browns|guardians|hockey game|baseball game|basketball game|tournament championship|home game|home court|matchday|playoff|stadium)\b/.test(text)) return 'sports'
+  // "X vs. Y" or "X vs Y" — game language; rule out movie/book titles which
+  // tend to phrase it differently
+  if (/\b[a-z][a-z .'&]+ vs\.? [a-z][a-z .'&]+\b/.test(tLow)) return 'sports'
+
+  // ── Fitness — strong signals (races, classes, water sports) ────────────
+  if (/\b(5k|10k|half[- ]?marathon|marathon|fun run|trail run|color run|yoga|pilates|crossfit|spin class|hiit|cardio|paddleboard(ing)?|kayak(ing)?|canoe|stand[- ]up paddle|cycle class|cycling class|barre class)\b/.test(text)) return 'fitness'
+
+  // ── Education — strong signals (certification, training, professional dev)
+  if (/\b(certification|professional development|continuing education|sat prep|gre prep|esol classes|ged classes|lean six sigma|pmp|leadership training|sales training|management training|conflict resolution training|coding bootcamp|reiki .* certification|six sigma)\b/.test(text)) return 'education'
+  if (/\b\d+[- ]day workshop\b/.test(text)) return 'education'
+  if (/\b(seminar|lecture series|symposium|webinar|conference|masterclass)\b/.test(text)) return 'education'
+
+  // ── Art — galleries, exhibits, theater, comedy, drag ────────────────────
+  if (/\b(gallery|exhibition|exhibit opening|opening (reception|celebration)|artist reception|artist talk|sculpture show|mural unveiling|art show|art fair|installation|vernissage)\b/.test(text)) return 'art'
+  if (/\b(theat(re|er)|playwright|broadway|stage production|musical (theatre|theater|production)s?|opera|ballet|dance company|stand[- ]?up comedy|comedy night|comedy show|improv|drag (show|brunch|king|queen|bingo))\b/.test(text)) return 'art'
+  if (/\b(paint (and|&|n)\s*sip|puff (and|&|n)\s*paint|paint(ing)? class|pottery|ceramics|sketching workshop|drawing class)\b/.test(text)) return 'art'
+
+  // ── Food — culinary, dining, drinks ─────────────────────────────────────
+  if (/\b(brewery|winery|wine tasting|beer tasting|cooking class|culinary|food truck|food festival|restaurant week|tap takeover|chef'?s table|tasting menu|wine dinner|whiskey tasting|cocktail (class|essentials|workshop)|brunch|luncheon|dinner show|drag brunch|sake|sushi tasting|cheese tasting|bourbon tasting|coffee tasting|chocolate tasting|culinary class)\b/.test(text)) return 'food'
+
+  // ── Music — softer signals (after we've ruled out food/art/edu) ────────
+  if (/\b(band\b|live performance|performer|musician|vocalist|jam session|sing[- ]?along)\b/.test(tLow)) return 'music'
+  if (/\b(music night|night of music|performance by|featuring [a-z]+ band)\b/.test(text)) return 'music'
+
+  // ── Education — softer signals ──────────────────────────────────────────
+  if (/\b(workshop|class\b|course|training session|lesson|book club|book discussion|study group|reading group)\b/.test(text)) return 'education'
+  // "Learn X" — a how-to event, typically educational (Learn Chicago Stepping,
+  // Learn to Knit, Learn Excel, etc.)
+  if (/\blearn\s+(to\s+|how to\s+|the\s+)?[a-z]/i.test(tLow)) return 'education'
+
+  // ── Nature ─────────────────────────────────────────────────────────────
+  if (/\b(park|trail|nature walk|nature center|garden|arboretum|zoo|wildlife|botanical|bird walk|hike|hiking|conservation|outdoor adventure|metro park)\b/.test(text)) return 'nature'
+
+  // ── Community ──────────────────────────────────────────────────────────
+  if (/\b(festival|fair|farmers market|street market|parade|block party|community gathering|town hall|civic event|neighborhood meeting|family game night|family event|game night|trivia night|story[- ]?time|story hour|holiday celebration|seniorlinked|senior expo|family gathering)\b/.test(text)) return 'community'
+
+  // ── Nonprofit — fundraisers, service ───────────────────────────────────
+  if (/\b(fundraiser|benefit dinner|silent auction|gala|service event|volunteer day|charity event|nonprofit|food drive|blood drive|donation drive|support group)\b/.test(text)) return 'nonprofit'
+
+  // Fall through
+  return 'other'
+}
+
 export function parseEventbritePrice(ticketClasses = [], isFree = false) {
   if (isFree) return { price_min: 0, price_max: 0 }
   const prices = ticketClasses

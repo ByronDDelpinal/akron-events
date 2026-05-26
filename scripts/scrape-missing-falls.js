@@ -1,8 +1,12 @@
 /**
  * scrape-missing-falls.js
  *
- * Fetches upcoming events from Missing Falls Brewery (missingfallsbrewery.com)
+ * Fetches upcoming events from Missing Falls Brewery (www.missingfalls.com)
  * via The Events Calendar (Tribe) REST API — same platform as Summit Artspace.
+ *
+ * Domain note: the brewery migrated from missingfallsbrewery.com to
+ * www.missingfalls.com in May 2026. The Tribe REST API is the same shape at
+ * the new host. If they migrate again, BASE_URL is the only place to update.
  *
  * NOTE: Missing Falls is a smaller venue and may have zero or few upcoming events
  * at any given time. The scraper will log a "zero events" result to scraper_runs
@@ -25,7 +29,7 @@ import {
   parseCostFromTribe, parseTagsFromTribe, ensureOrganization,
 } from './lib/normalize.js'
 
-const BASE_URL   = 'https://missingfallsbrewery.com/wp-json/tribe/events/v1/events'
+const BASE_URL   = 'https://www.missingfalls.com/wp-json/tribe/events/v1/events'
 const PER_PAGE   = 50
 const DAYS_AHEAD = 180
 
@@ -175,12 +179,12 @@ async function main() {
       lng:           -81.4958,
       parking_type:  'lot',
       parking_notes: 'Free lot parking on site.',
-      website:       'https://missingfallsbrewery.com',
+      website:       'https://www.missingfalls.com',
       description:   'Craft brewery and taproom in Akron, OH.',
     })
 
     const organizerId = await ensureOrganization('Missing Falls Brewery', {
-      website:     'https://missingfallsbrewery.com',
+      website:     'https://www.missingfalls.com',
       description: 'Craft brewery and community events venue in Akron, OH.',
     })
 

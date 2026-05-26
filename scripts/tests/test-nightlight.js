@@ -18,6 +18,8 @@ import {
   todayEasternYmd,
   mapAgeRestriction,
   parseMoviePage,
+  parseMovieDateLine,
+  parseMovieShowtimes,
   buildEventRow,
 } from '../scrape-nightlight.js'
 
@@ -63,6 +65,69 @@ describe('Nightlight: parseHomeScreenings', () => {
   it('does not crash on empty / null input', () => {
     assert.deepEqual(parseHomeScreenings(null), [])
     assert.deepEqual(parseHomeScreenings(''), [])
+  })
+})
+
+// ── parseMovieDateLine ────────────────────────────────────────────────────
+
+describe('Nightlight: parseMovieDateLine', () => {
+  it('parses bare day-of-week date headers', () => {
+    assert.equal(parseMovieDateLine('Sat, May 23, 2026'), '2026-05-23')
+    assert.equal(parseMovieDateLine('Sun, May 24, 2026'), '2026-05-24')
+  })
+  it('strips Today/Tomorrow prefixes', () => {
+    assert.equal(parseMovieDateLine('Today Thu, May 21, 2026'), '2026-05-21')
+    assert.equal(parseMovieDateLine('Tomorrow Fri, May 22, 2026'), '2026-05-22')
+  })
+  it('handles full + abbreviated day names', () => {
+    assert.equal(parseMovieDateLine('Wednesday, May 27, 2026'), '2026-05-27')
+  })
+  it('returns null for non-date strings', () => {
+    assert.equal(parseMovieDateLine('Screen 1'), null)
+    assert.equal(parseMovieDateLine('6:15 PM'), null)
+    assert.equal(parseMovieDateLine(''), null)
+    assert.equal(parseMovieDateLine(null), null)
+  })
+})
+
+// ── parseMovieShowtimes ───────────────────────────────────────────────────
+
+describe('Nightlight: parseMovieShowtimes', () => {
+  // Synthetic HTML modelled on the live /movie/obsession/ DOM. Each block
+  // is a date/screen/time triplet, closed by the cookie banner footer.
+  const SAMPLE_MOVIE_HTML = `
+    <div>Showtimes</div>
+    <div>All</div><div>Today</div><div>Tomorrow</div>
+    <div>Today Thu, May 21, 2026</div>
+    <div>Screen 1</div><div>6:15 PM</div><div>8:30 PM</div>
+    <div>Tomorrow Fri, May 22, 2026</div>
+    <div>Screen 1</div><div>5:30 PM</div><div>7:45 PM</div>
+    <div>Sat, May 23, 2026</div>
+    <div>Screen 1</div><div>3:45 PM</div><div>6:05 PM</div><div>8:30 PM</div>
+    <div>Sun, May 24, 2026</div>
+    <div>Screen 1</div><div>2:10 PM</div><div>7:00 PM</div>
+    <div>This website uses cookies. For more information, see our Cookie Policy.</div>
+    <div>Accept &amp; Dismiss</div>
+  `
+
+  it('extracts all date/screen/time triplets across 4 days', () => {
+    const out = parseMovieShowtimes(SAMPLE_MOVIE_HTML)
+    // 2 + 2 + 3 + 2 = 9 showtimes
+    assert.equal(out.length, 9)
+    assert.deepEqual(out[0], { dateYmd: '2026-05-21', screen: 'Screen 1', timeStr: '6:15 PM' })
+    assert.deepEqual(out[2], { dateYmd: '2026-05-22', screen: 'Screen 1', timeStr: '5:30 PM' })
+    assert.deepEqual(out[5], { dateYmd: '2026-05-23', screen: 'Screen 1', timeStr: '6:05 PM' })
+    assert.deepEqual(out[6], { dateYmd: '2026-05-23', screen: 'Screen 1', timeStr: '8:30 PM' })
+    assert.deepEqual(out[7], { dateYmd: '2026-05-24', screen: 'Screen 1', timeStr: '2:10 PM' })
+  })
+
+  it('returns [] when no showtimes are present', () => {
+    assert.deepEqual(parseMovieShowtimes('<div>Showtimes</div><div>No upcoming screenings</div>'), [])
+  })
+
+  it('does not crash on empty / null input', () => {
+    assert.deepEqual(parseMovieShowtimes(null), [])
+    assert.deepEqual(parseMovieShowtimes(''), [])
   })
 })
 
@@ -175,9 +240,9 @@ describe('Nightlight: mapAgeRestriction', () => {
   it('maps MPAA ratings', () => {
     assert.equal(mapAgeRestriction('G'),     'all_ages')
     assert.equal(mapAgeRestriction('PG'),    'all_ages')
-    assert.equal(mapAgeRestriction('PG-13'), 'teens_and_up')
-    assert.equal(mapAgeRestriction('R'),     'adults_only')
-    assert.equal(mapAgeRestriction('NC-17'), 'adults_only')
+    assert.equal(mapAgeRestriction('PG-13'), 'not_specified')  // no exact bucket
+    assert.equal(mapAgeRestriction('R'),     '18_plus')
+    assert.equal(mapAgeRestriction('NC-17'), '18_plus')
   })
 
   it('treats NR, null, odd strings as not_specified', () => {
@@ -231,7 +296,7 @@ describe('Nightlight: buildEventRow', () => {
     assert.equal(row.title, 'Exit 8')
     assert.equal(row.category, 'art')
     assert.deepEqual(row.tags, ['film', 'cinema', 'horror'])
-    assert.equal(row.age_restriction, 'teens_and_up')
+    assert.equal(row.age_restriction, 'not_specified')   // PG-13 has no exact bucket
     assert.equal(row.ticket_url, 'https://nightlightcinema.com/movie/exit-8/')
     assert.equal(row.image_url, 'https://indy-systems.imgix.net/exit8')
     assert.equal(row.price_min, 0)

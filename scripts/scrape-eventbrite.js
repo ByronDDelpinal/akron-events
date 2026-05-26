@@ -39,6 +39,8 @@ import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
 import {
   EVENTBRITE_CATEGORY_MAP,
+  categoryFromEventbriteNames,
+  inferCategory,
   parseEventbritePrice,
   logUpsertResult,
   logScraperError,
@@ -690,7 +692,18 @@ function normaliseEvent(ev) {
       ? parseFloat(ev.max_price) : null
   }
 
-  const category = EVENTBRITE_CATEGORY_MAP[ev.category_id] ?? 'other'
+  // Category resolution, in priority order:
+  //   1. Eventbrite's numeric category_id mapping (most reliable — when
+  //      the search-result JSON exposes it, which it rarely does).
+  //   2. category/subcategory strings scraped from the detail-page HTML —
+  //      the detail-fetch pass attaches these as ev._categoryName /
+  //      ev._subcategoryName when found.
+  //   3. Text inference over title + description.
+  //   4. 'other' as a last resort.
+  const category =
+       EVENTBRITE_CATEGORY_MAP[ev.category_id]
+    ?? categoryFromEventbriteNames(ev._categoryName, ev._subcategoryName)
+    ?? inferCategory(title, description)
 
   const rawImg =
     pickBestImageUrl(ev.image) ??
@@ -888,6 +901,29 @@ async function fetchEventDetail(url, cookie) {
       return null
     }
 
+    // ── Extract category / subcategory strings from the page ────────────────
+    // Eventbrite's detail page embeds the event's category in multiple
+    // places — most reliably in the breadcrumb's
+    //   "category_string":"Music"
+    //   "format_string":"performances"
+    // shape. Also appears as bare "category":"Music","subcategory":"Metal" in
+    // server data. We try the breadcrumb form first (event-specific), then
+    // fall back to the bare form (filtering out "Any category" noise that
+    // shows up in the page's filter UI).
+    let categoryName = null, subcategoryName = null
+    const bcCat = html.match(/"category_string":"([^"]+)"/)
+    if (bcCat?.[1] && !/^any /i.test(bcCat[1])) categoryName = bcCat[1]
+    if (!categoryName) {
+      // Pick the first non-"Any …" category match
+      const all = [...html.matchAll(/"category":"([^"]+)"/g)].map(m => m[1])
+      categoryName = all.find(s => s && !/^any /i.test(s)) ?? null
+    }
+    const subMatch = html.match(/"subcategory":"([^"]+)"/)
+    if (subMatch?.[1] && !/^any /i.test(subMatch[1])) subcategoryName = subMatch[1]
+    if (DEBUG && (categoryName || subcategoryName)) {
+      console.log(`  [debug]   category: ${categoryName} / subcategory: ${subcategoryName}`)
+    }
+
     // ── Extract og:image from HTML (works even when JS data is missing) ──────
     let ogImageUrl = null
     const ogMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ??
@@ -913,7 +949,7 @@ async function fetchEventDetail(url, cookie) {
       const legacyHtml = ev?.description?.html ?? ev?.description?.text ?? null
       if (legacyHtml && legacyHtml.trim().length > 10) {
         if (DEBUG) console.log(`  [debug]   → found via __SERVER_DATA__.event.description`)
-        return { description: stripHtml(legacyHtml), summary: ev?.summary ?? null, imageUrl }
+        return { description: stripHtml(legacyHtml), summary: ev?.summary ?? null, imageUrl, categoryName, subcategoryName }
       }
 
       // Format 1b: structured_content modules (newer Eventbrite editor)
@@ -935,7 +971,7 @@ async function fetchEventDetail(url, cookie) {
         const combined = parts.filter(Boolean).join('\n\n')
         if (combined.length > 10) {
           if (DEBUG) console.log(`  [debug]   → found via structured_content modules`)
-          return { description: combined, summary: ev?.summary ?? null, imageUrl }
+          return { description: combined, summary: ev?.summary ?? null, imageUrl, categoryName, subcategoryName }
         }
       }
 
@@ -943,7 +979,7 @@ async function fetchEventDetail(url, cookie) {
       const sdSummary = ev?.summary ?? null
       if (sdSummary && sdSummary.trim().length > 10) {
         if (DEBUG) console.log(`  [debug]   → found via __SERVER_DATA__.event.summary`)
-        return { description: sdSummary, summary: sdSummary, imageUrl }
+        return { description: sdSummary, summary: sdSummary, imageUrl, categoryName, subcategoryName }
       }
     }
 
@@ -1020,8 +1056,8 @@ async function fetchEventDetail(url, cookie) {
         if (DEBUG) console.log(`  [debug]   Events API error: ${e.message}`)
       }
 
-      if (description || priceData || ogImageUrl) {
-        return { description, summary: null, priceData, imageUrl: ogImageUrl }
+      if (description || priceData || ogImageUrl || categoryName) {
+        return { description, summary: null, priceData, imageUrl: ogImageUrl, categoryName, subcategoryName }
       }
     }
 
@@ -1053,7 +1089,7 @@ async function fetchEventDetail(url, cookie) {
       if (ndDesc && ndDesc.trim().length > 10) {
         if (DEBUG) console.log(`  [debug]   → found via __NEXT_DATA__ (${ndDesc.length} chars)`)
         const ndImage = pickBestImageUrl(ndEv?.image) ?? pickBestImageUrl(ndEv?.logo)
-        return { description: stripHtml(ndDesc), summary: ndEv?.summary ?? null, imageUrl: ogImageUrl ?? ndImage }
+        return { description: stripHtml(ndDesc), summary: ndEv?.summary ?? null, imageUrl: ogImageUrl ?? ndImage, categoryName, subcategoryName }
       }
       if (DEBUG) console.log(`  [debug]   __NEXT_DATA__ had no usable description`)
     }
@@ -1073,15 +1109,15 @@ async function fetchEventDetail(url, cookie) {
           if (item.startDate && item.description && item.description.trim().length > 10) {
             if (DEBUG) console.log(`  [debug]   → found via JSON-LD @type=${item['@type']} (${item.description.length} chars)`)
             const ldImage = pickBestImageUrl(item.image)
-            return { description: stripHtml(item.description), summary: null, imageUrl: ogImageUrl ?? ldImage }
+            return { description: stripHtml(item.description), summary: null, imageUrl: ogImageUrl ?? ldImage, categoryName, subcategoryName }
           }
         }
       } catch {}
     }
 
     if (DEBUG) console.log(`  [debug]   → all strategies exhausted, no description found`)
-    // Even without description, return og:image if we found one
-    if (ogImageUrl) return { description: null, summary: null, imageUrl: ogImageUrl }
+    // Even without description, return og:image / category if we found them
+    if (ogImageUrl || categoryName) return { description: null, summary: null, imageUrl: ogImageUrl, categoryName, subcategoryName }
     return null
 
   } catch (err) {
@@ -1113,7 +1149,7 @@ async function enrichWithDetails(rawEvents, cookie) {
       if (!url) { failed++; return }
 
       const detail = await fetchEventDetail(url, cookie)
-      if (detail?.description || detail?.priceData || detail?.imageUrl) {
+      if (detail?.description || detail?.priceData || detail?.imageUrl || detail?.categoryName) {
         // Patch description
         if (detail.description) {
           if (!ev.description || typeof ev.description !== 'object') ev.description = {}
@@ -1130,6 +1166,9 @@ async function enrichWithDetails(rawEvents, cookie) {
         if (detail.imageUrl && !ev.image?.url && !ev.logo?.url && !ev.banner_url && !ev.hero_image_url) {
           ev.image = { url: detail.imageUrl }
         }
+        // Attach category strings for normaliseEvent() to consume
+        if (detail.categoryName)    ev._categoryName    = detail.categoryName
+        if (detail.subcategoryName) ev._subcategoryName = detail.subcategoryName
         enriched++
       } else {
         failed++

@@ -480,24 +480,32 @@ export async function runIcsScraper(config) {
   const start = Date.now()
 
   try {
-    // Resolve feed URL
-    let feedUrl = config.feedUrl
-    if (!feedUrl && config.discoveryUrl) {
-      console.log(`  🔎  Discovering ICS feed from ${config.discoveryUrl}…`)
-      feedUrl = await discoverIcsFeed(config.discoveryUrl)
-      if (!feedUrl) {
-        throw new Error(
-          `No ICS feed found on ${config.discoveryUrl}. ` +
-          `Open the page in a browser, find the calendar subscription link, and set config.feedUrl explicitly.`
-        )
+    // Resolve ICS text. Custom scrapers can supply `getIcsText` to inject their
+    // own fetch/fallback logic (e.g. snapshot files for bot-protected sites).
+    // Default path: discover/fetch a feed URL over HTTP.
+    let icsText
+    if (typeof config.getIcsText === 'function') {
+      console.log(`\n🔍  Fetching ICS text via custom getIcsText()…`)
+      icsText = await config.getIcsText()
+    } else {
+      let feedUrl = config.feedUrl
+      if (!feedUrl && config.discoveryUrl) {
+        console.log(`  🔎  Discovering ICS feed from ${config.discoveryUrl}…`)
+        feedUrl = await discoverIcsFeed(config.discoveryUrl)
+        if (!feedUrl) {
+          throw new Error(
+            `No ICS feed found on ${config.discoveryUrl}. ` +
+            `Open the page in a browser, find the calendar subscription link, and set config.feedUrl explicitly.`
+          )
+        }
+        console.log(`  ✓ Discovered feed: ${feedUrl}`)
       }
-      console.log(`  ✓ Discovered feed: ${feedUrl}`)
-    }
-    if (!feedUrl) throw new Error('runIcsScraper: either feedUrl or discoveryUrl must be provided')
+      if (!feedUrl) throw new Error('runIcsScraper: either feedUrl, discoveryUrl, or getIcsText must be provided')
 
-    // Fetch + parse
-    console.log(`\n🔍  Fetching ICS feed: ${feedUrl}`)
-    const icsText = await fetchIcsFeed(feedUrl)
+      // Fetch + parse
+      console.log(`\n🔍  Fetching ICS feed: ${feedUrl}`)
+      icsText = await fetchIcsFeed(feedUrl)
+    }
     const rawEvents = parseIcs(icsText)
     console.log(`  Parsed ${rawEvents.length} VEVENT blocks`)
 
