@@ -25,7 +25,7 @@ function getStoredViewMode() {
       localStorage.removeItem(LEGACY_VIEW_MODE_KEY)
     }
     const v = localStorage.getItem(VIEW_MODE_KEY)
-    return v === 'comfortable' ? 'comfortable' : 'efficient'
+    return v === 'efficient' ? 'efficient' : 'comfortable'
   } catch { return 'comfortable' }
 }
 

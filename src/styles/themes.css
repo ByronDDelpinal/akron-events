@@ -523,6 +523,64 @@
   --shadow-focus: 0 0 0 3px rgba(49, 61, 90, 0.25);
 }
 
+/* ──────────────────────────────────────────────────────────────────
+   Grand Piano — Akron Music Institute inspired
+   Monochromatic black-and-white palette. Near-black nav on warm
+   ivory, pure-white cards, charcoal primary with warm taupe accent.
+   Mirrors AMI's actual brand: #000 / #FFF base with their own CTA
+   charcoal #514A4A as the coral slot.
+
+   WCAG AA audit (all pairs on bg-page #FAFAF8):
+     text-primary  #0D0D0D: ~19:1  ✓
+     text-secondary #2E2E2E: ~11:1  ✓
+     text-muted    #666666:  ~5.5:1 ✓
+     white on bg-nav #111111: ~18:1  ✓
+     white on amber  #1A1A1A: ~17:1  ✓
+     amber on bg-page:        ~17:1  ✓
+     coral #514A4A on coral-pale #F2EFEF: ~7.6:1 ✓
+   ────────────────────────────────────────────────────────────────── */
+.theme-grand-piano {
+  --bg-page:       #FAFAF8;
+  --bg-card:       #FFFFFF;
+  --bg-secondary:  #F0EFED;
+  --bg-nav:        #111111;
+
+  --text-primary:   #0D0D0D;
+  --text-secondary: #2E2E2E;
+  --text-muted:     #666666;
+
+  --amber:        #1A1A1A;
+  --amber-hover:  #000000;
+  --amber-pale:   #EBEBEB;
+  --amber-border: rgba(26, 26, 26, 0.18);
+  --amber-on-dark: #BBBBBB;   /* mid-grey — passes AA on #111 nav */
+
+  --green-deep:   #111111;
+  --green-mid:    #555555;    /* "Free" price label — 6.8:1 on bg-page */
+
+  --coral:        #514A4A;    /* AMI's own CTA charcoal */
+  --coral-hover:  #3A3333;
+  --coral-pale:   #F2EFEF;
+
+  --border:       #E0DFDD;
+  --border-mid:   #C5C4C1;
+
+  --chip-bg:         #EAEAE8;
+  --chip-text:       #2E2E2E;
+  --chip-active-bg:  #1A1A1A;
+  --chip-active-txt: #FFFFFF;
+
+  --amber-tint-10: rgba(26, 26, 26, 0.10);
+  --amber-tint-25: rgba(26, 26, 26, 0.25);
+  --amber-tint-50: rgba(26, 26, 26, 0.50);
+
+  --coral-tint-15: rgba(81, 74, 74, 0.15);
+  --coral-tint-25: rgba(81, 74, 74, 0.25);
+  --coral-tint-35: rgba(81, 74, 74, 0.35);
+
+  --shadow-focus: 0 0 0 3px rgba(26, 26, 26, 0.20);
+}
+
 .theme-prime-time {
   --bg-page:       #F9F4EC;
   --bg-card:       #FFFDF8;

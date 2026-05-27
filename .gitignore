@@ -7,6 +7,9 @@ node_modules
 dist
 dist-ssr
 
+# Vite config cache — timestamped .mjs snapshots created during dev server startup
+vite.config.js.timestamp-*
+
 # env files — never commit real credentials
 .env
 .env.local

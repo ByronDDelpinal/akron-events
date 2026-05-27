@@ -8,16 +8,6 @@ export default function ViewModeToggle({ mode, onChange }) {
   return (
     <div className="view-mode-toggle" role="radiogroup" aria-label="Card view mode">
       <button
-        className={`vmt-btn ${mode === 'efficient' ? 'vmt-btn--active' : ''}`}
-        onClick={() => onChange('efficient')}
-        aria-checked={mode === 'efficient'}
-        role="radio"
-        title="Compact view"
-      >
-        <ListIcon />
-        <NerdPersonIcon />
-      </button>
-      <button
         className={`vmt-btn ${mode === 'comfortable' ? 'vmt-btn--active' : ''}`}
         onClick={() => onChange('comfortable')}
         aria-checked={mode === 'comfortable'}
@@ -25,32 +15,45 @@ export default function ViewModeToggle({ mode, onChange }) {
         title="Comfortable view"
       >
         <GridIcon />
-        <CoolPersonIcon />
+      </button>
+      <button
+        className={`vmt-btn ${mode === 'efficient' ? 'vmt-btn--active' : ''}`}
+        onClick={() => onChange('efficient')}
+        aria-checked={mode === 'efficient'}
+        role="radio"
+        title="Compact view"
+      >
+        <ListIcon />
       </button>
     </div>
   )
 }
 
+/** 2×2 large squares — comfortable (spacious) view */
 function GridIcon() {
   return (
     <svg className="vmt-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="7" height="7" rx="1" />
-      <rect x="14" y="3" width="7" height="7" rx="1" />
-      <rect x="3" y="14" width="7" height="7" rx="1" />
-      <rect x="14" y="14" width="7" height="7" rx="1" />
+      <rect x="3" y="3" width="8" height="8" rx="1.5" />
+      <rect x="13" y="3" width="8" height="8" rx="1.5" />
+      <rect x="3" y="13" width="8" height="8" rx="1.5" />
+      <rect x="13" y="13" width="8" height="8" rx="1.5" />
     </svg>
   )
 }
 
+/** 3×3 small squares — compact (dense) view */
 function ListIcon() {
   return (
     <svg className="vmt-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="8" y1="6" x2="21" y2="6" />
-      <line x1="8" y1="12" x2="21" y2="12" />
-      <line x1="8" y1="18" x2="21" y2="18" />
-      <line x1="3" y1="6" x2="3.01" y2="6" />
-      <line x1="3" y1="12" x2="3.01" y2="12" />
-      <line x1="3" y1="18" x2="3.01" y2="18" />
+      <rect x="3"    y="3"    width="4.5" height="4.5" rx="1" />
+      <rect x="9.75" y="3"    width="4.5" height="4.5" rx="1" />
+      <rect x="16.5" y="3"    width="4.5" height="4.5" rx="1" />
+      <rect x="3"    y="9.75" width="4.5" height="4.5" rx="1" />
+      <rect x="9.75" y="9.75" width="4.5" height="4.5" rx="1" />
+      <rect x="16.5" y="9.75" width="4.5" height="4.5" rx="1" />
+      <rect x="3"    y="16.5" width="4.5" height="4.5" rx="1" />
+      <rect x="9.75" y="16.5" width="4.5" height="4.5" rx="1" />
+      <rect x="16.5" y="16.5" width="4.5" height="4.5" rx="1" />
     </svg>
   )
 }

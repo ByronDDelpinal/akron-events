@@ -20,6 +20,11 @@ export const THEMES = [
     description: 'Petrol teal with warm coral — the new default.',
   },
   {
+    id: 'grand-piano',
+    name: 'Grand Piano',
+    description: 'Concert hall monochrome — ivory, black, and warm charcoal.',
+  },
+  {
     id: 'pulse-red',
     name: 'Pulse Red',
     description: 'Vermilion heartbeat on cream.',
