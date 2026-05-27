@@ -77,6 +77,35 @@ footer {
   color: var(--text-primary);
   background: var(--bg-card);
 }
+.footer-theme-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.footer-reset-btn {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--overlay-light-30);
+  background: transparent;
+  border: var(--border-width-thin) solid transparent;
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) var(--space-md);
+  cursor: pointer;
+  transition: color var(--transition-medium), border-color var(--transition-medium);
+  white-space: nowrap;
+}
+.footer-reset-btn:hover {
+  color: var(--overlay-light-70);
+  border-color: var(--overlay-light-12);
+}
+.footer-reset-btn:focus-visible {
+  outline: none;
+  color: var(--white);
+  border-color: var(--overlay-light-30);
+  box-shadow: var(--shadow-focus);
+}
 
 .footer-copy { font-size: var(--text-tag); color: var(--overlay-light-12); }
 /* Discreet Admin entry point — same muted tone as the copyright text,

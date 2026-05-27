@@ -89,6 +89,10 @@ export default function HomePage() {
   // ── Card view mode (Comfortable / Efficient) ─────────────────────────
   const [cardViewMode, setCardViewMode] = useState(getStoredViewMode)
 
+  // ── Hero video: deferred until the first page of events has loaded ────
+  // This ensures the video fetch doesn't compete with Supabase on first paint.
+  const [videoUnlocked, setVideoUnlocked] = useState(false)
+
   const handleCardViewMode = (mode) => {
     setCardViewMode(mode)
     try { localStorage.setItem(VIEW_MODE_KEY, mode) } catch {}
@@ -203,6 +207,12 @@ export default function HomePage() {
     }
   }, [page, loading, offset])
 
+  // Unlock the hero video once the first batch of events has arrived.
+  // allEvents is empty until the first page commits, so this fires exactly once.
+  useEffect(() => {
+    if (allEvents.length > 0 && !videoUnlocked) setVideoUnlocked(true)
+  }, [allEvents.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const grouped = useMemo(() => groupEventsByDate(allEvents), [allEvents])
 
   const clearFilters = () => {
@@ -243,6 +253,22 @@ export default function HomePage() {
 
       {/* ── HERO ── */}
       <div className="hero">
+        {/* Background layer: poster always visible, video fades in after events load */}
+        <div className="hero-bg" aria-hidden="true">
+          <div className="hero-bg-poster" />
+          {videoUnlocked && (
+            <video
+              className="hero-bg-video"
+              autoPlay
+              muted
+              loop
+              playsInline
+              disablePictureInPicture
+              src="/video/akron-pulse-banner.mp4"
+            />
+          )}
+          <div className="hero-bg-scrim" />
+        </div>
         <div className="hero-glow" />
         <p className="hero-eyebrow">Summit County, Ohio</p>
         <h1>What's happening<br />in <span>Akron?</span></h1>

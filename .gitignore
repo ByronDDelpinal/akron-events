@@ -34,6 +34,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# raw / uncompressed video source files — only the compressed output belongs in the repo
+public/video/*-source.*
+
 # local docs — diagrams, exports, reference material
 docs/
 

@@ -1,13 +1,27 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from '@/hooks/useTheme'
-import { THEMES } from '@/lib/themes'
+import { THEMES, DEFAULT_THEME, THEME_STORAGE_KEY, LEGACY_THEME_STORAGE_KEY } from '@/lib/themes'
 import './Footer.css'
+
+// All localStorage keys that count as "preferences"
+const PREF_KEYS = [
+  THEME_STORAGE_KEY,
+  LEGACY_THEME_STORAGE_KEY,
+  'akronpulse_card_view_mode',
+  'turnout_card_view_mode',   // legacy pre-rebrand key
+]
 
 export default function Footer() {
   const { pathname } = useLocation()
   const [theme, setTheme] = useTheme()
 
   if (pathname.startsWith('/admin')) return null
+
+  function handleReset() {
+    try { PREF_KEYS.forEach(k => localStorage.removeItem(k)) } catch {}
+    setTheme(DEFAULT_THEME)
+    window.location.reload()
+  }
 
   return (
     <footer>
@@ -27,18 +41,27 @@ export default function Footer() {
         <label htmlFor="footer-theme-select" className="footer-theme-prompt">
           Want to switch up the vibe? Go for it, let us know what you like best.
         </label>
-        <select
-          id="footer-theme-select"
-          className="footer-theme-select"
-          value={theme}
-          onChange={(e) => setTheme(e.target.value)}
-        >
-          {THEMES.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
+        <div className="footer-theme-controls">
+          <select
+            id="footer-theme-select"
+            className="footer-theme-select"
+            value={theme}
+            onChange={(e) => setTheme(e.target.value)}
+          >
+            {THEMES.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+          <button
+            className="footer-reset-btn"
+            onClick={handleReset}
+            title="Reset theme and card view to defaults"
+          >
+            Reset to defaults
+          </button>
+        </div>
       </div>
 
       <p className="footer-copy">

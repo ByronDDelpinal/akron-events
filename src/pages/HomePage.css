@@ -1,6 +1,6 @@
 /* ── HERO ── */
 .hero {
-  background: var(--bg-nav);
+  background: var(--bg-nav); /* fallback while poster/video loads */
   margin-top: -65px;
   padding-top: calc(52px + 65px);
   padding-bottom: var(--space-5xl);
@@ -8,6 +8,46 @@
   padding-right: var(--space-xl);
   text-align: center;
   position: relative;
+  overflow: hidden; /* clip video to hero bounds */
+}
+/* ── Hero video background ── */
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.hero-bg-poster {
+  position: absolute;
+  inset: 0;
+  background-image: url('/video/akron-pulse-banner-poster.jpg');
+  background-size: cover;
+  background-position: center;
+}
+.hero-bg-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  animation: hero-video-fadein 1.4s ease forwards;
+}
+@keyframes hero-video-fadein {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.hero-bg-scrim {
+  position: absolute;
+  inset: 0;
+  /* Dark gradient scrim — heavier at bottom so text stays readable.
+     Specific opacity values are intentional: keep the shot visible but
+     keep WCAG AA contrast on the white hero text. */
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.52) 0%,
+    rgba(0, 0, 0, 0.62) 45%,
+    rgba(0, 0, 0, 0.72) 100%
+  );
 }
 .hero-glow {
   position: absolute;
