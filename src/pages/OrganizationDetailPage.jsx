@@ -15,7 +15,7 @@ import './OrganizationDetailPage.css'
 const EVENTS_PAGE_SIZE = 25
 
 const GRADIENT_MAP = {
-  music: 'gradient-jazz', art: 'gradient-art', community: 'gradient-market',
+  music: 'gradient-jazz', art: 'gradient-art', community: 'gradient-civic',
   nonprofit: 'gradient-gala', food: 'gradient-market', sports: 'gradient-sports', fitness: 'gradient-run',
   education: 'gradient-openmic', nature: 'gradient-forest', other: 'gradient-default',
 }

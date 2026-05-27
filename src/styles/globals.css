@@ -266,15 +266,18 @@
      One full linear-gradient() string per variable. The .gradient-*
      classes (Phase 2) will reference these via background.
   ────────────────────────────────────────────────────────────────── */
-  --gradient-jazz:    linear-gradient(140deg, #162806 0%, #2A5C18 55%, #D4922A 100%);
-  --gradient-art:     linear-gradient(140deg, #180A26 0%, #481870 55%, #9848E0 100%);
-  --gradient-market:  linear-gradient(140deg, #082010 0%, #186030 50%, #68AF78 100%);
-  --gradient-gala:    linear-gradient(140deg, #180808 0%, #501828 50%, #D4922A 100%);
-  --gradient-openmic: linear-gradient(140deg, #100828 0%, #2E1060 45%, #8050D0 100%);
-  --gradient-sports:  linear-gradient(140deg, #081828 0%, #1040A0 50%, #60B8E8 100%);
-  --gradient-run:     linear-gradient(140deg, #0A2818 0%, #18784A 50%, #58C888 100%);
-  --gradient-forest:  linear-gradient(140deg, #1A2A0E 0%, #4A6818 55%, #B5C268 100%);
-  --gradient-default: linear-gradient(140deg, #1D2B1F 0%, #3A6B4A 55%, #D4922A 100%);
+  /* Dark edge is a narrow sliver (0→20%); the category hue takes over fast.
+     Each end color is drawn from the same hue family as the matching tag. */
+  --gradient-jazz:    linear-gradient(140deg, #0A1A0C 0%, #1E6832 20%, #30A050 100%); /* music  → green  (#1A5428) */
+  --gradient-art:     linear-gradient(140deg, #150820 0%, #6B28A0 20%, #9848E0 100%); /* art    → purple (#621A80) */
+  --gradient-market:  linear-gradient(140deg, #1A0808 0%, #882810 20%, #C84828 100%); /* food   → red    (#882810) */
+  --gradient-civic:   linear-gradient(140deg, #080E20 0%, #1A3E70 20%, #2E6AB8 100%); /* community → navy (#1A3E70) */
+  --gradient-gala:    linear-gradient(140deg, #180A00 0%, #7A4E08 20%, #C07A10 100%); /* nonprofit → amber (#7A4E08) */
+  --gradient-openmic: linear-gradient(140deg, #041212 0%, #0C5252 20%, #189898 100%); /* education → teal (distinct from community navy) */
+  --gradient-sports:  linear-gradient(140deg, #060E1E 0%, #1A3870 20%, #2E60C0 100%); /* sports → navy   (#1A3870) */
+  --gradient-run:     linear-gradient(140deg, #041410 0%, #0C5438 20%, #1A8C60 100%); /* fitness → teal  (#0C5438) */
+  --gradient-forest:  linear-gradient(140deg, #0E1408 0%, #3A5A1A 20%, #6A9028 100%); /* nature  → olive (#3A5A1A) */
+  --gradient-default: linear-gradient(140deg, #0E0E0E 0%, #444444 20%, #6A6A6A 100%); /* other   → grey  (#555555) */
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -322,6 +325,7 @@ h6 { font-size: var(--text-h6); }
 .gradient-jazz    { background: var(--gradient-jazz); }
 .gradient-art     { background: var(--gradient-art); }
 .gradient-market  { background: var(--gradient-market); }
+.gradient-civic   { background: var(--gradient-civic); }
 .gradient-gala    { background: var(--gradient-gala); }
 .gradient-openmic { background: var(--gradient-openmic); }
 .gradient-sports  { background: var(--gradient-sports); }

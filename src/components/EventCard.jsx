@@ -10,7 +10,7 @@ import './EventCard.css'
 const GRADIENT_MAP = {
   music:     'gradient-jazz',
   art:       'gradient-art',
-  community: 'gradient-market',
+  community: 'gradient-civic',
   nonprofit: 'gradient-gala',
   food:      'gradient-market',
   sports:    'gradient-sports',

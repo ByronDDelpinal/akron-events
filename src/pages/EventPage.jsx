@@ -17,7 +17,7 @@ import './EventPage.css'
 const BANNER_MIN_WIDTH = 1120
 
 const GRADIENT_MAP = {
-  music: 'gradient-jazz', art: 'gradient-art', community: 'gradient-market',
+  music: 'gradient-jazz', art: 'gradient-art', community: 'gradient-civic',
   nonprofit: 'gradient-gala', food: 'gradient-market', sports: 'gradient-sports', fitness: 'gradient-run',
   education: 'gradient-openmic', nature: 'gradient-forest', other: 'gradient-default',
 }
