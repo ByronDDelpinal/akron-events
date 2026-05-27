@@ -8,16 +8,6 @@ export default function ViewModeToggle({ mode, onChange }) {
   return (
     <div className="view-mode-toggle" role="radiogroup" aria-label="Card view mode">
       <button
-        className={`vmt-btn ${mode === 'comfortable' ? 'vmt-btn--active' : ''}`}
-        onClick={() => onChange('comfortable')}
-        aria-checked={mode === 'comfortable'}
-        role="radio"
-        title="Comfortable view"
-      >
-        <GridIcon />
-        <CoolPersonIcon />
-      </button>
-      <button
         className={`vmt-btn ${mode === 'efficient' ? 'vmt-btn--active' : ''}`}
         onClick={() => onChange('efficient')}
         aria-checked={mode === 'efficient'}
@@ -26,6 +16,16 @@ export default function ViewModeToggle({ mode, onChange }) {
       >
         <ListIcon />
         <NerdPersonIcon />
+      </button>
+      <button
+        className={`vmt-btn ${mode === 'comfortable' ? 'vmt-btn--active' : ''}`}
+        onClick={() => onChange('comfortable')}
+        aria-checked={mode === 'comfortable'}
+        role="radio"
+        title="Comfortable view"
+      >
+        <GridIcon />
+        <CoolPersonIcon />
       </button>
     </div>
   )

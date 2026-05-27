@@ -45,6 +45,7 @@ function AgeRestrictionPill({ value }) {
 export default function EventCard({ event, featured = false, viewMode = 'comfortable' }) {
   const navigate = useNavigate()
   const price    = formatPrice(event.price_min, event.price_max)
+  const gradient = GRADIENT_MAP[event.category] ?? 'gradient-default'
 
   if (viewMode === 'efficient') {
     return (
@@ -53,6 +54,7 @@ export default function EventCard({ event, featured = false, viewMode = 'comfort
         featured={featured}
         price={price}
         navigate={navigate}
+        gradient={gradient}
       />
     )
   }
@@ -68,16 +70,28 @@ export default function EventCard({ event, featured = false, viewMode = 'comfort
 }
 
 function ComfortableCard({ event, featured, price, navigate }) {
-  const gradient = GRADIENT_MAP[event.category] ?? 'gradient-default'
+  const gradient  = GRADIENT_MAP[event.category] ?? 'gradient-default'
+  const hasImage  = Boolean(event.image_url)
 
   return (
     <div
-      className={`card ${featured ? 'featured' : ''}`}
+      className={`card ${featured ? 'featured' : ''}${hasImage ? ' card--has-image' : ''}`}
       onClick={() => navigate(`/events/${event.id}`)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && navigate(`/events/${event.id}`)}
     >
+      {/* Faint background photo — scrim keeps all text at WCAG AA contrast */}
+      {hasImage && (
+        <>
+          <div
+            className="card-bg-image"
+            aria-hidden="true"
+            style={{ backgroundImage: `url(${event.image_url})` }}
+          />
+          <div className="card-bg-scrim" aria-hidden="true" />
+        </>
+      )}
       <div className={`card-accent ${gradient}`} aria-hidden="true" />
 
       <div className="card-body">
@@ -126,7 +140,7 @@ function ComfortableCard({ event, featured, price, navigate }) {
 
 // ── EFFICIENT MODE ──────────────────────────────────────────────────────────
 
-function EfficientCard({ event, featured, price, navigate }) {
+function EfficientCard({ event, featured, price, navigate, gradient }) {
   return (
     <div
       className={`card-efficient ${featured ? 'card-efficient--featured' : ''}`}
@@ -135,24 +149,30 @@ function EfficientCard({ event, featured, price, navigate }) {
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && navigate(`/events/${event.id}`)}
     >
-      <div className="card-efficient-main">
-        <div className="card-efficient-title">{event.title}</div>
-        <div className="card-efficient-meta">
-          <div className="card-efficient-meta-row">
-            <CalendarIcon />
-            <span>{formatDate(event.start_at)}</span>
-          </div>
-          {event.venue && (
+      {/* Gradient accent bar — only on non-featured cards; featured uses border-left */}
+      {!featured && (
+        <div className={`card-efficient-accent ${gradient}`} aria-hidden="true" />
+      )}
+      <div className="card-efficient-inner">
+        <div className="card-efficient-main">
+          <div className="card-efficient-title">{event.title}</div>
+          <div className="card-efficient-meta">
             <div className="card-efficient-meta-row">
-              <PinIcon />
-              <span>{event.venue.name}{event.venue.city !== 'Akron' ? `, ${event.venue.city}` : ''}</span>
+              <CalendarIcon />
+              <span>{formatDate(event.start_at)}</span>
             </div>
-          )}
+            {event.venue && (
+              <div className="card-efficient-meta-row">
+                <PinIcon />
+                <span>{event.venue.name}{event.venue.city !== 'Akron' ? `, ${event.venue.city}` : ''}</span>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-      <div className="card-efficient-end">
-        <CategoryBadge category={event.category} />
-        <span className={`card-efficient-price ${price.free ? 'free' : ''}`}>{price.label}</span>
+        <div className="card-efficient-end">
+          <CategoryBadge category={event.category} />
+          <span className={`card-efficient-price ${price.free ? 'free' : ''}`}>{price.label}</span>
+        </div>
       </div>
     </div>
   )

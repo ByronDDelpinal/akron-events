@@ -11,6 +11,7 @@
    COMFORTABLE MODE — Card
 ════════════════════════════════ */
 .card {
+  position: relative;  /* anchor for .card-bg-image / .card-bg-scrim */
   background: var(--bg-card);
   border-radius: var(--radius-xxl);
   border: var(--border-width-thin) solid var(--border);
@@ -20,6 +21,42 @@
   cursor: pointer;
   display: flex;
   flex-direction: column;
+}
+
+/* ── Background photo layers (comfortable mode, images only) ─────────────
+ * .card-bg-image  — full-bleed photo, fills the entire card
+ * .card-bg-scrim  — gradient white overlay that preserves WCAG AA contrast
+ *                   (all text is near-black on an effective near-white bg)
+ * z-index stacking: bg-image(0) → bg-scrim(1) → card content(2)
+ * ──────────────────────────────────────────────────────────────────────── */
+.card-bg-image {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center top;
+  z-index: 0;
+}
+
+.card-bg-scrim {
+  position: absolute;
+  inset: 0;
+  /* Slightly more transparent at the very top where the accent bar sits,
+   * progressively more opaque through the body so text contrast is safe. */
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.84) 0%,
+    rgba(255, 255, 255, 0.92) 35%,
+    rgba(255, 255, 255, 0.97) 100%
+  );
+  z-index: 1;
+}
+
+/* Lift all card content above the two bg layers */
+.card-accent,
+.card-body,
+.card-footer {
+  position: relative;
+  z-index: 2;
 }
 .card:hover {
   transform: translateY(-3px);
@@ -164,8 +201,6 @@
 .card-efficient {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-md) var(--space-lg);
   background: var(--bg-card);
   border: var(--border-width-thin) solid var(--border);
   border-radius: var(--radius-md);
@@ -174,6 +209,23 @@
   min-height: 0;
   min-width: 0;
   overflow: hidden;
+}
+
+/* Gradient accent bar — shorter than the comfortable card's 20px */
+.card-efficient-accent {
+  height: 8px;
+  flex-shrink: 0;
+}
+
+/* Inner content wrapper — carries the padding and gap that were on .card-efficient */
+.card-efficient-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
 }
 
 .card-efficient:hover {
@@ -266,13 +318,16 @@
   color: var(--green-mid);
 }
 
-/* Featured in efficient mode — full width, accent border, no image */
+/* Featured in efficient mode — full width, left accent border (no top accent bar) */
 .card-efficient--featured {
   grid-column: 1 / -1;
-  flex-direction: row;
-  align-items: center;
   border-left: var(--border-width-thickest) solid var(--coral);
   background: var(--coral-pale);
+}
+/* Row layout lives on the inner wrapper so the (absent) accent bar doesn't interfere */
+.card-efficient--featured .card-efficient-inner {
+  flex-direction: row;
+  align-items: center;
 }
 .card-efficient--featured .card-efficient-main { flex: 1; }
 .card-efficient--featured .card-efficient-end {
@@ -285,7 +340,7 @@
   background: var(--coral-pale);
 }
 @media (max-width: 599px) {
-  .card-efficient--featured {
+  .card-efficient--featured .card-efficient-inner {
     flex-direction: column;
     align-items: stretch;
   }
