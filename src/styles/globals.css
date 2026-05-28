@@ -65,9 +65,9 @@
   --tag-nonprofit-bg: #FDF2DC; --tag-nonprofit-txt: #7A4E08;
   --tag-community-bg: #E4EEF8; --tag-community-txt: #1A3E70;
   --tag-food-bg:      #FAE8E4; --tag-food-txt:      #882810;
-  --tag-sports-bg:    #E0ECF8; --tag-sports-txt:    #1A3870;
+  --tag-sports-bg:    #E0E8FF; --tag-sports-txt:    #0830B0;
   --tag-fitness-bg:   #E4F2EE; --tag-fitness-txt:   #0C5438;
-  --tag-education-bg: #EAF0FA; --tag-education-txt: #1A3060;
+  --tag-education-bg: #E0F5F5; --tag-education-txt: #0C6060;
   --tag-nature-bg:    #E4EFD2; --tag-nature-txt:    #3A5A1A;
   --tag-other-bg:     #F0F0F0; --tag-other-txt:     #555555;
 
@@ -273,8 +273,8 @@
   --gradient-market:  linear-gradient(140deg, #1A0808 0%, #882810 20%, #C84828 100%); /* food   → red    (#882810) */
   --gradient-civic:   linear-gradient(140deg, #080E20 0%, #1A3E70 20%, #2E6AB8 100%); /* community → navy (#1A3E70) */
   --gradient-gala:    linear-gradient(140deg, #180A00 0%, #7A4E08 20%, #C07A10 100%); /* nonprofit → amber (#7A4E08) */
-  --gradient-openmic: linear-gradient(140deg, #041212 0%, #0C5252 20%, #189898 100%); /* education → teal (distinct from community navy) */
-  --gradient-sports:  linear-gradient(140deg, #060E1E 0%, #1A3870 20%, #2E60C0 100%); /* sports → navy   (#1A3870) */
+  --gradient-openmic: linear-gradient(140deg, #041212 0%, #107070 20%, #20C0C0 100%); /* education → vivid teal (distinct from community navy) */
+  --gradient-sports:  linear-gradient(140deg, #04081A 0%, #0830B0 20%, #1850E8 100%); /* sports → cobalt (#0830B0) — distinct from community navy */
   --gradient-run:     linear-gradient(140deg, #041410 0%, #0C5438 20%, #1A8C60 100%); /* fitness → teal  (#0C5438) */
   --gradient-forest:  linear-gradient(140deg, #0E1408 0%, #3A5A1A 20%, #6A9028 100%); /* nature  → olive (#3A5A1A) */
   --gradient-default: linear-gradient(140deg, #0E0E0E 0%, #444444 20%, #6A6A6A 100%); /* other   → grey  (#555555) */

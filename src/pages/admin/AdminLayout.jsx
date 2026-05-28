@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { supabase } from '@/lib/supabase'
 import '../../pages/AdminPage.css'
 
 // ── Auth ──────────────────────────────────────────────────────────────────
@@ -47,6 +48,21 @@ function LoginGate({ onLogin }) {
   )
 }
 
+// ── Review queue count badge ──────────────────────────────────────────────
+function useReviewCount() {
+  const [count, setCount] = useState(null)
+  useEffect(() => {
+    supabase
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .eq('needs_review', true)
+      .then(({ count: c, error }) => {
+        if (!error) setCount(c ?? 0)
+      })
+  }, [])
+  return count
+}
+
 // ── Sidebar nav items ─────────────────────────────────────────────────────
 const NAV_ITEMS = [
   { to: 'events',        label: 'Events',        icon: '📅' },
@@ -56,12 +72,14 @@ const NAV_ITEMS = [
   { to: 'scraper-runs',  label: 'Scraper Runs',  icon: '🤖' },
   { to: 'email',         label: 'Email',         icon: '✉️' },
   { to: 'feedback',      label: 'Feedback',      icon: '📣' },
+  { to: 'review',        label: 'Review Queue',  icon: '🔍', badge: true },
 ]
 
 // ── Layout ────────────────────────────────────────────────────────────────
 export default function AdminLayout() {
   const { authed, login, logout } = useAdminAuth()
   const navigate = useNavigate()
+  const reviewCount = useReviewCount()
 
   if (!authed) return <LoginGate onLogin={login} />
 
@@ -88,6 +106,9 @@ export default function AdminLayout() {
             >
               <span className="admin-nav-icon">{item.icon}</span>
               {item.label}
+              {item.badge && reviewCount > 0 && (
+                <span className="admin-nav-badge">{reviewCount}</span>
+              )}
             </NavLink>
           ))}
         </nav>

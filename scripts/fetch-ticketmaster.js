@@ -25,7 +25,7 @@ if (!TM_KEY) {
 
 const BASE_URL    = 'https://app.ticketmaster.com/discovery/v2'
 const RADIUS_MILES = 25
-const DAYS_AHEAD   = 90
+const DAYS_AHEAD   = 180  // Match Akron Life's horizon — major concerts go on sale 4–6 months out
 const PAGE_SIZE    = 50   // TM max per page
 
 // ── Akron, OH coordinates ──────────────────────────────────────────

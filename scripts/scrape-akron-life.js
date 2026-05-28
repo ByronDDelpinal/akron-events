@@ -135,12 +135,31 @@ const EVVNT_CATEGORY_MAP = {
   'outdoor':            'nature',
 }
 
+// Categories where Evvnt's tag is low-signal and text-based inference
+// should be trusted over the source value. 'education' and 'community' are
+// the two most frequently wrong values from the Evvnt backfill — concerts
+// at Blossom, festivals, etc. often arrive tagged as one of these.
+const EVVNT_OVERRIDABLE_CATEGORIES = new Set(['education', 'community'])
+
 function mapCategory(evvntCategoryName, title, description) {
   const mapped = EVVNT_CATEGORY_MAP[(evvntCategoryName || '').toLowerCase().trim()]
-  // inferCategory returns 'other' when nothing matches; keep the Akron Life
-  // default of 'community' for unclassifiable events from this publisher
-  // (they're community-magazine events by nature).
-  if (mapped) return mapped
+
+  if (mapped) {
+    // For low-signal source categories, run text inference as a sanity check.
+    // If inference returns something more specific, trust it over Evvnt's tag.
+    // This catches cases like a Hardy concert at Blossom arriving tagged
+    // 'education' from the Evvnt backfill.
+    if (EVVNT_OVERRIDABLE_CATEGORIES.has(mapped)) {
+      const inferred = inferCategory(title, description)
+      if (inferred !== 'other' && inferred !== mapped) {
+        return inferred
+      }
+    }
+    return mapped
+  }
+
+  // No map entry at all — fall through to text inference, defaulting to
+  // 'community' since this is a community-magazine publisher.
   const inferred = inferCategory(title, description)
   return inferred === 'other' ? 'community' : inferred
 }
@@ -159,11 +178,16 @@ function buildTags(category, evvntCategoryName) {
 
 /**
  * Evvnt's `prices` field is an object keyed by ticket tier, with values that
- * may be { amount: "12.50", currency_code: "USD" } or a bare number. Empty
- * object = unknown/free.
+ * may be { amount: "12.50", currency_code: "USD" } or a bare number.
+ *
+ * Absence / empty object → null (unknown), NOT 0 (free). Evvnt often omits
+ * this field entirely for paid ticketed events (e.g. Ticketmaster backfill),
+ * so defaulting to 0 would incorrectly mark paid concerts as free. A
+ * price_min of 0 is only written when Evvnt explicitly reports a 0-price
+ * tier (i.e. the event genuinely has a free admission option).
  */
 function parseEvvntPrices(prices) {
-  if (!prices || typeof prices !== 'object') return { price_min: 0, price_max: null }
+  if (!prices || typeof prices !== 'object') return { price_min: null, price_max: null }
   const nums = Object.values(prices)
     .map(v => {
       if (typeof v === 'number') return v
@@ -172,7 +196,7 @@ function parseEvvntPrices(prices) {
       return NaN
     })
     .filter(n => !isNaN(n) && n >= 0)
-  if (nums.length === 0) return { price_min: 0, price_max: null }
+  if (nums.length === 0) return { price_min: null, price_max: null }
   const min = Math.min(...nums)
   const max = Math.max(...nums)
   return { price_min: min, price_max: max > min ? max : null }
@@ -252,9 +276,21 @@ function pickImage(images) {
  * Returns null when no usable external URL exists. Callers must then
  * decide whether to drop the event entirely (Byron's policy: yes).
  */
+// Link key priority: specific ticketing platforms first (highest quality —
+// direct to purchase), then generic ticket/booking keys, then the event
+// website, then social as an absolute last resort.
+// AXS is Live Nation's platform and handles Blossom Music Center events;
+// it must be listed explicitly or Evvnt's original_links.AXS gets skipped.
 const USEFUL_LINK_KEYS = [
-  'Website', 'Tickets', 'tickets', 'Buy Tickets', 'Booking',
-  'Facebook', 'Instagram',  // social profile is acceptable as "the source"
+  // Named ticketing platforms — Evvnt stores these as exact keys
+  'AXS', 'Ticketmaster', 'Eventbrite', 'Dice', 'Bandsintown',
+  'SeatGeek', 'StubHub', 'TicketWeb', 'Brown Paper Tickets',
+  // Generic ticket keys
+  'Tickets', 'tickets', 'Buy Tickets', 'Booking',
+  // Event website
+  'Website',
+  // Social — last resort only; better than nothing for small local events
+  'Facebook', 'Instagram',
 ]
 
 function pickExternalUrl(raw) {
@@ -331,6 +367,15 @@ async function main() {
       if (!isInAkronArea(e.venue))               { droppedOutsideArea++; continue }
       if (!pickExternalUrl(e))                   { droppedNoLink++;      continue }
       if (isBackfilledFromDirectScraper(e.sources)) { droppedDupSource++; continue }
+      // Log the sources array for events that pass the dedup guard so we can
+      // identify any platforms (e.g. Ticketmaster without the expected tag)
+      // that are slipping through and need to be added to SOURCES_WE_SCRAPE_DIRECTLY.
+      if (Array.isArray(e.sources) && e.sources.length > 0) {
+        const unknownSources = e.sources.filter(s => !SOURCES_WE_SCRAPE_DIRECTLY.has(String(s).toLowerCase()))
+        if (unknownSources.length > 0) {
+          console.log(`  ℹ️  Backfill slip-through: "${e.title}" has sources [${e.sources.join(', ')}]`)
+        }
+      }
       toProcess.push(e)
     }
     console.log(
@@ -417,11 +462,20 @@ async function main() {
 
         if (venueId)     await linkEventVenue(upserted.id, venueId)
 
-        // Prefer the event-specific organiser when present; fall back to the
-        // publisher (Akron Life) so every event has at least one org link.
-        let eventOrgId = organizerId
+        // Prefer the event-specific organiser when present.
+        // Fall back to Akron Life Magazine ONLY when the event has no organiser
+        // AND shows no cross-platform backfill signals. Backfilled events
+        // (e.g. a Ticketmaster concert that Evvnt surfaced in this feed) have
+        // their own real promoter/venue; crediting Akron Life as the presenter
+        // is misleading and confuses users (see: Hardy at Blossom incident).
+        let eventOrgId = null
         if (raw.organiser_name && raw.organiser_name.trim()) {
-          eventOrgId = await ensureOrganization(raw.organiser_name.trim()) || organizerId
+          eventOrgId = await ensureOrganization(raw.organiser_name.trim())
+        }
+        const isBackfilled = Array.isArray(raw.sources) && raw.sources.length > 0
+        if (!eventOrgId && !isBackfilled) {
+          // Genuinely Akron Life-originated event with no other organiser info.
+          eventOrgId = organizerId
         }
         if (eventOrgId) await linkEventOrganization(upserted.id, eventOrgId)
         if (venueId && eventOrgId) await linkOrganizationVenue(eventOrgId, venueId).catch(() => {})

@@ -219,6 +219,11 @@ export function inferCategory(title = '', description = '') {
   if (/\b(certification|professional development|continuing education|sat prep|gre prep|esol classes|ged classes|lean six sigma|pmp|leadership training|sales training|management training|conflict resolution training|coding bootcamp|reiki .* certification|six sigma)\b/.test(text)) return 'education'
   if (/\b\d+[- ]day workshop\b/.test(text)) return 'education'
   if (/\b(seminar|lecture series|symposium|webinar|conference|masterclass)\b/.test(text)) return 'education'
+  // Consumer safety / fraud prevention / digital literacy — frequently
+  // mislabeled because titles lack classic "education" keywords.
+  if (/\b(scam|scammer|fraud|phishing|identity theft|cyber(security| safety)|online safety|consumer (safety|protection|fraud)|financial (literacy|safety|fraud)|digital literacy|internet safety|password safety|outsmart|avoid (scams?|fraud)|protect yourself)\b/.test(text)) return 'education'
+  // Information sessions, orientations, and clinics are almost always educational
+  if (/\b(information session|info session|orientation (session|program)?|new student orientation|open enrollment|enrollment clinic|free clinic|financial aid clinic|tax clinic|legal clinic|resource fair)\b/.test(text)) return 'education'
 
   // ── Art — galleries, exhibits, theater, comedy, drag ────────────────────
   if (/\b(gallery|exhibition|exhibit opening|opening (reception|celebration)|artist reception|artist talk|sculpture show|mural unveiling|art show|art fair|installation|vernissage)\b/.test(text)) return 'art'
@@ -596,6 +601,19 @@ export async function upsertEventSafe(row) {
   // This catches cases where scrapers pass raw API titles containing entities
   // like &#8217; or &amp; that would otherwise appear verbatim in the DB.
   const sanitized = sanitizeEventText(row)
+
+  // Auto-flag low-confidence categorizations for admin review.
+  // If the scraper didn't already set needs_review and the final category is
+  // 'other' (meaning nothing in the source map or inferCategory matched), mark
+  // it for the review queue so a human can correct it before users see it.
+  if (sanitized.needs_review === undefined && sanitized.category === 'other') {
+    sanitized.needs_review = true
+  }
+  // Explicit non-'other' category → confident, clear any stale flag.
+  if (sanitized.needs_review === undefined && sanitized.category !== 'other') {
+    sanitized.needs_review = false
+  }
+
   const safeRow = await _stripOverriddenFields('events', sanitized)
   const { data, error } = await supabaseAdmin
     .from('events')

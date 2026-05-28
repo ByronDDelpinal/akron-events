@@ -662,3 +662,45 @@
   text-align: center; padding: var(--space-4xl);
   color: var(--text-muted); font-size: var(--text-sm);
 }
+
+/* ── Review Queue ── */
+.admin-review-desc {
+  font-size: var(--text-sm); color: var(--text-secondary);
+  margin-bottom: var(--space-xl);
+  max-width: 600px;
+}
+.admin-review-empty {
+  display: flex; flex-direction: column; align-items: center;
+  gap: var(--space-md); padding: var(--space-5xl);
+  color: var(--text-muted); font-size: var(--text-sm);
+}
+.admin-review-empty-icon {
+  font-size: 2rem; color: var(--green-mid);
+}
+.admin-review-actions {
+  display: flex; gap: var(--space-sm); align-items: center;
+  white-space: nowrap;
+}
+.admin-select--inline {
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--text-xs);
+  border-radius: var(--radius-sm);
+  min-width: 150px;
+}
+.admin-table-link {
+  color: var(--text-primary); text-decoration: none; font-weight: 500;
+}
+.admin-table-link:hover { color: var(--amber); }
+.admin-cell-mono {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--text-xs); color: var(--text-muted);
+  white-space: nowrap;
+}
+.admin-row--saving { opacity: 0.5; pointer-events: none; }
+.admin-nav-badge {
+  margin-left: auto;
+  background: var(--coral); color: #fff;
+  font-size: 10px; font-weight: 700; line-height: 1;
+  padding: 2px 6px; border-radius: var(--radius-pill);
+  min-width: 18px; text-align: center;
+}

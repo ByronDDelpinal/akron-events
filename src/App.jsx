@@ -31,6 +31,7 @@ import AreaEditPage from '@/pages/admin/areas/AreaEditPage'
 import ScraperRunsPage from '@/pages/admin/scraper-runs/ScraperRunsPage'
 import EmailPage from '@/pages/admin/email/EmailPage'
 import AdminFeedbackPage from '@/pages/admin/feedback/AdminFeedbackPage'
+import ReviewQueuePage from '@/pages/admin/review/ReviewQueuePage'
 
 import { trackPageView } from '@/lib/analytics'
 import { ThemeProvider } from '@/hooks/useTheme'
@@ -102,6 +103,7 @@ function AppInner() {
             <Route path="scraper-runs"       element={<ScraperRunsPage />} />
             <Route path="email"              element={<EmailPage />} />
             <Route path="feedback"           element={<AdminFeedbackPage />} />
+            <Route path="review"             element={<ReviewQueuePage />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

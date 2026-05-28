@@ -95,6 +95,15 @@ const LIBRARY_CATEGORY_MAP = {
   'financial':            'education',
   'job':                  'education',
   'career':               'education',
+  'scam':                 'education',
+  'fraud':                'education',
+  'safety':               'education',
+  'digital literacy':     'education',
+  'internet':             'education',
+  'cybersecurity':        'education',
+  'orientation':          'education',
+  'information session':  'education',
+  'workshop':             'education',
   'health':               'community',
   'wellness':             'community',
   'yoga':                 'community',
@@ -111,10 +120,18 @@ const LIBRARY_CATEGORY_MAP = {
   'cooking':              'food',
 }
 
+// Pre-compile keyword patterns with word boundaries so that substring
+// matches like "smart" → "art" or "start" → "art" are impossible.
+// Multi-word phrases (e.g. "arts & crafts") are anchored as-is — the
+// ampersand is not a word char so \b sits naturally around it.
+const _LIBRARY_CATEGORY_PATTERNS = Object.entries(LIBRARY_CATEGORY_MAP).map(
+  ([keyword, cat]) => [new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i'), cat]
+)
+
 function parseCategory(tagStr = '', title = '') {
-  const combined = (tagStr + ' ' + title).toLowerCase()
-  for (const [keyword, cat] of Object.entries(LIBRARY_CATEGORY_MAP)) {
-    if (combined.includes(keyword)) return cat
+  const combined = `${tagStr} ${title}`
+  for (const [pattern, cat] of _LIBRARY_CATEGORY_PATTERNS) {
+    if (pattern.test(combined)) return cat
   }
   return 'community' // Library default
 }
