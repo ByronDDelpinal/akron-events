@@ -1,16 +1,9 @@
 import { useState } from 'react'
 import { INTENTS } from '@/lib/intents'
+import { SOURCE_LABELS } from '@/lib/sources'
 import FilterTray from './FilterTray'
 import ViewModeToggle from './ViewModeToggle'
 import './FilterBar.css'
-
-// Human-readable labels for source keys shown in the active-filter strip
-const SOURCE_LABELS = {
-  akron_library:     'Akron Library',
-  summit_metro_parks: 'Metro Parks',
-  eventbrite:        'Eventbrite',
-  ticketmaster:      'Ticketmaster',
-}
 
 const DATE_TABS = [
   { id: null,            label: 'All' },

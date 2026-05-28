@@ -8,9 +8,87 @@ const COMPACT_PAGE_SIZE = 48
 import EventCard from '@/components/EventCard'
 import FilterBar from '@/components/FilterBar'
 import MapView from '@/components/MapView'
+import SourceOverflowCard from '@/components/SourceOverflowCard'
 import { INTENTS, SEARCH_SUGGESTIONS } from '@/lib/intents'
 import { SEO } from '@/lib/seo'
 import './HomePage.css'
+
+// ── Source overflow cap ───────────────────────────────────────────────────────
+// Per-source limit before an overflow card is injected. Events beyond this
+// count are hidden until the user clicks the overflow card to expand them.
+const SOURCE_CAP = 3
+
+/**
+ * applySourceCap(dayEvents, expandedSources, dateKey)
+ *
+ * Takes a flat, time-sorted array of events for one day and returns a mixed
+ * array of items that the grid should render:
+ *
+ *   { type: 'event',    event, isRevealed }
+ *   { type: 'overflow', source, dateKey, hiddenCount, isExpanded }
+ *
+ * Algorithm:
+ *  - Count events per source as we walk the list.
+ *  - When a source hits SOURCE_CAP+1, inject an overflow card *at that position*
+ *    (the card stays here forever — its grid slot never shifts).
+ *  - Subsequent events from that source are hidden unless expanded.
+ *  - Expanded sources show their hidden events immediately after the overflow
+ *    card, interleaved in correct time order.
+ */
+function applySourceCap(dayEvents, expandedSources, dateKey) {
+  // sourceCounts: how many events we've emitted (not including overflow card) per source
+  const sourceCounts    = {}
+  // overflowEmitted: have we already emitted the overflow card for this source?
+  const overflowEmitted = {}
+  // hiddenEvents: buffer of events suppressed per source (needed for total count)
+  const hiddenCounts    = {}
+
+  // First pass — collect how many events each source has beyond the cap so
+  // we know the overflow card label before we emit it.
+  const sourceTotal = {}
+  for (const ev of dayEvents) {
+    const src = ev.source ?? 'unknown'
+    sourceTotal[src] = (sourceTotal[src] ?? 0) + 1
+  }
+
+  const items = []
+
+  for (const ev of dayEvents) {
+    const src        = ev.source ?? 'unknown'
+    const count      = sourceCounts[src] ?? 0
+    const isExpanded = expandedSources.has(`${dateKey}-${src}`)
+    const total      = sourceTotal[src]
+
+    if (count < SOURCE_CAP) {
+      // Always show events within the cap
+      items.push({ type: 'event', event: ev, isRevealed: false })
+      sourceCounts[src] = count + 1
+    } else {
+      // This source has hit the cap
+      if (!overflowEmitted[src]) {
+        // Emit the overflow card at this exact position (will never move)
+        const hiddenCount = total - SOURCE_CAP
+        items.push({
+          type: 'overflow',
+          source: src,
+          dateKey,
+          hiddenCount,
+          isExpanded,
+        })
+        overflowEmitted[src] = true
+        hiddenCounts[src]    = hiddenCount
+      }
+
+      // Only show the event if this source is expanded
+      if (isExpanded) {
+        items.push({ type: 'event', event: ev, isRevealed: true })
+      }
+      // (if not expanded, event is simply omitted from the item list)
+    }
+  }
+
+  return items
+}
 
 // ── localStorage key for persisting card view mode ──
 const VIEW_MODE_KEY = 'akronpulse_card_view_mode'
@@ -242,6 +320,20 @@ export default function HomePage() {
 
   const isEfficient = cardViewMode === 'efficient'
 
+  // ── Source overflow expansion state ──────────────────────────────────
+  // Keys are `${dateKey}-${source}` strings.
+  const [expandedSources, setExpandedSources] = useState(() => new Set())
+
+  const toggleSource = useCallback((dateKey, source) => {
+    const key = `${dateKey}-${source}`
+    setExpandedSources(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
+
   return (
     <>
       <SEO
@@ -376,37 +468,63 @@ export default function HomePage() {
             let midPromoShown = false
             const midThreshold = getMidPromoThreshold()
             return grouped.map(([dateKey, dayEvents]) => {
-              const items = []
-              for (let i = 0; i < dayEvents.length; i++) {
-                const event = dayEvents[i]
-                // Inject promo into the grid at the exact threshold position (comfortable only)
+              const cappedItems = applySourceCap(dayEvents, expandedSources, dateKey)
+              const gridItems = []
+              let dayCardIdx = 0  // track index within day for featured logic
+
+              for (const item of cappedItems) {
+                if (item.type === 'overflow') {
+                  gridItems.push(
+                    <SourceOverflowCard
+                      key={`overflow-${item.dateKey}-${item.source}`}
+                      source={item.source}
+                      hiddenCount={item.hiddenCount}
+                      isExpanded={item.isExpanded}
+                      onToggle={() => toggleSource(item.dateKey, item.source)}
+                    />
+                  )
+                  // overflow card does not increment cardIdx (it's not a real event)
+                  continue
+                }
+
+                // type === 'event'
+                const event = item.event
+                const isFeatured = event.featured && dayCardIdx === 0
+
+                // Inject mid-grid promo at threshold (comfortable only)
                 if (!isEfficient && !midPromoShown && cardIdx >= midThreshold) {
-                  items.push(
+                  gridItems.push(
                     <div key="__mid-promo__" className="cards-grid-promo">
                       <GridPromo />
                     </div>
                   )
                   midPromoShown = true
                 }
-                const delay = cardIdx++ * 28
-                items.push(
+
+                const delay = item.isRevealed ? 0 : cardIdx * 28
+                cardIdx++
+                gridItems.push(
                   <div
                     key={event.id}
-                    className="card-enter"
+                    className={`card-enter${item.isRevealed ? ' card-reveal' : ''}`}
                     style={{ animationDelay: `${delay}ms` }}
                   >
                     <EventCard
                       event={event}
-                      featured={event.featured && i === 0}
+                      featured={isFeatured}
                       viewMode={cardViewMode}
                     />
                   </div>
                 )
+                dayCardIdx++
               }
+
               return (
                 <div key={`${resultsKey}-${dateKey}`}>
                   <DateHeading dateKey={dateKey} />
-                  <div className={isEfficient ? 'cards-grid--efficient' : 'cards-grid'}>{items}</div>
+                  <div className={isEfficient ? 'cards-grid--efficient' : 'cards-grid'}>
+                    {gridItems}
+                  </div>
                 </div>
               )
             })

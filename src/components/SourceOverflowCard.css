@@ -1,0 +1,84 @@
+/*
+ * SourceOverflowCard — intentionally low-profile.
+ * align-self: start stops it from stretching to the tallest card in the row.
+ */
+.source-overflow-card {
+  align-self: start;          /* natural height — never stretches to fill the row */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: var(--space-md) var(--space-lg);
+  background: transparent;
+  border: var(--border-width-thin) dashed var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  transition:
+    color var(--transition-medium),
+    border-color var(--transition-medium),
+    background var(--transition-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.source-overflow-card:hover {
+  color: var(--amber);
+  border-color: var(--amber-border);
+  background: var(--amber-pale);
+}
+
+.source-overflow-card--expanded {
+  color: var(--text-secondary);
+  border-color: var(--border);
+  border-style: solid;
+}
+
+.source-overflow-card--expanded:hover {
+  color: var(--text-primary);
+  border-color: var(--amber-border);
+}
+
+.soc-chevron {
+  font-size: var(--text-sm);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.soc-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Efficient-mode: same proportions, just a bit tighter */
+.cards-grid--efficient .source-overflow-card {
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--text-xxs);
+}
+
+/* ── Entrance animation for revealed cards ──────────────────────────────── */
+/*
+ * Applied via .card-reveal in HomePage when overflow is expanded.
+ * All revealed cards use animationDelay:0 so they fire together.
+ */
+@keyframes card-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card-reveal {
+  animation: card-reveal 280ms ease both;
+}

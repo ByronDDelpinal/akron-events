@@ -1,6 +1,23 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
+/**
+ * Normalize a search term for accent-insensitive matching against the
+ * title_normalized / description_normalized columns in Postgres.
+ *
+ * Strategy mirrors the DB trigger (unaccent + lower):
+ *   "Pokémon" → NFD decompose → strip combining diacritics → lowercase → "pokemon"
+ *   "Pokemon" →                                                           "pokemon"
+ *
+ * Both resolve to the same form, so either spelling finds "Pokémon Club".
+ */
+function normalizeSearch(term) {
+  return term
+    .normalize('NFD')              // decompose: é → e + U+0301 combining acute
+    .replace(/\p{Diacritic}/gu, '') // strip all combining diacritic marks
+    .toLowerCase()
+}
+
 export const PAGE_SIZE = 24
 
 /**
@@ -99,8 +116,14 @@ export function useEvents({
         }
 
         if (search && search.trim().length > 0) {
+          // Normalize the term to match the DB's trigger-maintained columns
+          // (unaccent + lower). This makes search accent-insensitive in both
+          // directions: "Pokemon" and "Pokémon" both resolve to "pokemon" and
+          // hit the GIN trigram index on title_normalized / description_normalized.
+          // NOTE: inside .or() PostgREST uses * as the ilike wildcard, not %.
+          const term = normalizeSearch(search.trim())
           query = query.or(
-            `title.ilike.%${search.trim()}%,description.ilike.%${search.trim()}%`
+            `title_normalized.ilike.*${term}*,description_normalized.ilike.*${term}*`
           )
         }
 
@@ -491,8 +514,9 @@ export function useMapEvents({
         }
 
         if (search && search.trim().length > 0) {
+          const term = normalizeSearch(search.trim())
           query = query.or(
-            `title.ilike.%${search.trim()}%,description.ilike.%${search.trim()}%`
+            `title_normalized.ilike.*${term}*,description_normalized.ilike.*${term}*`
           )
         }
 

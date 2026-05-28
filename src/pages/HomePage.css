@@ -8,13 +8,16 @@
   padding-right: var(--space-xl);
   text-align: center;
   position: relative;
-  overflow: hidden; /* clip video to hero bounds */
+  /* No overflow: hidden here — that would clip the search suggestions
+     dropdown. The .hero-bg layer is position: absolute + inset: 0, so
+     it already constrains the video/poster/scrim to hero bounds. */
 }
 /* ── Hero video background ── */
 .hero-bg {
   position: absolute;
   inset: 0;
   z-index: 0;
+  overflow: hidden; /* clip video + poster to hero bounds without clipping search dropdown */
 }
 .hero-bg-poster {
   position: absolute;
