@@ -164,8 +164,19 @@ function VenueForm({ seed, isNew, allOrgs, venueId, areas, onAreasChange, onNavi
           />
         </FormField>
 
-        <FormField label="Image URL">
+        <FormField label="Image URL" field="image_url" overrides={overrides} onToggleOverride={toggleOverride}>
           <FormInput value={form.image_url} onChange={e => setField('image_url', e.target.value)} />
+          {form.image_url && (
+            <div style={{ marginTop: 8 }}>
+              <img
+                src={form.image_url}
+                alt="Preview"
+                style={{ maxHeight: 140, maxWidth: '100%', borderRadius: 6, objectFit: 'cover', border: '1px solid var(--border)' }}
+                onError={e => { e.currentTarget.style.display = 'none' }}
+                onLoad={e => { e.currentTarget.style.display = 'block' }}
+              />
+            </div>
+          )}
         </FormField>
 
         <OverrideLockDisplay overrides={overrides} />

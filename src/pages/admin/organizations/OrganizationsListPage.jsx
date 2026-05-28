@@ -5,6 +5,19 @@ import { StatusBadge, SearchBar, ConfirmDialog, Pagination } from '@/components/
 
 const PAGE_SIZE = 50
 
+function MissingChip({ label }) {
+  return (
+    <span style={{
+      display: 'inline-block', marginLeft: 6, padding: '1px 5px',
+      fontSize: 10, fontWeight: 600, borderRadius: 4, verticalAlign: 'middle',
+      background: 'var(--amber-faint, rgba(245,158,11,0.12))',
+      color: 'var(--amber, #d97706)',
+      border: '1px solid var(--amber-faint, rgba(245,158,11,0.3))',
+      letterSpacing: '0.02em',
+    }}>{label}</span>
+  )
+}
+
 export default function OrganizationsListPage() {
   const navigate = useNavigate()
   const [orgs, setOrgs] = useState([])
@@ -12,16 +25,18 @@ export default function OrganizationsListPage() {
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [showMissing, setShowMissing] = useState(false)
   const [deleting, setDeleting] = useState(null)
 
   const fetchOrgs = useCallback(async () => {
     setLoading(true)
     let query = supabase
       .from('organizations')
-      .select('*, venues ( id, name ), event_organizations ( event_id )', { count: 'exact' })
+      .select('id, name, status, city, image_url, description, venues ( id, name ), event_organizations ( event_id )', { count: 'exact' })
       .order('name')
 
     if (search.trim()) query = query.ilike('name', `%${search.trim()}%`)
+    if (showMissing)   query = query.or('image_url.is.null,description.is.null')
 
     const from = page * PAGE_SIZE
     query = query.range(from, from + PAGE_SIZE - 1)
@@ -30,10 +45,10 @@ export default function OrganizationsListPage() {
     setOrgs(data ?? [])
     setTotal(count ?? 0)
     setLoading(false)
-  }, [page, search])
+  }, [page, search, showMissing])
 
   useEffect(() => { fetchOrgs() }, [fetchOrgs])
-  useEffect(() => { setPage(0) }, [search])
+  useEffect(() => { setPage(0) }, [search, showMissing])
 
   const handleDelete = async () => {
     if (!deleting) return
@@ -51,6 +66,13 @@ export default function OrganizationsListPage() {
 
       <div className="admin-toolbar">
         <SearchBar value={search} onChange={setSearch} placeholder="Search organizations…" />
+        <button
+          className={showMissing ? 'btn-admin-primary' : 'btn-admin-ghost'}
+          onClick={() => setShowMissing(v => !v)}
+          title="Show only orgs missing image or description"
+        >
+          Needs data
+        </button>
         <button className="btn-admin-primary btn-admin-create" onClick={() => navigate('/admin/organizations/new')}>
           + New Organization
         </button>
@@ -76,6 +98,8 @@ export default function OrganizationsListPage() {
                 <tr key={o.id}>
                   <td className="admin-td-title">
                     <Link to={`/admin/organizations/${o.id}/edit`} className="admin-td-link">{o.name}</Link>
+                    {!o.image_url && <MissingChip label="no img" />}
+                    {!o.description && <MissingChip label="no desc" />}
                   </td>
                   <td><StatusBadge status={o.status} /></td>
                   <td>{o.city ?? '—'}</td>

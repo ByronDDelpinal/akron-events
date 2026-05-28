@@ -459,9 +459,23 @@ export async function ensureOrganization(name, details = {}) {
   if (_orgNameCache.has(trimmed)) return _orgNameCache.get(trimmed)
 
   const { data: existing } = await supabaseAdmin
-    .from('organizations').select('id').eq('name', trimmed).maybeSingle()
+    .from('organizations').select('id, website, description, image_url, address, city, state, zip').eq('name', trimmed).maybeSingle()
 
   if (existing) {
+    // Non-destructively update null fields on the existing org record.
+    // Only sets a field if the incoming details have a value AND the DB row is currently empty.
+    // This mirrors the same pattern used in ensureVenue.
+    const updates = {}
+    if (details.website     && !existing.website)     updates.website     = details.website
+    if (details.description && !existing.description) updates.description = details.description
+    if (details.image_url   && !existing.image_url)   updates.image_url   = details.image_url
+    if (details.address     && !existing.address)     updates.address     = details.address
+    if (details.city        && !existing.city)        updates.city        = details.city
+    if (details.state       && !existing.state)       updates.state       = details.state
+    if (details.zip         && !existing.zip)         updates.zip         = details.zip
+    if (Object.keys(updates).length) {
+      await supabaseAdmin.from('organizations').update(updates).eq('id', existing.id)
+    }
     _orgNameCache.set(trimmed, existing.id)
     return existing.id
   }

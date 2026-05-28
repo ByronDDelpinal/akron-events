@@ -157,11 +157,33 @@ export default function HomePage() {
     // replace, not push — filter toggles shouldn't clutter back-history.
     setSearchParams(params, { replace: true })
   }, [searchParams, setSearchParams])
+
   const [hiddenSources,  setHiddenSources]  = useState([])   // source strings to exclude
   const [priceFilter,    setPriceFilter]    = useState(null) // null | 'free' | 'under10' | 'under25'
   const [sort,           setSort]           = useState('soonest')
-  const [search,         setSearch]         = useState('')
-  const [searchInput,    setSearchInput]    = useState('')
+
+  // ── Search is URL-backed so it survives back-navigation and can be shared ─
+  // `search` is the committed query (derived from ?q=); `searchInput` is the
+  // local draft that lives in the <input> until the user presses Enter.
+  const search = useMemo(() => searchParams.get('q') || '', [searchParams])
+  const [searchInput, setSearchInput] = useState(() => searchParams.get('q') || '')
+
+  // Commits the search draft to the URL (?q=). Preserves other params (e.g.
+  // categories). Uses replace so rapid typing doesn't pollute back-history.
+  const setSearch = useCallback((value) => {
+    const params = new URLSearchParams(searchParams)
+    if (value) params.set('q', value)
+    else params.delete('q')
+    setSearchParams(params, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  // Keep the search <input> in sync when the URL's ?q= changes externally —
+  // most importantly when the user presses the browser back button after
+  // navigating to an event detail page.
+  useEffect(() => {
+    setSearchInput(search)
+  }, [search])
+
   const [view,           setView]           = useState('list')
 
   // ── Card view mode (Comfortable / Efficient) ─────────────────────────
@@ -295,15 +317,15 @@ export default function HomePage() {
 
   const clearFilters = () => {
     setActiveIntentId(null)
-    setRawCategories([])
     setDateRange(null)
     setDateFrom(null)
     setDateTo(null)
     setPriceFilter(null)
     setHiddenSources([])
     setSort('soonest')
-    setSearch('')
     setSearchInput('')
+    // Wipe all URL params (clears both ?q= and ?categories= in one replace).
+    setSearchParams({}, { replace: true })
   }
 
   const handleSearchKeyDown = (e) => {

@@ -198,12 +198,33 @@ async function fetchAllPages() {
   return all
 }
 
+// ── Dedicated-scraper exclusion list ──────────────────────────────────────
+// Events covered by a purpose-built scraper are skipped here to prevent
+// cross-source duplicates.  The dedicated scrapers produce richer data
+// (promotions, exact venue coords, etc.) so they're always the canonical copy.
+//
+// Match rule: ev.name (lowercased) contains any of these substrings.
+const DEDICATED_SCRAPER_KEYWORDS = [
+  'rubberducks',  // scrape-rubberducks.js owns all Akron RubberDucks home games
+]
+
+function isDedicatedlyScraped(ev) {
+  const name = (ev.name ?? '').toLowerCase()
+  return DEDICATED_SCRAPER_KEYWORDS.some(kw => name.includes(kw))
+}
+
 async function processEvents(rawEvents) {
   let inserted = 0
   let skipped  = 0
 
   for (const ev of rawEvents) {
     try {
+      // Skip events owned by a dedicated scraper — avoids cross-source duplicates.
+      if (isDedicatedlyScraped(ev)) {
+        skipped++
+        continue
+      }
+
       const venue     = ev._embedded?.venues?.[0]
       const venueId   = await upsertVenue(venue)
       const orgId     = await upsertOrganizer(ev._embedded?.attractions)

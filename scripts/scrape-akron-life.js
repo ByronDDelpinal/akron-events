@@ -96,6 +96,19 @@ const SOURCES_WE_SCRAPE_DIRECTLY = new Set([
   'eventbrite',    // scripts/scrape-eventbrite.js
 ])
 
+// Events whose titles match these keywords are owned by a dedicated scraper
+// and should be skipped here regardless of how Evvnt tags their source field.
+// Keeps akron_life from creating cross-source duplicates for teams/venues that
+// have their own purpose-built ingestion script.
+const DEDICATED_SCRAPER_KEYWORDS = [
+  'rubberducks',  // scrape-rubberducks.js owns all Akron RubberDucks home games
+]
+
+function isDedicatedlyScraped(title) {
+  const lower = (title ?? '').toLowerCase()
+  return DEDICATED_SCRAPER_KEYWORDS.some(kw => lower.includes(kw))
+}
+
 /** True when at least one entry in `sources` is a platform we own. */
 function isBackfilledFromDirectScraper(rawEventSources) {
   if (!Array.isArray(rawEventSources)) return false
@@ -367,6 +380,7 @@ async function main() {
       if (!isInAkronArea(e.venue))               { droppedOutsideArea++; continue }
       if (!pickExternalUrl(e))                   { droppedNoLink++;      continue }
       if (isBackfilledFromDirectScraper(e.sources)) { droppedDupSource++; continue }
+      if (isDedicatedlyScraped(e.title))         { droppedDupSource++;   continue }
       // Log the sources array for events that pass the dedup guard so we can
       // identify any platforms (e.g. Ticketmaster without the expected tag)
       // that are slipping through and need to be added to SOURCES_WE_SCRAPE_DIRECTLY.
