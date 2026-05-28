@@ -592,7 +592,10 @@ export function sanitizeEventText(row) {
   return {
     ...row,
     title:       row.title       ? stripHtml(row.title)       : row.title,
-    description: row.description ? stripHtml(row.description) : row.description,
+    // Use htmlToText for descriptions so paragraph breaks (\n\n) and list
+    // markers are preserved. stripHtml collapses all whitespace to a single
+    // space, which flattens multi-paragraph descriptions into one long string.
+    description: row.description ? htmlToText(row.description) : row.description,
   }
 }
 
