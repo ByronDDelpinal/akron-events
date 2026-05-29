@@ -150,7 +150,13 @@ export default function CategoryPage() {
         jsonLd={seoGraph}
       />
 
-      <header className="hub-header">
+      {/* NOTE: this wrapper used to be a <header> element, but a
+       *  global rule in Header.css (`header { position: sticky;
+       *  top: 0; z-index: 100; }`) was matching it and pinning the
+       *  intro to the viewport top. Using a plain <div> sidesteps
+       *  the global selector. The semantic site header lives in
+       *  the shared <Header /> component. */}
+      <div className="hub-header">
         <nav className="hub-breadcrumb" aria-label="Breadcrumb">
           <Link to="/">Home</Link>
           <span aria-hidden="true">›</span>
@@ -158,7 +164,7 @@ export default function CategoryPage() {
         </nav>
         <h1 className="hub-h1">{hub.h1}</h1>
         <p className="hub-intro">{hub.intro}</p>
-      </header>
+      </div>
 
       <section className="hub-events" aria-labelledby="hub-events-heading">
         <h2 id="hub-events-heading" className="hub-section-heading">
