@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { SEO } from '@/lib/seo'
-import '../../pages/AdminPage.css'
+import './AdminLayout.css'
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 const ADMIN_PW = 'turnoutforwhat?'

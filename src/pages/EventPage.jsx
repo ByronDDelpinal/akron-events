@@ -14,34 +14,17 @@ import {
   eventDescription,
 } from '@/lib/seo'
 import { makeEventSlug, eventPath } from '@/lib/slug'
+import {
+  formatPrice,
+  isUsableImageUrl,
+  gradientFor,
+  AGE_LABEL,
+  PARKING_LABEL,
+} from '@/lib/eventFormatting'
 import './EventPage.css'
 
 // Banner needs to span the page content area; sub-1120 images become thumbnails.
 const BANNER_MIN_WIDTH = 1120
-
-const GRADIENT_MAP = {
-  music: 'gradient-jazz', art: 'gradient-art', community: 'gradient-civic',
-  nonprofit: 'gradient-gala', food: 'gradient-market', sports: 'gradient-sports', fitness: 'gradient-run',
-  education: 'gradient-openmic', nature: 'gradient-forest', other: 'gradient-default',
-}
-const AGE_LABEL = {
-  all_ages: 'All ages', '18_plus': '18+', '21_plus': '21+',
-}
-const PARKING_LABEL = {
-  street: 'Street parking', lot: 'Parking lot nearby', garage: 'Parking garage nearby',
-  none: 'No dedicated parking', unknown: 'Parking info unavailable',
-}
-
-function formatPrice(min, max) {
-  if (min == null && max == null) return { label: 'See tickets', free: false }
-  if (min === 0 && (!max || max === 0)) return { label: 'Free', free: true }
-  if (max && max > min) return { label: `$${min}–$${max}`, free: false }
-  return { label: `$${min}`, free: false }
-}
-
-function isUsableImageUrl(url) {
-  return url && /^https?:\/\//i.test(url)
-}
 
 function buildGoogleCalUrl(event) {
   const start  = new Date(event.start_at).toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z'
@@ -119,7 +102,7 @@ export default function EventPage() {
   // for a full-bleed banner" signal. Pair it with a width gate so we don't
   // try to banner a square 600×600 image that fails to fill the content area.
   const rawUrl   = isUsableImageUrl(event.image_url) ? event.image_url : null
-  const gradient = GRADIENT_MAP[event.category] ?? 'gradient-default'
+  const gradient = gradientFor(event.category)
 
   const showBanner = !!rawUrl
     && event.banner_eligible

@@ -7,10 +7,14 @@
  * class siblings of the events index rather than secondary pages.
  */
 
+/* Width and spacing match the rest of the content pages — pulling
+   from the shared tokens (--width-full, --space-*) instead of raw
+   pixels keeps hub pages aligned with the homepage, venues, and
+   organizations pages if the canonical content width ever changes. */
 .hub-page {
-  max-width: 1120px;
+  max-width: var(--width-full);
   margin: 0 auto;
-  padding: 32px 20px 96px;
+  padding: var(--space-2xl) var(--space-xl) var(--space-5xl);
   color: var(--text);
 }
 

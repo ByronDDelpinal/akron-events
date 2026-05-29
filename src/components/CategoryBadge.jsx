@@ -1,17 +1,16 @@
 /**
  * CategoryBadge — single source of truth for category pills across the app.
  *
- * Owns three things that previously lived (duplicated) in EventCard,
- * EventPage, VenueDetailPage, and OrganizationDetailPage:
- *   - TAG_CLASS_MAP   — category → CSS class for tag colors
- *   - CATEGORY_LABEL  — category → human-readable label
- *   - CategoryIcon    — small SVG glyph providing a non-color identifier
- *                       (WCAG 1.4.1: don't rely on color alone)
+ * Owns:
+ *   - TAG_CLASS_MAP — category → CSS class for tag colors (this file only)
+ *   - CategoryIcon  — small SVG glyph providing a non-color identifier
+ *                     (WCAG 1.4.1: don't rely on color alone)
  *
- * Pair with the gradient accent (GRADIENT_MAP) separately — that one
- * applies to the card/page accent strip and isn't strictly part of the
- * badge. Kept distinct so the two concerns can evolve independently.
+ * Display labels come from `CATEGORY_DISPLAY` in @/lib/eventFormatting
+ * so badge copy stays in sync with every other category-aware surface.
  */
+
+import { CATEGORY_DISPLAY } from '@/lib/eventFormatting'
 
 const TAG_CLASS_MAP = {
   music:     'tag-music',
@@ -26,22 +25,9 @@ const TAG_CLASS_MAP = {
   other:     'tag-other',
 }
 
-const CATEGORY_LABEL = {
-  music:     'Music',
-  art:       'Art',
-  nonprofit: 'Non-Profit',
-  community: 'Community',
-  food:      'Food & Drink',
-  sports:    'Sports',
-  fitness:   'Fitness',
-  education: 'Education',
-  nature:    'Nature',
-  other:     'Other',
-}
-
 export default function CategoryBadge({ category, className = '' }) {
   const tagClass = TAG_CLASS_MAP[category] ?? 'tag-other'
-  const label    = CATEGORY_LABEL[category] ?? category
+  const label    = CATEGORY_DISPLAY[category] ?? category
   return (
     <span className={`event-tag ${tagClass}${className ? ' ' + className : ''}`}>
       <CategoryIcon category={category} />

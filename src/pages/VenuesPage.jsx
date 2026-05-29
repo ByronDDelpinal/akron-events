@@ -2,15 +2,8 @@ import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useVenues } from '@/hooks/useEvents'
 import { SEO, buildGraph, itemListSchema, breadcrumbSchema } from '@/lib/seo'
+import { PARKING_LABEL } from '@/lib/eventFormatting'
 import './VenuesPage.css'
-
-const PARKING_LABEL = {
-  street:  'Street parking',
-  lot:     'Parking lot',
-  garage:  'Parking garage',
-  none:    'No dedicated parking',
-  unknown: null,
-}
 
 export default function VenuesPage() {
   const { venues, loading, error } = useVenues()
@@ -121,7 +114,13 @@ export default function VenuesPage() {
 }
 
 function VenueCard({ venue }) {
-  const parking = PARKING_LABEL[venue.parking_type] ?? null
+  // Venue cards are compact — hide the parking row entirely when the
+  // type is 'unknown' rather than rendering "Parking info unavailable"
+  // (which is the right copy on the event detail page but adds noise
+  // here). All other types fall through to the shared label map.
+  const parking = venue.parking_type && venue.parking_type !== 'unknown'
+    ? PARKING_LABEL[venue.parking_type] ?? null
+    : null
 
   return (
     <Link to={`/venues/${venue.id}`} className="venue-card">

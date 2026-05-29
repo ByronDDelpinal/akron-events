@@ -1,4 +1,11 @@
-header {
+/* Scoped to the .site-header class instead of the bare `header`
+   element so any page that uses a semantic <header> for one of its
+   own subsections does not inherit the sticky positioning. (That
+   bug bit the CategoryPage hub-header once; this scoping prevents
+   a repeat.) The site header is mounted from
+   src/components/Header.jsx and is the only `.site-header` in the
+   app. */
+.site-header {
   background: transparent;
   position: sticky;
   top: 0;
@@ -6,8 +13,8 @@ header {
   border-bottom: var(--border-width-thin) solid transparent;
   transition: background var(--transition-slowest) ease, border-color var(--transition-slowest) ease;
 }
-header.scrolled,
-header.menu-open {
+.site-header.scrolled,
+.site-header.menu-open {
   background: var(--bg-nav);
   border-bottom-color: var(--overlay-light-05);
 }

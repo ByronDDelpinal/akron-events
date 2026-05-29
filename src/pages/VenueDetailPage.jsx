@@ -1,5 +1,4 @@
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { format, isToday, isTomorrow } from 'date-fns'
 import { useVenue, useVenueEvents } from '@/hooks/useEvents'
 import { VenueMap } from '@/components/MapView'
 import CategoryBadge from '@/components/CategoryBadge'
@@ -11,35 +10,13 @@ import {
   itemListSchema,
 } from '@/lib/seo'
 import { eventPath } from '@/lib/slug'
+import {
+  formatPrice,
+  formatEventDate,
+  gradientFor,
+  PARKING_LABEL,
+} from '@/lib/eventFormatting'
 import './VenueDetailPage.css'
-
-const PARKING_LABEL = {
-  street:  'Street parking',
-  lot:     'Parking lot nearby',
-  garage:  'Parking garage nearby',
-  none:    'No dedicated parking',
-  unknown: 'Parking info unavailable',
-}
-
-const GRADIENT_MAP = {
-  music: 'gradient-jazz', art: 'gradient-art', community: 'gradient-civic',
-  nonprofit: 'gradient-gala', food: 'gradient-market', sports: 'gradient-sports', fitness: 'gradient-run',
-  education: 'gradient-openmic', nature: 'gradient-forest', other: 'gradient-default',
-}
-
-function formatPrice(min, max) {
-  if (min == null && max == null) return { label: 'See tickets', free: false }
-  if (min === 0 && (!max || max === 0)) return { label: 'Free', free: true }
-  if (max && max > min) return { label: `$${min}–$${max}`, free: false }
-  return { label: `$${min}`, free: false }
-}
-
-function formatDate(dateStr) {
-  const d = new Date(dateStr)
-  if (isToday(d))    return `Today · ${format(d, 'h:mm a')}`
-  if (isTomorrow(d)) return `Tomorrow · ${format(d, 'h:mm a')}`
-  return format(d, 'EEE, MMM d · h:mm a')
-}
 
 export default function VenueDetailPage() {
   const { id }    = useParams()
@@ -275,7 +252,7 @@ function VenueEventRow({ event }) {
   const navigate  = useNavigate()
   const price    = formatPrice(event.price_min, event.price_max)
   const imageUrl = event.image_url && /^https?:\/\//i.test(event.image_url) ? event.image_url : null
-  const gradient = imageUrl ? null : (GRADIENT_MAP[event.category] ?? 'gradient-default')
+  const gradient = imageUrl ? null : gradientFor(event.category)
 
   return (
     <div
@@ -304,7 +281,7 @@ function VenueEventRow({ event }) {
           <p className="venue-event-organizer">{event.organizer.name}</p>
         )}
         <p className="venue-event-date">
-          <CalIcon /> {formatDate(event.start_at)}
+          <CalIcon /> {formatEventDate(event.start_at)}
         </p>
       </div>
 

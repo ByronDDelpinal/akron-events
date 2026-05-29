@@ -17,6 +17,7 @@ import { useNavigate } from 'react-router-dom'
 import MapGL, { Marker, Popup, NavigationControl } from 'react-map-gl/mapbox'
 import { format } from 'date-fns'
 import { eventPath } from '@/lib/slug'
+import { formatPrice } from '@/lib/eventFormatting'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import './MapView.css'
 
@@ -24,15 +25,6 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
 const AKRON_CENTER = { longitude: -81.519, latitude: 41.081 }
 const MAP_STYLE    = 'mapbox://styles/mapbox/dark-v11'
 const DEFAULT_ZOOM = 13
-
-// ── Helpers ───────────────────────────────────────────────────────────────
-
-function formatPrice(min, max) {
-  if (min == null && max == null) return { label: 'See tickets', free: false }
-  if (min === 0 && (!max || max === 0)) return { label: 'Free', free: true }
-  if (max && max > min) return { label: `$${min}–$${max}`, free: false }
-  return { label: `$${min}`, free: false }
-}
 
 const CATEGORY_EMOJI = {
   music:     '🎵',

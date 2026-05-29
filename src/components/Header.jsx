@@ -45,7 +45,7 @@ export default function Header() {
       : location.pathname.startsWith(path)
 
   return (
-    <header className={`${scrolled ? 'scrolled' : ''} ${menuOpen ? 'menu-open' : ''}`}>
+    <header className={`site-header${scrolled ? ' scrolled' : ''}${menuOpen ? ' menu-open' : ''}`}>
       <div className="header-inner">
         <Link to="/" className="nav-logo">
           <div className="logo-dot" />

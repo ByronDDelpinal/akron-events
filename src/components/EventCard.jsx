@@ -1,43 +1,17 @@
 import { useNavigate } from 'react-router-dom'
-import { format, isToday, isTomorrow } from 'date-fns'
 import CategoryBadge from './CategoryBadge'
 import { eventPath } from '@/lib/slug'
+import {
+  formatPrice,
+  formatEventDate,
+  gradientFor,
+  AGE_LABEL,
+} from '@/lib/eventFormatting'
 import './EventCard.css'
-
-// Map category → CSS class for the colored accent bar at the top of each card.
-// Same gradient palette previously used for thumbnails — now repurposed as
-// a thin category-identifying stripe. Image rendering was removed because
-// scraper image yield is too sparse to justify the inconsistent grid.
-const GRADIENT_MAP = {
-  music:     'gradient-jazz',
-  art:       'gradient-art',
-  community: 'gradient-civic',
-  nonprofit: 'gradient-gala',
-  food:      'gradient-market',
-  sports:    'gradient-sports',
-  fitness:   'gradient-run',
-  education: 'gradient-openmic',
-  nature:    'gradient-forest',
-  other:     'gradient-default',
-}
-
-function formatPrice(min, max) {
-  if (min == null && max == null) return { label: 'See tickets', free: false }
-  if (min === 0 && (!max || max === 0)) return { label: 'Free', free: true }
-  if (max && max > min) return { label: `$${min}–$${max}`, free: false }
-  return { label: `$${min}`, free: false }
-}
-
-function formatDate(dateStr) {
-  const d = new Date(dateStr)
-  if (isToday(d))    return `Today · ${format(d, 'h:mm a')}`
-  if (isTomorrow(d)) return `Tomorrow · ${format(d, 'h:mm a')}`
-  return format(d, 'EEE, MMM d · h:mm a')
-}
 
 function AgeRestrictionPill({ value }) {
   if (!value || value === 'not_specified') return null
-  const label = value === 'all_ages' ? 'All ages' : value === '18_plus' ? '18+' : '21+'
+  const label = AGE_LABEL[value] ?? value
   return <span className="age-pill">{label}</span>
 }
 
@@ -46,7 +20,7 @@ function AgeRestrictionPill({ value }) {
 export default function EventCard({ event, featured = false, viewMode = 'comfortable' }) {
   const navigate = useNavigate()
   const price    = formatPrice(event.price_min, event.price_max)
-  const gradient = GRADIENT_MAP[event.category] ?? 'gradient-default'
+  const gradient = gradientFor(event.category)
 
   if (viewMode === 'efficient') {
     return (
@@ -71,7 +45,7 @@ export default function EventCard({ event, featured = false, viewMode = 'comfort
 }
 
 function ComfortableCard({ event, featured, price, navigate }) {
-  const gradient  = GRADIENT_MAP[event.category] ?? 'gradient-default'
+  const gradient  = gradientFor(event.category)
   const hasImage  = Boolean(event.image_url)
 
   return (
@@ -112,7 +86,7 @@ function ComfortableCard({ event, featured, price, navigate }) {
         <div className="card-meta">
           <div className="meta-row">
             <CalendarIcon />
-            {formatDate(event.start_at)}
+            {formatEventDate(event.start_at)}
           </div>
           {event.venue && (
             <div className="meta-row">
@@ -160,7 +134,7 @@ function EfficientCard({ event, featured, price, navigate, gradient }) {
           <div className="card-efficient-meta">
             <div className="card-efficient-meta-row">
               <CalendarIcon />
-              <span>{formatDate(event.start_at)}</span>
+              <span>{formatEventDate(event.start_at)}</span>
             </div>
             {event.venue && (
               <div className="card-efficient-meta-row">

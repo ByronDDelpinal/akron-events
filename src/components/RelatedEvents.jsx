@@ -1,23 +1,8 @@
 import { Link } from 'react-router-dom'
 import { useRelatedEvents } from '@/hooks/useEvents'
+import { CATEGORY_SHORT } from '@/lib/eventFormatting'
 import EventCard from './EventCard'
 import './RelatedEvents.css'
-
-// Category → human-readable label used in the section heading.
-// Mirrors the CategoryBadge labels but accusative-cased ("More music"
-// reads better than "More Music" mid-page).
-const CATEGORY_LABEL = {
-  music:     'music',
-  art:       'art',
-  community: 'community',
-  nonprofit: 'nonprofit',
-  food:      'food',
-  sports:    'sports',
-  fitness:   'fitness',
-  education: 'education',
-  nature:    'nature',
-  other:     'other',
-}
 
 /**
  * Renders a "More like this" block at the bottom of an event detail page.
@@ -40,7 +25,7 @@ export default function RelatedEvents({ currentEvent }) {
   if (loading || !events || events.length === 0) return null
 
   const visibleEvents = events.slice(0, 4)
-  const categoryLabel = CATEGORY_LABEL[currentEvent.category] ?? currentEvent.category
+  const categoryLabel = CATEGORY_SHORT[currentEvent.category] ?? currentEvent.category
 
   return (
     <section className="related-events" aria-labelledby="related-events-heading">

@@ -40,6 +40,7 @@ import { SEO, buildGraph, organizationSchema, webSiteSchema } from '@/lib/seo'
 
 import '@/styles/globals.css'
 import '@/styles/themes.css'
+import '@/styles/forms.css'
 
 export default function App() {
   return (

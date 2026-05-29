@@ -23,7 +23,6 @@
 
 import { useMemo } from 'react'
 import { useParams, Link, Navigate } from 'react-router-dom'
-import { format } from 'date-fns'
 import { useEvents, PAGE_SIZE } from '@/hooks/useEvents'
 import EventCard from '@/components/EventCard'
 import {
@@ -37,20 +36,9 @@ import {
   getHub,
   getCategoryHub,
   getNeighborhoodHub,
-  CATEGORY_HUBS,
-  NEIGHBORHOOD_HUBS,
 } from '@/lib/seo'
 import { eventPath } from '@/lib/slug'
 import './CategoryPage.css'
-
-// Compile-time set of all valid hub slugs — used to 404 cleanly when
-// someone hits /events/:something that isn't a known hub or an event
-// detail. (Event detail URLs always have a UUID segment after the slug
-// — react-router resolves those via the more specific routes in App.)
-const ALL_HUB_SLUGS = new Set([
-  ...CATEGORY_HUBS.map((h) => h.slug),
-  ...NEIGHBORHOOD_HUBS.map((h) => h.slug),
-])
 
 /**
  * Neighborhood matcher.
@@ -231,9 +219,3 @@ export default function CategoryPage() {
   )
 }
 
-// Exported for the App router so callers can decide whether to mount
-// CategoryPage or EventPage based on whether the :slug param matches a
-// known hub. The two routes share the /events/:slug prefix; the more
-// specific /events/:slug/:id event detail is matched first by the
-// router thanks to route ordering.
-export { ALL_HUB_SLUGS }

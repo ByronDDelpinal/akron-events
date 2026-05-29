@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { format, isToday, isTomorrow } from 'date-fns'
 import { useOrganization } from '@/hooks/useEvents'
 import CategoryBadge from '@/components/CategoryBadge'
 import {
@@ -11,29 +10,14 @@ import {
   itemListSchema,
 } from '@/lib/seo'
 import { eventPath } from '@/lib/slug'
+import {
+  formatPrice,
+  formatEventDate,
+  gradientFor,
+} from '@/lib/eventFormatting'
 import './OrganizationDetailPage.css'
 
 const EVENTS_PAGE_SIZE = 25
-
-const GRADIENT_MAP = {
-  music: 'gradient-jazz', art: 'gradient-art', community: 'gradient-civic',
-  nonprofit: 'gradient-gala', food: 'gradient-market', sports: 'gradient-sports', fitness: 'gradient-run',
-  education: 'gradient-openmic', nature: 'gradient-forest', other: 'gradient-default',
-}
-
-function formatPrice(min, max) {
-  if (min == null && max == null) return { label: 'See tickets', free: false }
-  if (min === 0 && (!max || max === 0)) return { label: 'Free', free: true }
-  if (max && max > min) return { label: `$${min}–$${max}`, free: false }
-  return { label: `$${min}`, free: false }
-}
-
-function formatDate(dateStr) {
-  const d = new Date(dateStr)
-  if (isToday(d))    return `Today · ${format(d, 'h:mm a')}`
-  if (isTomorrow(d)) return `Tomorrow · ${format(d, 'h:mm a')}`
-  return format(d, 'EEE, MMM d · h:mm a')
-}
 
 export default function OrganizationDetailPage() {
   const { id } = useParams()
@@ -334,7 +318,7 @@ function OrgEventRow({ event }) {
   const navigate = useNavigate()
   const price = formatPrice(event.price_min, event.price_max)
   const imageUrl = event.image_url && /^https?:\/\//i.test(event.image_url) ? event.image_url : null
-  const gradient = imageUrl ? null : (GRADIENT_MAP[event.category] ?? 'gradient-default')
+  const gradient = imageUrl ? null : gradientFor(event.category)
   const venueName = event.venue?.name ?? event.venues?.[0]?.name
 
   return (
@@ -358,7 +342,7 @@ function OrgEventRow({ event }) {
         </div>
         <p className="org-event-title">{event.title}</p>
         {venueName && <p className="org-event-venue"><PinIcon /> {venueName}</p>}
-        <p className="org-event-date"><CalIcon /> {formatDate(event.start_at)}</p>
+        <p className="org-event-date"><CalIcon /> {formatEventDate(event.start_at)}</p>
       </div>
       <span className="org-event-arrow">→</span>
     </div>

@@ -1,0 +1,45 @@
+/**
+ * forms.css
+ *
+ * Shared form-control styles for `.form-input`, `.form-select`, and
+ * `.form-textarea`. Imported once from src/main.jsx so every page that
+ * uses these classes (public submit pages and admin edit pages) gets
+ * identical styling.
+ *
+ * Before this file existed, these rules lived (and drifted) inside
+ * SubmitPage.css, VenueSubmitPage.css, and AdminPage.css. Which file
+ * "won" depended on navigation order — the last loaded CSS won the
+ * cascade. Centralizing the rules here makes the styling deterministic
+ * and gives form input a single place to evolve.
+ *
+ * Scoped to the bare classes; pages still own their own layout
+ * (`.form-row`, `.form-hint`, etc.) in their page-level CSS.
+ */
+
+.form-input,
+.form-select,
+.form-textarea {
+  width: 100%;
+  padding: var(--space-md) var(--space-lg);
+  border: var(--border-width-medium) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-lg);
+  outline: none;
+  transition: border-color var(--transition-medium),
+              box-shadow   var(--transition-medium);
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-tint-10);
+}
+
+.form-textarea {
+  min-height: 100px;
+  resize: vertical;
+}
