@@ -175,6 +175,41 @@ function offerSchema(event) {
 }
 
 /**
+ * Map our internal `events.category` enum to a schema.org Event subtype.
+ *
+ * Specificity matters here: Google's Event Pack uses these subtypes to
+ * decide which Event-flavored carousel to show (a concert query may
+ * surface MusicEvent results preferentially). Falling back to the
+ * generic `Event` is fine when the category is uncertain.
+ *
+ * Mapping rationale:
+ *   music       → MusicEvent
+ *   art         → VisualArtsEvent (schema.org/VisualArtsEvent)
+ *   food        → FoodEvent
+ *   sports      → SportsEvent
+ *   fitness     → SportsEvent (closest match — no FitnessEvent in schema.org)
+ *   education   → EducationEvent
+ *   community   → SocialEvent
+ *   nonprofit   → SocialEvent (charity galas + community drives)
+ *   nature      → SocialEvent (parks programs are broadly social)
+ *   other       → Event
+ */
+function eventTypeForCategory(category) {
+  switch (category) {
+    case 'music':     return 'MusicEvent'
+    case 'art':       return 'VisualArtsEvent'
+    case 'food':      return 'FoodEvent'
+    case 'sports':    return 'SportsEvent'
+    case 'fitness':   return 'SportsEvent'
+    case 'education': return 'EducationEvent'
+    case 'community': return 'SocialEvent'
+    case 'nonprofit': return 'SocialEvent'
+    case 'nature':    return 'SocialEvent'
+    default:          return 'Event'
+  }
+}
+
+/**
  * Build an Event object from an Akron Pulse event row. Matches the exact
  * shape Google requires + recommends. If a value is missing, omit the
  * field rather than emitting null — validators flag nulls.
@@ -185,7 +220,7 @@ export function eventSchema(event) {
   if (!event) return undefined
 
   const schema = {
-    '@type': 'Event',
+    '@type': eventTypeForCategory(event.category),
     // Note the #event hash-fragment: schema.org @id must be stable
     // across slug changes. We anchor it to the UUID via the bare
     // /events/{id} path so a title rename doesn't invalidate the

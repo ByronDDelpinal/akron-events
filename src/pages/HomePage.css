@@ -262,6 +262,55 @@
 }
 .stat-pill strong { color: var(--amber); font-weight: 700; }
 
+/* ── HOME HUB STRIP ──
+ * Compact rail of links to category and neighborhood hub pages.
+ * Sits above the filter bar to maximize internal-link surface
+ * from the homepage (Google's most-crawled URL). All chips are
+ * sized at 44px tap target height for mobile, with a touch of
+ * horizontal scroll on small screens so 10+ chips don't wrap
+ * into an ugly multi-row stack. */
+.home-hub-strip {
+  max-width: 1120px;
+  margin: var(--space-md) auto var(--space-lg);
+  padding: 0 var(--space-xl);
+}
+.home-hub-strip-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 8px;
+}
+.home-hub-strip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.home-hub-strip-list a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border, rgba(0,0,0,0.12));
+  font-size: 0.88rem;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color var(--transition-medium), color var(--transition-medium);
+}
+.home-hub-strip-list a:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+@media (max-width: 640px) {
+  .home-hub-strip {
+    padding: 0 var(--space-md);
+  }
+}
+
 /* ── CONTENT TRANSITION ── */
 /* Dim old content while a new filter result is loading.
    We keep the old cards in the DOM so there's no height collapse. */

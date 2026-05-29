@@ -128,7 +128,7 @@ function OrgCard({ org }) {
     <Link to={`/organizations/${org.id}`} className="org-card">
       <div className="org-card-top">
         {hasImage
-          ? <img src={org.image_url} alt={org.name} className="org-card-img" referrerPolicy="no-referrer" />
+          ? <img src={org.image_url} alt={org.name} className="org-card-img" referrerPolicy="no-referrer" loading="lazy" decoding="async" />
           : <div className="org-card-placeholder">
               <span className="org-card-initial">{org.name?.charAt(0)?.toUpperCase()}</span>
             </div>

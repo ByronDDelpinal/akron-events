@@ -38,6 +38,52 @@ footer {
   transition: color var(--transition-medium);
 }
 .footer-links a:hover { color: var(--amber-on-dark); }
+
+/* ── Hub navigation ──────────────────────────────────────────────
+ * Two-column grid (single column on mobile) of category and
+ * neighborhood links. Sits between the primary footer links and
+ * the theme picker. Anchor text is descriptive on purpose — the
+ * links are SEO-load-bearing for hub-page rankings. */
+.footer-hub-nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: var(--space-2xl);
+  max-width: 880px;
+  margin: 0 auto var(--space-xl);
+  text-align: left;
+  padding: 0 var(--space-md);
+}
+.footer-hub-col ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.footer-hub-col li a {
+  font-size: var(--text-xs);
+  color: var(--overlay-light-50);
+  text-decoration: none;
+  transition: color var(--transition-medium);
+  line-height: 1.5;
+}
+.footer-hub-col li a:hover { color: var(--amber-on-dark); }
+.footer-hub-label {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--overlay-light-30);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 var(--space-sm);
+}
+@media (max-width: 640px) {
+  .footer-hub-nav {
+    grid-template-columns: 1fr;
+    gap: var(--space-lg);
+  }
+}
+
 .footer-theme {
   display: flex;
   flex-direction: column;

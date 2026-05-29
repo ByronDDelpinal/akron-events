@@ -10,6 +10,12 @@
     <title>Akron Pulse — Akron & Summit County Events</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Preload the hero poster so it can be the LCP element on cold
+         loads of the homepage. The video that fades in over it is
+         lazy-attached after the first events page lands (see
+         HomePage.jsx) so the video network fetch does not contend
+         with the LCP image. -->
+    <link rel="preload" as="image" href="/video/akron-pulse-banner-poster.jpg" fetchpriority="high" />
     <!--
       Theme-aware Google Fonts. The id="theme-fonts" link is the single
       stylesheet element the lazy loader (hooks/useTheme.jsx) updates

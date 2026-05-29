@@ -8,3 +8,5 @@
 export { default as SEO } from './SEO'
 export * from './constants'
 export * from './schema'
+export * from './titles'
+export * from './categories'

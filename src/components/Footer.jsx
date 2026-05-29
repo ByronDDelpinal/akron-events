@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from '@/hooks/useTheme'
 import { THEMES, DEFAULT_THEME, THEME_STORAGE_KEY, LEGACY_THEME_STORAGE_KEY } from '@/lib/themes'
+import { CATEGORY_HUBS, NEIGHBORHOOD_HUBS } from '@/lib/seo'
 import './Footer.css'
 
 // All localStorage keys that count as "preferences"
@@ -36,6 +37,37 @@ export default function Footer() {
         <Link to="/subscribe">Get the Newsletter</Link>
         <Link to="/about">About</Link>
       </div>
+
+      {/* ── Hub navigation ──
+       * Surfaces the category + neighborhood landing pages on every
+       * footer. Descriptive anchor text matters here ("Concerts in
+       * Akron, OH" rather than "Concerts") — Google reads anchor text
+       * as a relevance signal for the destination page, and we
+       * specifically want each hub to win on its head keyword.
+       * Also delivers SEO action plan item 08 (internal linking from
+       * the homepage / every page to category & neighborhood hubs). */}
+      <nav className="footer-hub-nav" aria-label="Browse events by category and neighborhood">
+        <div className="footer-hub-col">
+          <p className="footer-hub-label">Browse by category</p>
+          <ul>
+            {CATEGORY_HUBS.map((h) => (
+              <li key={h.slug}>
+                <Link to={`/events/${h.slug}`}>{h.title}</Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="footer-hub-col">
+          <p className="footer-hub-label">Browse by neighborhood</p>
+          <ul>
+            {NEIGHBORHOOD_HUBS.map((h) => (
+              <li key={h.slug}>
+                <Link to={`/events/${h.slug}`}>{h.title}</Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </nav>
 
       <div className="footer-theme">
         <label htmlFor="footer-theme-select" className="footer-theme-prompt">

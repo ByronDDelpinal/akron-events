@@ -288,7 +288,7 @@ function VenueEventRow({ event }) {
       {/* Thumbnail */}
       <div className="venue-event-thumb">
         {imageUrl
-          ? <img src={imageUrl} alt={event.title} className="venue-event-img" referrerPolicy="no-referrer" />
+          ? <img src={imageUrl} alt={event.title} className="venue-event-img" referrerPolicy="no-referrer" loading="lazy" decoding="async" />
           : <div className={`thumb-fill ${gradient}`} />
         }
       </div>

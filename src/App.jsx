@@ -1,9 +1,10 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import { useEffect } from 'react'
 import Header   from '@/components/Header'
 import Footer   from '@/components/Footer'
 import HomePage  from '@/pages/HomePage'
 import EventPage from '@/pages/EventPage'
+import CategoryPage from '@/pages/CategoryPage'
 import SubmitPage from '@/pages/SubmitPage'
 import AboutPage     from '@/pages/AboutPage'
 import TechnicalPage from '@/pages/TechnicalPage'
@@ -74,9 +75,14 @@ function AppInner() {
               /events/:id route remains so legacy links, sitemap-cached
               URLs, and shared links without a slug still resolve —
               EventPage detects the missing/stale slug and replaces the
-              URL with the canonical form. */}
+              URL with the canonical form.
+              The single-segment /events/:slug is dispatched by
+              EventsSlugRouter (defined below): UUID-looking slugs go to
+              EventPage (legacy bare /events/:id), known hub slugs go
+              to CategoryPage. This keeps both URL shapes working
+              without route-pattern collisions. */}
           <Route path="/events/:slug/:id"    element={<EventPage />} />
-          <Route path="/events/:id"          element={<EventPage />} />
+          <Route path="/events/:slug"        element={<EventsSlugRouter />} />
           <Route path="/submit"              element={<SubmitPage />} />
           <Route path="/about"               element={<AboutPage />} />
           <Route path="/technical"           element={<TechnicalPage />} />
@@ -127,4 +133,22 @@ function NotFound() {
       <a href="/" style={{ color: 'var(--amber)', fontSize: '0.88rem' }}>← Back to events</a>
     </div>
   )
+}
+
+// Matches a v4 UUID-shaped string. Used by EventsSlugRouter to decide
+// whether a single-segment /events/:slug is a legacy event UUID or a
+// known category/neighborhood hub slug. We intentionally accept any
+// hex-shaped UUID variant to stay compatible with however Supabase
+// emits IDs.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Dispatch /events/:slug. UUIDs → legacy EventPage (the canonicalizer
+ * inside EventPage replaces the URL with the slug-first form). Known
+ * hub slugs → CategoryPage. Everything else → home.
+ */
+function EventsSlugRouter() {
+  const { slug } = useParams()
+  if (UUID_RE.test(slug)) return <EventPage />
+  return <CategoryPage />
 }

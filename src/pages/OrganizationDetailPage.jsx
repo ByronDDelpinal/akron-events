@@ -94,7 +94,7 @@ export default function OrganizationDetailPage() {
       {/* ── HERO ── */}
       <div className="org-detail-hero">
         <div className="org-detail-hero-inner">
-          {hasImage && <img src={org.image_url} alt={org.name} className="org-detail-hero-img" referrerPolicy="no-referrer" />}
+          {hasImage && <img src={org.image_url} alt={org.name} className="org-detail-hero-img" referrerPolicy="no-referrer" loading="eager" fetchpriority="high" decoding="async" />}
           {!hasImage && (
             <div className="org-detail-hero-placeholder">
               <span className="org-detail-hero-initial">{org.name?.charAt(0)?.toUpperCase()}</span>
@@ -347,7 +347,7 @@ function OrgEventRow({ event }) {
     >
       <div className="org-event-thumb">
         {imageUrl
-          ? <img src={imageUrl} alt={event.title} className="org-event-img" referrerPolicy="no-referrer" />
+          ? <img src={imageUrl} alt={event.title} className="org-event-img" referrerPolicy="no-referrer" loading="lazy" decoding="async" />
           : <div className={`thumb-fill ${gradient}`} />
         }
       </div>

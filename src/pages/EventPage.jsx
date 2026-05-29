@@ -10,6 +10,8 @@ import {
   buildGraph,
   eventSchema,
   breadcrumbSchema,
+  eventTitle,
+  eventDescription,
 } from '@/lib/seo'
 import { makeEventSlug, eventPath } from '@/lib/slug'
 import './EventPage.css'
@@ -130,15 +132,11 @@ export default function EventPage() {
   const showFloat = !!rawUrl && !showBanner
 
   // ── Build SEO metadata for this event ────────────────────────────
-  const venueName = event.venue?.name
-  const dateLabel = format(new Date(event.start_at), 'EEE MMM d, yyyy')
-  const seoTitle  = venueName
-    ? `Event: ${event.title} — ${dateLabel} at ${venueName}`
-    : `Event: ${event.title} — ${dateLabel}`
-  const seoDesc = (event.description || `${event.title} — ${dateLabel}${venueName ? ' at ' + venueName : ''} in Akron, OH.`)
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 155)
+  // Title + description are produced by the central title framework so
+  // every event page conforms to the format Google rewards for
+  // event-intent queries. See src/lib/seo/titles.js for the templates.
+  const seoTitle = eventTitle(event)
+  const seoDesc  = eventDescription(event)
   // Always use the dynamic OG image — branded, consistent, and works for
   // every event regardless of whether it has a banner-eligible photo.
   // The Vercel Edge Function at /api/og/event/[id] renders the image
@@ -343,7 +341,14 @@ function EventBannerImage({ imageUrl, event, gradient }) {
     return <div className={`event-detail-accent ${gradient}`} aria-hidden="true" />
   }
 
-  // Use native aspect ratio: let the image determine its own height
+  // Use native aspect ratio: let the image determine its own height.
+  // width/height attributes are populated from the DB columns where
+  // available so the browser can reserve layout space before the
+  // image loads — that's what eliminates CLS (Cumulative Layout
+  // Shift), one of the three Core Web Vitals Google ranks on. The
+  // banner is above-the-fold so it stays as eager `loading="eager"`
+  // and `fetchpriority="high"` — these are the LCP element on most
+  // event pages and we want the browser to prioritize them.
   return (
     <div className="event-detail-banner event-detail-banner--native">
       <img
@@ -352,6 +357,11 @@ function EventBannerImage({ imageUrl, event, gradient }) {
         className="event-banner-img event-banner-img--native"
         referrerPolicy="no-referrer"
         onError={handleError}
+        width={event.image_width || undefined}
+        height={event.image_height || undefined}
+        loading="eager"
+        fetchpriority="high"
+        decoding="async"
       />
       <div className="banner-scrim" />
       <div className="banner-tags">
@@ -372,6 +382,10 @@ function EventFloatImage({ imageUrl, event }) {
 
   if (imgFailed) return null
 
+  // Float images are below-the-fold (rendered after the page title +
+  // metadata + first paragraph of description). Lazy-load so they
+  // never compete with the LCP element for bandwidth. width/height
+  // pulled from DB when present so the browser reserves layout space.
   return (
     <img
       src={imageUrl}
@@ -379,6 +393,10 @@ function EventFloatImage({ imageUrl, event }) {
       className="event-float-img"
       referrerPolicy="no-referrer"
       onError={handleError}
+      width={event.image_width || undefined}
+      height={event.image_height || undefined}
+      loading="lazy"
+      decoding="async"
     />
   )
 }

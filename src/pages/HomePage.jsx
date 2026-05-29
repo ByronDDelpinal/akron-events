@@ -10,7 +10,7 @@ import FilterBar from '@/components/FilterBar'
 import MapView from '@/components/MapView'
 import SourceOverflowCard from '@/components/SourceOverflowCard'
 import { INTENTS, SEARCH_SUGGESTIONS } from '@/lib/intents'
-import { SEO } from '@/lib/seo'
+import { SEO, homeTitle, homeDescription, CATEGORY_HUBS, NEIGHBORHOOD_HUBS } from '@/lib/seo'
 import './HomePage.css'
 
 // ── Source overflow cap ───────────────────────────────────────────────────────
@@ -359,8 +359,8 @@ export default function HomePage() {
   return (
     <>
       <SEO
-        title="Home — Akron Events, Concerts, Art Shows & More"
-        description="Discover events happening in Akron, Ohio and Summit County. Browse concerts, art shows, community gatherings, fundraisers, farmers markets, and more — updated daily."
+        title={homeTitle()}
+        description={homeDescription()}
         path="/"
       />
 
@@ -439,6 +439,30 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* ── HUB STRIP ──
+       * Compact strip of links into each category and neighborhood
+       * hub page. Sits above the filter bar so search engines see
+       * descriptive internal anchor text on the homepage and so
+       * users browsing by category have a one-click path to the
+       * topical landing page. The links are wrapped in a <nav>
+       * with an aria-label for accessibility and crawler
+       * comprehension. */}
+      <nav className="home-hub-strip" aria-label="Browse Akron events by category and neighborhood">
+        <p className="home-hub-strip-label">Popular searches</p>
+        <ul className="home-hub-strip-list">
+          {CATEGORY_HUBS.map((h) => (
+            <li key={`cat-${h.slug}`}>
+              <Link to={`/events/${h.slug}`}>{h.label}</Link>
+            </li>
+          ))}
+          {NEIGHBORHOOD_HUBS.slice(0, 3).map((h) => (
+            <li key={`nb-${h.slug}`}>
+              <Link to={`/events/${h.slug}`}>{h.label}</Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
       {/* ── FILTER BAR ── */}
       <FilterBar

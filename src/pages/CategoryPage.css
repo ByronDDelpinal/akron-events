@@ -1,0 +1,163 @@
+/**
+ * CategoryPage.css
+ *
+ * Styling for category & neighborhood hub pages. Uses theme tokens
+ * from globals.css / themes.css so it adapts to every theme. Layout
+ * mirrors the homepage container width so hub pages feel like first-
+ * class siblings of the events index rather than secondary pages.
+ */
+
+.hub-page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 32px 20px 96px;
+  color: var(--text);
+}
+
+/* ── Header ─────────────────────────────────────────────────────── */
+
+.hub-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.hub-breadcrumb a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.hub-breadcrumb a:hover {
+  color: var(--amber);
+  text-decoration: underline;
+}
+
+.hub-h1 {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3rem);
+  margin: 0 0 16px;
+  line-height: 1.1;
+}
+
+.hub-intro {
+  font-size: 1.02rem;
+  line-height: 1.65;
+  color: var(--text-muted);
+  max-width: 780px;
+  margin: 0 0 36px;
+}
+
+/* ── Section headings ──────────────────────────────────────────── */
+
+.hub-section-heading {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  margin: 0 0 16px;
+  color: var(--text);
+}
+
+/* ── Events grid ───────────────────────────────────────────────── */
+
+.hub-events {
+  margin-bottom: 56px;
+}
+
+.hub-events-grid {
+  display: grid;
+  /* Mirror HomePage comfortable grid: auto-fill cards at min 280px so
+     hub pages feel visually consistent with the main listings. */
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.hub-empty {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  padding: 24px 0;
+}
+
+.hub-empty a {
+  color: var(--amber);
+}
+
+/* ── FAQ block ─────────────────────────────────────────────────── */
+
+.hub-faq {
+  margin-bottom: 56px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+}
+
+.hub-faq-list {
+  margin: 0;
+  display: grid;
+  gap: 24px;
+}
+
+.hub-faq-item {
+  /* dt/dd inside a div keeps the semantic FAQ structure (helps
+     screen readers + matches the FAQPage JSON-LD pairing). */
+}
+
+.hub-faq-item dt {
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+
+.hub-faq-item dd {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.6;
+  font-size: 0.97rem;
+}
+
+/* ── Related hubs strip ────────────────────────────────────────── */
+
+.hub-related {
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+}
+
+.hub-related-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.hub-related-list a {
+  display: inline-block;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.92rem;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.hub-related-list a:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+/* ── Mobile ───────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .hub-page {
+    padding: 24px 16px 64px;
+  }
+  .hub-h1 {
+    font-size: 1.8rem;
+  }
+  .hub-events-grid {
+    grid-template-columns: 1fr;
+  }
+}

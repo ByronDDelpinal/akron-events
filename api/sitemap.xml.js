@@ -12,11 +12,14 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { eventPath } from '../src/lib/slug.js'
+import { ALL_HUB_PATHS } from '../src/lib/seo/categories.js'
 
 const SITE_ORIGIN = 'https://events.supportlocalakron.com'
 
 // The static routes — kept in one place so every prerender/sitemap
-// tool agrees on what "the site" is.
+// tool agrees on what "the site" is. Category and neighborhood hub
+// pages are imported from the SEO registry so adding a new hub is one
+// file edit and the sitemap automatically picks it up.
 const STATIC_ROUTES = [
   { path: '/',               priority: 1.0, changefreq: 'daily'   },
   { path: '/venues',         priority: 0.8, changefreq: 'weekly'  },
@@ -26,6 +29,15 @@ const STATIC_ROUTES = [
   { path: '/venues/submit',  priority: 0.4, changefreq: 'monthly' },
   { path: '/organizations/submit', priority: 0.4, changefreq: 'monthly' },
   { path: '/subscribe',      priority: 0.5, changefreq: 'monthly' },
+  // Category & neighborhood hub pages. High priority because these
+  // are the keyword-targeted landing pages most likely to win on
+  // local-intent queries ("free events in Akron", "downtown Akron
+  // events", "concerts in Akron").
+  ...ALL_HUB_PATHS.map((path) => ({
+    path,
+    priority:   0.85,
+    changefreq: 'daily',
+  })),
 ]
 
 function xmlEscape(s) {
@@ -56,14 +68,22 @@ export default async function handler(req, res) {
 
   const supabase = createClient(url, key)
 
-  // All published events with a lastmod. Historical events stay in the
-  // sitemap for a while after they occur — they still represent content
-  // that may get referenced. If volume explodes, add a 1-year cutoff.
+  // Exclude events that ended more than 90 days ago. Long-tail past
+  // events waste Google's crawl budget on dead URLs that won't
+  // appear in any user-facing list — SEO action plan item 07
+  // ("Past event pages should 301-redirect or be removed from the
+  // sitemap to avoid wasting crawl budget"). We keep recent past
+  // events (≤90 days) because Google still has them in its index and
+  // we don't want to abruptly drop fresh URLs the day after the
+  // event happens.
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 3600 * 1000)
+    .toISOString()
   const [eventsRes, venuesRes, orgsRes] = await Promise.all([
     supabase
       .from('events')
       .select('id, title, updated_at, start_at')
       .eq('status', 'published')
+      .gte('start_at', ninetyDaysAgo)
       .order('start_at', { ascending: false }),
     supabase
       .from('venues')
