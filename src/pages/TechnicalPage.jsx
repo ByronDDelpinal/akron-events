@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { SEO } from '@/lib/seo'
 import './TechnicalPage.css'
 
 // ── Static data-source registry ──────────────────────────────────────────────
@@ -513,6 +514,11 @@ export default function TechnicalPage() {
 
   return (
     <>
+      <SEO
+        title="Technical — How Akron Pulse Is Built"
+        description="A transparent look at the data sources, scrapers, and pipeline health behind Akron Pulse. Every source listed, with live ingestion status."
+        path="/technical"
+      />
       {/* ── Hero ── */}
       <div className="tp-hero">
         <div className="tp-hero__inner">

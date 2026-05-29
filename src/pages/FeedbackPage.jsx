@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import Modal from '@/components/Modal'
+import { SEO } from '@/lib/seo'
 import './FeedbackPage.css'
 
 /* ── Category config ─────────────────────────────────────────────────── */
@@ -277,6 +278,11 @@ export default function FeedbackPage() {
 
   return (
     <>
+      <SEO
+        title="Feedback — Town Square for Akron Pulse"
+        description="Share bugs, ideas, and wishlist items for Akron Pulse. The roadmap is shaped by the people who use the site."
+        path="/feedback"
+      />
       {/* ── Hero ─────────────────────────────────────────────────────── */}
       <div className="fb-hero">
         <h1>Town <span>Square</span></h1>

@@ -70,6 +70,12 @@ function AppInner() {
       <main>
         <Routes>
           <Route path="/"                    element={<HomePage />} />
+          {/* Canonical event URL is /events/:slug/:id. The bare
+              /events/:id route remains so legacy links, sitemap-cached
+              URLs, and shared links without a slug still resolve —
+              EventPage detects the missing/stale slug and replaces the
+              URL with the canonical form. */}
+          <Route path="/events/:slug/:id"    element={<EventPage />} />
           <Route path="/events/:id"          element={<EventPage />} />
           <Route path="/submit"              element={<SubmitPage />} />
           <Route path="/about"               element={<AboutPage />} />

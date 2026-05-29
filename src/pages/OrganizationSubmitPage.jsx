@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { geocodeAddress } from '@/lib/geocode'
+import { SEO } from '@/lib/seo'
 import './SubmitPage.css'
 import './VenueSubmitPage.css'
 
@@ -150,6 +151,11 @@ export default function OrganizationSubmitPage() {
 
   return (
     <div className="page-shell">
+      <SEO
+        title="Submit Organization — Register an Akron Nonprofit or Host"
+        description="Register your organization on Akron Pulse so locals can find your events, programs, and venues."
+        path="/organizations/submit"
+      />
       <h1 className="page-title">Register an Organization</h1>
       <p className="page-sub">
         Add your organization to Akron Pulse so people in Akron can discover your events and venues.

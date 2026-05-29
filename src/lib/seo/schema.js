@@ -13,6 +13,7 @@
  */
 
 import { SITE, canonicalUrl } from './constants'
+import { eventPath } from '../slug'
 
 // ──────────────────────────────────────────────────────────────────────
 // Website-wide (emitted on every page from App.jsx)
@@ -143,7 +144,7 @@ function attendanceModeEnum(mode) {
  * Google wants `priceCurrency` whenever offers are present.
  */
 function offerSchema(event) {
-  const url = event.ticket_url || `${SITE.baseUrl}/events/${event.id}`
+  const url = event.ticket_url || `${SITE.baseUrl}${eventPath(event)}`
   // Free event
   if ((event.price_min === 0 || event.is_accessible_for_free) &&
       (event.price_max == null || event.price_max === 0)) {
@@ -185,12 +186,16 @@ export function eventSchema(event) {
 
   const schema = {
     '@type': 'Event',
+    // Note the #event hash-fragment: schema.org @id must be stable
+    // across slug changes. We anchor it to the UUID via the bare
+    // /events/{id} path so a title rename doesn't invalidate the
+    // canonical entity reference Google has cached.
     '@id': `${SITE.baseUrl}/events/${event.id}#event`,
     name: event.title,
     startDate: event.start_at,
     eventStatus: eventStatusEnum(event.event_status),
     eventAttendanceMode: attendanceModeEnum(event.event_attendance_mode),
-    url: `${SITE.baseUrl}/events/${event.id}`,
+    url: `${SITE.baseUrl}${eventPath(event)}`,
   }
 
   if (event.end_at) schema.endDate = event.end_at

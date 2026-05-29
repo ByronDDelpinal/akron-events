@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { INTENTS } from '@/lib/intents'
 import { EMAIL_THEME } from '@/lib/emailTheme'
 import SearchableMultiSelect from '@/components/SearchableMultiSelect'
+import { SEO } from '@/lib/seo'
 import './PreferencesPage.css'
 
 const CATEGORIES = [
@@ -360,6 +361,12 @@ export default function PreferencesPage() {
 
   return (
     <div className="page-shell prefs-shell">
+      <SEO
+        title="Newsletter Preferences"
+        description="Manage your Akron Pulse newsletter preferences — categories, price range, frequency."
+        path="/subscribe/preferences"
+        noindex
+      />
       <h1 className="page-title">Your Preferences</h1>
       <p className="page-sub prefs-sub">
         This is your preference center. Tweak anything below and hit save.

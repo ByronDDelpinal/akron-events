@@ -16,6 +16,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MapGL, { Marker, Popup, NavigationControl } from 'react-map-gl/mapbox'
 import { format } from 'date-fns'
+import { eventPath } from '@/lib/slug'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import './MapView.css'
 
@@ -165,7 +166,7 @@ export default function MapView({ events }) {
               <VenuePopup
                 group={activeGroup}
                 onClose={() => setPopupVenueId(null)}
-                onEventClick={(id) => navigate(`/events/${id}`)}
+                onEventClick={(ev) => navigate(eventPath(ev))}
               />
             </Popup>
           )}
@@ -241,7 +242,7 @@ function VenuePopup({ group, onClose, onEventClick }) {
             <button
               key={ev.id}
               className="map-popup-event"
-              onClick={() => onEventClick(ev.id)}
+              onClick={() => onEventClick(ev)}
             >
               <span className="map-popup-emoji">
                 {CATEGORY_EMOJI[ev.category] ?? '📍'}

@@ -34,7 +34,7 @@ export default function OrganizationsPage() {
   return (
     <>
       <SEO
-        title="Event Organizations & Nonprofits in Akron, OH"
+        title="Organizations — Nonprofits & Event Hosts in Akron, OH"
         description="The people and groups making things happen in Akron — nonprofits, arts councils, community groups, and local businesses putting on events in Summit County."
         path="/organizations"
         jsonLd={seoGraph}

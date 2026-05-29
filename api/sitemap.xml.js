@@ -11,6 +11,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { eventPath } from '../src/lib/slug.js'
 
 const SITE_ORIGIN = 'https://events.supportlocalakron.com'
 
@@ -61,7 +62,7 @@ export default async function handler(req, res) {
   const [eventsRes, venuesRes, orgsRes] = await Promise.all([
     supabase
       .from('events')
-      .select('id, updated_at, start_at')
+      .select('id, title, updated_at, start_at')
       .eq('status', 'published')
       .order('start_at', { ascending: false }),
     supabase
@@ -85,7 +86,7 @@ export default async function handler(req, res) {
       priority: r.priority,
     })),
     ...events.map((e) => ({
-      loc: `${SITE_ORIGIN}/events/${e.id}`,
+      loc: `${SITE_ORIGIN}${eventPath(e)}`,
       lastmod: (e.updated_at || e.start_at || '').slice(0, 10),
       changefreq: 'weekly',
       priority: 0.9,

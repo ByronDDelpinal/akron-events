@@ -10,6 +10,7 @@ import {
   breadcrumbSchema,
   itemListSchema,
 } from '@/lib/seo'
+import { eventPath } from '@/lib/slug'
 import './VenueDetailPage.css'
 
 const PARKING_LABEL = {
@@ -66,7 +67,7 @@ export default function VenueDetailPage() {
   const venueOrg = venue.organization ?? null
 
   // ── SEO: Place schema + breadcrumb + list of upcoming events ────
-  const seoTitle = `${venue.name} — Upcoming Events in ${venue.city || 'Akron'}`
+  const seoTitle = `Venue: ${venue.name} — Upcoming Events in ${venue.city || 'Akron'}`
   const seoDesc = (
     venue.description
     || `See upcoming events at ${venue.name} in ${venue.city || 'Akron'}, ${venue.state || 'OH'}. Concerts, community gatherings, and more.`
@@ -82,7 +83,7 @@ export default function VenueDetailPage() {
     itemListSchema(
       (events || []).slice(0, 25).map((e) => ({
         name: e.title,
-        url:  `/events/${e.id}`,
+        url:  eventPath(e),
       }))
     ),
   )
@@ -279,10 +280,10 @@ function VenueEventRow({ event }) {
   return (
     <div
       className="venue-event-row"
-      onClick={() => navigate(`/events/${event.id}`)}
+      onClick={() => navigate(eventPath(event))}
       role="button"
       tabIndex={0}
-      onKeyDown={e => e.key === 'Enter' && navigate(`/events/${event.id}`)}
+      onKeyDown={e => e.key === 'Enter' && navigate(eventPath(event))}
     >
       {/* Thumbnail */}
       <div className="venue-event-thumb">

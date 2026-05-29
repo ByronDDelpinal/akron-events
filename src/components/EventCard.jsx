@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { format, isToday, isTomorrow } from 'date-fns'
 import CategoryBadge from './CategoryBadge'
+import { eventPath } from '@/lib/slug'
 import './EventCard.css'
 
 // Map category → CSS class for the colored accent bar at the top of each card.
@@ -76,10 +77,10 @@ function ComfortableCard({ event, featured, price, navigate }) {
   return (
     <div
       className={`card ${featured ? 'featured' : ''}${hasImage ? ' card--has-image' : ''}`}
-      onClick={() => navigate(`/events/${event.id}`)}
+      onClick={() => navigate(eventPath(event))}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && navigate(`/events/${event.id}`)}
+      onKeyDown={(e) => e.key === 'Enter' && navigate(eventPath(event))}
     >
       {/* Faint background photo — scrim keeps all text at WCAG AA contrast */}
       {hasImage && (
@@ -144,10 +145,10 @@ function EfficientCard({ event, featured, price, navigate, gradient }) {
   return (
     <div
       className={`card-efficient ${featured ? 'card-efficient--featured' : ''}`}
-      onClick={() => navigate(`/events/${event.id}`)}
+      onClick={() => navigate(eventPath(event))}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && navigate(`/events/${event.id}`)}
+      onKeyDown={(e) => e.key === 'Enter' && navigate(eventPath(event))}
     >
       {/* Gradient accent bar — only on non-featured cards; featured uses border-left */}
       {!featured && (

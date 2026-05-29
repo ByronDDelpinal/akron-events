@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { SEO } from '@/lib/seo'
 import '../../pages/AdminPage.css'
 
 // ── Auth ──────────────────────────────────────────────────────────────────
@@ -76,9 +77,30 @@ const NAV_ITEMS = [
 ]
 
 // ── Layout ────────────────────────────────────────────────────────────────
+// Map the first URL segment under /admin to a human-readable label.
+// Falls back to the raw segment so newly added sections are still
+// distinguishable in analytics until they're added here.
+const ADMIN_SECTION_LABELS = {
+  events:         'Events',
+  venues:         'Venues',
+  organizations:  'Organizations',
+  areas:          'Areas',
+  'scraper-runs': 'Scraper Runs',
+  email:          'Email',
+  feedback:       'Feedback',
+  review:         'Review Queue',
+}
+
+function adminSectionTitle(pathname) {
+  const seg = pathname.replace(/^\/admin\/?/, '').split('/')[0] || 'events'
+  const label = ADMIN_SECTION_LABELS[seg] || seg
+  return `Admin: ${label}`
+}
+
 export default function AdminLayout() {
   const { authed, login, logout } = useAdminAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const reviewCount = useReviewCount()
 
   if (!authed) return <LoginGate onLogin={login} />
@@ -87,6 +109,7 @@ export default function AdminLayout() {
 
   return (
     <div className="admin-page">
+      <SEO title={adminSectionTitle(location.pathname)} noindex />
       <div className="admin-topbar">
         <h1 className="admin-topbar-title">Akron Pulse Admin</h1>
         <button className="btn-admin-ghost" onClick={handleLogout}>Log out</button>

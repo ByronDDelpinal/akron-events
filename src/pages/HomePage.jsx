@@ -359,8 +359,7 @@ export default function HomePage() {
   return (
     <>
       <SEO
-        titleExact
-        title="Akron Events — Concerts, Art Shows, Markets & More | Akron Pulse"
+        title="Home — Akron Events, Concerts, Art Shows & More"
         description="Discover events happening in Akron, Ohio and Summit County. Browse concerts, art shows, community gatherings, fundraisers, farmers markets, and more — updated daily."
         path="/"
       />

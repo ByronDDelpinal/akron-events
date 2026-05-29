@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { geocodeAddress } from '@/lib/geocode'
+import { SEO } from '@/lib/seo'
 import './SubmitPage.css'
 import './VenueSubmitPage.css'
 
@@ -102,6 +103,11 @@ export default function VenueSubmitPage() {
 
   return (
     <div className="page-shell">
+      <SEO
+        title="Submit Venue — Add an Event Space to Akron Pulse"
+        description="Know a great event space in Akron or Summit County? Submit it to Akron Pulse and help map the local events scene."
+        path="/venues/submit"
+      />
       <h1 className="page-title">Submit a Venue</h1>
       <p className="page-sub">
         Know a great spot for events in Akron? Help us map it for the community.

@@ -10,6 +10,7 @@ import {
   breadcrumbSchema,
   itemListSchema,
 } from '@/lib/seo'
+import { eventPath } from '@/lib/slug'
 import './OrganizationDetailPage.css'
 
 const EVENTS_PAGE_SIZE = 25
@@ -58,7 +59,7 @@ export default function OrganizationDetailPage() {
   const venues = org.venues ?? []
 
   // ── SEO: Organization schema + breadcrumb + event list ──────────
-  const seoTitle = `${org.name} — Events & Programs in Akron, OH`
+  const seoTitle = `Organization: ${org.name} — Events & Programs in Akron, OH`
   const seoDesc = (
     org.description
     || `Upcoming events and programs from ${org.name}, a local organization in Akron, OH.`
@@ -74,7 +75,7 @@ export default function OrganizationDetailPage() {
     itemListSchema(
       events.slice(0, 25).map((e) => ({
         name: e.title,
-        url:  `/events/${e.id}`,
+        url:  eventPath(e),
       }))
     ),
   )
@@ -339,10 +340,10 @@ function OrgEventRow({ event }) {
   return (
     <div
       className="org-event-row"
-      onClick={() => navigate(`/events/${event.id}`)}
+      onClick={() => navigate(eventPath(event))}
       role="button"
       tabIndex={0}
-      onKeyDown={e => e.key === 'Enter' && navigate(`/events/${event.id}`)}
+      onKeyDown={e => e.key === 'Enter' && navigate(eventPath(event))}
     >
       <div className="org-event-thumb">
         {imageUrl

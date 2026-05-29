@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { useEvent } from '@/hooks/useEvents'
@@ -11,6 +11,7 @@ import {
   eventSchema,
   breadcrumbSchema,
 } from '@/lib/seo'
+import { makeEventSlug, eventPath } from '@/lib/slug'
 import './EventPage.css'
 
 // Banner needs to span the page content area; sub-1120 images become thumbnails.
@@ -83,9 +84,22 @@ function downloadIcs(event) {
 }
 
 export default function EventPage() {
-  const { id }    = useParams()
-  const navigate  = useNavigate()
+  const { id, slug } = useParams()
+  const navigate     = useNavigate()
   const { event, loading, error } = useEvent(id)
+
+  // Canonicalize the URL: if the user arrived via the bare /events/:id
+  // route (slug undefined) or via a stale slug (title or date changed
+  // upstream since the link was created), replace the history entry
+  // with the up-to-date /events/{slug}/{id} form. Using replace=true
+  // keeps the back button pointing at the page they came from.
+  useEffect(() => {
+    if (!event) return
+    const canonicalSlug = makeEventSlug(event)
+    if (slug !== canonicalSlug) {
+      navigate(eventPath(event), { replace: true })
+    }
+  }, [event, slug, navigate])
 
   if (loading) return <div className="event-loading">Loading event…</div>
   if (error || !event) return (
@@ -119,8 +133,8 @@ export default function EventPage() {
   const venueName = event.venue?.name
   const dateLabel = format(new Date(event.start_at), 'EEE MMM d, yyyy')
   const seoTitle  = venueName
-    ? `${event.title} — ${dateLabel} at ${venueName}`
-    : `${event.title} — ${dateLabel}`
+    ? `Event: ${event.title} — ${dateLabel} at ${venueName}`
+    : `Event: ${event.title} — ${dateLabel}`
   const seoDesc = (event.description || `${event.title} — ${dateLabel}${venueName ? ' at ' + venueName : ''} in Akron, OH.`)
     .replace(/\s+/g, ' ')
     .trim()
@@ -131,12 +145,13 @@ export default function EventPage() {
   // on-demand and caches at the edge.
   const seoImage = `/api/og/event/${event.id}`
 
+  const canonicalPath = eventPath(event)
   const seoGraph = buildGraph(
     eventSchema(event),
     breadcrumbSchema([
       { name: 'Home',   url: '/' },
       { name: 'Events', url: '/' },
-      { name: event.title, url: `/events/${event.id}` },
+      { name: event.title, url: canonicalPath },
     ]),
   )
 
@@ -146,7 +161,7 @@ export default function EventPage() {
       <SEO
         title={seoTitle}
         description={seoDesc}
-        path={`/events/${event.id}`}
+        path={canonicalPath}
         image={seoImage}
         type="event"
         jsonLd={seoGraph}

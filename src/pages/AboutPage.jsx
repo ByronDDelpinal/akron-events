@@ -72,7 +72,7 @@ export default function AboutPage() {
   return (
     <>
       <SEO
-        title="About Akron Pulse — Local Events in Akron, OH"
+        title="About — How Akron Pulse Works"
         description="Akron Pulse is a free directory of local events in Akron and Summit County. Learn what we cover, how often we update, and how to submit your own event."
         path="/about"
         jsonLd={seoGraph}
