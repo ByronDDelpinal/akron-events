@@ -63,6 +63,17 @@ const DATA_SOURCES = [
     status:      'active',
   },
 
+  // ── Simpleview CVB REST API ────────────────────────────────────────────
+  {
+    key:         'visit_akron_cvb',
+    label:       'Visit Akron / Summit County CVB',
+    method:      'REST API',
+    methodDetail:'Simpleview rest_v2 — plugins_events_events_by_date.find (MongoDB-style query DSL)',
+    venue:       'Regional events (Akron + Summit County)',
+    notes:       "Official convention-and-visitors-bureau events feed for Greater Akron. Auth via a public session token from /plugins/core/get_simple_token/, then queries against /includes/rest_v2/plugins_events_events_by_date/find/ with a MongoDB-style filter (supports $and / $in / $date / $gte / $lte). API quirk: date_range start/end must be at 00:00 in the client's timezone (e.g. 04:00 UTC during EDT). Response shape is { docs: { count, docs: [...] } }. Typical window: ~60 active events per 90 days, ~70% in Akron proper, the rest across Cuyahoga Falls, Bath, Green, Fairlawn, Barberton. Same Simpleview install also fronts the John S. Knight Center page, so JSK events surface here without a separate scraper. Pagination via skip/limit at 200/page; 180-day horizon.",
+    status:      'active',
+  },
+
   // ── The Events Calendar (Tribe) REST API ───────────────────────────────
   {
     key:         'summit_artspace',
@@ -294,6 +305,25 @@ const DATA_SOURCES = [
     notes:       'The Nightlight runs on INDY Cinema Group\'s Vue SPA. Raw HTTP fetches return only an empty shell — showtimes are injected client-side after Apollo GraphQL calls. The scraper\'s parser is ready for hydrated DOM but needs either Playwright rendering, INDY partner API access, or a reverse-engineered session token on the /graphql endpoint. Monitoring active.',
     status:      'degraded',
   },
+  {
+    key:         'stan_hywet',
+    label:       'Stan Hywet Hall & Gardens',
+    method:      'HTML scrape',
+    methodDetail:'Drupal — /public-events listing',
+    venue:       'Stan Hywet Hall & Gardens — 714 N Portage Path',
+    notes:       "Historic estate with a heavy public-events calendar in season (April–December): Ohio Mart, Father's Day Car Show, Murder Mystery weekends, Mother's Day brunches, Forest Therapy walks, Coffee with the Curator. Own ticketing through stanhywet.ticketapp.org rather than Eventbrite or Ticketmaster, so the geo-aggregators miss it entirely. Parses .event-item cards (h2.a + p.date + thumbnail) with a tolerant date parser that handles full dates, ranges, and 'Sundays through MM/DD/YY' recurring strings; events with unparseable dates are skipped rather than guessed. Drupal image-style prefixes are stripped so we store the full-resolution image.",
+    status:      'active',
+  },
+
+  {
+    key:         'city_of_akron_lock3',
+    label:       'City of Akron — Lock 3 & Rec/Parks',
+    method:      'REST API',
+    methodDetail:'Revize Calendar JSON feed — calendar_data_handler.php',
+    venue:       'Lock 3, downtown Akron parks, and Recreation & Parks venues',
+    notes:       "The City of Akron runs on Revize CMS and exposes its public-facing events as a JSON feed at /_assets_/plugins/revizeCalendar/calendar_data_handler.php (the same endpoint the on-page FullCalendar widget consumes). The feed covers seven city-managed calendars; we ingest the four that publish event-shaped content: Events (1), Parks & Rec (5), Lock 3 (6), and Great Streets Akron (13), explicitly skipping Meetings (2), Police Oversight (7), and HR (9). Each record carries title, start/end (Eastern-local ISO without zone — converted via lib/normalize.js#easternToIso), URL, location, an HTML image tag, and an iCal-style rrule for recurring series. Placeholder thumbnails and noimage assets are dropped at parse time. Captures the Summer Concert Series, Lock 4 Blues, Gospel Sundays, and city-promoted partner festivals (Pizza Fest, Italian-American Fest, African Culture Fest, Rubber City Remix) that don't reliably surface on Eventbrite or Ticketmaster. History note: this feed went dormant July 2024 → May 2026 and the scraper temporarily ran on Claude-extracted editorial pages; when the feed came back online we retired the LLM path. The recovery branch is preserved in git history if it's ever needed again.",
+    status:      'active',
+  },
 
   // ── Aggregators ────────────────────────────────────────────────────────
   {
@@ -315,6 +345,7 @@ const SCRAPER_LABELS = {
   ejthomas_hall:      'E.J. Thomas Hall',
   uakron_myers_art:   'Myers School of Art',
   uakron_chp:         'Cummings Center',
+  visit_akron_cvb:    'Visit Akron CVB',
   summit_artspace:    'Summit Artspace',
   summit_metro_parks: 'Summit Metro Parks',
   cvnp_conservancy:   'CVNP Conservancy',
@@ -339,8 +370,44 @@ const SCRAPER_LABELS = {
   north_hill_cdc:     'North Hill CDC',
   akron_public_schools:'Akron Public Schools',
   akron_life:         'Akron Life',
+  stan_hywet:         'Stan Hywet',
+  city_of_akron_lock3:'City of Akron (Lock 3)',
   eventbrite:         'Eventbrite',
 }
+
+// ── Source evaluation log ────────────────────────────────────────────────────
+// Sources we investigated and deliberately chose NOT to build a scraper for.
+// Documenting these matters for the project's transparency goals — every
+// "we don't have X" question has a reasoned answer here rather than an
+// implicit gap. Revisit any entry when the underlying conditions change.
+
+const EVALUATED_SOURCES = [
+  {
+    name:   'John S. Knight Center',
+    url:    'https://www.visitakron-summit.org/knight-center/upcoming-events/',
+    reason: "Runs on the same Simpleview install as Visit Akron CVB. JSK events surface in the Visit Akron API automatically — a separate scraper would just be a category filter on the same source.",
+  },
+  {
+    name:   'House Three Thirty',
+    url:    'https://www.eventbrite.com/o/house-three-thirty-61445316323',
+    reason: 'All ticketed events route through Eventbrite (organizer 61445316323) and are geotagged "532 W Market St, Akron", so they already flow in through the citywide Eventbrite geo-search. Pinning the organizer ID could serve as a fallback quality boost if the geo feed ever misses an event.',
+  },
+  {
+    name:   'Greystone Hall',
+    url:    'https://www.visitakron-summit.org/greystone-hall/',
+    reason: 'No public events page — bookings are private (weddings, banquets, meetings). The one recurring public tenant is Ohio Shakespeare Festival, which is already covered by the ohio_shakespeare scraper.',
+  },
+  {
+    name:   'Akron Beacon Journal community calendar',
+    url:    'https://www.ohio.com/calendar/events',
+    reason: 'Client-rendered React app on the Gannett/Evvnt national network. Evvnt syndicates from Eventbrite and Ticketmaster, so most distinctly-Akron entries would already be duplicates. Skip until Evvnt exposes a public JSON endpoint or until Gannett ships a server-rendered variant.',
+  },
+  {
+    name:   'Neighborhood association sites',
+    url:    'highlandsquareakron.org, betterkenmore.org, whno.org, goodyearheights.org',
+    reason: "Mixed CMS stack (Wix, WordPress, Weebly, Squarespace) but operationally Facebook-driven. Combined volume is <10 events/year that aren't already promoted on partner Eventbrite pages or the Downtown Akron Partnership feed.",
+  },
+]
 
 function labelFor(key) {
   return SCRAPER_LABELS[key] ?? key.replace(/_/g, ' ')
@@ -483,9 +550,13 @@ export default function TechnicalPage() {
           <div className="tp-section__hd">
             <h2 className="tp-section__title">Data Sources</h2>
             <p className="tp-section__desc">
-              Events are pulled from {DATA_SOURCES.length} sources — official REST APIs,
-              WordPress and Tribe Events endpoints, and direct HTML scrapers. All ingestion
-              runs server-side on a scheduled basis.
+              {DATA_SOURCES.filter(s => s.status === 'active').length} sources are
+              live{DATA_SOURCES.filter(s => s.status === 'planned').length > 0
+                ? `, plus ${DATA_SOURCES.filter(s => s.status === 'planned').length} evaluated and queued for build-out`
+                : ''}. The mix spans official REST APIs (Ticketmaster, MLB Stats,
+              LiveWhale, Simpleview CVB, Revize, Tribe Events, Communico,
+              Squarespace), iCalendar subscriptions, and direct HTML scrapers.
+              All ingestion runs server-side on a scheduled basis.
             </p>
           </div>
 
@@ -523,6 +594,29 @@ export default function TechnicalPage() {
               )
             })}
           </div>
+        </section>
+
+        {/* ── Source evaluation log ── */}
+        <section className="tp-section">
+          <div className="tp-section__hd">
+            <h2 className="tp-section__title">Source Evaluation Log</h2>
+            <p className="tp-section__desc">
+              Sources we investigated and decided not to ingest. Documenting these
+              keeps the coverage story honest — every "why isn't X in here?"
+              has a reasoned answer. Each entry is revisited when the underlying
+              conditions change.
+            </p>
+          </div>
+
+          <ul className="tp-evaluated">
+            {EVALUATED_SOURCES.map(src => (
+              <li key={src.name} className="tp-evaluated__item">
+                <div className="tp-evaluated__name">{src.name}</div>
+                <div className="tp-evaluated__url">{src.url}</div>
+                <p className="tp-evaluated__reason">{src.reason}</p>
+              </li>
+            ))}
+          </ul>
         </section>
 
         {/* ── Scraper Health ── */}

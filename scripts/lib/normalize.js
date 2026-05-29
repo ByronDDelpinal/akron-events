@@ -181,6 +181,10 @@ export function categoryFromEventbriteNames(categoryName, subcategoryName) {
 // (e.g. "at the Akron Barmacy"). Limited to known Akron-area music spots.
 const _MUSIC_VENUES = /(@|\bat)\s+(the\s+)?(?:\w+\s+){0,2}(old 97|vortex|matinee|musica|jilly'?s|barmacy|blu jazz|empire concert|goodyear theat(er|re)|akron civic|knight stage|tangier|stage door|lock 4|kent stage|civic theatre)\b/i
 const _GENERIC_TOUR_EXCLUSION = /(walking|guided|historical|garden|home|food|brewery|trolley|architecture|museum|self[- ]guided|virtual|haunted|farm|driving|kayak|free|weekly|exhibit|art|behind[- ]?the[- ]?scenes|members'?|public|private|holiday|cemetery|winery|wine|history|ghost)\s+tour|tour\s*:/i
+// Followers of "Learn" that are promotional CTAs, not a subject of learning.
+// Used by the "Learn X" education heuristic below to suppress false positives
+// like "Learn more about…", "Learn why…", "Learn about…".
+const _LEARN_NOT_EDUCATIONAL = /\blearn\s+(more|why|all|about|everything|here|now|first|today|tomorrow)\b/i
 
 /**
  * Infer an events.category value from free text. Pure function, no I/O.
@@ -240,8 +244,15 @@ export function inferCategory(title = '', description = '') {
   // ── Education — softer signals ──────────────────────────────────────────
   if (/\b(workshop|class\b|course|training session|lesson|book club|book discussion|study group|reading group)\b/.test(text)) return 'education'
   // "Learn X" — a how-to event, typically educational (Learn Chicago Stepping,
-  // Learn to Knit, Learn Excel, etc.)
-  if (/\blearn\s+(to\s+|how to\s+|the\s+)?[a-z]/i.test(tLow)) return 'education'
+  // Learn to Knit, Learn Excel, etc.).
+  //
+  // Exclusion list catches the most common false-positive pattern: marketing
+  // copy that uses "Learn more about…" / "Learn why…" / "Learn about…" as
+  // generic CTAs.  Those phrases dominate aggregator descriptions and
+  // shouldn't categorise the event as educational on their own.  An explicit
+  // subject ("Learn to Knit", "Learn Chicago Stepping") still matches because
+  // its follower word isn't on the list.
+  if (/\blearn\s+\w/i.test(tLow) && !_LEARN_NOT_EDUCATIONAL.test(tLow)) return 'education'
 
   // ── Nature ─────────────────────────────────────────────────────────────
   if (/\b(park|trail|nature walk|nature center|garden|arboretum|zoo|wildlife|botanical|bird walk|hike|hiking|conservation|outdoor adventure|metro park)\b/.test(text)) return 'nature'

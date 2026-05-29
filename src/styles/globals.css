@@ -1,7 +1,11 @@
 /* ─── DESIGN TOKENS ─── */
 :root {
-  --font-display: 'Space Grotesk', system-ui, sans-serif;
-  --font-body:    'DM Sans', system-ui, sans-serif;
+  /* Default theme (akron-pulse) typography. Each theme overrides
+     these in themes.css; the matching Google Fonts file is fetched
+     by the lazy loader in hooks/useTheme.jsx. Defaults preload via
+     index.html so cold-load first paint is correct. */
+  --font-display: 'Sora', system-ui, sans-serif;
+  --font-body:    'Inter', system-ui, sans-serif;
 
   /* Type scale */
   --text-lg:   0.95rem;   /* Body text, descriptions               */

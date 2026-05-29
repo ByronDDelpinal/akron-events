@@ -41,6 +41,11 @@
    Civic Teal the default. Was previously at :root in globals.css.
    ────────────────────────────────────────────────────────────────── */
 .theme-civic-classic {
+  /* Typography — town-bulletin Caslon + Lato body. Lato pairs with
+     Caslon's founder-era warmth without going period-piece. */
+  --font-display: 'Libre Caslon Text', Georgia, serif;
+  --font-body:    'Lato', system-ui, sans-serif;
+
   --bg-page:       #FAF6EF;
   --bg-card:       #FFFFFF;
   --bg-secondary:  #F0EAE0;
@@ -88,6 +93,11 @@
    warmth — feels like a well-designed civic platform.
    ────────────────────────────────────────────────────────────────── */
 .theme-akron-pulse {
+  /* Typography — mirrors globals.css :root. Sora's geometric civic
+     authority + Inter's neutrality is the new brand voice. */
+  --font-display: 'Sora', system-ui, sans-serif;
+  --font-body:    'Inter', system-ui, sans-serif;
+
   --bg-page:       #FCFAF4;
   --bg-card:       #FFFFFF;
   --bg-secondary:  #F3EAD7;
@@ -136,6 +146,11 @@
    to #C03423 so white-on-primary passes AA.
    ────────────────────────────────────────────────────────────────── */
 .theme-pulse-red {
+  /* Typography — Fraunces' flared terminals echo the heartbeat
+     vermilion. Inter keeps body text quiet against an active display. */
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body:    'Inter', system-ui, sans-serif;
+
   --bg-page:       #FBF8F2;
   --bg-card:       #FFFFFF;
   --bg-secondary:  #F4DAC9;
@@ -183,6 +198,11 @@
    without being formal. Gold accent darkened to #8F6818 for AA on cream.
    ────────────────────────────────────────────────────────────────── */
 .theme-twilight-plum {
+  /* Typography — high-contrast Cormorant + Spectral body. Reads like
+     an after-hours magazine feature. */
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-body:    'Spectral', Georgia, serif;
+
   --bg-page:       #FBF8F2;
   --bg-card:       #FFFFFF;
   --bg-secondary:  #E8DCC2;
@@ -230,6 +250,11 @@
    Amber accent darkened to #B8761A for AA on bone background.
    ────────────────────────────────────────────────────────────────── */
 .theme-forest-amber {
+  /* Typography — Domine's slab gives the grounded, "park ranger
+     publication" feel; Lato body is warm and humanist. */
+  --font-display: 'Domine', Georgia, serif;
+  --font-body:    'Lato', system-ui, sans-serif;
+
   --bg-page:       #FAF6EC;
   --bg-card:       #FFFFFF;
   --bg-secondary:  #E5DDC8;
@@ -272,6 +297,11 @@
 }
 
 .theme-harbor-civic {
+  /* Typography — Playfair display + Inter body is the broadsheet
+     pairing. Navy + serif earns the editorial stripes. */
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body:    'Inter', system-ui, sans-serif;
+
   --bg-page:       #F2EEE8;
   --bg-card:       #FFFFFF;
   --bg-secondary:  #E8E2D6;
@@ -314,6 +344,11 @@
 }
 
 .theme-violet-hour {
+  /* Typography — DM Serif Display has theatrical drama that matches
+     the jewel-toned palette; Manrope keeps body crisp. */
+  --font-display: 'DM Serif Display', Georgia, serif;
+  --font-body:    'Manrope', system-ui, sans-serif;
+
   --bg-page:       #F3EEF0;
   --bg-card:       #FDFAFC;
   --bg-secondary:  #E8DFE3;
@@ -356,6 +391,11 @@
 }
 
 .theme-boardwalk {
+  /* Typography — Recursive's casual axis gives playful, slightly
+     hand-drawn warmth. Inter body keeps it from getting silly. */
+  --font-display: 'Recursive', system-ui, sans-serif;
+  --font-body:    'Inter', system-ui, sans-serif;
+
   --bg-page:       #FAF2E8;
   --bg-card:       #FFFDF7;
   --bg-secondary:  #F0E6D6;
@@ -398,6 +438,11 @@
 }
 
 .theme-olive-grove {
+  /* Typography — Libre Baskerville + Karla. Mediterranean cookbook
+     calm; classic serif + warm geometric sans = considered, quiet. */
+  --font-display: 'Libre Baskerville', Georgia, serif;
+  --font-body:    'Karla', system-ui, sans-serif;
+
   --bg-page:       #F5EEDA;
   --bg-card:       #FBF6E5;
   --bg-secondary:  #E3DCC2;
@@ -440,6 +485,11 @@
 }
 
 .theme-arcade-night {
+  /* Typography — Unbounded's neon-sign geometry + JetBrains Mono's
+     terminal feel commits hard to the retro-arcade lever. */
+  --font-display: 'Unbounded', system-ui, sans-serif;
+  --font-body:    'JetBrains Mono', ui-monospace, monospace;
+
   --bg-page:       #FDF2F8;
   --bg-card:       #FFFDFB;
   --bg-secondary:  #F5E0E8;
@@ -482,6 +532,11 @@
 }
 
 .theme-stargazer {
+  /* Typography — Fraunces with the SOFT axis turned up reads dreamy
+     and observatory-poster. Inter body keeps it grounded. */
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body:    'Inter', system-ui, sans-serif;
+
   --bg-page:       #F5F2F7;
   --bg-card:       #FBF9FC;
   --bg-secondary:  #EAEAEA;
@@ -540,6 +595,11 @@
      coral #514A4A on coral-pale #F2EFEF: ~7.6:1 ✓
    ────────────────────────────────────────────────────────────────── */
 .theme-grand-piano {
+  /* Typography — Playfair Display gives the concert-program elegance;
+     Source Sans 3 body reads like a recital pamphlet. */
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body:    'Source Sans 3', system-ui, sans-serif;
+
   --bg-page:       #FAFAF8;
   --bg-card:       #FFFFFF;
   --bg-secondary:  #F0EFED;
@@ -582,6 +642,11 @@
 }
 
 .theme-prime-time {
+  /* Typography — Oswald's condensed display is the sports-broadcast
+     graphic; Archivo body keeps the utilitarian, scoreboard feel. */
+  --font-display: 'Oswald', system-ui, sans-serif;
+  --font-body:    'Archivo', system-ui, sans-serif;
+
   --bg-page:       #F9F4EC;
   --bg-card:       #FFFDF8;
   --bg-secondary:  #F0E8D6;

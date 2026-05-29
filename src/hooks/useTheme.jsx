@@ -5,7 +5,26 @@ import {
   THEME_STORAGE_KEY,
   LEGACY_THEME_STORAGE_KEY,
   isValidTheme,
+  getThemeFonts,
 } from '@/lib/themes'
+
+// Stable id for the single <link> element that hosts the active
+// theme's Google Fonts stylesheet. The element ships in index.html
+// pre-populated with the default theme's URL so cold-load first
+// paint is correct; on theme switches we just rewrite its href.
+// Browsers dedupe identical URLs, so flipping back and forth is free.
+const THEME_FONT_LINK_ID = 'theme-fonts'
+
+function applyThemeFonts(themeId) {
+  if (typeof document === 'undefined') return
+  const fonts = getThemeFonts(themeId)
+  if (!fonts?.googleFontsHref) return
+  const link = document.getElementById(THEME_FONT_LINK_ID)
+  if (!link) return
+  if (link.getAttribute('href') !== fonts.googleFontsHref) {
+    link.setAttribute('href', fonts.googleFontsHref)
+  }
+}
 
 /**
  * Theme state — single source of truth.
@@ -52,6 +71,10 @@ export function ThemeProvider({ children }) {
     THEMES.forEach((t) => root.classList.remove(`theme-${t.id}`))
     root.classList.add(`theme-${theme}`)
     window.localStorage.setItem(THEME_STORAGE_KEY, theme)
+    // Lazy-load the active theme's Google Fonts. The pre-bundle boot
+    // script in index.html primes this for cold loads; this effect
+    // handles in-app theme switches.
+    applyThemeFonts(theme)
   }, [theme])
 
   return (

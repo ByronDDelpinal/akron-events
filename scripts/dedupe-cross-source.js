@@ -51,6 +51,7 @@ const SOURCE_PRIORITY = [
   'akron_library',
   'akron_public_schools',
   'blu_jazz',
+  'city_of_akron_lock3',     // first-party source for city programming
   'downtown_akron',
   'jillys',
   'leadership_akron',
@@ -60,12 +61,14 @@ const SOURCE_PRIORITY = [
   'ohio_shakespeare',
   'painting_twist',
   'rubberducks',
+  'stan_hywet',              // first-party venue calendar
   'summit_artspace',
   'summit_metro_parks',
   'torchbearers',
   'uakron_calendar',
   'weathervane',
-  'akron_life',  // aggregator — last
+  'visit_akron_cvb',         // CVB aggregator — between first-party sources and akron_life
+  'akron_life',              // aggregator — last
 ]
 
 function priority(source) {
@@ -94,26 +97,41 @@ function normalizeTitle(title) {
 }
 
 /**
- * Flexible title comparison that tolerates a leading city/org prefix on one
- * source but not the other.
+ * Flexible title comparison that tolerates two common cross-source title
+ * divergence patterns at the SAME venue and start_at:
  *
- * Background: the dedicated RubberDucks scraper produces titles like
- *   "RubberDucks vs. Hartford Yard Goats"
- * while Ticketmaster prepends the city:
- *   "Akron RubberDucks vs. Hartford Yard Goats"
- * After normalizeTitle() these become:
- *   "rubberducks vs hartford yard goats"
- *   "akron rubberducks vs hartford yard goats"
- * A strict equality check misses the match.  We fix this by progressively
- * stripping leading words (up to MAX_PREFIX_WORDS) from the longer title and
- * checking whether the remainder equals the shorter title.
+ *   A) Leading city/org prefix on one source only.
+ *      Ticketmaster:  "Akron RubberDucks vs. Hartford Yard Goats"
+ *      RubberDucks:   "RubberDucks vs. Hartford Yard Goats"
+ *      → strip up to MAX_PREFIX_WORDS leading words from the longer title and
+ *        check if the remainder equals the shorter title.
+ *
+ *   B) Aggregator strips the marketing tagline; the authoritative source
+ *      keeps it.
+ *      Ticketmaster:  "HARDY: THE COUNTRY! COUNTRY! TOUR!"
+ *      Akron Life:    "Hardy"
+ *      → the shorter title is the prefix of the longer (with a word
+ *        boundary after).  We check whether `longer.startsWith(shorter + ' ')`.
+ *
+ * Both strategies are gated by the strict venue + exact-start_at requirement
+ * in the calling code, which keeps false-positive risk bounded: even if
+ * "Hardy" matches "Hardy Boys Mystery Hour" at the library on some other
+ * day, they'll be in different venue+time buckets and never compared.
  */
 const MAX_PREFIX_WORDS = 2
 
 function titlesMatch(a, b) {
   if (a === b) return true
-  // Ensure `longer` is always the title we strip from
+  // Ensure `longer` is always the title we'll inspect.
   const [longer, shorter] = a.length >= b.length ? [a, b] : [b, a]
+
+  // Strategy B — shorter is a prefix of longer with a word boundary after.
+  // Cheap check, ordered first because the prefix case is more common in
+  // practice (aggregators routinely trim marketing taglines).
+  if (longer.startsWith(shorter + ' ')) return true
+
+  // Strategy A — peel up to MAX_PREFIX_WORDS leading words off the longer
+  // title and look for an exact match with the shorter.
   let trimmed = longer
   for (let i = 0; i < MAX_PREFIX_WORDS; i++) {
     const spaceIdx = trimmed.indexOf(' ')

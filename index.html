@@ -10,19 +10,57 @@
     <title>Akron Pulse — Akron & Summit County Events</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;1,9..40,400&display=swap" rel="stylesheet" />
+    <!--
+      Theme-aware Google Fonts. The id="theme-fonts" link is the single
+      stylesheet element the lazy loader (hooks/useTheme.jsx) updates
+      whenever the user picks a new theme. The default href below
+      matches the akron-pulse theme so cold-load first paint uses the
+      correct families — the inline boot script (below) rewrites this
+      href before React mounts if a non-default theme is stored.
+    -->
+    <link
+      id="theme-fonts"
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@500;700&family=Inter:wght@400;500;700&display=swap"
+    />
     <script>
-      // Apply the user's theme class before React mounts, to avoid a
-      // flash of the default palette on cold loads. Storage key must
-      // match THEME_STORAGE_KEY in src/lib/themes.js; React re-validates
-      // the value on mount, so any invalid class here is harmless.
+      // Apply the user's theme class AND swap the font stylesheet
+      // before React mounts, to avoid a flash of the default palette
+      // or default fonts on cold loads. Storage key must match
+      // THEME_STORAGE_KEY in src/lib/themes.js; React re-validates the
+      // value on mount, so any invalid class here is harmless.
       // Handles the rebrand migration from 'turnout.theme' too.
+      //
+      // The font href map is duplicated from THEME_FONTS in
+      // src/lib/themes.js because this script runs pre-bundle. Keep
+      // them in sync — if a theme is added, add it here too. (The CSS
+      // class still applies even if the font href is missing, so the
+      // worst case for a forgotten entry is fallback fonts.)
       (function () {
+        var FONT_HREFS = {
+          'civic-classic':  'https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Lato:wght@400;700&display=swap',
+          'grand-piano':    'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,700&family=Source+Sans+3:wght@400;500;700&display=swap',
+          'pulse-red':      'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;700&display=swap',
+          'twilight-plum':  'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;700&family=Spectral:wght@400;500;700&display=swap',
+          'forest-amber':   'https://fonts.googleapis.com/css2?family=Domine:wght@500;700&family=Lato:wght@400;700&display=swap',
+          'harbor-civic':   'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Inter:wght@400;500;700&display=swap',
+          'violet-hour':    'https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;700&display=swap',
+          'boardwalk':      'https://fonts.googleapis.com/css2?family=Recursive:wght,CASL@500,1;700,1&family=Inter:wght@400;500;700&display=swap',
+          'olive-grove':    'https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;500;700&display=swap',
+          'arcade-night':   'https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700&family=JetBrains+Mono:wght@400;500;700&display=swap',
+          'stargazer':      'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,500,100;9..144,700,100&family=Inter:wght@400;500;700&display=swap',
+          'prime-time':     'https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Archivo:wght@400;500;700&display=swap',
+        };
         try {
           var t = localStorage.getItem('akronpulse.theme')
                || localStorage.getItem('turnout.theme');
           if (t && /^[a-z-]+$/.test(t) && t !== 'akron-pulse') {
             document.documentElement.classList.add('theme-' + t);
+            var href = FONT_HREFS[t];
+            if (href) {
+              var link = document.getElementById('theme-fonts');
+              if (link) link.setAttribute('href', href);
+            }
           }
         } catch (e) {}
       })();
