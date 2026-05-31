@@ -18,10 +18,10 @@ import {
 import { makeEventSlug, eventPath } from '@/lib/slug'
 import {
   formatPrice,
-  isUsableImageUrl,
   gradientFor,
   AGE_LABEL,
   PARKING_LABEL,
+  resolveEventImage,
 } from '@/lib/eventFormatting'
 import './EventPage.css'
 
@@ -99,14 +99,17 @@ export default function EventPage() {
   const price = formatPrice(event.price_min, event.price_max)
 
   // ── Image routing ──
-  // `banner_eligible` is a generated DB column derived from image dimensions
-  // and bytes-per-pixel; it's the authoritative "is this image good enough
-  // for a full-bleed banner" signal. Pair it with a width gate so we don't
-  // try to banner a square 600×600 image that fails to fill the content area.
-  const rawUrl   = isUsableImageUrl(event.image_url) ? event.image_url : null
+  // Walk the event → venue → organizer fallback chain. `banner_eligible`
+  // and `image_width`/`image_height` only exist for event-row images
+  // (the scraper computes them at ingest); when we fall back to a venue
+  // or organizer image we have neither, so those fallback images can
+  // only render as float thumbnails — never as full-bleed banners — to
+  // avoid a CLS jump from an unknown aspect ratio.
+  const { url: rawUrl, source: imageSource } = resolveEventImage(event)
   const gradient = gradientFor(event.category)
 
   const showBanner = !!rawUrl
+    && imageSource === 'event'
     && event.banner_eligible
     && event.image_width != null
     && event.image_width >= BANNER_MIN_WIDTH

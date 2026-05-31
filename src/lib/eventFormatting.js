@@ -184,3 +184,63 @@ export const AGE_LABEL = Object.freeze({
 export function isUsableImageUrl(url) {
   return !!url && /^https?:\/\//i.test(url)
 }
+
+/**
+ * Resolve the best image URL to use for an event, walking the
+ * fallback chain agreed in the May 2026 product discussion:
+ *
+ *   1. Event-specific image (`event.image_url`)
+ *   2. Venue's primary image (`event.venue.image_url`)
+ *   3. Organizer's primary image (`event.organizer.image_url`)
+ *
+ * Returns `null` when none of the three resolves to a usable URL.
+ * Use this everywhere an event renders an image so the priority
+ * order stays consistent — EventCard, EventPage banner / float,
+ * VenueDetailPage event list, OrganizationDetailPage event list,
+ * and the JSON-LD Event schema.
+ *
+ * `extras` is optional and lets a caller layer additional fallbacks
+ * (e.g. VenueDetailPage knows the venue context even when the join
+ * didn't carry it on the event row, and can pass it explicitly).
+ * Order is event > venue > organizer > extras.
+ */
+export function imageUrlForEvent(event, extras = {}) {
+  if (!event) return null
+  const candidates = [
+    event.image_url,
+    event.venue?.image_url,
+    event.venues?.[0]?.image_url,
+    event.organizer?.image_url,
+    event.organizations?.[0]?.image_url,
+    extras.venueImageUrl,
+    extras.organizerImageUrl,
+  ]
+  for (const url of candidates) {
+    if (isUsableImageUrl(url)) return url
+  }
+  return null
+}
+
+/**
+ * Same chain as `imageUrlForEvent`, but reports which source the
+ * resolved URL came from. Useful when downstream code needs to know
+ * whether to render with native event-image dimensions (only safe
+ * when the source is the event itself — venue/org images don't have
+ * `image_width`/`image_height` recorded on the event row).
+ *
+ * Returns `{ url, source }` where `source` is one of:
+ *   'event' | 'venue' | 'organizer' | 'extras' | null
+ */
+export function resolveEventImage(event, extras = {}) {
+  if (!event) return { url: null, source: null }
+  const tries = [
+    ['event',     event.image_url],
+    ['venue',     event.venue?.image_url || event.venues?.[0]?.image_url],
+    ['organizer', event.organizer?.image_url || event.organizations?.[0]?.image_url],
+    ['extras',    extras.venueImageUrl || extras.organizerImageUrl],
+  ]
+  for (const [source, url] of tries) {
+    if (isUsableImageUrl(url)) return { url, source }
+  }
+  return { url: null, source: null }
+}

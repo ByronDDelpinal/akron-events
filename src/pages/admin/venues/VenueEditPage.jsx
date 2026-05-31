@@ -122,7 +122,7 @@ function VenueForm({ seed, isNew, allOrgs, venueId, areas, onAreasChange, onNavi
           </FormField>
         </FormFieldRow>
 
-        <FormField label="Description">
+        <FormField label="Description" field="description" overrides={overrides} onToggleOverride={toggleOverride}>
           <FormTextarea value={form.description} onChange={e => setField('description', e.target.value)} />
         </FormField>
 

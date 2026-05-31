@@ -351,15 +351,83 @@
   accent-color: var(--amber);
 }
 
-/* ── Override Toggle ── */
+/* ── Override Toggle ──
+ *
+ * Pill-shaped lock state indicator. The previous design was a single
+ * emoji on an almost-invisible tint — the "is this field locked?"
+ * question was hard to answer at a glance. This version uses:
+ *
+ *   - A filled, high-contrast pill when locked (amber on white).
+ *   - An outlined, muted pill when unlocked (dashed border,
+ *     muted text) so the unlocked state reads as "not yet acted on"
+ *     rather than "default styling".
+ *   - The word "Locked" / "Lock" alongside the icon so the state is
+ *     readable without relying on icon recognition or color alone.
+ *
+ * Both states share the same dimensions to prevent layout jump on
+ * toggle. */
+
 .override-toggle {
-  border: none; background: none;
-  cursor: pointer; font-size: var(--text-xs);
-  padding: var(--space-2xs) var(--space-xs); border-radius: var(--radius-xs);
-  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* No margin-left — `.admin-field label` is display:flex with a
+     gap, which already spaces the toggle from the label text. */
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-medium),
+    border-color     var(--transition-medium),
+    color            var(--transition-medium),
+    box-shadow       var(--transition-medium);
 }
-.override-toggle:hover { background: var(--bg-secondary); }
-.override-toggle.locked { background: var(--amber-pale); }
+
+/* Unlocked: outlined, muted, dashed border to signal "available to
+ * act on" without competing with the actual form content. */
+.override-toggle--unlocked {
+  background: transparent;
+  border-color: var(--border);
+  border-style: dashed;
+  color: var(--text-muted);
+}
+.override-toggle--unlocked:hover,
+.override-toggle--unlocked:focus-visible {
+  background: var(--bg-secondary);
+  border-color: var(--amber);
+  border-style: solid;
+  color: var(--amber);
+  outline: none;
+}
+
+/* Locked: filled amber, white text. Strong enough to scan in a
+ * column of two-dozen form fields and immediately see which are
+ * protected. */
+.override-toggle--locked {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: var(--white, #fff);
+}
+.override-toggle--locked:hover,
+.override-toggle--locked:focus-visible {
+  background: var(--amber-hover, var(--amber));
+  border-color: var(--amber-hover, var(--amber));
+  box-shadow: 0 0 0 3px var(--amber-tint-10);
+  outline: none;
+}
+
+/* Icon sits inside the pill — currentColor follows the text so it
+ * inverts cleanly between the two states. */
+.override-toggle svg { flex-shrink: 0; }
+
+.override-toggle-label { white-space: nowrap; }
 
 /* ── Chip selector (relationship editing) ── */
 .admin-section-label {
@@ -404,11 +472,15 @@
   margin-bottom: var(--space-md);
 }
 .admin-override-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: var(--text-xxs); font-weight: 600;
   background: var(--amber-pale); color: var(--amber);
   border: var(--border-width-thin) solid var(--amber-border);
   padding: var(--space-xs) var(--space-md); border-radius: var(--radius-sm);
 }
+.admin-override-chip svg { flex-shrink: 0; }
 .admin-override-date { font-weight: 400; opacity: 0.7; }
 
 /* ── Confirm Dialog ── */

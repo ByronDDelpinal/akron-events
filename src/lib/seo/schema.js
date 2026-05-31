@@ -14,6 +14,7 @@
 
 import { SITE, canonicalUrl } from './constants'
 import { eventPath } from '../slug'
+import { imageUrlForEvent } from '../eventFormatting'
 
 // ──────────────────────────────────────────────────────────────────────
 // Website-wide (emitted on every page from App.jsx)
@@ -235,7 +236,12 @@ export function eventSchema(event) {
 
   if (event.end_at) schema.endDate = event.end_at
   if (event.description) schema.description = event.description
-  if (event.image_url)   schema.image = [event.image_url]
+  // Walk the event → venue → organizer image fallback chain so the
+  // Event rich result always has *something* — Google's validator
+  // warns when image is missing, and we'd rather emit the org logo
+  // than nothing.
+  const resolvedImage = imageUrlForEvent(event)
+  if (resolvedImage) schema.image = [resolvedImage]
 
   const venue = event.venue || (event.venues && event.venues[0])
   if (venue) schema.location = placeSchema(venue)

@@ -14,6 +14,7 @@ import {
   formatPrice,
   formatEventDate,
   gradientFor,
+  imageUrlForEvent,
 } from '@/lib/eventFormatting'
 import './OrganizationDetailPage.css'
 
@@ -295,7 +296,14 @@ function OrgEventsSection({ events }) {
           {visible.length > 0 && (
             <div className="org-events-list">
               {visible.map(event => (
-                <OrgEventRow key={event.id} event={event} />
+                // Pass the org's own image as a fallback so events
+                // without their own image use the organizer's
+                // branding instead of a plain gradient.
+                <OrgEventRow
+                  key={event.id}
+                  event={event}
+                  organizerImageUrl={org.image_url}
+                />
               ))}
             </div>
           )}
@@ -314,10 +322,11 @@ function OrgEventsSection({ events }) {
   )
 }
 
-function OrgEventRow({ event }) {
+function OrgEventRow({ event, organizerImageUrl }) {
   const navigate = useNavigate()
   const price = formatPrice(event.price_min, event.price_max)
-  const imageUrl = event.image_url && /^https?:\/\//i.test(event.image_url) ? event.image_url : null
+  // Fallback chain: event → venue → organizer (provided by parent).
+  const imageUrl = imageUrlForEvent(event, { organizerImageUrl })
   const gradient = imageUrl ? null : gradientFor(event.category)
   const venueName = event.venue?.name ?? event.venues?.[0]?.name
 

@@ -59,7 +59,7 @@ export function useEvents({
           .from('events')
           .select(`
             *,
-            event_venues ( venue:venues ( id, name, address, city, state, zip, lat, lng, parking_type, parking_notes, website ) ),
+            event_venues ( venue:venues ( id, name, address, city, state, zip, lat, lng, parking_type, parking_notes, website, image_url ) ),
             event_organizations ( organization:organizations ( id, name, website, description, image_url ) )
           `, { count: 'exact' })
           .eq('status', 'published')
@@ -328,7 +328,7 @@ export function useEvent(id) {
           *,
           event_venues ( venue:venues (
             id, name, address, city, state, zip,
-            parking_type, parking_notes, lat, lng, website
+            parking_type, parking_notes, lat, lng, website, image_url
           )),
           event_organizations ( organization:organizations (
             id, name, website, description, image_url
@@ -395,8 +395,8 @@ export function useRelatedEvents(eventId, category, { limit = 6 } = {}) {
             id, title, start_at, end_at, category,
             price_min, price_max, image_url, image_width, image_height,
             ticket_url, age_restriction, status, featured, tags,
-            event_venues ( venue:venues ( id, name, city ) ),
-            event_organizations ( organization:organizations ( id, name ) )
+            event_venues ( venue:venues ( id, name, city, image_url ) ),
+            event_organizations ( organization:organizations ( id, name, image_url ) )
           `)
           .eq('status', 'published')
           .eq('category', category)

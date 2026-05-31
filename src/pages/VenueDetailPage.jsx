@@ -15,6 +15,7 @@ import {
   formatEventDate,
   gradientFor,
   PARKING_LABEL,
+  imageUrlForEvent,
 } from '@/lib/eventFormatting'
 import './VenueDetailPage.css'
 
@@ -235,7 +236,16 @@ export default function VenueDetailPage() {
             {!eventsLoading && events.length > 0 && (
               <div className="venue-events-list">
                 {events.map(event => (
-                  <VenueEventRow key={event.id} event={event} />
+                  // Pass the venue's own image so the event row can
+                  // fall back to it when the event has no image of
+                  // its own. The useVenueEvents query doesn't carry
+                  // the venue back through (we're already on the
+                  // venue's page), so we hand it in via `extras`.
+                  <VenueEventRow
+                    key={event.id}
+                    event={event}
+                    venueImageUrl={venue.image_url}
+                  />
                 ))}
               </div>
             )}
@@ -248,10 +258,11 @@ export default function VenueDetailPage() {
 }
 
 /* ── Event row component ── */
-function VenueEventRow({ event }) {
+function VenueEventRow({ event, venueImageUrl }) {
   const navigate  = useNavigate()
   const price    = formatPrice(event.price_min, event.price_max)
-  const imageUrl = event.image_url && /^https?:\/\//i.test(event.image_url) ? event.image_url : null
+  // Fallback chain: event → venue (provided by parent) → organizer.
+  const imageUrl = imageUrlForEvent(event, { venueImageUrl })
   const gradient = imageUrl ? null : gradientFor(event.category)
 
   return (

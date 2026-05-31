@@ -6,6 +6,7 @@ import {
   formatEventDate,
   gradientFor,
   AGE_LABEL,
+  imageUrlForEvent,
 } from '@/lib/eventFormatting'
 import './EventCard.css'
 
@@ -46,7 +47,11 @@ export default function EventCard({ event, featured = false, viewMode = 'comfort
 
 function ComfortableCard({ event, featured, price, navigate }) {
   const gradient  = gradientFor(event.category)
-  const hasImage  = Boolean(event.image_url)
+  // Image fallback chain: event → venue → organizer. Resolved by
+  // imageUrlForEvent so every card across the app picks the same
+  // candidate in the same order.
+  const imageUrl  = imageUrlForEvent(event)
+  const hasImage  = Boolean(imageUrl)
 
   return (
     <div
@@ -62,7 +67,7 @@ function ComfortableCard({ event, featured, price, navigate }) {
           <div
             className="card-bg-image"
             aria-hidden="true"
-            style={{ backgroundImage: `url(${event.image_url})` }}
+            style={{ backgroundImage: `url(${imageUrl})` }}
           />
           <div className="card-bg-scrim" aria-hidden="true" />
         </>
