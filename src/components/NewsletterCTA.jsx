@@ -23,16 +23,16 @@ import './NewsletterCTA.css'
 const COPY = {
   event: {
     eyebrow: 'Never miss an event',
-    heading: 'Get Akron events every Thursday',
+    heading: 'Get Akron events in your inbox, on your schedule',
     body:
-      "A free weekly email with the best upcoming events in Akron — concerts, family activities, free things to do, and more.",
+      "A free email roundup of the best upcoming events in Akron — concerts, family activities, free things to do, and more. Pick how often you want it.",
     cta: 'Sign up free',
   },
   hub: {
     eyebrow: 'Weekly digest',
-    heading: 'Get Akron events every Thursday',
+    heading: 'Get Akron events in your inbox, on your schedule',
     body:
-      "A free weekly email with the best upcoming events in Akron — concerts, art shows, family activities, free things to do, and more. One inbox-friendly summary, no spam.",
+      "A free email roundup of the best upcoming events in Akron — concerts, art shows, family activities, free things to do, and more. Pick how often you want it.",
     cta: 'Sign up free',
   },
 }

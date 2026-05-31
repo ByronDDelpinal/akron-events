@@ -254,6 +254,14 @@ export default function EventPage() {
               ? <EventDescription text={event.description} />
               : <p className="event-detail-desc">No description available.</p>
             }
+
+            {/* ── NEWSLETTER CTA ──
+             * Lives inside the main column so it sits beside the
+             * sidebar instead of stretching full-width below the
+             * two-column layout. Anchors the bottom of the event-
+             * details section and gives share-driven visitors a
+             * recurring touchpoint before they decide to leave. */}
+            <NewsletterCTA variant="event" surface="event_detail" />
           </div>
 
           {/* ── SIDEBAR ── */}
@@ -313,12 +321,6 @@ export default function EventPage() {
           </aside>
 
         </div>
-
-        {/* ── NEWSLETTER CTA ──
-         * Converts share-driven visitors into a recurring audience.
-         * Sits above related events so it competes for attention
-         * before the next browse hop. */}
-        <NewsletterCTA variant="event" surface="event_detail" />
 
         {/* ── RELATED EVENTS ──
          * 4 upcoming events in the same category, fetched client-side

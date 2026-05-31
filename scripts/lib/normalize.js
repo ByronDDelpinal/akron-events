@@ -27,8 +27,16 @@ const NAMED_ENTITIES = {
   frac12: '\u00BD', frac14: '\u00BC', frac34: '\u00BE',
 }
 
-function decodeEntities(str) {
-  return str
+/**
+ * Decode HTML character entities — numeric (`&#39;`), hex (`&#x27;`),
+ * and named (`&amp;`, `&nbsp;`, etc.) — back to their literal
+ * characters. Exported because tags (which are not HTML-stripped)
+ * still benefit from entity decoding so values like "health &amp;
+ * fitness" land in the DB as "health & fitness".
+ */
+export function decodeEntities(str) {
+  if (!str) return str
+  return String(str)
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)))
     .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
     .replace(/&([a-zA-Z]+);/g, (match, name) => NAMED_ENTITIES[name] ?? NAMED_ENTITIES[name.toLowerCase()] ?? match)
@@ -621,6 +629,15 @@ export function sanitizeEventText(row) {
     // markers are preserved. stripHtml collapses all whitespace to a single
     // space, which flattens multi-paragraph descriptions into one long string.
     description: row.description ? htmlToText(row.description) : row.description,
+    // Tags come from source `categories` arrays and aren't HTML, but
+    // some upstream feeds emit values like "health &amp; fitness" with
+    // entities intact. Decode each entry so the DB never stores
+    // entity-encoded text.
+    tags: Array.isArray(row.tags)
+      ? row.tags
+          .map(t => (typeof t === 'string' ? decodeEntities(t).trim() : t))
+          .filter(Boolean)
+      : row.tags,
   }
 }
 

@@ -39,7 +39,9 @@
   line-height: 1.55;
   color: var(--text-muted);
   margin: 0 0 18px;
-  max-width: 56ch;
+  /* Let the body span the full width of the .newsletter-cta card.
+     Previously capped at 56ch for readability, but the card itself
+     already constrains overall width and the body should fill it. */
 }
 
 .newsletter-cta-btn {
