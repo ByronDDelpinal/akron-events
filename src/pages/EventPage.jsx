@@ -5,6 +5,8 @@ import { useEvent } from '@/hooks/useEvents'
 import { VenueMap } from '@/components/MapView'
 import CategoryBadge from '@/components/CategoryBadge'
 import RelatedEvents from '@/components/RelatedEvents'
+import ShareButtons from '@/components/ShareButtons'
+import NewsletterCTA from '@/components/NewsletterCTA'
 import {
   SEO,
   buildGraph,
@@ -199,6 +201,18 @@ export default function EventPage() {
               ))}
             </div>
 
+            {/* Share row — placed near the top of the content so users
+                can grab a link without scrolling. UTM-tagged so we can
+                tell which platform drove a session in analytics. */}
+            <div className="event-detail-share">
+              <ShareButtons
+                url={canonicalPath}
+                title={event.title}
+                text={seoDesc}
+                campaign="event_detail"
+              />
+            </div>
+
             {/* Mobile info (shown below 820px, before the description).
              * The sidebar is hidden on mobile, so anything riders need before
              * they decide to act — venue + map especially — has to live here. */}
@@ -296,6 +310,12 @@ export default function EventPage() {
           </aside>
 
         </div>
+
+        {/* ── NEWSLETTER CTA ──
+         * Converts share-driven visitors into a recurring audience.
+         * Sits above related events so it competes for attention
+         * before the next browse hop. */}
+        <NewsletterCTA variant="event" surface="event_detail" />
 
         {/* ── RELATED EVENTS ──
          * 4 upcoming events in the same category, fetched client-side

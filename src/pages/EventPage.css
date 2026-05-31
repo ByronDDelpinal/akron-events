@@ -127,8 +127,12 @@
 .event-detail-org-link:hover { text-decoration: underline; }
 .event-detail-type-row {
   display: flex; gap: var(--space-sm); align-items: center;
-  flex-wrap: wrap; margin-bottom: var(--space-2xl);
+  flex-wrap: wrap; margin-bottom: var(--space-lg);
 }
+/* Share row sits between the category/tags row and the mobile info
+   grid. The smaller bottom margin on type-row above keeps the share
+   row close to its context. */
+.event-detail-share { margin-bottom: var(--space-2xl); }
 .user-tag {
   font-size: var(--text-xxs); font-weight: 500;
   color: var(--text-muted);

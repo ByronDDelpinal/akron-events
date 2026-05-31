@@ -239,15 +239,33 @@ export const CATEGORY_HUBS = [
 ]
 
 // ── Neighborhood / Area hub pages ───────────────────────────────────
-// Each entry maps an Akron-area neighborhood to a hyper-local hub
-// page. The page filters events whose venue is located inside the
-// neighborhood by matching venue city + (optionally) area names from
-// the `areas` table. Where a neighborhood is its own municipality
-// (e.g. Cuyahoga Falls, Stow), `cityMatch` is the canonical city
-// string used to filter events.
+//
+// IMPORTANT: every entry below is currently `disabled: true`.
+//
+// The original venue-keyword matching (`venueIncludes`) was authored
+// from memory without verified data — see docs/neighborhoods.md for
+// the full story. Until the City of Akron's official 24-neighborhood
+// polygon set is ingested (PostGIS + `ST_Contains` against
+// `venues.lat`/`lng`), these hubs filter to wrong results, so they
+// are hidden from:
+//   - the sitemap (api/sitemap.xml.js reads ENABLED_HUB_PATHS)
+//   - the footer (src/components/Footer.jsx)
+//   - the homepage chip strip (src/pages/HomePage.jsx)
+//   - related-hub strips on category pages
+// Hub URLs themselves still resolve — CategoryPage redirects disabled
+// hubs to the homepage so any previously-shared link stays useful.
+//
+// When polygons land:
+//   1. Drop the `disabled` flag.
+//   2. Replace `venueIncludes` with the polygon lookup (the page
+//      already filters by venue when a hub is a neighborhood — only
+//      the matcher needs to change).
+//   3. Verify each hub renders a sensible event list before letting
+//      the sitemap rebuild include them.
 
 export const NEIGHBORHOOD_HUBS = [
   {
+    disabled: true, // see header note — venue matcher is unverified
     slug: 'downtown-akron',
     label: 'Downtown Akron',
     title: 'Downtown Akron Events',
@@ -292,6 +310,7 @@ export const NEIGHBORHOOD_HUBS = [
     ],
   },
   {
+    disabled: true, // see header note — venue matcher is unverified
     slug: 'highland-square',
     label: 'Highland Square',
     title: 'Highland Square Events & Things To Do',
@@ -317,6 +336,7 @@ export const NEIGHBORHOOD_HUBS = [
     venueIncludes: ['Nightlight', 'Highland Square', 'Mustard Seed Market'],
   },
   {
+    disabled: true, // see header note — venue matcher is unverified
     slug: 'north-hill',
     label: 'North Hill',
     title: 'North Hill Community Events',
@@ -337,6 +357,7 @@ export const NEIGHBORHOOD_HUBS = [
     venueIncludes: ['North Hill', 'Exchange House'],
   },
   {
+    disabled: true, // see header note — also, these are separate cities, not Akron neighborhoods
     slug: 'fairlawn-copley',
     label: 'Fairlawn & Copley',
     title: 'Fairlawn & Copley Events',
@@ -350,6 +371,7 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Fairlawn', 'Copley'],
   },
   {
+    disabled: true, // see header note — also, Cuyahoga Falls is a separate city, not an Akron neighborhood
     slug: 'cuyahoga-falls',
     label: 'Cuyahoga Falls',
     title: 'Cuyahoga Falls Events',
@@ -369,6 +391,7 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Cuyahoga Falls'],
   },
   {
+    disabled: true, // see header note — also, Stow is a separate city, not an Akron neighborhood
     slug: 'stow',
     label: 'Stow',
     title: 'Stow, OH Events',
@@ -398,10 +421,33 @@ export function getHub(slug) {
 }
 
 /**
- * Every hub path — used by api/sitemap.xml.js so Google discovers
- * every category and neighborhood landing page on first crawl.
+ * `disabled: true` hubs are removed from every user-facing surface
+ * (footer, homepage strip, sitemap, related-hub strips). The hub
+ * route itself still resolves so previously-shared URLs don't 404 —
+ * CategoryPage redirects disabled hubs to the homepage.
+ *
+ * Filter helpers below all skip disabled hubs.
  */
-export const ALL_HUB_PATHS = [
-  ...CATEGORY_HUBS.map((h) => `/events/${h.slug}`),
-  ...NEIGHBORHOOD_HUBS.map((h) => `/events/${h.slug}`),
+function isEnabled(hub) {
+  return hub && !hub.disabled
+}
+
+export const ENABLED_CATEGORY_HUBS     = CATEGORY_HUBS.filter(isEnabled)
+export const ENABLED_NEIGHBORHOOD_HUBS = NEIGHBORHOOD_HUBS.filter(isEnabled)
+
+/**
+ * Every enabled hub path — used by api/sitemap.xml.js. Disabled hubs
+ * are deliberately omitted so we don't tell Google to crawl pages
+ * that filter to wrong content. (When polygons land, flip
+ * `disabled: false` and the sitemap picks them up automatically.)
+ */
+export const ENABLED_HUB_PATHS = [
+  ...ENABLED_CATEGORY_HUBS.map((h) => `/events/${h.slug}`),
+  ...ENABLED_NEIGHBORHOOD_HUBS.map((h) => `/events/${h.slug}`),
 ]
+
+/**
+ * @deprecated Use ENABLED_HUB_PATHS instead. Kept for one cycle in
+ * case any old import still references it; safe to remove later.
+ */
+export const ALL_HUB_PATHS = ENABLED_HUB_PATHS

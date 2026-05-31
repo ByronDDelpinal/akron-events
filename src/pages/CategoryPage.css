@@ -51,7 +51,11 @@
   line-height: 1.65;
   color: var(--text-muted);
   max-width: 780px;
-  margin: 0 0 36px;
+  margin: 0 0 24px;
+}
+
+.hub-share {
+  margin-bottom: 36px;
 }
 
 /* ── Section headings ──────────────────────────────────────────── */

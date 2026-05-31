@@ -12,7 +12,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { eventPath } from '../src/lib/slug.js'
-import { ALL_HUB_PATHS } from '../src/lib/seo/categories.js'
+import { ENABLED_HUB_PATHS } from '../src/lib/seo/categories.js'
 
 const SITE_ORIGIN = 'https://events.supportlocalakron.com'
 
@@ -33,7 +33,7 @@ const STATIC_ROUTES = [
   // are the keyword-targeted landing pages most likely to win on
   // local-intent queries ("free events in Akron", "downtown Akron
   // events", "concerts in Akron").
-  ...ALL_HUB_PATHS.map((path) => ({
+  ...ENABLED_HUB_PATHS.map((path) => ({
     path,
     priority:   0.85,
     changefreq: 'daily',

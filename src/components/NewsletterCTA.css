@@ -1,0 +1,64 @@
+/**
+ * NewsletterCTA.css
+ *
+ * Distinct callout card — amber border + tinted background so it
+ * reads as "this is different from the rest of the page" without
+ * fighting the theme.
+ */
+
+.newsletter-cta {
+  border: 1px solid var(--amber-border, var(--border));
+  background: var(--amber-tint-10, var(--bg-card));
+  border-radius: var(--radius-md, 12px);
+  padding: var(--space-xl, 28px);
+  margin: var(--space-xl, 28px) 0;
+  max-width: 720px;
+}
+
+.newsletter-cta-eyebrow {
+  font-family: var(--font-display);
+  font-size: var(--text-tag, 0.7rem);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--amber);
+  margin: 0 0 8px;
+}
+
+.newsletter-cta-heading {
+  font-family: var(--font-display);
+  font-size: var(--text-h4, 1.5rem);
+  font-weight: 700;
+  margin: 0 0 12px;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.newsletter-cta-body {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+  margin: 0 0 18px;
+  max-width: 56ch;
+}
+
+.newsletter-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--amber);
+  color: var(--white, #fff);
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 12px 22px;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: background var(--transition-medium), transform var(--transition-medium);
+}
+
+.newsletter-cta-btn:hover,
+.newsletter-cta-btn:focus-visible {
+  background: var(--amber-hover, var(--amber));
+  outline: none;
+  transform: translateY(-1px);
+}

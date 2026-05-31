@@ -60,20 +60,35 @@ export default function SEO({
       <link rel="canonical" href={url} />
       {noindex && <meta name="robots" content="noindex,nofollow" />}
 
-      {/* Open Graph */}
-      <meta property="og:site_name"   content={SITE.name} />
-      <meta property="og:title"       content={fullTitle} />
-      <meta property="og:description" content={description} />
-      <meta property="og:url"         content={url} />
-      <meta property="og:type"        content={type} />
-      <meta property="og:locale"      content={SITE.locale} />
-      <meta property="og:image"       content={absoluteImage} />
+      {/* Open Graph
+       *
+       * og:image:width / og:image:height are required by Facebook,
+       * iMessage, and LinkedIn to render link previews without a
+       * fetch-and-measure round trip. Every OG image we emit is
+       * either:
+       *   - the static /og-default.jpg (1200×630)
+       *   - the dynamic /api/og/event/[id] PNG (1200×630)
+       *   - the dynamic /api/og/hub/[slug] PNG (1200×630)
+       * All three resolve to 1200×630, so the dimensions are
+       * hard-coded here. If we ever start serving variants, swap
+       * these for per-call props. */}
+      <meta property="og:site_name"    content={SITE.name} />
+      <meta property="og:title"        content={fullTitle} />
+      <meta property="og:description"  content={description} />
+      <meta property="og:url"          content={url} />
+      <meta property="og:type"         content={type} />
+      <meta property="og:locale"       content={SITE.locale} />
+      <meta property="og:image"        content={absoluteImage} />
+      <meta property="og:image:width"  content="1200" />
+      <meta property="og:image:height" content="630" />
+      <meta property="og:image:alt"    content={fullTitle} />
 
       {/* Twitter */}
       <meta name="twitter:card"        content="summary_large_image" />
       <meta name="twitter:title"       content={fullTitle} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image"       content={absoluteImage} />
+      <meta name="twitter:image:alt"   content={fullTitle} />
 
       {/* JSON-LD. Each fragment becomes its own <script> tag so a bad
           one doesn't break the others. */}

@@ -39,3 +39,8 @@ Disallow: /unsubscribe
 Disallow: /feedback
 
 Sitemap: https://events.supportlocalakron.com/sitemap.xml
+
+# RSS feed of upcoming events. Documented here alongside the sitemap as
+# the canonical syndication URL for aggregators and news outlets.
+# Reader software typically discovers feeds via the <link rel="alternate">
+# tag in index.html, not robots.txt.

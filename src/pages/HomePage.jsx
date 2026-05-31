@@ -10,7 +10,16 @@ import FilterBar from '@/components/FilterBar'
 import MapView from '@/components/MapView'
 import SourceOverflowCard from '@/components/SourceOverflowCard'
 import { INTENTS, SEARCH_SUGGESTIONS } from '@/lib/intents'
-import { SEO, homeTitle, homeDescription, CATEGORY_HUBS, NEIGHBORHOOD_HUBS } from '@/lib/seo'
+import {
+  SEO,
+  homeTitle,
+  homeDescription,
+  ENABLED_CATEGORY_HUBS,
+  ENABLED_NEIGHBORHOOD_HUBS,
+  buildGraph,
+  itemListSchema,
+} from '@/lib/seo'
+import { eventPath } from '@/lib/slug'
 import './HomePage.css'
 
 // ── Source overflow cap ───────────────────────────────────────────────────────
@@ -356,12 +365,30 @@ export default function HomePage() {
     })
   }, [])
 
+  // Build an ItemList JSON-LD of the next ~12 upcoming events. AI
+  // assistants (Claude, ChatGPT, Perplexity) parse structured lists
+  // like this when answering "what's happening in Akron this week"
+  // queries — emitting it here turns the homepage into a citable
+  // surface for AI-driven discovery without requiring a separate
+  // crawl pass on category pages.
+  const homepageItemList = useMemo(() => {
+    if (!allEvents || allEvents.length === 0) return null
+    return itemListSchema(
+      allEvents.slice(0, 12).map((e) => ({
+        name: e.title,
+        url: eventPath(e),
+      })),
+    )
+  }, [allEvents])
+  const homeGraph = homepageItemList ? buildGraph(homepageItemList) : null
+
   return (
     <>
       <SEO
         title={homeTitle()}
         description={homeDescription()}
         path="/"
+        jsonLd={homeGraph}
       />
 
       {/* ── HERO ── */}
@@ -448,21 +475,25 @@ export default function HomePage() {
        * topical landing page. The links are wrapped in a <nav>
        * with an aria-label for accessibility and crawler
        * comprehension. */}
-      <nav className="home-hub-strip" aria-label="Browse Akron events by category and neighborhood">
-        <p className="home-hub-strip-label">Popular searches</p>
-        <ul className="home-hub-strip-list">
-          {CATEGORY_HUBS.map((h) => (
-            <li key={`cat-${h.slug}`}>
-              <Link to={`/events/${h.slug}`}>{h.label}</Link>
-            </li>
-          ))}
-          {NEIGHBORHOOD_HUBS.slice(0, 3).map((h) => (
-            <li key={`nb-${h.slug}`}>
-              <Link to={`/events/${h.slug}`}>{h.label}</Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      {/* Hub strip — categories only for now. Top 3 enabled
+          neighborhoods will rejoin the strip once GIS data lands. */}
+      {(ENABLED_CATEGORY_HUBS.length + ENABLED_NEIGHBORHOOD_HUBS.length) > 0 && (
+        <nav className="home-hub-strip" aria-label="Browse Akron events by category and neighborhood">
+          <p className="home-hub-strip-label">Popular searches</p>
+          <ul className="home-hub-strip-list">
+            {ENABLED_CATEGORY_HUBS.map((h) => (
+              <li key={`cat-${h.slug}`}>
+                <Link to={`/events/${h.slug}`}>{h.label}</Link>
+              </li>
+            ))}
+            {ENABLED_NEIGHBORHOOD_HUBS.slice(0, 3).map((h) => (
+              <li key={`nb-${h.slug}`}>
+                <Link to={`/events/${h.slug}`}>{h.label}</Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
 
       {/* ── FILTER BAR ── */}
       <FilterBar
