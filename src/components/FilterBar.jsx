@@ -63,8 +63,8 @@ export default function FilterBar({
     <>
       <div className="filter-bar">
 
-        {/* ── Row 1: Date tabs + view toggle ── */}
-        <div className="filter-date-row">
+        {/* ── Row 1: Date tabs + view toggle [TOGGLED OFF FOR NOW] ── */}
+        {/* <div className="filter-date-row">
           <div className="filter-date-tabs">
             {DATE_TABS.map(tab => (
               <button
@@ -95,7 +95,7 @@ export default function FilterBar({
               <MapIcon /> Map
             </button>
           </div>
-        </div>
+        </div> */}
 
         {/* ── Row 2: Filter & Sort + View mode toggle ──
          * Intents (Date Night, Family Fun, Give Back) used to occupy a full
