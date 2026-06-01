@@ -11,17 +11,32 @@ const supabase = createClient(
 )
 const resend = new Resend(Deno.env.get('RESEND_API_KEY')!)
 
+// Surface the env shape at cold-start so a missing key is obvious in
+// the Supabase function logs without leaking the values themselves.
+// Catching this once is a lot cheaper than tracing a silent send
+// failure later.
+console.log('[subscribe] cold start', {
+  has_SUPABASE_URL:              !!Deno.env.get('SUPABASE_URL'),
+  has_SUPABASE_SERVICE_ROLE_KEY: !!Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+  has_RESEND_API_KEY:            !!Deno.env.get('RESEND_API_KEY'),
+  PUBLIC_SITE_URL:               Deno.env.get('PUBLIC_SITE_URL') || '(default)',
+})
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const BASE_URL = Deno.env.get('PUBLIC_SITE_URL') || 'https://events.supportlocalakron.com'
+const BASE_URL = Deno.env.get('PUBLIC_SITE_URL') || 'https://akronpulse.com'
 
 // ── Brand theme (mirrors src/lib/emailTheme.js — update both together) ──
+// `from` can be overridden via RESEND_FROM env var so a future domain
+// migration is a single secret update instead of a redeploy. Default
+// is the verified `akronpulse.com` apex domain (the old
+// `events.supportlocalakron.com` was retired May 2026).
 const THEME = {
   brandName: 'Akron Pulse',
-  from: 'Akron Pulse <digest@events.supportlocalakron.com>',
+  from: Deno.env.get('RESEND_FROM') || 'Akron Pulse <digest@akronpulse.com>',
   colors: {
     primary:       '#0E5163',
     textPrimary:   '#1F2A30',
@@ -80,17 +95,26 @@ Deno.serve(async (req) => {
       .single()
 
     if (existing) {
-      // Already exists — silently re-send confirmation (don't reveal to client)
+      // Already exists. We never tell the client which branch we took
+      // (that would let someone probe whether an email is subscribed),
+      // but we DO log it so the function stops behaving like a black
+      // box — silent no-ops here were what made the email-delivery
+      // debugging painful in May 2026.
       if (!existing.confirmed) {
+        console.log('[subscribe] existing unconfirmed subscriber — resending confirmation', { email })
         const { data: sub } = await supabase
           .from('subscribers')
           .select('token')
           .eq('id', existing.id)
           .single()
         if (sub) await sendConfirmationEmail(email, sub.token)
+      } else {
+        console.log('[subscribe] existing CONFIRMED subscriber — no email sent', { email })
       }
       return json({ ok: true })
     }
+
+    console.log('[subscribe] new subscriber — creating + sending confirmation', { email })
 
     // Build initial preferences from signup form
     const preferences: Record<string, unknown> = {
@@ -141,12 +165,56 @@ Deno.serve(async (req) => {
 
 // ── Email helpers ──
 
+/**
+ * Wraps resend.emails.send and treats a non-null `error` field on the
+ * response as a hard failure. The Resend v4 SDK does NOT throw on API
+ * errors — it returns `{ data: null, error: { ... } }`. The previous
+ * implementation awaited the call and ignored the return shape, so an
+ * unverified sender domain, invalid API key, exceeded quota, or any
+ * other 4xx/5xx from Resend silently turned into a 200 response from
+ * this function and a "Check your inbox!" success state on the
+ * client. No email ever left Resend.
+ *
+ * This helper:
+ *   - Logs a single structured line for both success and failure so
+ *     Supabase function logs are useful at a glance.
+ *   - Throws on failure so the outer try/catch in `Deno.serve` returns
+ *     500 to the client and the user sees a real error instead of a
+ *     fake confirmation screen.
+ *
+ * `label` is a short human tag used in log lines ("confirmation",
+ * "preferences") so we can tell which template failed.
+ */
+async function sendEmail(
+  label: string,
+  payload: Parameters<typeof resend.emails.send>[0],
+  options?: Parameters<typeof resend.emails.send>[1],
+) {
+  const response = await resend.emails.send(payload, options ?? {})
+
+  if (response.error) {
+    console.error(`[subscribe] ${label} email failed`, {
+      to: payload.to,
+      from: payload.from,
+      error: response.error,
+    })
+    throw new Error(
+      `Resend ${label} send failed: ${response.error.name || ''} ${response.error.message || JSON.stringify(response.error)}`,
+    )
+  }
+
+  console.log(`[subscribe] ${label} email sent`, {
+    to: payload.to,
+    resend_id: response.data?.id,
+  })
+}
+
 async function sendConfirmationEmail(email: string, token: string) {
   const confirmUrl = `${BASE_URL}/subscribe/preferences?token=${token}`
   const c = THEME.colors
   const f = THEME.fonts
 
-  await resend.emails.send({
+  await sendEmail('confirmation', {
     from: THEME.from,
     to: [email],
     subject: `Confirm your ${THEME.brandName} subscription`,
@@ -176,7 +244,7 @@ async function sendPreferencesEmail(email: string, token: string) {
   const c = THEME.colors
   const f = THEME.fonts
 
-  await resend.emails.send({
+  await sendEmail('preferences', {
     from: THEME.from,
     to: [email],
     subject: `Your ${THEME.brandName} preferences link`,

@@ -17,16 +17,18 @@ const supabase = createClient(
 )
 const resend = new Resend(Deno.env.get('RESEND_API_KEY')!)
 
-const BASE_URL = Deno.env.get('PUBLIC_SITE_URL') || 'https://events.supportlocalakron.com'
+const BASE_URL = Deno.env.get('PUBLIC_SITE_URL') || 'https://akronpulse.com'
 const BATCH_SIZE = 100
 const MAX_EVENTS_PER_EMAIL = 10
 
 // ── Brand theme (mirrors src/lib/emailTheme.js — update both together) ──
+// `from` falls back to RESEND_FROM env var for parity with subscribe
+// fn, so a future sender change is one secret update.
 const THEME = {
   brandName: 'Akron Pulse',
   copyrightHolder: 'Akron Pulse',
   location: 'Akron, OH',
-  from: 'Akron Pulse <digest@events.supportlocalakron.com>',
+  from: Deno.env.get('RESEND_FROM') || 'Akron Pulse <digest@akronpulse.com>',
   colors: {
     primary:       '#0E5163',
     background:    '#FCFAF4',

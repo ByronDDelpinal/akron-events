@@ -35,7 +35,7 @@ const BASE_URL    = 'https://nightlightcinema.com'
 const HOME_URL    = `${BASE_URL}/home/`
 const SITEMAP_URL = `${BASE_URL}/sitemap.xml`
 
-const USER_AGENT = 'Mozilla/5.0 (compatible; AkronPulse-bot/1.0; +https://events.supportlocalakron.com)'
+const USER_AGENT = 'Mozilla/5.0 (compatible; AkronPulse-bot/1.0; +https://akronpulse.com)'
 
 // Per-page delay is 0 because Puppeteer's `waitUntil: 'networkidle2'` already
 // blocks until the page is quiet — that's natural pacing between fetches.

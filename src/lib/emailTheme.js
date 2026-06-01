@@ -14,7 +14,7 @@ export const EMAIL_THEME = {
   location: 'Akron, OH',
 
   // URLs (update when domain changes)
-  baseUrl: 'https://events.supportlocalakron.com',      // production domain
+  baseUrl: 'https://akronpulse.com',     // production domain (May 2026 rebrand from events.supportlocalakron.com)
   logoUrl: null,                         // set when logo is hosted
 
   // Colors — synced with the Civic Teal palette in globals.css :root
@@ -42,7 +42,7 @@ export const EMAIL_THEME = {
   // Email-specific
   email: {
     fromName: 'Akron Pulse',
-    fromAddress: 'digest@events.supportlocalakron.com',   // update with verified domain
+    fromAddress: 'digest@akronpulse.com', // verified in Resend May 2026; the Edge functions also accept a RESEND_FROM env override
     replyTo: null,                        // optional
   },
 }

@@ -16,7 +16,7 @@
 export const config = { runtime: 'edge' }
 
 const SITE_NAME = 'Akron Pulse'
-const SITE_ORIGIN = 'https://events.supportlocalakron.com'
+const SITE_ORIGIN = 'https://akronpulse.com'
 const SITE_TAGLINE = 'Everything happening in Akron & Summit County'
 
 const MONTHS = [

@@ -20,7 +20,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { eventPath } from '../src/lib/slug.js'
 
-const SITE_ORIGIN  = 'https://events.supportlocalakron.com'
+const SITE_ORIGIN  = 'https://akronpulse.com'
 const FEED_TITLE   = 'Akron Pulse — Upcoming Events'
 const FEED_DESCRIPTION =
   'Concerts, art shows, festivals, family events, food and drink, and more — happening in Akron, OH and Summit County.'

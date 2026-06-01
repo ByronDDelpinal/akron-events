@@ -14,7 +14,7 @@ import { createClient } from '@supabase/supabase-js'
 import { eventPath } from '../src/lib/slug.js'
 import { ENABLED_HUB_PATHS } from '../src/lib/seo/categories.js'
 
-const SITE_ORIGIN = 'https://events.supportlocalakron.com'
+const SITE_ORIGIN = 'https://akronpulse.com'
 
 // The static routes — kept in one place so every prerender/sitemap
 // tool agrees on what "the site" is. Category and neighborhood hub

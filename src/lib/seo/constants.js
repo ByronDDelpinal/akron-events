@@ -8,7 +8,7 @@ export const SITE = {
   name: 'Akron Pulse',
   tagline: 'Everything happening in Akron & Summit County',
   // Base URL with no trailing slash; used to build canonicals + sitemap.
-  baseUrl: 'https://events.supportlocalakron.com',
+  baseUrl: 'https://akronpulse.com',
   // Written long-form for AI citations — what Akron Pulse IS, in one line.
   description:
     'Akron Pulse is a free directory of local events in Akron, Ohio and Summit County — concerts, art shows, community gatherings, fundraisers, farmers markets, sports, and more, all in one place.',
@@ -17,7 +17,7 @@ export const SITE = {
   region: 'OH',
   city: 'Akron',
   // Default social share image (static fallback until per-page OG is built).
-  defaultOgImage: 'https://events.supportlocalakron.com/og-default.jpg',
+  defaultOgImage: 'https://akronpulse.com/og-default.jpg',
 }
 
 /**

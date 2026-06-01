@@ -1,5 +1,5 @@
 # robots.txt — Akron Pulse
-# https://events.supportlocalakron.com
+# https://akronpulse.com
 #
 # Strategy (April 2026): allow all mainstream search + AI crawlers so we
 # show up in AI answers and traditional SERPs. Events are public,
@@ -38,7 +38,7 @@ Disallow: /subscribe/preferences
 Disallow: /unsubscribe
 Disallow: /feedback
 
-Sitemap: https://events.supportlocalakron.com/sitemap.xml
+Sitemap: https://akronpulse.com/sitemap.xml
 
 # RSS feed of upcoming events. Documented here alongside the sitemap as
 # the canonical syndication URL for aggregators and news outlets.

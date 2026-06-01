@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigationType, useParams } from 'react-router-dom'
 import { useEffect } from 'react'
 import Header   from '@/components/Header'
 import Footer   from '@/components/Footer'
@@ -53,11 +53,36 @@ export default function App() {
 }
 
 function AppInner() {
-  const location = useLocation()
+  const location       = useLocation()
+  const navigationType = useNavigationType()
 
   useEffect(() => {
     trackPageView(location.pathname + location.search)
   }, [location])
+
+  // Scroll restoration.
+  //
+  // React Router v6 does not auto-scroll on navigation. We want:
+  //   - PUSH/REPLACE (a fresh link click or programmatic nav) → scroll
+  //     to the top so the new page starts at its hero/header instead
+  //     of inheriting the previous page's scroll offset.
+  //   - POP (browser back/forward button) → leave the position alone
+  //     so the browser's native scroll restoration can return the user
+  //     to where they were. Scrolling to top here would feel wrong on
+  //     a back button.
+  //
+  // We also skip the scroll when there's a hash fragment so anchor
+  // links like /about#faq still jump to the right place. We only
+  // react to pathname changes (not search) so toggling filters on the
+  // homepage (`?categories=music`) doesn't yank the user to the top.
+  useEffect(() => {
+    if (navigationType === 'POP') return
+    if (location.hash) return
+    // Use 'instant' rather than 'smooth' — a smooth scroll on every
+    // page change competes with the new page's first paint and feels
+    // sluggish, especially on event detail pages.
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+  }, [location.pathname, navigationType])
 
   // Site-wide JSON-LD — appears on every page as a default. Individual
   // pages still render their own <SEO /> for page-specific meta +
