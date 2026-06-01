@@ -98,9 +98,21 @@ export default function EmailPage() {
 
       if (error) throw error
 
+      // The send-digest function returns { emails_sent, skipped, failed,
+      // subscribers_due } as its summary. The previous accounting read
+      // `data?.sent`, which never existed — so this counter always
+      // showed 0 regardless of what actually went out. Also surface
+      // `failed` since a silent batch failure used to look identical
+      // to a clean run here.
+      const sent    = data?.emails_sent ?? 0
+      const skipped = data?.skipped ?? 0
+      const failed  = data?.failed ?? 0
+      const due     = data?.subscribers_due ?? 0
       setSendResult({
-        ok: true,
-        message: `Sent ${data?.sent ?? 0} emails, skipped ${data?.skipped ?? 0}`,
+        ok: failed === 0,
+        message: failed === 0
+          ? `Sent ${sent} of ${due} subscribers (${skipped} skipped — no matching events)`
+          : `Sent ${sent}, skipped ${skipped}, FAILED ${failed} of ${due} subscribers — check function logs`,
       })
 
       // Refresh stats and sends after a short delay

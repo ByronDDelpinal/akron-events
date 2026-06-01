@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { INTENTS } from '@/lib/intents'
 import { EMAIL_THEME } from '@/lib/emailTheme'
 import { SEO } from '@/lib/seo'
+import { trackEvent } from '@/lib/analytics'
 import './SubscribePage.css'
 
 const FREQUENCIES = [
@@ -73,6 +74,20 @@ export default function SubscribePage() {
       if (data?.error) throw new Error(data.error)
 
       setStatus('success')
+
+      // GA4 event: fires for every successful signup submission,
+      // BEFORE confirmation. Pairs with `newsletter_confirm` on
+      // PreferencesPage so the funnel (signup → confirm) can be
+      // measured. We don't include the email address — PII stays out
+      // of analytics by default.
+      trackEvent('newsletter_subscribe', {
+        category: 'Subscribe',
+        label: frequency,
+        // GA4 conventional fields surfaced as event_params:
+        frequency,
+        lookahead_days: lookahead,
+        intents: (selectedIntents || []).join(','),
+      })
     } catch (err) {
       console.error('Subscribe error:', err)
       setError('Something went wrong. Please try again.')

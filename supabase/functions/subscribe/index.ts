@@ -21,6 +21,10 @@ console.log('[subscribe] cold start', {
   has_RESEND_API_KEY:            !!Deno.env.get('RESEND_API_KEY'),
   PUBLIC_SITE_URL:               Deno.env.get('PUBLIC_SITE_URL') || '(default)',
 })
+// Operator notifications live in the `preferences` function (sent
+// on confirmation, not signup), so subscribe doesn't need its own
+// ADMIN_NOTIFY_EMAIL secret. The analytics events on SubscribePage
+// cover signup-side funnel reporting.
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -155,6 +159,12 @@ Deno.serve(async (req) => {
     }
 
     await sendConfirmationEmail(email, newSub.token)
+
+    // No admin notification here — operators are notified on
+    // CONFIRMATION (in the preferences fn), not on initial signup, so
+    // the inbox only fills with real opted-in subscribers, not
+    // abandoned half-signups. The analytics on the SubscribePage
+    // still capture every signup attempt for funnel analysis.
 
     return json({ ok: true })
   } catch (err) {

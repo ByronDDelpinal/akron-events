@@ -5,6 +5,7 @@ import { INTENTS } from '@/lib/intents'
 import { EMAIL_THEME } from '@/lib/emailTheme'
 import SearchableMultiSelect from '@/components/SearchableMultiSelect'
 import { SEO } from '@/lib/seo'
+import { trackEvent } from '@/lib/analytics'
 import './PreferencesPage.css'
 
 const CATEGORIES = [
@@ -182,6 +183,23 @@ export default function PreferencesPage() {
         if (prefsData.frequency) setFrequency(prefsData.frequency)
         if (prefsData.lookahead_days) setLookahead(prefsData.lookahead_days)
         if (prefsData.send_day !== null && prefsData.send_day !== undefined) setSendDay(prefsData.send_day)
+
+        // GA4 event: fires exactly once — on the first preferences
+        // load that flipped the subscriber's `confirmed` flag from
+        // false to true. The Edge Function returns
+        // `was_just_confirmed: true` on that one request and `false`
+        // on every subsequent visit, so this doesn't double-count
+        // when the user re-opens the preferences page later. Pairs
+        // with `newsletter_subscribe` on SubscribePage so the funnel
+        // (signup → confirm) is measurable in GA4.
+        if (prefsData.was_just_confirmed) {
+          trackEvent('newsletter_confirm', {
+            category: 'Subscribe',
+            label: prefsData.frequency || 'unknown',
+            frequency: prefsData.frequency,
+            lookahead_days: prefsData.lookahead_days,
+          })
+        }
 
         setLoading(false)
       } catch (err) {
