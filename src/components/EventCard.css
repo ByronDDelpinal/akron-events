@@ -72,7 +72,9 @@
  * Image rendering was removed because scraper image yield is too sparse
  * to justify a mixed grid. Color carries the category identity instead. */
 .card-accent {
-  height: 20px;
+  /* Height comes from --gradient-strip-height in globals.css so
+     this and .event-detail-accent (on EventPage) always agree. */
+  height: var(--gradient-strip-height);
   flex-shrink: 0;
 }
 
