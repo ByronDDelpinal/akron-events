@@ -49,6 +49,14 @@
     margin: 0 0 var(--space-lg);
   }
 }
+
+/* The float image lives next to the description text so it can wrap.
+   When the image is taller than the description, anything that follows
+   (the newsletter CTA) would otherwise render alongside the float.
+   Clear it so it always sits below the image. */
+.event-detail-layout .newsletter-cta {
+  clear: both;
+}
 .banner-scrim {
   position: absolute;
   inset: 0;

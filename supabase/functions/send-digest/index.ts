@@ -19,7 +19,15 @@ const resend = new Resend(Deno.env.get('RESEND_API_KEY')!)
 
 const BASE_URL = Deno.env.get('PUBLIC_SITE_URL') || 'https://akronpulse.com'
 const BATCH_SIZE = 100
-const MAX_EVENTS_PER_EMAIL = 10
+// Top-of-email picks rendered as full image cards. Bumped from 10 to
+// 14 after the row-density redesign — events now use a 56px thumb
+// instead of 72px and combine date+venue into one meta line, so the
+// extra 4 events fit in the same visual budget.
+const MAX_EVENTS_PER_EMAIL = 14
+// Plain-text "also coming up" list rendered after the picks. Quick
+// scroll past the rich-card section gives the reader a sense of depth
+// without bloating the email.
+const TAIL_EVENT_COUNT = 8
 
 // ── Brand theme (mirrors src/lib/emailTheme.js — update both together) ──
 // `from` falls back to RESEND_FROM env var for parity with subscribe
@@ -78,8 +86,11 @@ interface Event {
   image_url: string | null
   ticket_url: string | null
   featured: boolean
-  venues: { name: string; address: string | null; lat: number | null; lng: number | null }[]
-  organizations: { id: string; name: string }[]
+  // Venue/org now carry image_url so the email's image-resolution
+  // helper can walk event → venue → organizer when the event itself
+  // has no image of its own. Mirrors the app's `imageUrlForEvent`.
+  venues: { name: string; address: string | null; lat: number | null; lng: number | null; image_url: string | null }[]
+  organizations: { id: string; name: string; image_url: string | null }[]
 }
 
 interface Subscriber {
@@ -216,21 +227,154 @@ function filterEventsForSubscriber(allEvents: Event[], sub: Subscriber, now: Dat
   return combined.slice(0, MAX_EVENTS_PER_EMAIL)
 }
 
+// ── Email template helpers ───────────────────────────────────────
+
+// Category → gradient colors for the no-image placeholder. Mirrors
+// the gradient palette used in the app, simplified to two stops so
+// email clients (which strip CSS gradients only sometimes) can
+// fall back to the first color as a solid. Lock these in sync with
+// src/styles/globals.css if the brand palette shifts.
+const CATEGORY_GRADIENT: Record<string, [string, string]> = {
+  music:     ['#162806', '#2A5C18'],
+  art:       ['#180A26', '#481870'],
+  community: ['#082010', '#186030'],
+  nonprofit: ['#180808', '#501828'],
+  food:      ['#082010', '#186030'],
+  sports:    ['#081828', '#1040A0'],
+  fitness:   ['#0A2818', '#18784A'],
+  education: ['#100828', '#2E1060'],
+  nature:    ['#1A2A0E', '#4A6818'],
+  other:     ['#1D2B1F', '#3A6B4A'],
+}
+
+// Display labels for the no-image placeholder. Single word per
+// category, short enough to render at any thumb size.
+const CATEGORY_LABEL: Record<string, string> = {
+  music: 'Music', art: 'Art', community: 'Community', nonprofit: 'Nonprofit',
+  food: 'Food', sports: 'Sports', fitness: 'Fitness', education: 'Education',
+  nature: 'Nature', other: 'Event',
+}
+
+/**
+ * Walk the event → venue → organizer fallback chain so the digest
+ * always has visual weight. Returns null when nothing usable
+ * resolves; the caller renders a colored category placeholder.
+ */
+function resolveEventImage(e: Event): string | null {
+  const candidates = [
+    e.image_url,
+    e.venues?.[0]?.image_url,
+    e.organizations?.[0]?.image_url,
+  ]
+  for (const url of candidates) {
+    if (url && /^https?:\/\//i.test(url)) return url
+  }
+  return null
+}
+
+/**
+ * Free/priced helper matching the app's `formatPrice` so an event
+ * with `price_max: 0` (which some scrapers emit for free events)
+ * still renders as Free in the email. Returns `null` for "no price
+ * info" rather than showing "$0" or an empty pill.
+ */
+function priceLabel(e: Event): { label: string; free: boolean } | null {
+  const min = e.price_min
+  const max = e.price_max
+  if (min == null && max == null) return null
+  if (min === 0 && (!max || max === 0)) return { label: 'Free', free: true }
+  if (max && max > (min ?? 0)) return { label: `$${min}–$${max}`, free: false }
+  if (min != null) return { label: `$${min}`, free: false }
+  return null
+}
+
+/**
+ * Renders the visual block at the head of each card — either the
+ * resolved image OR a gradient placeholder labeled with the
+ * category. `height` is a fixed value because we don't have image
+ * dimensions in the digest path, so we crop to a uniform shape and
+ * keep the email height predictable.
+ */
+function imageBlock(e: Event, opts: { width: string; height: string; radius: string }): string {
+  const url = resolveEventImage(e)
+  if (url) {
+    return `<img src="${url}" alt="" style="display:block;width:${opts.width};height:${opts.height};object-fit:cover;border-radius:${opts.radius};">`
+  }
+  const [c1, c2] = CATEGORY_GRADIENT[e.category] || CATEGORY_GRADIENT.other
+  const label = CATEGORY_LABEL[e.category] || 'Event'
+  // Solid bg + linear-gradient: clients that strip gradients
+  // (Outlook desktop) fall back to the solid color. Label is
+  // legible in either state.
+  return `
+    <div style="
+      display:flex;align-items:center;justify-content:center;
+      width:${opts.width};height:${opts.height};border-radius:${opts.radius};
+      background:${c1};
+      background-image:linear-gradient(135deg, ${c1} 0%, ${c2} 100%);
+      color:#FCFAF4;font-family:'Space Grotesk', system-ui, sans-serif;
+      font-size:0.78rem;font-weight:700;letter-spacing:0.08em;
+      text-transform:uppercase;text-align:center;
+    ">${label}</div>
+  `
+}
+
+/** Group events by their YYYY-MM-DD start day. Order preserved. */
+function groupByDay(events: Event[]): { dayKey: string; label: string; events: Event[] }[] {
+  const groups = new Map<string, Event[]>()
+  for (const e of events) {
+    const d = new Date(e.start_at)
+    const key = d.toISOString().slice(0, 10)
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(e)
+  }
+  return [...groups.entries()].map(([dayKey, evs]) => ({
+    dayKey,
+    label: new Date(dayKey + 'T12:00:00').toLocaleDateString('en-US', {
+      weekday: 'long', month: 'short', day: 'numeric',
+    }),
+    events: evs,
+  }))
+}
+
+function formatTimeOnly(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+}
+
 // ── Build email HTML (inline styles for email client compatibility) ──
 // All colors/fonts reference THEME so a brand swap only touches one object.
-function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: number): string {
+function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: number, tailEvents: Event[] = []): string {
   const prefsUrl = `${BASE_URL}/subscribe/preferences?token=${sub.token}`
   const unsubUrl = `${BASE_URL}/unsubscribe?token=${sub.token}`
   const c = THEME.colors
   const f = THEME.fonts
 
+  // Featured event becomes the hero; remaining events go into the
+  // day-grouped picks list below.
   const hero = events.find(e => e.featured)
   const picks = events.filter(e => e !== hero)
+  const dayGroups = groupByDay(picks)
+
+  // Preheader text: hidden span at the very top of the body that
+  // mail clients pull into the inbox preview snippet. Without this
+  // Gmail just grabs the bare brand wordmark from the header. Keep
+  // under ~110 chars so it doesn't get truncated.
+  const preheaderBits: string[] = []
+  if (hero) preheaderBits.push(`Featured: ${hero.title}`)
+  preheaderBits.push(`${events.length} picks${tailEvents.length > 0 ? ` + ${tailEvents.length} more` : ''}`)
+  const firstFree = events.find(e => priceLabel(e)?.free)
+  if (firstFree && firstFree !== hero) preheaderBits.push(`free: ${firstFree.title}`)
+  const preheader = preheaderBits.join(' · ').slice(0, 110)
 
   let html = `
 <!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:${c.background};font-family:${f.body};">
+
+<!-- Preheader (shown by mail clients as the inbox snippet, hidden in the rendered email body). -->
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${c.background};">
+  ${preheader}
+</div>
+
 <div style="max-width:560px;margin:0 auto;padding:32px 20px;">
 
   <div style="text-align:center;margin-bottom:28px;">
@@ -238,49 +382,89 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
   </div>
 `
 
-  // Hero event
+  // Hero event — full-width image (or gradient) on top, content below.
   if (hero) {
     const venue = hero.venues[0]
     const heroUrl = `${BASE_URL}/events/${hero.id}`
-    const date = new Date(hero.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-    const heroIsFree = hero.price_min === 0 && !hero.price_max
+    const heroDate = new Date(hero.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    const price = priceLabel(hero)
     html += `
   <a href="${heroUrl}" style="display:block;background:${c.card};border-radius:12px;overflow:hidden;margin-bottom:20px;border:1px solid ${c.border};text-decoration:none;color:inherit;">
-    ${hero.image_url ? `<img src="${hero.image_url}" alt="" style="width:100%;height:200px;object-fit:cover;display:block;">` : ''}
+    ${imageBlock(hero, { width: '100%', height: '200px', radius: '0' })}
     <div style="padding:20px;">
       <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:${c.primary};margin-bottom:6px;">Featured</div>
       <div style="font-family:${f.display};font-size:1.1rem;font-weight:700;color:${c.textPrimary};margin-bottom:6px;">${hero.title}</div>
-      <div style="font-size:0.82rem;color:${c.textSecondary};margin-bottom:4px;">${date}</div>
-      ${venue ? `<div style="font-size:0.78rem;color:${c.textMuted};">${venue.name}</div>` : ''}
-      ${heroIsFree ? `<div style="display:inline-block;margin-top:8px;padding:3px 10px;background:${c.freeBg};color:${c.freeTxt};font-size:0.72rem;font-weight:600;border-radius:10px;">Free</div>` : ''}
+      <div style="font-size:0.82rem;color:${c.textSecondary};margin-bottom:4px;">${heroDate}${venue ? ` · ${venue.name}` : ''}</div>
+      ${price ? `<div style="display:inline-block;margin-top:8px;padding:3px 10px;background:${price.free ? c.freeBg : c.primary};color:${price.free ? c.freeTxt : c.white};font-size:0.72rem;font-weight:600;border-radius:10px;">${price.label}</div>` : ''}
       ${hero.ticket_url ? `<span style="display:inline-block;margin-top:10px;padding:8px 18px;background:${c.primary};color:${c.white};text-decoration:none;border-radius:8px;font-size:0.82rem;font-weight:600;">Get Tickets</span>` : ''}
     </div>
   </a>
 `
   }
 
-  // Picks
-  if (picks.length > 0) {
+  // Picks — grouped by day. Each row is a compact 56×56 thumb +
+  // title + single meta line (time · venue). Same anchor wrapping
+  // pattern so the entire row is clickable.
+  if (dayGroups.length > 0) {
     html += `<div style="font-family:${f.display};font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:${c.textMuted};border-bottom:1px solid ${c.border};padding-bottom:8px;margin-bottom:16px;">Your picks</div>`
 
-    for (const event of picks) {
-      const venue = event.venues[0]
-      const eventUrl = `${BASE_URL}/events/${event.id}`
-      const date = new Date(event.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-      const isFree = event.price_min === 0 && !event.price_max
-
+    for (const group of dayGroups) {
+      // Per-day header (Sunday, Jun 1) — small uppercase label
       html += `
-  <a href="${eventUrl}" style="display:flex;gap:14px;padding:14px 0;border-bottom:1px solid ${c.border};text-decoration:none;color:inherit;">
-    ${event.image_url ? `<img src="${event.image_url}" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:8px;flex-shrink:0;">` : ''}
+  <div style="font-family:${f.display};font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:${c.primary};margin:18px 0 8px;">
+    ${group.label}
+  </div>
+`
+      for (const event of group.events) {
+        const venue = event.venues[0]
+        const eventUrl = `${BASE_URL}/events/${event.id}`
+        const meta = [formatTimeOnly(event.start_at), venue?.name].filter(Boolean).join(' · ')
+        const price = priceLabel(event)
+        const pills: string[] = []
+        if (event.featured) {
+          pills.push(`<span style="display:inline-block;margin-top:4px;margin-right:6px;padding:2px 8px;background:${c.primary};color:${c.white};font-size:0.66rem;font-weight:600;border-radius:8px;letter-spacing:0.04em;text-transform:uppercase;">Featured</span>`)
+        }
+        if (price?.free) {
+          pills.push(`<span style="display:inline-block;margin-top:4px;padding:2px 8px;background:${c.freeBg};color:${c.freeTxt};font-size:0.68rem;font-weight:600;border-radius:8px;">Free</span>`)
+        } else if (price) {
+          pills.push(`<span style="display:inline-block;margin-top:4px;padding:2px 8px;background:${c.background};color:${c.textSecondary};font-size:0.68rem;font-weight:600;border-radius:8px;border:1px solid ${c.border};">${price.label}</span>`)
+        }
+
+        html += `
+  <a href="${eventUrl}" style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid ${c.border};text-decoration:none;color:inherit;align-items:center;">
+    <div style="flex-shrink:0;">${imageBlock(event, { width: '56px', height: '56px', radius: '8px' })}</div>
     <div style="flex:1;min-width:0;">
-      <div style="font-family:${f.display};font-size:0.88rem;font-weight:700;color:${c.textPrimary};margin-bottom:3px;">${event.title}</div>
-      <div style="font-size:0.78rem;color:${c.textSecondary};">${date}</div>
-      ${venue ? `<div style="font-size:0.73rem;color:${c.textMuted};">${venue.name}</div>` : ''}
-      ${isFree ? `<span style="display:inline-block;margin-top:4px;padding:2px 8px;background:${c.freeBg};color:${c.freeTxt};font-size:0.68rem;font-weight:600;border-radius:8px;">Free</span>` : ''}
+      <div style="font-family:${f.display};font-size:0.92rem;font-weight:700;color:${c.textPrimary};margin-bottom:2px;line-height:1.3;">${event.title}</div>
+      <div style="font-size:0.78rem;color:${c.textSecondary};">${meta}</div>
+      ${pills.length > 0 ? `<div>${pills.join('')}</div>` : ''}
     </div>
   </a>
 `
+      }
     }
+  }
+
+  // "Also coming up" — tail of plain-text event links. No images,
+  // no metadata clutter; just titles + dates so the reader feels
+  // depth without scrolling through more cards.
+  if (tailEvents.length > 0) {
+    html += `
+  <div style="margin-top:28px;padding-top:20px;border-top:1px solid ${c.border};">
+    <div style="font-family:${f.display};font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:${c.textMuted};margin-bottom:10px;">Also coming up</div>
+`
+    for (const event of tailEvents) {
+      const eventUrl = `${BASE_URL}/events/${event.id}`
+      const date = new Date(event.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+      html += `
+    <a href="${eventUrl}" style="display:block;padding:6px 0;text-decoration:none;color:${c.textSecondary};font-size:0.85rem;line-height:1.4;">
+      <span style="color:${c.primary};font-weight:600;">${date}</span>
+      <span style="color:${c.textMuted};"> · </span>
+      <span style="color:${c.textPrimary};">${event.title}</span>
+    </a>
+`
+    }
+    html += `  </div>
+`
   }
 
   // See all link
@@ -420,8 +604,8 @@ Deno.serve(async (req) => {
       .select(`
         id, title, description, start_at, end_at, category, tags,
         price_min, price_max, age_restriction, image_url, ticket_url, featured,
-        event_venues!inner ( venues!inner ( id, name, address, lat, lng ) ),
-        event_organizations ( organizations ( id, name ) )
+        event_venues!inner ( venues!inner ( id, name, address, lat, lng, image_url ) ),
+        event_organizations ( organizations ( id, name, image_url ) )
       `)
       .eq('status', 'published')
       .gte('start_at', now.toISOString())
@@ -448,9 +632,12 @@ Deno.serve(async (req) => {
 
     for (const sub of subscribers as Subscriber[]) {
       try {
-        // Get ALL matching events (for count), then take top N
+        // Get ALL matching events (for count), then split into the
+        // rich-card "picks" section and the plain-text "also coming
+        // up" tail. Both render in buildDigestHtml.
         const allMatching = filterEventsForSubscriber(flatEvents, sub, now)
         const events = allMatching.slice(0, MAX_EVENTS_PER_EMAIL)
+        const tail   = allMatching.slice(MAX_EVENTS_PER_EMAIL, MAX_EVENTS_PER_EMAIL + TAIL_EVENT_COUNT)
 
         if (events.length === 0) {
           // Skip — don't send empty digests
@@ -458,7 +645,7 @@ Deno.serve(async (req) => {
           continue
         }
 
-        const html = buildDigestHtml(events, sub, allMatching.length)
+        const html = buildDigestHtml(events, sub, allMatching.length, tail)
         const subject = buildSubject(sub.frequency, events.length)
 
         emailBatch.push({

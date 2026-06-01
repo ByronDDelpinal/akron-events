@@ -289,10 +289,13 @@ function VenuePin({ count, active }) {
 // ── Small static venue map (used on EventPage) ────────────────────────────
 
 export function VenueMap({ lat, lng, venueName }) {
-  const [ready, setReady] = useState(false)
-
   if (!MAPBOX_TOKEN || lat == null || lng == null) return null
 
+  // No opacity-gated fade-in: mapbox-gl's `load` event sometimes fires
+  // before React attaches its listener, which would leave the map stuck
+  // at opacity 0 (rendered as a blank white box inside the info card).
+  // The map renders cleanly without the fade — tiles come in on their
+  // own with the library's built-in transitions.
   return (
     <div className="venue-map-wrap">
       <MapGL
@@ -301,11 +304,10 @@ export function VenueMap({ lat, lng, venueName }) {
           latitude:  Number(lat),
           zoom:      15,
         }}
-        style={{ width: '100%', height: '100%', opacity: ready ? 1 : 0, transition: 'opacity 0.3s' }}
+        style={{ width: '100%', height: '100%' }}
         mapStyle={MAP_STYLE}
         mapboxAccessToken={MAPBOX_TOKEN}
         interactive={false}
-        onLoad={() => setReady(true)}
       >
         <Marker longitude={Number(lng)} latitude={Number(lat)} anchor="bottom">
           <VenuePin count={1} active={false} />
