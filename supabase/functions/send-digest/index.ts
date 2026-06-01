@@ -559,7 +559,24 @@ Deno.serve(async (req) => {
   const isFirstOfMonth = now.getDate() === 1
   const dateStr = now.toISOString().slice(0, 10)
 
-  console.log(`[send-digest] Starting for ${dateStr}, DOW=${todayDow}, 1st=${isFirstOfMonth}, force=${forceAll}`)
+  // Idempotency session tag.
+  //
+  // Scheduled cron should stay idempotent for a given day — if pg_cron
+  // fires twice for the 2026-06-01 run, both attempts produce the same
+  // key and Resend / the email_sends upsert silently dedupes. That's
+  // the safety net we want.
+  //
+  // Force mode (manual admin trigger, curl tests, template iteration)
+  // intentionally bypasses that safety: every invocation must produce
+  // a fresh key so the test can actually send. Otherwise Resend
+  // returns 409 invalid_idempotent_request the second time you click
+  // "Send digest now" with a new template (which is exactly what we
+  // hit when redeploying the email layout). Date.now() per request is
+  // sufficient — within a single force run, the chunk index keeps the
+  // batches distinct.
+  const sessionTag = forceAll ? `force-${Date.now()}` : 'scheduled'
+
+  console.log(`[send-digest] Starting for ${dateStr}, DOW=${todayDow}, 1st=${isFirstOfMonth}, force=${forceAll}, session=${sessionTag}`)
 
   try {
     // ── Step 1: WHO gets emailed? ──
@@ -674,7 +691,7 @@ Deno.serve(async (req) => {
 
       try {
         const { error: sendErr } = await resend.batch.send(chunk, {
-          idempotencyKey: `digest-${dateStr}/chunk-${chunkIndex}`,
+          idempotencyKey: `digest-${dateStr}/chunk-${chunkIndex}/${sessionTag}`,
         })
 
         if (sendErr) {
@@ -697,7 +714,7 @@ Deno.serve(async (req) => {
     // ── Step 6: Log results ──
     const logRows = sendLog.map(log => ({
       ...log,
-      idempotency_key: `digest-${dateStr}/${log.subscriber_id}`,
+      idempotency_key: `digest-${dateStr}/${log.subscriber_id}/${sessionTag}`,
     }))
 
     if (logRows.length > 0) {
