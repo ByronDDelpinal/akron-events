@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useOrganization } from '@/hooks/useEvents'
 import CategoryBadge from '@/components/CategoryBadge'
@@ -267,6 +267,28 @@ function OrgEventsSection({ events, organizerImageUrl }) {
   const visible = filtered.slice(0, visibleCount)
   const hasMore = visibleCount < filtered.length
 
+  // ── Infinite scroll ───────────────────────────────────────────────
+  // Data is already client-side (the parent fetched the full org event
+  // list), so this just reveals more rows as the user approaches the
+  // end. Mirrors the HomePage prefetch zone so the page never feels
+  // like it's stalling.
+  const sentinelRef = useRef(null)
+  useEffect(() => {
+    if (!hasMore) return
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some(e => e.isIntersecting)) {
+          setVisibleCount(c => c + EVENTS_PAGE_SIZE)
+        }
+      },
+      { rootMargin: '0px 0px 1500px 0px' },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasMore, visibleCount])
+
   return (
     <div className="org-events-block">
       <CollapsibleHeader
@@ -309,12 +331,11 @@ function OrgEventsSection({ events, organizerImageUrl }) {
           )}
 
           {hasMore && (
-            <button
-              className="org-load-more-btn"
-              onClick={() => setVisibleCount(c => c + EVENTS_PAGE_SIZE)}
-            >
-              Show more events ({filtered.length - visibleCount} remaining)
-            </button>
+            <div
+              ref={sentinelRef}
+              aria-hidden="true"
+              className="org-load-more-sentinel"
+            />
           )}
         </>
       )}

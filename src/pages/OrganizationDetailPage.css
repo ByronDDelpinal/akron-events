@@ -348,20 +348,12 @@
 }
 .org-events-block { margin-top: var(--space-xs); }
 
-/* ── Load more button ── */
-.org-load-more-btn {
-  display: block; width: 100%;
-  margin-top: var(--space-lg); padding: var(--space-md);
-  background: var(--bg-card);
-  border: var(--border-width-medium) solid var(--border);
-  border-radius: var(--radius-md);
-  font-family: var(--font-display);
-  font-size: var(--text-sm); font-weight: 600;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all var(--transition-medium);
-}
-.org-load-more-btn:hover {
-  border-color: var(--amber);
-  color: var(--amber);
+/* ── Infinite scroll sentinel ──
+   Zero-height target observed by IntersectionObserver to trigger
+   reveal of the next batch of events. Never visible to the user. */
+.org-load-more-sentinel {
+  height: 1px;
+  width: 100%;
+  margin-top: var(--space-lg);
+  pointer-events: none;
 }

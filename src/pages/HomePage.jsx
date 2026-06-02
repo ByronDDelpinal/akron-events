@@ -337,13 +337,51 @@ export default function HomePage() {
     if (e.key === 'Enter') setSearch(searchInput)
   }
 
-  const loadMore = () => {
-    if (!loading && hasMore) setOffset(prev => prev + activePageSize)
+  // ── Infinite scroll ──────────────────────────────────────────────────
+  // The "Load more" button has been replaced with an IntersectionObserver-
+  // driven prefetch. A sentinel div sits at the end of the grid; whenever it
+  // enters a generous rootMargin around the viewport, we fetch the next
+  // page. The observer is recreated whenever the loaded count or hasMore
+  // flips, which naturally cascades: once a page settles, the observer
+  // re-evaluates intersection state and — if the sentinel is still within
+  // the prefetch zone — triggers the next page immediately. The result is
+  // that page 2 is fetched as soon as page 1 paints, and subsequent pages
+  // are queued before the user scrolls anywhere near the bottom.
+  const sentinelRef = useRef(null)
+  const loadingRef  = useRef(loading)
+  useEffect(() => { loadingRef.current = loading }, [loading])
+
+  // Latest-loadMore in a ref so the observer effect doesn't churn each
+  // render just because the closure captured a new activePageSize.
+  const loadMoreRef = useRef()
+  loadMoreRef.current = () => {
+    if (loadingRef.current || !hasMore) return
+    setOffset(prev => prev + activePageSize)
   }
 
-  // `loadedCount` is used by the "Load more" button below to show
-  // how many results are still un-fetched relative to `total`.
-  const loadedCount = allEvents.length
+  useEffect(() => {
+    if (!hasMore) return
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            loadMoreRef.current?.()
+            break
+          }
+        }
+      },
+      // Prefetch zone: 1500px below the viewport. Tuned so that on a
+      // typical screen the first page's sentinel is already inside the
+      // zone after paint, kicking off page 2 without user scroll, and
+      // subsequent pages load while there's still ~a screenful of
+      // unread content above the sentinel.
+      { rootMargin: '0px 0px 1500px 0px' },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasMore, allEvents.length])
 
   const isEfficient = cardViewMode === 'efficient'
 
@@ -617,17 +655,20 @@ export default function HomePage() {
           {/* End-of-grid promo — only when there's enough content to make it feel earned */}
           {allEvents.length >= getMidPromoThreshold() && !hasMore && <GridPromo />}
 
-          {/* Load more */}
+          {/* Infinite scroll sentinel + end-of-list marker.
+           * The sentinel is a zero-height div observed by IntersectionObserver.
+           * When it enters the prefetch zone we fetch the next page; this
+           * effectively replaces the legacy "Load more" button. */}
           {allEvents.length > 0 && (
             <div className="load-more">
               {hasMore ? (
-                <button
-                  className="btn-load-more"
-                  onClick={loadMore}
-                  disabled={loading}
-                >
-                  {loading ? 'Loading…' : `Load more events (${total - loadedCount} remaining)`}
-                </button>
+                <>
+                  <div ref={sentinelRef} aria-hidden="true" className="load-more-sentinel" />
+                  <p className="load-more-loading" aria-live="polite">
+                    <span className="load-more-spinner" aria-hidden="true" />
+                    <span className="sr-only">Loading more events…</span>
+                  </p>
+                </>
               ) : (
                 <p className="load-more-end">
                   Showing all {total} {total === 1 ? 'event' : 'events'}
