@@ -154,7 +154,7 @@ export default function OrganizationDetailPage() {
           {/* ── MAIN ── */}
           <div className="org-detail-main">
             {venues.length > 0 && <OrgVenuesSection venues={venues} />}
-            <OrgEventsSection events={events} />
+            <OrgEventsSection events={events} organizerImageUrl={org.image_url} />
           </div>
         </div>
       </div>
@@ -247,7 +247,7 @@ function OrgVenuesSection({ venues }) {
   )
 }
 
-function OrgEventsSection({ events }) {
+function OrgEventsSection({ events, organizerImageUrl }) {
   const [open, setOpen] = useState(true)
   const [search, setSearch] = useState('')
   const [visibleCount, setVisibleCount] = useState(EVENTS_PAGE_SIZE)
@@ -302,7 +302,7 @@ function OrgEventsSection({ events }) {
                 <OrgEventRow
                   key={event.id}
                   event={event}
-                  organizerImageUrl={org.image_url}
+                  organizerImageUrl={organizerImageUrl}
                 />
               ))}
             </div>
