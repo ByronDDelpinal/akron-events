@@ -323,6 +323,19 @@ async function ensureEventVenue(doc) {
     lng = parseFloat(doc.longitude) || null
   }
 
+  // doc.hostname in Simpleview's payload is the partner-listing's
+  // *name* (e.g. "Bath Business Association"), NOT a URL hostname,
+  // despite the field name. Past versions of this scraper trusted
+  // it as a domain and wrote rows like website="https://All Forward"
+  // into the venues table. Only honor doc.hostname when it actually
+  // looks like a hostname (has a dot, no whitespace, valid label
+  // characters), otherwise leave website unset.
+  const candidateWebsite = typeof doc.hostname === 'string'
+    ? doc.hostname.replace(/^https?:\/\//, '').trim()
+    : ''
+  const isRealHostname = /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i.test(candidateWebsite)
+  const website = isRealHostname ? `https://${candidateWebsite}` : undefined
+
   const venueId = await ensureVenue(name, {
     address: doc.address1 || undefined,
     city:    doc.city     || undefined,
@@ -330,7 +343,7 @@ async function ensureEventVenue(doc) {
     zip:     doc.postalCode || undefined,
     lat:     typeof lat === 'number' ? lat : null,
     lng:     typeof lng === 'number' ? lng : null,
-    website: doc.hostname ? `https://${doc.hostname.replace(/^https?:\/\//, '')}` : undefined,
+    website,
   })
   venueCache.set(cacheKey, venueId)
   return venueId

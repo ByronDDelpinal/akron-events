@@ -38,6 +38,35 @@ export default function Footer() {
         <Link to="/about">About</Link>
       </div>
 
+      {/* ── Vibe changer ──
+       * Inline prompt + theme picker. Sits directly above the hub
+       * nav so the playful CTA leads into the more utilitarian
+       * category links below. */}
+      <div className="footer-theme">
+        <label htmlFor="footer-theme-select" className="footer-theme-prompt">
+          Everyone&apos;s Pulse is different, find yours:
+        </label>
+        <select
+          id="footer-theme-select"
+          className="footer-theme-select"
+          value={theme}
+          onChange={(e) => setTheme(e.target.value)}
+        >
+          {THEMES.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+        <button
+          className="footer-reset-btn"
+          onClick={handleReset}
+          title="Reset theme and card view to defaults"
+        >
+          Reset to defaults
+        </button>
+      </div>
+
       {/* ── Hub navigation ──
        * Surfaces the category + neighborhood landing pages on every
        * footer. Descriptive anchor text matters here ("Concerts in
@@ -76,33 +105,6 @@ export default function Footer() {
           </div>
         )}
       </nav>
-
-      <div className="footer-theme">
-        <label htmlFor="footer-theme-select" className="footer-theme-prompt">
-          Want to switch up the vibe? Go for it, let us know what you like best.
-        </label>
-        <div className="footer-theme-controls">
-          <select
-            id="footer-theme-select"
-            className="footer-theme-select"
-            value={theme}
-            onChange={(e) => setTheme(e.target.value)}
-          >
-            {THEMES.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-          <button
-            className="footer-reset-btn"
-            onClick={handleReset}
-            title="Reset theme and card view to defaults"
-          >
-            Reset to defaults
-          </button>
-        </div>
-      </div>
 
       <p className="footer-copy">
         © {new Date().getFullYear()} Akron Pulse · Made with ♥ in Akron, OH

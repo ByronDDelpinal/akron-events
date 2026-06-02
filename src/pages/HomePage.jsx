@@ -538,6 +538,7 @@ export default function HomePage() {
             let cardIdx = 0
             let midPromoShown = false
             const midThreshold = getMidPromoThreshold()
+            const gridCols = getGridColumns()
             return grouped.map(([dateKey, dayEvents]) => {
               const cappedItems = applySourceCap(dayEvents, expandedSources, dateKey)
               const gridItems = []
@@ -562,8 +563,20 @@ export default function HomePage() {
                 const event = item.event
                 const isFeatured = event.featured && dayCardIdx === 0
 
-                // Inject mid-grid promo at threshold (comfortable only)
-                if (!isEfficient && !midPromoShown && cardIdx >= midThreshold) {
+                // Inject mid-grid promo at threshold (comfortable only).
+                // The promo spans the full row (grid-column: 1 / -1) so we
+                // must only inject when the current grid position is at a
+                // row boundary — otherwise CSS Grid leaves empty cells in
+                // the prior row. Overflow cards occupy real grid cells but
+                // do not increment cardIdx, so we use gridItems.length
+                // (the true cell count for this date's grid) for the
+                // row-boundary check.
+                if (
+                  !isEfficient &&
+                  !midPromoShown &&
+                  cardIdx >= midThreshold &&
+                  gridItems.length % gridCols === 0
+                ) {
                   gridItems.push(
                     <div key="__mid-promo__" className="cards-grid-promo">
                       <GridPromo />
@@ -628,12 +641,17 @@ export default function HomePage() {
   )
 }
 
+// Column count for the comfortable cards-grid — kept in sync with EventCard.css
+function getGridColumns() {
+  const w = window.innerWidth
+  if (w >= 900) return 3
+  if (w >= 600) return 2
+  return 1
+}
+
 // Inject after ~3 rows — count depends on how many columns are visible
 function getMidPromoThreshold() {
-  const w = window.innerWidth
-  if (w >= 900) return 9  // 3 cols × 3 rows
-  if (w >= 600) return 6  // 2 cols × 3 rows
-  return 3                // 1 col × 3 rows
+  return getGridColumns() * 3
 }
 
 function GridPromo() {

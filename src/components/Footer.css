@@ -57,9 +57,12 @@ footer {
   list-style: none;
   padding: 0;
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  /* Two-column grid so the 8 enabled categories form a tidy 4×2
+   * block (and longer lists wrap into additional rows). Rows wrap
+   * to a single column on narrow viewports — see media query below. */
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px var(--space-lg);
 }
 .footer-hub-col li a {
   font-size: var(--text-xs);
@@ -82,40 +85,71 @@ footer {
     grid-template-columns: 1fr;
     gap: var(--space-lg);
   }
+  .footer-hub-col ul {
+    grid-template-columns: 1fr;
+  }
 }
 
 .footer-theme {
+  /* Inline row: prompt + dropdown + reset, centered, wraps on
+   * narrow viewports so nothing overflows. Sits directly above the
+   * hub nav as the playful lead-in to the category links. */
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: var(--space-sm);
   margin-bottom: var(--space-xl);
 }
 .footer-theme-prompt {
-  font-size: var(--text-xs);
-  color: var(--overlay-light-30);
-  font-style: italic;
-  max-width: 360px;
+  /* Inviting CTA — bold + larger than the surrounding muted copy so
+   * it reads as an invitation rather than fine print. Light enough
+   * to sit comfortably on the dark footer without shouting. */
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--overlay-light-70);
   line-height: var(--line-height-normal);
 }
 .footer-theme-select {
   font-family: var(--font-body);
   font-size: var(--text-sm);
-  color: var(--overlay-light-70);
-  background: transparent;
-  border: var(--border-width-thin) solid var(--overlay-light-12);
+  font-weight: 600;
+  /* Native <select> on macOS/Chrome ignores `color` for the closed
+   * value and falls back to a near-black system color on the dark
+   * footer (caused the unreadable "Grand Piano" in the redesign).
+   * Strip the native appearance and supply our own caret so the
+   * value text obeys our color tokens cross-browser. */
+  color: var(--white);
+  background-color: var(--overlay-light-05);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--overlay-light-70) 50%),
+    linear-gradient(135deg, var(--overlay-light-70) 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) 50%,
+    calc(100% - 11px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  border: var(--border-width-thin) solid var(--overlay-light-30);
   border-radius: var(--radius-sm);
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-sm) var(--space-2xl) var(--space-sm) var(--space-md);
   cursor: pointer;
-  transition: border-color var(--transition-medium), color var(--transition-medium);
+  transition:
+    border-color var(--transition-medium),
+    background-color var(--transition-medium),
+    color var(--transition-medium);
 }
 .footer-theme-select:hover {
-  border-color: var(--overlay-light-30);
+  border-color: var(--overlay-light-70);
+  background-color: var(--overlay-light-12);
   color: var(--white);
 }
 .footer-theme-select:focus-visible {
   outline: none;
-  border-color: var(--overlay-light-70);
+  border-color: var(--white);
+  background-color: var(--overlay-light-12);
   color: var(--white);
   box-shadow: var(--shadow-focus);
 }

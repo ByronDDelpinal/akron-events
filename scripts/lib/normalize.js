@@ -526,6 +526,12 @@ export async function ensureOrganization(name, details = {}) {
   const trimmed = name.trim()
   if (!trimmed) return null
 
+  // Drop malformed website strings before they reach the DB. See
+  // sanitizeWebsite() in this file for rationale.
+  if (details.website !== undefined) {
+    details = { ...details, website: sanitizeWebsite(details.website) }
+  }
+
   if (_orgNameCache.has(trimmed)) return _orgNameCache.get(trimmed)
 
   const { data: existing } = await supabaseAdmin
@@ -591,10 +597,50 @@ const _venueNameCache = new Map() // name → venueId
  *                           lat, lng, parking_type, parking_notes, website, description, tags
  * @returns {string|null}  — venue UUID or null on failure
  */
+/**
+ * Defensive URL-shape check used by ensureVenue/ensureOrganization.
+ *
+ * Several upstream feeds (notably Simpleview's "hostname" field and
+ * Tribe Events Calendar's user-editable venue.website) routinely
+ * deliver freeform text where a URL is expected. Past versions of the
+ * scrapers blindly wrapped that text with "https://" and persisted
+ * rows like `website = "https://Bath Business Association"` — which
+ * then rendered as broken links on event detail pages. We accept a
+ * value only when it parses as a URL whose host has at least one dot
+ * and contains no whitespace. Everything else is silently dropped to
+ * null so the scrapers can keep passing whatever shape the source
+ * gives us without re-implementing this check at each call site.
+ */
+function sanitizeWebsite(value) {
+  if (value == null) return null
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  // Require http(s) prefix; if missing, try prepending https:// before validating
+  // so user-entered "example.com" still passes.
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  let host
+  try {
+    host = new URL(withScheme).hostname
+  } catch {
+    return null
+  }
+  // Hostnames must contain a dot, no whitespace, and only valid label chars.
+  if (!host || /\s/.test(host) || !host.includes('.')) return null
+  if (!/^[a-z0-9.-]+$/i.test(host)) return null
+  return withScheme
+}
+
 export async function ensureVenue(name, details = {}) {
   if (!name) return null
   const trimmed = name.trim()
   if (!trimmed) return null
+
+  // Drop malformed website strings before they reach the DB. See
+  // sanitizeWebsite() for rationale.
+  if (details.website !== undefined) {
+    details = { ...details, website: sanitizeWebsite(details.website) }
+  }
 
   if (_venueNameCache.has(trimmed)) return _venueNameCache.get(trimmed)
 
