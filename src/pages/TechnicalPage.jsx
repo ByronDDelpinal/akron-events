@@ -226,10 +226,10 @@ const DATA_SOURCES = [
   {
     key:         'akron_life',
     label:       'Akron Life Magazine',
-    method:      'ICS feed',
-    methodDetail:'Community events calendar iCal — auto-discovered from /events page',
+    method:      'REST API',
+    methodDetail:"Evvnt Discovery API — direct GET /api/publisher/11072/widget_events (their on-page widget is broken)",
     venue:       'Regional (Greater Akron)',
-    notes:       'Akron Life advertises both RSS and ICS subscription on their events calendar. The scraper prefers ICS because it gives structured start/end times and timezone info. Categorization maps VEVENT summary/description keywords to the canonical category set.',
+    notes:       "Akron Life's /events page embeds Evvnt's Discovery widget, but the widget's bootstrap calls a global the current plugin no longer exposes — the calendar div stays empty even in a real browser. Workaround: hit Evvnt's underlying unauthenticated REST endpoint directly and skip the DOM entirely. High-volume / low-fidelity source — Evvnt categories are frequently wrong (artist bios get tagged community/lifestyle) so we run our own inferCategory fallback. The `sources` field is uniformly \"evvnt\" and provides no upstream signal, so cross-source dedup runs against `original_links` URL hostnames + `organiser_name` against a maintained list of every other scraper we own. Live audit (300 events): 5 currently overlap with direct scrapers — akron_library, eventbrite, ticketmaster. The rest (Hale Farm, Cuyahoga Valley Art Center, Kent Stage, 330tix-ticketed shows, Akron Marathon, theatreakron, etc.) are unique to Akron Life and worth keeping.",
     status:      'active',
   },
   {
@@ -368,6 +368,15 @@ const DATA_SOURCES = [
     methodDetail:'Seat Engine — Puppeteer-rendered /events listing + per-show detail pages',
     venue:       'The KillBox Comedy Club — 1305 E Tallmadge Ave',
     notes:       "Akron's dedicated stand-up venue. thekillboxcomedyclub.com runs on Seat Engine, which client-hydrates the /events listing as React components — direct fetch returns an empty shell, so we render with Puppeteer, harvest /events/<slug> anchors, then render each detail page to extract title, full description, banner image, price (or range), and one or more showtimes broken out as \"Weekday • Mon DD H:MM AM/PM\" blocks. Each showtime becomes its own DB row (Friday/Saturday weekend headliner runs fan out into 2–5 events). Year is inferred — Seat Engine omits the year on detail pages, so we anchor to today and roll forward if the candidate date is more than a week past. Default age_restriction is 21+ to match the venue policy.",
+    status:      'active',
+  },
+  {
+    key:         'hale_farm',
+    label:       'Hale Farm & Village',
+    method:      'HTML scrape',
+    methodDetail:'WRHS Lucy CMS — /do-see/events/{YYYY}/{MM} calendar pages + per-event detail pages',
+    venue:       'Hale Farm & Village — 2686 Oak Hill Rd, Bath Township',
+    notes:       "90-acre living-history museum operated by the Western Reserve Historical Society. Migrated off Akron Life in 2026-06 — Hale Farm was the single highest-volume organiser in the Evvnt feed (~32 events / 30 days) and direct ingestion lets us drop those rows via COVERED_BY_DIRECT_SCRAPER. WRHS runs a server-rendered Lucy CMS calendar at /do-see/events/YYYY/MM that emits an HTML table of <td> event cells; we walk 6 months forward, filter on the `.location` text to keep only \"Hale Farm & Village\" (skipping Cleveland History Center and Crawford Auto Aviation Museum — both 30+ mi outside our 25-mi Akron radius), then fetch each detail page. og:title carries title + day + time-range in a tidy three-segment string, the date is parseable from the URL slug, og:image is the banner, and the body content yields the bio paragraphs + price.",
     status:      'active',
   },
 
@@ -574,6 +583,11 @@ const SOURCE_GROUPS = [
     description: 'Seat Engine powers ticketing and the public-facing website for several independent live-entertainment venues. The frontend client-hydrates listings via React, so we render with Puppeteer to harvest event slugs, then render each detail page and extract title, image, price, and one row per individual showtime.',
   },
   {
+    id:    'evvnt',
+    title: 'Evvnt (Akron Life)',
+    description: "Evvnt is the syndication platform behind Akron Life Magazine's events calendar. The on-page Discovery widget calls a global the current plugin no longer exposes, so we skip the DOM and hit the unauthenticated REST endpoint (/api/publisher/11072/widget_events) directly. Evvnt is high-volume but low-fidelity — categories are frequently wrong and many events are backfilled from venues we already scrape — so we run our own category inference and a hostname/organiser-based dedup pass against every other scraper before upserting.",
+  },
+  {
     id:    'wp-hybrid',
     title: 'EventON & custom WordPress',
     description: "WordPress sites that don't expose a Tribe Events feed — typically because they use the EventON plugin or hand-rolled custom post types — get a per-site combination: AJAX or WP REST API for the schedule, secondary fetches for images and descriptions.",
@@ -605,8 +619,10 @@ const SOURCE_GROUP_BY_KEY = {
   akron_symphony:      'ics',
   north_hill_cdc:      'ics',
   akron_public_schools:'ics',
-  akron_life:          'ics',
   life_gurukula:       'ics',
+
+  // Evvnt (Akron Life) — its own group; ICS isn't accurate
+  akron_life:          'evvnt',
 
   // Squarespace Events Collection
   leadership_akron:    'squarespace',
@@ -643,6 +659,7 @@ const SOURCE_GROUP_BY_KEY = {
   nightlight_cinema:      'html',
   stan_hywet:             'html',
   akron_urban_league:     'html',
+  hale_farm:              'html',
 
   // Aggregator-routed organizations (share a parent scraper via `subOf`)
   tm_blossom_music_center:'ticketmaster',
@@ -695,6 +712,7 @@ const SCRAPER_LABELS = {
   stan_hywet:         'Stan Hywet',
   city_of_akron_lock3:'City of Akron (Lock 3)',
   killbox_comedy:     'KillBox Comedy Club',
+  hale_farm:          'Hale Farm & Village',
   akron_urban_league: 'Akron Urban League',
   rialto:             'The Rialto Theatre',
   life_gurukula:      'Life Gurukula',

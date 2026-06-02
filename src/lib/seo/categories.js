@@ -310,7 +310,14 @@ export const NEIGHBORHOOD_HUBS = [
     ],
   },
   {
-    disabled: true, // see header note — venue matcher is unverified
+    disabled: true, // hidden from sitemap, footer, related strips, homepage chips
+    // `preview: true` makes the route itself resolve to the hub page so
+    // we can share a direct link to view the work-in-progress design
+    // (typically the neighborhood map + intro layout). The hub stays
+    // `disabled: true` so it remains absent from every index surface —
+    // only people with the URL see it. Drop `preview` when the hub is
+    // ready to fully ship; drop `disabled` at the same time.
+    preview: true,
     slug: 'highland-square',
     label: 'Highland Square',
     title: 'Highland Square Events & Things To Do',
@@ -333,7 +340,17 @@ export const NEIGHBORHOOD_HUBS = [
     ],
     relatedSlugs: ['food-drink', 'art', 'this-weekend'],
     cityMatch: ['Akron'],
-    venueIncludes: ['Nightlight', 'Highland Square', 'Mustard Seed Market'],
+    // Map mockup config. The map image is the City of Akron neighborhood
+    // poster (docs/neighborhood-map.webp, copied into public/) — used
+    // as a static stand-in until Art × Love's branded GIS / SVG lands.
+    // `hotspot` is a percentage-positioned highlight overlay (origin
+    // top-left of the image) sitting over Highland Square's polygon on
+    // the poster. Coordinates were eyeballed from the poster; when the
+    // real SVG ships, the highlight will become an interactive <path>
+    // and these mockup hints go away.
+    mapMockup: {
+      hotspot: { x: 38, y: 43 },  // approx center of Highland Square
+    },
   },
   {
     disabled: true, // see header note — venue matcher is unverified

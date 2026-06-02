@@ -39,6 +39,7 @@ import { useEvents, PAGE_SIZE } from '@/hooks/useEvents'
 import EventCard from '@/components/EventCard'
 import ShareButtons from '@/components/ShareButtons'
 import NewsletterCTA from '@/components/NewsletterCTA'
+import NeighborhoodMapMockup from '@/components/NeighborhoodMapMockup'
 import {
   CATEGORY_OPTIONS,
   SORT_OPTIONS,
@@ -56,31 +57,46 @@ import {
   getCategoryHub,
   getNeighborhoodHub,
 } from '@/lib/seo'
+import { NEIGHBORHOOD_SLUGS } from '@/lib/neighborhoods'
 import { eventPath } from '@/lib/slug'
 import './CategoryPage.css'
 
 /**
  * Neighborhood matcher.
  *
- * Filters the raw event list down to events whose venue matches the
- * neighborhood's `cityMatch` (canonical city strings) AND/OR whose
- * venue name contains one of the hub's `venueIncludes` substrings.
- * This is intentionally permissive — neighborhood boundaries inside a
- * single city ("downtown Akron" vs. "Akron") aren't stored as a strict
- * column, so we match by well-known venue names. Cuyahoga Falls and
- * Stow are separate municipalities so `cityMatch` alone is enough.
+ * Two strategies, chosen by the hub's slug:
+ *
+ *   1. Akron neighborhoods (the 24 City-recognized neighborhoods in
+ *      src/lib/neighborhoods.js): match by `venue.neighborhood_slug`.
+ *      This is the structured replacement for the original substring-
+ *      based `venueIncludes` matcher, which was authored from memory
+ *      without verified data (see docs/neighborhoods.md). Venues are
+ *      classified manually today via the admin venue editor; a future
+ *      PostGIS backfill will resolve them automatically from lat/lng
+ *      against the official polygon set — same column either way.
+ *
+ *   2. Non-Akron city hubs (Cuyahoga Falls, Stow, Fairlawn & Copley):
+ *      these are separate Summit County municipalities, not Akron
+ *      neighborhoods, so `neighborhood_slug` doesn't apply. They
+ *      match by the hub's declared `cityMatch` strings against
+ *      `venue.city`.
+ *
+ * Events with no venue can't be placed on a map and have no
+ * neighborhood, so they're excluded — same behavior as the old matcher.
  */
 function eventMatchesNeighborhood(event, hub) {
   const venue = event.venue
   if (!venue) return false
+
+  // Strategy 1: structured slug match for Akron neighborhoods.
+  if (NEIGHBORHOOD_SLUGS.has(hub.slug)) {
+    return venue.neighborhood_slug === hub.slug
+  }
+
+  // Strategy 2: city match for non-Akron municipalities.
+  if (!hub.cityMatch || hub.cityMatch.length === 0) return false
   const city = (venue.city || '').toLowerCase()
-  const cityHit = hub.cityMatch?.some((c) => c.toLowerCase() === city)
-  if (!cityHit) return false
-  // If the hub didn't specify venue keywords, city match alone is
-  // enough (Cuyahoga Falls, Stow, Fairlawn, Copley).
-  if (!hub.venueIncludes || hub.venueIncludes.length === 0) return true
-  const name = (venue.name || '').toLowerCase()
-  return hub.venueIncludes.some((needle) => name.includes(needle.toLowerCase()))
+  return hub.cityMatch.some((c) => c.toLowerCase() === city)
 }
 
 /**
@@ -113,7 +129,13 @@ export default function CategoryPage() {
   // header note about the GIS data gap) also redirect, so previously-
   // shared neighborhood URLs stay useful even with the hubs hidden
   // from the rest of the site.
-  if (!hub || hub.disabled) return <Navigate to="/" replace />
+  //
+  // Exception: `preview: true` lets a disabled hub's URL resolve
+  // anyway so we can share an unlisted link to a work-in-progress
+  // design (e.g. the Highland Square map mockup). The hub still
+  // remains absent from sitemap, footer, related strips, and
+  // homepage chips — only people with the URL see it.
+  if (!hub || (hub.disabled && !hub.preview)) return <Navigate to="/" replace />
 
   const isCategory = !!getCategoryHub(slug)
   const isNeighborhood = !isCategory && !!getNeighborhoodHub(slug)
@@ -305,7 +327,30 @@ export default function CategoryPage() {
           <span>{hub.label}</span>
         </nav>
         <h1 className="hub-h1">{hub.h1}</h1>
-        <p className="hub-intro">{hub.intro}</p>
+
+        {/* Hero body.
+         *
+         * Neighborhood hubs that ship with a `mapMockup` (config in
+         * src/lib/seo/categories.js) get a two-column hero: intro
+         * paragraph on the left, branded neighborhood map on the
+         * right. This mirrors the Art × Love poster layout the
+         * project is targeting. The grid collapses to a single
+         * column on narrow viewports — see CategoryPage.css.
+         *
+         * Category hubs and neighborhood hubs without a map keep
+         * the original single-column intro so nothing about the
+         * existing pages changes. */}
+        {isNeighborhood && hub.mapMockup ? (
+          <div className="hub-hero-grid">
+            <p className="hub-intro hub-intro--with-map">{hub.intro}</p>
+            <NeighborhoodMapMockup
+              activeLabel={hub.label}
+              hotspot={hub.mapMockup.hotspot}
+            />
+          </div>
+        ) : (
+          <p className="hub-intro">{hub.intro}</p>
+        )}
 
         {/* Share / copy-link row — UTM campaign differs between
             category and neighborhood hubs so analytics can tell them

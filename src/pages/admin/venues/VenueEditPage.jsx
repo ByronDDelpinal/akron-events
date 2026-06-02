@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { STATUSES, PARKING_TYPES } from '@/lib/admin/constants'
+import { NEIGHBORHOOD_OPTIONS } from '@/lib/neighborhoods'
 import { useFormState } from '@/lib/admin/useFormState'
 import { useOverrides } from '@/lib/admin/useOverrides'
 import {
@@ -13,7 +14,7 @@ const DEFAULT_VENUE = {
   name: '', status: 'published', address: '', city: 'Akron', state: 'OH',
   zip: '', description: '', website: '', lat: null, lng: null,
   parking_type: 'unknown', parking_notes: '', organization_id: null,
-  tags: [], image_url: '', manual_overrides: {},
+  tags: [], image_url: '', neighborhood_slug: null, manual_overrides: {},
 }
 
 export default function VenueEditPage() {
@@ -77,6 +78,11 @@ function VenueForm({ seed, isNew, allOrgs, venueId, areas, onAreasChange, onNavi
       organization_id:  form.organization_id ?? null,
       tags:             form.tags ?? [],
       image_url:        form.image_url ?? null,
+      // Empty string from the placeholder option ("Unclassified") writes
+      // null so the CHECK constraint and the partial index both stay
+      // happy. The 24 valid slugs are enforced both DB-side (migration
+      // 028) and via the dropdown's options.
+      neighborhood_slug: form.neighborhood_slug || null,
       manual_overrides: overrides,
     }
 
@@ -121,6 +127,21 @@ function VenueForm({ seed, isNew, allOrgs, venueId, areas, onAreasChange, onNavi
             <FormInput value={form.zip} onChange={e => setField('zip', e.target.value)} />
           </FormField>
         </FormFieldRow>
+
+        {/* Neighborhood — Akron's 24 City-recognized neighborhoods
+            (src/lib/neighborhoods.js). Leave unset for venues outside
+            Akron city limits (Cuyahoga Falls, Stow, Fairlawn, Copley)
+            or for any Akron venue that hasn't been classified yet —
+            those hubs match on `city`, not `neighborhood_slug`. The
+            CategoryPage hub matcher reads this column directly. */}
+        <FormField label="Neighborhood">
+          <FormSelect
+            value={form.neighborhood_slug}
+            onChange={e => setField('neighborhood_slug', e.target.value || null)}
+            options={NEIGHBORHOOD_OPTIONS}
+            placeholder="Unclassified"
+          />
+        </FormField>
 
         <FormField label="Description" field="description" overrides={overrides} onToggleOverride={toggleOverride}>
           <FormTextarea value={form.description} onChange={e => setField('description', e.target.value)} />

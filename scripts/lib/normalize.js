@@ -246,7 +246,31 @@ export function inferCategory(title = '', description = '') {
   if (/\b(brewery|winery|wine tasting|beer tasting|cooking class|culinary|food truck|food festival|restaurant week|tap takeover|chef'?s table|tasting menu|wine dinner|whiskey tasting|cocktail (class|essentials|workshop)|brunch|luncheon|dinner show|drag brunch|sake|sushi tasting|cheese tasting|bourbon tasting|coffee tasting|chocolate tasting|culinary class)\b/.test(text)) return 'food'
 
   // ── Music — softer signals (after we've ruled out food/art/edu) ────────
+  //
+  // Title-only profession/format words. Kept tight because a bare title is
+  // a strong signal: "Jane Doe Band", "Live Performance Saturday" etc.
   if (/\b(band\b|live performance|performer|musician|vocalist|jam session|sing[- ]?along)\b/.test(tLow)) return 'music'
+
+  // Description-side signals. Aggregator feeds like Evvnt frequently tag
+  // music shows as "community" or "lifestyle" when the title is just the
+  // artist's name ("Daniel Rylander", "SSX", "Colin John Music: Literacy
+  // Blues"). When that happens we lean on artist-bio vocabulary in the
+  // description to recover the music category.
+  //
+  //   - Musician profession words (singer-songwriter, guitarist, drummer,
+  //     multi-instrumentalist, …) — vanishingly rare outside music.
+  //   - "N-piece band" — qualified by "band", unambiguous.
+  //   - Music-industry phrases — "music scene", "debut album", "released
+  //     their EP", "touring band", "on tour", "tribute act".
+  //   - Subgenre names too specific to mean anything else — metalcore,
+  //     nu-metal, bluegrass, EDM, etc. Broad genre words (rock, country,
+  //     folk, metal) are deliberately omitted because they false-positive
+  //     on "rock climbing", "country fair", "folk art".
+  if (/\b(singer[- ]songwriter|guitarist|drummer|bassist|saxophonist|pianist|trumpeter|cellist|violinist|multi[- ]?instrumentalist|frontman|frontwoman|frontperson)\b/.test(text)) return 'music'
+  if (/\b(two|three|four|five|six|seven|eight)[- ]piece band\b/.test(text)) return 'music'
+  if (/\b(music scene|debut (album|record|ep|single)|released (his|her|their) (debut |first |new |latest )?(album|record|ep|single)|touring (band|artist|musician)|nationally touring|on tour\b)\b/.test(text)) return 'music'
+  if (/\b(blues|jazz|metalcore|nu[- ]metal|death metal|hardcore punk|grindcore|hip[- ]?hop|rap music|reggae|bluegrass|americana|alt[- ]?country|shoegaze|electronica|\bedm\b)\b/.test(text)) return 'music'
+
   if (/\b(music night|night of music|performance by|featuring [a-z]+ band)\b/.test(text)) return 'music'
 
   // ── Education — softer signals ──────────────────────────────────────────

@@ -59,7 +59,7 @@ export function useEvents({
           .from('events')
           .select(`
             *,
-            event_venues ( venue:venues ( id, name, address, city, state, zip, lat, lng, parking_type, parking_notes, website, image_url ) ),
+            event_venues ( venue:venues ( id, name, address, city, state, zip, lat, lng, parking_type, parking_notes, website, image_url, neighborhood_slug ) ),
             event_organizations ( organization:organizations ( id, name, website, description, image_url ) )
           `, { count: 'exact' })
           .eq('status', 'published')

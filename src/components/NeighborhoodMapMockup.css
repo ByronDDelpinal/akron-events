@@ -1,0 +1,112 @@
+/**
+ * NeighborhoodMapMockup.css
+ *
+ * Sits inside the neighborhood-hub hero, top-right of the intro
+ * paragraph at >= tablet widths and full-width below the intro on
+ * mobile. The image itself is a stand-in poster — see component
+ * comment. Theme tokens (--amber, --bg, --border, --text-muted)
+ * pull through so the preview reads correctly on every theme.
+ */
+
+.neighborhood-map-mockup {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.neighborhood-map-frame {
+  position: relative;
+  width: 100%;
+  border-radius: var(--radius-md, 10px);
+  overflow: hidden;
+  background: var(--bg-card, var(--bg, #fff));
+  border: 1px solid var(--border);
+  /* Subtle elevation reads as "feature card" rather than inline image. */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.neighborhood-map-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* The poster is square, but we keep the natural aspect ratio so
+     the eyeballed hotspot coordinates stay accurate. */
+}
+
+/* ── Active-neighborhood hotspot ────────────────────────────────────
+ *
+ * A brand-color ring positioned at (--hotspot-x, --hotspot-y) inside
+ * the frame. The pulsing inner glow draws the eye without obscuring
+ * the underlying neighborhood color. Sized in viewport-aware units
+ * (clamp + min/max) so it scales with the frame on mobile but never
+ * dominates the map on desktop.
+ */
+.neighborhood-map-hotspot {
+  position: absolute;
+  left: var(--hotspot-x, 50%);
+  top:  var(--hotspot-y, 50%);
+  width: clamp(36px, 6%, 56px);
+  aspect-ratio: 1 / 1;
+  border-radius: 999px;
+  /* The ring + glow together communicate "active". Border is the
+     brand amber, box-shadow extends a soft glow outward. */
+  border: 3px solid var(--amber, #d4a035);
+  background: var(--amber-tint-15, rgba(212, 160, 53, 0.18));
+  box-shadow:
+    0 0 0 4px rgba(255, 255, 255, 0.85),
+    0 0 24px 6px rgba(212, 160, 53, 0.55);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: neighborhood-map-hotspot-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes neighborhood-map-hotspot-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 4px rgba(255, 255, 255, 0.85),
+      0 0 18px 4px rgba(212, 160, 53, 0.45);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px rgba(255, 255, 255, 0.85),
+      0 0 30px 10px rgba(212, 160, 53, 0.7);
+  }
+}
+
+/* Respect users who've asked the OS to dial down motion — the
+   hotspot stays present and visible, just without the pulse. */
+@media (prefers-reduced-motion: reduce) {
+  .neighborhood-map-hotspot {
+    animation: none;
+  }
+}
+
+/* ── Preview badge ──────────────────────────────────────────────── */
+.neighborhood-map-preview-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg, #fff);
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  /* Sit above the hotspot's glow so it's always legible. */
+  z-index: 1;
+}
+
+/* ── Caption ────────────────────────────────────────────────────── */
+.neighborhood-map-caption {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  text-align: left;
+  /* A hair tighter padding than the hero intro so it reads as a
+     supplemental note rather than body copy. */
+  padding: 0 4px;
+}

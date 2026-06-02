@@ -53,6 +53,43 @@
   margin: 0 0 24px;
 }
 
+/* ── Neighborhood hub hero grid ────────────────────────────────────
+ *
+ * Two-column layout for neighborhood hubs that ship with a map
+ * mockup: intro paragraph on the left, the City-of-Akron map (with
+ * the active neighborhood highlighted) on the right. Mirrors the
+ * Art × Love poster layout the project is targeting.
+ *
+ * Single column below the tablet breakpoint — the map drops below
+ * the intro so it doesn't compete for narrow screens. The min-width
+ * of the intro column (28ch) keeps body copy readable; below that
+ * the auto-collapse kicks in.
+ *
+ * The `.hub-intro--with-map` modifier just removes the standalone
+ * bottom margin since the grid handles spacing for both columns.
+ */
+.hub-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(28ch, 1.4fr) minmax(280px, 1fr);
+  gap: 32px;
+  align-items: start;
+  margin: 0 0 28px;
+}
+
+.hub-intro--with-map {
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .hub-hero-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .hub-intro--with-map {
+    margin: 0 0 4px;
+  }
+}
+
 .hub-share {
   margin-bottom: 36px;
 }

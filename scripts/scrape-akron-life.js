@@ -17,6 +17,15 @@
  *   call /api/publisher/11072/widget_events directly and skip the page
  *   entirely. Fewer moving parts, no Puppeteer, no widget timing flakes.
  *
+ * Cross-source dedup:
+ *   Akron Life is high-volume (~300 events / 30 days) but low-fidelity —
+ *   categories are often wrong, the `sources` field is uniformly "evvnt"
+ *   (gives us no upstream-platform signal), and many events are backfilled
+ *   from venues we already scrape directly. We avoid duplicating those by
+ *   matching each event's `original_links` hostnames and `organiser_name`
+ *   against COVERED_BY_DIRECT_SCRAPER below — any hit drops the Evvnt copy
+ *   so the dedicated scraper owns the canonical row.
+ *
  * Usage:
  *   node scripts/scrape-akron-life.js
  *
@@ -78,29 +87,74 @@ function isInAkronArea(venue) {
   return haversineMiles(lat, lng, AKRON_LAT, AKRON_LNG) <= MAX_DISTANCE_MILES
 }
 
-// ── Cross-source dedupe via Evvnt's `sources` field ───────────────────────
+// ── Cross-source dedupe by hostname + organiser ──────────────────────────
 //
-// Evvnt aggregates events from many primary platforms (Ticketmaster,
-// Eventbrite, AXS, Bandsintown, RunSignUp, etc.) and tags each event with a
-// `sources: ['<platform>']` array. When that platform is one we ALSO scrape
-// directly, ingesting the Evvnt copy creates a duplicate. We skip those
-// events here and let the direct scraper own the canonical entry.
+// History — why we don't read `sources`:
+//   The Evvnt API exposes a `sources: ['<platform>']` array per event, but a
+//   live audit of publisher 11072 in 2026-06 found *every* event had
+//   `sources: ['evvnt']` regardless of where the upstream actually came
+//   from. The platform-string guard never matched, so it was a no-op.
 //
-// Add a source to this set only when:
-//   1. We have a working scraper that pulls from it directly (script in
-//      scripts/scrape-<platform>.js), AND
-//   2. That scraper's coverage of Akron-area events is at least as good as
-//      what Evvnt would surface.
-// If neither is true, leave the Evvnt copy alone — it's better than nothing.
-const SOURCES_WE_SCRAPE_DIRECTLY = new Set([
-  'ticketmaster',  // scripts/scrape-ticketmaster.js (via fetch-ticketmaster.js)
-  'eventbrite',    // scripts/scrape-eventbrite.js
-])
+// What works instead: inspect `original_links` URL hostnames and
+// `organiser_name` against a known list of scrapers we already run. When
+// Akron Life surfaces (e.g.) an event whose website lives at
+// `services.akronlibrary.org` or whose organiser is "Akron-Summit County
+// Public Library", the direct scrape-akron-library.js scraper already owns
+// the canonical row — we skip the Evvnt copy.
+//
+// Calibration note: a live survey of 300 events showed only ~2 currently
+// overlap with existing scrapers (eventbrite + ticketmaster). The map below
+// is mostly future-proofing as we add more direct scrapers — but it lets
+// any new scraper claim its events on Akron Life automatically.
+//
+// Each entry has:
+//   - scraper:    the scrape-<name>.js key (for log readability)
+//   - domains:    substrings to match against original_links hostnames
+//   - organisers: substrings to match against organiser_name (lowercase)
+const COVERED_BY_DIRECT_SCRAPER = [
+  { scraper: 'eventbrite',             domains: ['eventbrite.com'],                                  organisers: [] },
+  { scraper: 'ticketmaster',           domains: ['ticketmaster.com', 'livenation.com', 'axs.com'],   organisers: [] },
+  { scraper: 'akron_library',          domains: ['akronlibrary.org'],                                organisers: ['akron-summit county public library', 'akron public library', 'akron library', 'green branch library'] },
+  { scraper: 'summit_metro_parks',     domains: ['summitmetroparks.org'],                            organisers: ['summit metro parks'] },
+  { scraper: 'cvnp_conservancy',       domains: ['conservancyforcvnp.org'],                          organisers: ['conservancy for cuyahoga', 'cuyahoga valley national park'] },
+  { scraper: 'akron_art_museum',       domains: ['akronartmuseum.org'],                              organisers: ['akron art museum'] },
+  { scraper: 'akron_civic',            domains: ['akroncivic.com', 'akroncivictheatre.com'],         organisers: ['akron civic'] },
+  { scraper: 'akron_zoo',              domains: ['akronzoo.org'],                                    organisers: ['akron zoo'] },
+  { scraper: 'akron_childrens_museum', domains: ['akronchildrensmuseum.org'],                        organisers: ["akron children's museum", 'akron childrens museum'] },
+  { scraper: 'akron_symphony',         domains: ['akronsymphony.org'],                               organisers: ['akron symphony'] },
+  { scraper: 'weathervane',            domains: ['weathervaneplayhouse.com', 'weathervane.my.salesforce-sites.com'], organisers: ['weathervane playhouse'] },
+  { scraper: 'stan_hywet',             domains: ['stanhywet.org', 'stanhywet.ticketapp.org'],        organisers: ['stan hywet'] },
+  { scraper: 'blu_jazz',               domains: ['blujazzakron.com', 'blu-jazz.turntabletickets.com'], organisers: ['blu jazz'] },
+  { scraper: 'jillys_music_room',      domains: ['jillysmusicroom.com'],                             organisers: ["jilly's music room", 'jillys music room'] },
+  { scraper: 'akronym_brewing',        domains: ['akronymbrewing.com'],                              organisers: ['akronym brewing'] },
+  { scraper: 'missing_falls',          domains: ['missingfallsbrewery.com'],                         organisers: ['missing falls'] },
+  { scraper: 'players_guild',          domains: ['playersguildtheatre.com'],                         organisers: ['players guild'] },
+  { scraper: 'ohio_shakespeare',       domains: ['ohioshakespearefestival.com'],                     organisers: ['ohio shakespeare festival'] },
+  { scraper: 'painting_twist',         domains: ['paintingwithatwist.com'],                          organisers: ['painting with a twist'] },
+  { scraper: 'nightlight_cinema',      domains: ['nightlightcinema.com'],                            organisers: ['the nightlight', 'nightlight cinema'] },
+  { scraper: 'visit_akron_cvb',        domains: ['visitakron-summit.org', 'visitakronsummit.com'],   organisers: ['visit akron', 'summit county cvb'] },
+  { scraper: 'downtown_akron',         domains: ['downtownakron.com'],                               organisers: ['downtown akron partnership'] },
+  { scraper: 'torchbearers',           domains: ['torchbearersakron.org'],                           organisers: ['torchbearers'] },
+  { scraper: 'leadership_akron',       domains: ['leadershipakron.org'],                             organisers: ['leadership akron'] },
+  { scraper: 'akron_urban_league',     domains: ['akronurbanleague.org'],                            organisers: ['akron urban league'] },
+  { scraper: 'akron_public_schools',   domains: ['akronschools.com'],                                organisers: ['akron public schools'] },
+  { scraper: 'city_of_akron_lock3',    domains: ['akronohio.gov', 'lock3live.com'],                  organisers: ['city of akron', 'lock 3'] },
+  { scraper: 'north_hill_cdc',         domains: ['northhillcdc.org'],                                organisers: ['north hill cdc', 'north hill community development'] },
+  { scraper: 'rialto',                 domains: ['therialtotheatre.com'],                            organisers: ['rialto theatre', 'the rialto'] },
+  { scraper: 'rubberducks',            domains: ['milb.com'],                                        organisers: ['akron rubberducks', 'rubberducks'] },
+  { scraper: 'life_gurukula',          domains: ['lifegurukula.org'],                                organisers: ['life gurukula'] },
+  { scraper: 'crown_point_ecology',    domains: ['crownpointecology.org'],                           organisers: ['crown point ecology'] },
+  { scraper: 'summit_artspace',        domains: ['summitartspace.org'],                              organisers: ['summit artspace'] },
+  { scraper: 'killbox_comedy',         domains: ['thekillboxcomedyclub.com'],                        organisers: ['killbox comedy club', 'the killbox'] },
+  { scraper: 'hale_farm',              domains: ['wrhs.org'],                                        organisers: ['hale farm', 'western reserve historical society', 'wrhs'] },
+  // LiveWhale (UAkron) sub-sources all surface through uakron.edu
+  { scraper: 'uakron_calendar',        domains: ['uakron.edu', 'ejthomashall.com'],                  organisers: ['university of akron', 'e.j. thomas', 'ej thomas', 'myers school of art', 'cummings center'] },
+]
 
-// Events whose titles match these keywords are owned by a dedicated scraper
-// and should be skipped here regardless of how Evvnt tags their source field.
-// Keeps akron_life from creating cross-source duplicates for teams/venues that
-// have their own purpose-built ingestion script.
+// Title-keyword belt-and-suspenders for sources whose ticket links and
+// organiser strings vary too much to be enumerated above (RubberDucks
+// games show up under MiLB ticket vendors and partner promoters, for
+// example).
 const DEDICATED_SCRAPER_KEYWORDS = [
   'rubberducks',  // scrape-rubberducks.js owns all Akron RubberDucks home games
 ]
@@ -110,13 +164,31 @@ function isDedicatedlyScraped(title) {
   return DEDICATED_SCRAPER_KEYWORDS.some(kw => lower.includes(kw))
 }
 
-/** True when at least one entry in `sources` is a platform we own. */
-function isBackfilledFromDirectScraper(rawEventSources) {
-  if (!Array.isArray(rawEventSources)) return false
-  for (const s of rawEventSources) {
-    if (SOURCES_WE_SCRAPE_DIRECTLY.has(String(s).toLowerCase())) return true
+/**
+ * Examine an Evvnt event's hostnames + organiser name against
+ * COVERED_BY_DIRECT_SCRAPER. Returns the matching scraper key when the
+ * event is already owned by one of our direct scrapers, or null otherwise.
+ */
+function findCoveringScraper(rawEvent) {
+  const links = rawEvent?.original_links || {}
+  const hosts = []
+  for (const url of Object.values(links)) {
+    if (typeof url !== 'string') continue
+    try {
+      hosts.push(new URL(url).hostname.replace(/^www\./, '').toLowerCase())
+    } catch { /* skip malformed URLs */ }
   }
-  return false
+  const organiser = String(rawEvent?.organiser_name ?? '').toLowerCase().trim()
+
+  for (const entry of COVERED_BY_DIRECT_SCRAPER) {
+    for (const dom of entry.domains) {
+      if (hosts.some(h => h.endsWith(dom))) return entry.scraper
+    }
+    for (const kw of entry.organisers) {
+      if (organiser.includes(kw)) return entry.scraper
+    }
+  }
+  return null
 }
 
 // ── Category mapping ──────────────────────────────────────────────────────
@@ -368,34 +440,40 @@ async function main() {
     //                    misrepresenting West Virginia venues as Bath, OH)
     //   3. noLink      — no real external URL we could link the user to;
     //                    akronlife.com's broken event pages don't count
-    //   4. dupSource   — backfilled from a platform we already scrape
-    //                    directly (e.g. Ticketmaster); the direct scraper
-    //                    owns the canonical entry
+    //   4. dupSource   — already covered by a scrape-<name>.js we run
+    //                    directly. Detected by matching original_links
+    //                    hostnames or organiser_name against
+    //                    COVERED_BY_DIRECT_SCRAPER above.
     let droppedOutOfWindow = 0, droppedOutsideArea = 0, droppedNoLink = 0, droppedDupSource = 0
+    const dupSourceByScraper = {}   // for end-of-run reporting
     const toProcess = []
     for (const e of rawEvents) {
       const t = e.start_time ? new Date(e.start_time).getTime() : NaN
       if (!Number.isFinite(t) || t < now - 12 * 3600_000 || t > cutoff) {
         droppedOutOfWindow++; continue
       }
-      if (!isInAkronArea(e.venue))               { droppedOutsideArea++; continue }
-      if (!pickExternalUrl(e))                   { droppedNoLink++;      continue }
-      if (isBackfilledFromDirectScraper(e.sources)) { droppedDupSource++; continue }
-      if (isDedicatedlyScraped(e.title))         { droppedDupSource++;   continue }
-      // Log the sources array for events that pass the dedup guard so we can
-      // identify any platforms (e.g. Ticketmaster without the expected tag)
-      // that are slipping through and need to be added to SOURCES_WE_SCRAPE_DIRECTLY.
-      if (Array.isArray(e.sources) && e.sources.length > 0) {
-        const unknownSources = e.sources.filter(s => !SOURCES_WE_SCRAPE_DIRECTLY.has(String(s).toLowerCase()))
-        if (unknownSources.length > 0) {
-          console.log(`  ℹ️  Backfill slip-through: "${e.title}" has sources [${e.sources.join(', ')}]`)
-        }
+      if (!isInAkronArea(e.venue))      { droppedOutsideArea++; continue }
+      if (!pickExternalUrl(e))          { droppedNoLink++;      continue }
+      const coveredBy = findCoveringScraper(e)
+      if (coveredBy) {
+        droppedDupSource++
+        dupSourceByScraper[coveredBy] = (dupSourceByScraper[coveredBy] || 0) + 1
+        continue
+      }
+      if (isDedicatedlyScraped(e.title)) {
+        droppedDupSource++
+        dupSourceByScraper['(title-keyword)'] = (dupSourceByScraper['(title-keyword)'] || 0) + 1
+        continue
       }
       toProcess.push(e)
     }
+    const dupBreakdown = Object.entries(dupSourceByScraper)
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => `${k}=${v}`)
+      .join(', ')
     console.log(
       `\n📥  Processing ${toProcess.length} eligible events ` +
-      `(dropped ${droppedOutOfWindow} out-of-window, ${droppedOutsideArea} outside Akron, ${droppedNoLink} no link, ${droppedDupSource} backfilled from direct source)…`
+      `(dropped ${droppedOutOfWindow} out-of-window, ${droppedOutsideArea} outside Akron, ${droppedNoLink} no link, ${droppedDupSource} covered by direct scraper${dupBreakdown ? ' [' + dupBreakdown + ']' : ''})…`
     )
     const PROGRESS_INTERVAL = 25
     let processed = 0
