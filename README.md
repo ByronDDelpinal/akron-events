@@ -58,8 +58,29 @@ The `scrape:all` script runs every scraper sequentially. Each one logs its resul
 
 ## Supabase notes
 - Row Level Security (RLS) is enabled. Public visitors can only read `published` events.
-- To publish a submitted event: open the Supabase table editor → `events` table → change `status` from `pending_review` to `published`.
+- To publish a submitted event: open the Supabase table editor → `events` table → change `status` from `pending_review` to `published`, **or** use the one-click "Publish now" button in the operator notification email (see *Pending-event notifications* below).
 - The `anon` key is safe to expose in the browser — RLS ensures read-only public access.
+
+## Pending-event notifications
+User submissions from `/submit` insert an event with `status='pending_review'` and `source='manual'`, then call the `notify-pending-event` edge function. The function emails the operator (`ADMIN_NOTIFY_EMAIL`) the full submission and a one-click HMAC-signed "Publish now" link, plus a secondary deep link to `/admin/events/<id>/edit` for cases where you want to inspect or edit first.
+
+Deploy the function:
+```bash
+supabase functions deploy notify-pending-event
+```
+
+Required function secrets (set via `supabase secrets set` or the Supabase dashboard):
+- `RESEND_API_KEY` — Resend API key (shared with the digest function)
+- `ADMIN_NOTIFY_EMAIL` — comma-separated operator recipients (also used by `preferences`)
+- `PUBLISH_TOKEN_SECRET` — strong random string (≥ 32 bytes) used to HMAC-sign the one-click publish URL. Rotate to invalidate any in-flight links.
+- `PUBLIC_SITE_URL` — base URL of the site, used for the admin deep link (defaults to `https://akronpulse.com`)
+- `RESEND_FROM`, `RESEND_REPLY_TO` — optional sender / reply-to overrides
+- `PUBLISH_TOKEN_TTL_HOURS` — optional link lifetime, defaults to `168` (7 days)
+
+Security notes:
+- The publish URL is bound to a single `event_id` and signed with HMAC-SHA256. A leaked link can only publish that one event, and only until its expiry.
+- The GET handler is idempotent: replaying a valid link on an already-published row renders an "already published" page instead of re-running the update.
+- Rotating `PUBLISH_TOKEN_SECRET` immediately invalidates every outstanding link.
 
 ## Stack
 - **Frontend**: React 18 + Vite

@@ -58,8 +58,34 @@ export default function SubmitPage() {
         // (Phase 2 will have a proper organizer submission flow)
       }
 
-      const { error: insertError } = await supabase.from('events').insert(payload)
+      const { data: inserted, error: insertError } = await supabase
+        .from('events')
+        .insert(payload)
+        .select('id')
+        .single()
       if (insertError) throw insertError
+
+      // Fire the operator notification email. Wrapped so a function
+      // hiccup never blocks the user-facing success — the row is
+      // already safely in the DB at this point, and the operator can
+      // still find it via the admin review screens if no email arrives.
+      // We pass submitter contact + venue text along instead of
+      // persisting them on the event row (they're not stored anywhere
+      // today — the email is the only place they're surfaced).
+      try {
+        const { error: notifyError } = await supabase.functions.invoke('notify-pending-event', {
+          body: {
+            event_id:        inserted.id,
+            organizer_name:  form.organizer_name || null,
+            organizer_email: form.organizer_email || null,
+            venue_name:      form.venue_name || null,
+            venue_address:   form.venue_address || null,
+          },
+        })
+        if (notifyError) console.warn('[submit] notify-pending-event failed', notifyError)
+      } catch (err) {
+        console.warn('[submit] notify-pending-event threw', err)
+      }
 
       setStatus('success')
     } catch (err) {
