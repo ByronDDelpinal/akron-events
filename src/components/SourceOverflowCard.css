@@ -1,11 +1,14 @@
 /*
  * SourceOverflowCard — intentionally low-profile.
- * align-self: start stops it from stretching to the tallest card in the row.
+ *
+ * Stretches to match the tallest .card in the grid row (the implicit grid
+ * default — no align-self override) but keeps the chevron + label pinned to
+ * the top so the control reads as a header on an otherwise-empty card,
+ * not a vertically-centered button floating in dead space.
  */
 .source-overflow-card {
-  align-self: start;          /* natural height — never stretches to fill the row */
   display: flex;
-  align-items: center;
+  align-items: flex-start;    /* top-align chevron + label */
   justify-content: center;
   gap: var(--space-xs);
   width: 100%;

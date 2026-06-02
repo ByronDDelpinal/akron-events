@@ -361,6 +361,15 @@ const DATA_SOURCES = [
     notes:       "The City of Akron runs on Revize CMS and exposes its public-facing events as a JSON feed at /_assets_/plugins/revizeCalendar/calendar_data_handler.php (the same endpoint the on-page FullCalendar widget consumes). The feed covers seven city-managed calendars; we ingest the four that publish event-shaped content: Events (1), Parks & Rec (5), Lock 3 (6), and Great Streets Akron (13), explicitly skipping Meetings (2), Police Oversight (7), and HR (9). Each record carries title, start/end (Eastern-local ISO without zone — converted via lib/normalize.js#easternToIso), URL, location, an HTML image tag, and an iCal-style rrule for recurring series. Placeholder thumbnails and noimage assets are dropped at parse time. Captures the Summer Concert Series, Lock 4 Blues, Gospel Sundays, and city-promoted partner festivals (Pizza Fest, Italian-American Fest, African Culture Fest, Rubber City Remix) that don't reliably surface on Eventbrite or Ticketmaster. History note: this feed went dormant July 2024 → May 2026 and the scraper temporarily ran on Claude-extracted editorial pages; when the feed came back online we retired the LLM path. The recovery branch is preserved in git history if it's ever needed again.",
     status:      'active',
   },
+  {
+    key:         'killbox_comedy',
+    label:       'The KillBox Comedy Club',
+    method:      'HTML scrape',
+    methodDetail:'Seat Engine — Puppeteer-rendered /events listing + per-show detail pages',
+    venue:       'The KillBox Comedy Club — 1305 E Tallmadge Ave',
+    notes:       "Akron's dedicated stand-up venue. thekillboxcomedyclub.com runs on Seat Engine, which client-hydrates the /events listing as React components — direct fetch returns an empty shell, so we render with Puppeteer, harvest /events/<slug> anchors, then render each detail page to extract title, full description, banner image, price (or range), and one or more showtimes broken out as \"Weekday • Mon DD H:MM AM/PM\" blocks. Each showtime becomes its own DB row (Friday/Saturday weekend headliner runs fan out into 2–5 events). Year is inferred — Seat Engine omits the year on detail pages, so we anchor to today and roll forward if the candidate date is more than a week past. Default age_restriction is 21+ to match the venue policy.",
+    status:      'active',
+  },
 
   // ── Aggregators ────────────────────────────────────────────────────────
   {
@@ -560,6 +569,11 @@ const SOURCE_GROUPS = [
     description: 'The City of Akron runs on Revize CMS. Its events feed is the same JSON endpoint the on-page FullCalendar widget consumes (/_assets_/plugins/revizeCalendar/calendar_data_handler.php). We ingest four city-managed calendars — Events, Parks & Rec, Lock 3, and Great Streets Akron — and explicitly skip the meetings/HR/oversight calendars.',
   },
   {
+    id:    'seatengine',
+    title: 'Seat Engine',
+    description: 'Seat Engine powers ticketing and the public-facing website for several independent live-entertainment venues. The frontend client-hydrates listings via React, so we render with Puppeteer to harvest event slugs, then render each detail page and extract title, image, price, and one row per individual showtime.',
+  },
+  {
     id:    'wp-hybrid',
     title: 'EventON & custom WordPress',
     description: "WordPress sites that don't expose a Tribe Events feed — typically because they use the EventON plugin or hand-rolled custom post types — get a per-site combination: AJAX or WP REST API for the schedule, secondary fetches for images and descriptions.",
@@ -610,6 +624,7 @@ const SOURCE_GROUP_BY_KEY = {
   akron_library:       'communico',
   rubberducks:         'mlb',
   city_of_akron_lock3: 'revize',
+  killbox_comedy:      'seatengine',
 
   // EventON / custom WordPress
   jillys_music_room: 'wp-hybrid',
@@ -679,6 +694,7 @@ const SCRAPER_LABELS = {
   akron_life:         'Akron Life',
   stan_hywet:         'Stan Hywet',
   city_of_akron_lock3:'City of Akron (Lock 3)',
+  killbox_comedy:     'KillBox Comedy Club',
   akron_urban_league: 'Akron Urban League',
   rialto:             'The Rialto Theatre',
   life_gurukula:      'Life Gurukula',
