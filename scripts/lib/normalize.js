@@ -307,6 +307,57 @@ export function parseEventbritePrice(ticketClasses = [], isFree = false) {
  * null. Without this, a single Cloudflare challenge would erase good
  * dimension data captured from a friendlier IP on a prior run.
  */
+/**
+ * Fetch an event detail page and pull a usable description out of any
+ * Schema.org Event JSON-LD block embedded in the HTML.
+ *
+ * Why centralized: many of our sources (Eventbrite, museum CMSes, the
+ * University of Akron's LiveWhale calendar, WordPress sites with the
+ * "Events Schema" plugin) ship with `<script type="application/ld+json">
+ * { "@type": "Event", "description": "..." }` even when their listing-
+ * API descriptions are empty. This single helper lets any scraper say
+ * "if the listing didn't give me a description, ask the detail page"
+ * without each one re-implementing the same JSON-LD walk + try/catch.
+ *
+ * Returns the trimmed plain-text description, or null if the fetch
+ * fails, no Event schema is present, or the field is empty. Never
+ * throws — callers can safely `?? ''` the result.
+ */
+export async function fetchSchemaDescription(url) {
+  if (!url || !/^https?:\/\//i.test(url)) return null
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: 'text/html', 'User-Agent': 'Mozilla/5.0 (compatible; AkronEventsBot/1.0)' },
+      redirect: 'follow',
+    })
+    if (!res.ok) return null
+    const html = await res.text()
+    const scriptRe = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+    let m
+    while ((m = scriptRe.exec(html)) !== null) {
+      try {
+        const parsed = JSON.parse(m[1].trim())
+        const schemas = Array.isArray(parsed) ? parsed : [parsed]
+        for (const s of schemas) {
+          // Handle both single objects and @graph arrays.
+          const entries = s && s['@graph'] ? s['@graph']
+            : Array.isArray(s) ? s : [s]
+          for (const e of entries) {
+            if (e && (e['@type'] === 'Event' || (Array.isArray(e['@type']) && e['@type'].includes('Event')))) {
+              if (typeof e.description === 'string' && e.description.trim()) {
+                return stripHtml(e.description).trim()
+              }
+            }
+          }
+        }
+      } catch { /* invalid JSON, keep scanning */ }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 export async function enrichWithImageDimensions(row) {
   if (!await _hasImageDimensionColumns()) return row
   if (!row.image_url) {

@@ -145,14 +145,43 @@ async function fetchDetailPage(browser, slug) {
         .map(i => i.src)
         .find(s => s && /files\.seatengine\.com/i.test(s)) ?? null
 
-      // Description: everything between "Price includes fee" and
-      // "Know Before You Go:". Open-mic shows omit the artist bio so the
-      // result may be empty — caller handles that.
+      // Showtimes parsing uses this marker too; compute once.
+      const endMarker = text.indexOf('Know Before You Go')
+
+      // Description hierarchy:
+      //   1. Schema.org Event JSON-LD — Seat Engine emits this on most
+      //      ticketed shows and it carries the full artist bio.
+      //   2. The "Price includes fee" → "Know Before You Go:" slice that
+      //      worked before JSON-LD coverage existed. Still the best
+      //      source for show-specific blurbs that don't make it into
+      //      the structured-data block.
+      // Open-mic / standing-night listings legitimately have no bio,
+      // so a null fallthrough is acceptable.
       let description = null
-      const startMarker = text.indexOf('Price includes fee')
-      const endMarker   = text.indexOf('Know Before You Go')
-      if (startMarker !== -1 && endMarker !== -1 && endMarker > startMarker) {
-        description = text.slice(startMarker + 'Price includes fee'.length, endMarker).trim()
+      for (const s of document.querySelectorAll('script[type="application/ld+json"]')) {
+        try {
+          const parsed = JSON.parse(s.textContent || '')
+          const items = Array.isArray(parsed) ? parsed : [parsed]
+          for (const it of items) {
+            const entries = it && it['@graph'] ? it['@graph'] : [it]
+            for (const e of entries) {
+              if (e && (e['@type'] === 'Event' || (Array.isArray(e['@type']) && e['@type'].includes('Event')))) {
+                if (typeof e.description === 'string' && e.description.trim()) {
+                  description = e.description.trim()
+                  break
+                }
+              }
+            }
+            if (description) break
+          }
+          if (description) break
+        } catch { /* skip invalid JSON */ }
+      }
+      if (!description) {
+        const startMarker = text.indexOf('Price includes fee')
+        if (startMarker !== -1 && endMarker !== -1 && endMarker > startMarker) {
+          description = text.slice(startMarker + 'Price includes fee'.length, endMarker).trim()
+        }
       }
 
       // Price: first "$" amount. May be a range "$13.75 - $17.00".

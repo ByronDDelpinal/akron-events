@@ -92,6 +92,19 @@ const DEFAULT_VENUE_BY_CAL = {
   '13': { name: 'Downtown Akron',        address: null,            lat: 41.0814, lng: -81.5190 },
 }
 
+// Per-calendar canonical landing page on akronohio.gov, used as a
+// source_url fallback when the Revize feed doesn't supply an event-
+// specific URL.  The city's calendar page is JS-rendered with no
+// per-event detail route, so the best we can do is point users at the
+// relevant department/calendar landing page — better than no link at
+// all, which would leave the event detail page with zero outbound CTAs.
+const CALENDAR_LANDING_URL_BY_CAL = {
+  '1':  'https://www.akronohio.gov/calendar.php',
+  '5':  'https://www.akronohio.gov/departments/recreation_and_parks/events.php',
+  '6':  'https://www.akronohio.gov/departments/lock_3/calendar.php',
+  '13': 'https://www.akronohio.gov/calendar.php',
+}
+
 // Per-calendar category fallback when text-based inferCategory returns 'other'.
 //
 // Why this exists:  the city's titles use band-lineup shorthand like
@@ -288,6 +301,13 @@ function transform(ev) {
     category = CATEGORY_FALLBACK_BY_CAL[primaryCalId]
   }
 
+  const evUrl = (ev.url && ev.url.startsWith('http')) ? ev.url : null
+  // source_url falls back to the calendar's landing page when the feed
+  // doesn't include an event-specific link; ticket_url stays strict
+  // (only set when the feed advertises a real outbound URL) so the
+  // frontend's "Get Tickets" CTA never points users at a generic page.
+  const sourceUrl = evUrl ?? CALENDAR_LANDING_URL_BY_CAL[primaryCalId] ?? 'https://www.akronohio.gov/calendar.php'
+
   return {
     primaryCalId,
     row: {
@@ -301,7 +321,8 @@ function transform(ev) {
       price_max:       null,
       age_restriction: 'all_ages',
       image_url:       extractImageUrl(ev.image),
-      ticket_url:      (ev.url && ev.url.startsWith('http')) ? ev.url : null,
+      ticket_url:      evUrl,
+      source_url:      sourceUrl,
       source:          SOURCE_KEY,
       source_id:       `revize_${ev.rid || ev.id}`,
       status:          'published',

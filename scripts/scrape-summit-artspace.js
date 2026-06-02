@@ -164,7 +164,14 @@ async function processEvents(rawEvents, venueId, organizerId) {
         price_max,
         age_restriction: 'not_specified',
         image_url:       imageUrl,
+        // ev.website is the OPTIONAL "Event Website" field organizers fill in
+        // (often blank for in-house programming like Spring Exhibitions).
+        // ev.url is the Tribe Events Calendar canonical detail page on
+        // summitartspace.org — always present. Use website for ticket_url
+        // when set, and the source detail page as a guaranteed fallback so
+        // every event has at least one outbound link.
         ticket_url:      ev.website || null,
+        source_url:      ev.url || ev.website || null,
         source:          'summit_artspace',
         source_id:       String(ev.id),
         status:          'published',

@@ -192,6 +192,46 @@ async function ensureUakronOrganizer() {
 
 // ── Fetch ──────────────────────────────────────────────────────────────────
 
+/**
+ * Fetch an event detail page and pull the description out of its
+ * Schema.org Event JSON-LD. LiveWhale-rendered pages reliably include
+ * `@type: "Event"` with a populated `description`, so this works for
+ * essentially every UA event.
+ *
+ * Returns the trimmed description text, or null on any failure /
+ * missing field — callers fall back to the empty source field.
+ */
+async function fetchEventDescription(href) {
+  if (!href) return null
+  try {
+    const res = await fetch(href, {
+      headers: { Accept: 'text/html', 'User-Agent': 'Mozilla/5.0 (compatible; The330-bot/1.0)' },
+      redirect: 'follow',
+    })
+    if (!res.ok) return null
+    const html = await res.text()
+    const scriptRe = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+    let m
+    while ((m = scriptRe.exec(html)) !== null) {
+      try {
+        const parsed = JSON.parse(m[1].trim())
+        const schemas = Array.isArray(parsed) ? parsed : [parsed]
+        for (const s of schemas) {
+          const entries = Array.isArray(s) ? s : [s]
+          for (const e of entries) {
+            if (e && e['@type'] === 'Event' && typeof e.description === 'string' && e.description.trim()) {
+              return stripHtml(e.description).trim()
+            }
+          }
+        }
+      } catch { /* invalid JSON, skip */ }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 async function fetchEvents() {
   console.log('\n🔍  Fetching University of Akron events via LiveWhale API…')
 
@@ -237,7 +277,16 @@ async function processEvents(rawEvents, organizerId) {
       const category = parseCategory(ev)
       const tags     = parseTags(ev)
       const price_min = parsePrice(ev.cost)
-      const descText  = stripHtml(ev.description ?? '')
+      let descText  = stripHtml(ev.description ?? '')
+      // LiveWhale's `description` field is often empty even when the
+      // event has a fully-written body on the detail page. Fall back to
+      // the canonical Schema.org Event description embedded on the page
+      // we already have a URL for — keeps the event detail surface from
+      // rendering "No description available." for events whose source
+      // clearly has copy.
+      if (!descText && ev.url) {
+        descText = await fetchEventDescription(ev.url) ?? ''
+      }
       const imageUrl  = ev.thumbnail ?? null
 
       const row = {

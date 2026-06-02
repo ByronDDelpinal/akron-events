@@ -28,6 +28,7 @@
 import 'dotenv/config'
 import {
   logUpsertResult, logScraperError, stripHtml, inferCategory,
+  fetchSchemaDescription,
   upsertEventSafe, linkEventVenue, linkEventOrganization,
   ensureVenue, ensureOrganization, linkOrganizationVenue,
 } from './lib/normalize.js'
@@ -438,9 +439,17 @@ async function main() {
           }
         }
 
-        const description = raw.description || raw.summary
+        let description = raw.description || raw.summary
           ? stripHtml(raw.description || raw.summary).slice(0, 5000)
           : null
+        // Evvnt frequently returns empty body fields for events it
+        // sources from third parties (axs, eventbrite, ticketmaster).
+        // Pull the Schema.org Event description off the external page
+        // so users don't see a blank "About this event" block.
+        if (!description) {
+          const external = pickExternalUrl(raw)
+          if (external) description = await fetchSchemaDescription(external)
+        }
 
         const category = mapCategory(raw.category_name, raw.title, description)
         const tags     = buildTags(category, raw.category_name)

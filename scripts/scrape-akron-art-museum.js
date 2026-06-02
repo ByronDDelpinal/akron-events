@@ -234,6 +234,33 @@ function pickRealImageUrl(imgTagHtml) {
  * they are JS-rendered placeholders that will never load correctly as a
  * stored image_url.
  */
+/**
+ * Pull `description` out of any Schema.org Event JSON-LD block on the page.
+ * Eventbrite + many museum-CMS-style sites embed a fully-populated Event
+ * graph that's the most reliable source of clean copy. Returns null when
+ * no Event JSON-LD is present or its description is empty.
+ */
+function extractJsonLdDescription(html) {
+  const scriptRe = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+  let scriptMatch
+  while ((scriptMatch = scriptRe.exec(html)) !== null) {
+    try {
+      const raw = scriptMatch[1].trim()
+      const parsed = JSON.parse(raw)
+      const schemas = Array.isArray(parsed) ? parsed : [parsed]
+      for (const schema of schemas) {
+        const entries = Array.isArray(schema) ? schema : [schema]
+        for (const entry of entries) {
+          if (entry['@type'] === 'Event' && typeof entry.description === 'string' && entry.description.trim()) {
+            return entry.description.trim()
+          }
+        }
+      }
+    } catch { /* invalid JSON, skip */ }
+  }
+  return null
+}
+
 function extractPageImage(html) {
   // ── 1. JSON-LD ──────────────────────────────────────────────────────
   const scriptRe = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
@@ -315,25 +342,38 @@ async function fetchEventDetail(href) {
       priceMax = prices.length > 1 ? Math.max(...prices) : null
     }
 
-    // Description: look for the main content area
-    const descPatterns = [
-      /class="entry-content"[^>]*>([\s\S]*?)<\/div>/,
-      /class="me-event-detail[^"]*"[^>]*>([\s\S]*?)<\/div>/,
-      /class="event-description[^"]*"[^>]*>([\s\S]*?)<\/div>/,
-    ]
-    let description = null
-    for (const pat of descPatterns) {
-      const m = html.match(pat)
-      if (m) { description = stripHtml(m[1]).slice(0, 1000) || null; break }
+    // Description hierarchy:
+    //   1. Schema.org JSON-LD Event.description — most reliable, copy-as-text
+    //   2. CSS-class-based extraction from the museum's own page
+    //   3. If the ticket URL points at Eventbrite, the AAM page itself
+    //      typically has only a stub; the real description lives on the
+    //      Eventbrite listing's JSON-LD. We fetch it below alongside the
+    //      image fallback.
+    let description = extractJsonLdDescription(html)
+    if (!description) {
+      const descPatterns = [
+        /class="entry-content"[^>]*>([\s\S]*?)<\/div>/,
+        /class="me-event-detail[^"]*"[^>]*>([\s\S]*?)<\/div>/,
+        /class="event-description[^"]*"[^>]*>([\s\S]*?)<\/div>/,
+      ]
+      for (const pat of descPatterns) {
+        const m = html.match(pat)
+        if (m) { description = stripHtml(m[1]).slice(0, 1000) || null; break }
+      }
     }
 
     // Image: try the museum's own detail page first (JSON-LD → og → twitter)
     let imageUrl = extractPageImage(html)
 
     // Fallback: if the ticket URL is EventBrite, fetch that page and parse
-    // its JSON-LD Event schema — this reliably returns the real CDN image URL
-    // from EventBrite's server-side HTML before JS hydration replaces it.
-    if (!imageUrl && ticketUrl && /eventbrite\.com/i.test(ticketUrl)) {
+    // its JSON-LD Event schema — this reliably returns both the real CDN
+    // image URL and the full event description from Eventbrite's server-
+    // rendered HTML before JS hydration. Many AAM events delegate the
+    // copy entirely to Eventbrite, so this is the difference between
+    // "About this event" being populated or blank.
+    const needsEventbriteFallback = (!imageUrl || !description)
+      && ticketUrl && /eventbrite\.com/i.test(ticketUrl)
+    if (needsEventbriteFallback) {
       try {
         const ebRes = await fetch(ticketUrl, {
           headers: {
@@ -344,10 +384,11 @@ async function fetchEventDetail(href) {
         })
         if (ebRes.ok) {
           const ebHtml = await ebRes.text()
-          imageUrl = extractPageImage(ebHtml)
+          if (!imageUrl)     imageUrl     = extractPageImage(ebHtml)
+          if (!description)  description  = extractJsonLdDescription(ebHtml)
         }
       } catch {
-        // EventBrite fetch failed — no image, not fatal
+        // EventBrite fetch failed — no image / description, not fatal
       }
     }
 

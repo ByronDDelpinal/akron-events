@@ -17,6 +17,7 @@ import {
   logUpsertResult,
   logScraperError,
   stripHtml,
+  fetchSchemaDescription,
   enrichWithImageDimensions,
   upsertEventSafe,
   linkEventVenue,
@@ -239,7 +240,14 @@ async function processEvents(rawEvents, organizerId) {
       const tags     = parseTags(ev.tags, ev.age)
       const startAt  = easternToIso(ev.raw_start_time)
       const endAt    = easternToIso(ev.raw_end_time)
-      const descText = stripHtml(ev.long_description || ev.description || '')
+      let   descText = stripHtml(ev.long_description || ev.description || '')
+      // Fall back to the library's event detail page when the API
+      // returns no body — keeps storytimes and program announcements
+      // from rendering as a bare title on Akron Pulse.
+      if (!descText) {
+        const url = sanitizeUrl(ev.url)
+        if (url) descText = (await fetchSchemaDescription(url)) ?? ''
+      }
 
       if (!startAt) { skipped++; continue }
 

@@ -343,6 +343,38 @@ async function ensureCvbOrganization() {
   })
 }
 
+// ── Title normalization ────────────────────────────────────────────────────
+
+/**
+ * Clean up CVB titles before insert.
+ *
+ *   1. Strip the trailing " (NNN)" recid suffix that Simpleview's CMS
+ *      bakes into cms_title — pure noise for end users.
+ *   2. De-shout titles that arrive in ALL CAPS. The CVB feed mixes
+ *      cased and shouted titles inconsistently ("ART AND JEWELRY
+ *      FUSION EXPERIENCE" vs. "Roast Battle Cleveland"); we Title-Case
+ *      the screamers and leave normal titles alone so we never
+ *      down-case a legitimate proper-noun title.
+ *
+ * Heuristic: a title is "shouted" if at least 6 of its letters are
+ * uppercase and ALL letters are uppercase. Single short tokens like
+ * "EJ" or "OH" don't trip the threshold.
+ */
+function normalizeCvbTitle(raw) {
+  if (!raw) return ''
+  let t = raw.trim().replace(/\s+/g, ' ')
+  // Drop the recid suffix: "Art Show (263)" → "Art Show".
+  t = t.replace(/\s*\(\d+\)\s*$/, '').trim()
+  // De-shout: only if EVERY letter is uppercase and we have enough
+  // letters to be confident. Preserves acronyms like "BBQ" inside an
+  // otherwise mixed-case title.
+  const letters = t.replace(/[^A-Za-z]/g, '')
+  if (letters.length >= 6 && letters === letters.toUpperCase()) {
+    t = t.toLowerCase().replace(/\b([a-z])/g, (m, c) => c.toUpperCase())
+  }
+  return t
+}
+
 // ── Process ────────────────────────────────────────────────────────────────
 
 async function processEvents(docs, orgId) {
@@ -350,7 +382,7 @@ async function processEvents(docs, orgId) {
 
   for (const doc of docs) {
     try {
-      const title = (doc.cms_title || doc.title || '').trim()
+      const title = normalizeCvbTitle(doc.cms_title || doc.title || '')
       if (!title || title.length < 3) { skipped++; continue }
 
       const { start_at, end_at } = buildStartEnd(doc)

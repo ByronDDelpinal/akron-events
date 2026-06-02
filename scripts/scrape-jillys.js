@@ -28,6 +28,7 @@ import {
   logUpsertResult,
   logScraperError,
   stripHtml,
+  fetchSchemaDescription,
   enrichWithImageDimensions,
   upsertEventSafe,
   linkEventVenue,
@@ -237,6 +238,17 @@ async function processEvents(ajaxEvents, restById, venueId, organizerId) {
         // Taxonomy terms (skip first array which is post_tags, usually empty)
         const wpTerms = restPost._embedded?.['wp:term'] ?? []
         termArrays = wpTerms.slice(1)  // skip post_tag, keep event_type + event_type_2
+      }
+
+      // When the WordPress post body is empty (Jilly's frequently
+      // ships shows with only a poster image and a TicketWeb link),
+      // pull the artist blurb out of the venue's own permalink page —
+      // it embeds Schema.org Event JSON-LD via the calendar plugin.
+      if (!description) {
+        const detailUrl = restPost?.link || ticketUrl
+        if (detailUrl) {
+          description = (await fetchSchemaDescription(detailUrl)) || null
+        }
       }
 
       const category = parseCategory(classList)

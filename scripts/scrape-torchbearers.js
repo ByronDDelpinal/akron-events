@@ -19,6 +19,7 @@ import {
   logUpsertResult,
   logScraperError,
   stripHtml,
+  fetchSchemaDescription,
   enrichWithImageDimensions,
   upsertEventSafe,
   linkEventVenue,
@@ -151,7 +152,14 @@ async function processEvents(rawEvents, organizerId) {
       const category  = parseCategory(ev.categories)
       const tags      = parseTagsFromTribe(ev.categories, ev.tags, ['akron', 'young-professionals', 'leadership'])
       const imageUrl  = parseImage(ev.image, ev.description)
-      const descText  = stripHtml(ev.description)
+      let   descText  = stripHtml(ev.description)
+      // Tribe API often returns an empty description even when the event's
+      // detail page on torchbearersakron.com has a full write-up. Fall
+      // back to the Schema.org Event JSON-LD on the detail page so the
+      // Akron Pulse event page doesn't render "No description available."
+      if (!descText && ev.url) {
+        descText = (await fetchSchemaDescription(ev.url)) ?? ''
+      }
 
       const venueId = await ensureEventVenue(ev.venue, null, organizerId)
 
