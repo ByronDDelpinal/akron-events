@@ -43,6 +43,11 @@ export default function SubmitPage() {
         end_at:          form.end_at || null,
         category:        form.category,
         ticket_url:      form.ticket_url || null,
+        // For user-submitted events the "Ticket / RSVP link" is the
+        // only outbound URL we capture, so mirror it into source_url
+        // to keep the schema invariant that every event has a source
+        // page when one is available.
+        source_url:      form.ticket_url || null,
         price_min:       parseFloat(form.price_min) || 0,
         price_max:       form.price_max ? parseFloat(form.price_max) : null,
         age_restriction: form.age_restriction,

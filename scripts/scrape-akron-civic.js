@@ -284,6 +284,9 @@ async function processShows(shows, organizerId) {
         age_restriction: 'not_specified',
         image_url:       null,
         ticket_url:      'https://www.akroncivic.com/tickets',
+        // Akron Civic's CMS doesn't expose per-show detail URLs, so we
+        // fall back to the all-shows page as the canonical source.
+        source_url:      SOURCE_URL,
         source:          'akron_civic',
         source_id:       slugify(show.title),
         status:          'published',

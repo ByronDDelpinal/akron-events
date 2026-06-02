@@ -647,6 +647,20 @@ export async function upsertEventSafe(row) {
   // like &#8217; or &amp; that would otherwise appear verbatim in the DB.
   const sanitized = sanitizeEventText(row)
 
+  // Default `source_url` to `ticket_url` so every event has at least one
+  // canonical outbound link on the source's site. The frontend prefers
+  // ticket_url for the primary "Get Tickets / Register" CTA and falls
+  // back to source_url when no direct ticketing link exists — many
+  // sources publish events with registration details inline rather than
+  // a separate purchase URL, and without this guarantee those events
+  // would render with no actionable link at all. Scrapers can still set
+  // source_url explicitly when the source page and ticket page differ
+  // (e.g. visit_akron_cvb, where the CVB detail page lives on
+  // visitakron-summit.org but the registration link points elsewhere).
+  if (sanitized.source_url == null && sanitized.ticket_url) {
+    sanitized.source_url = sanitized.ticket_url
+  }
+
   // Auto-flag low-confidence categorizations for admin review.
   // If the scraper didn't already set needs_review and the final category is
   // 'other' (meaning nothing in the source map or inferCategory matched), mark

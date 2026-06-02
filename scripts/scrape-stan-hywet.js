@@ -38,6 +38,7 @@ import {
   logUpsertResult,
   logScraperError,
   stripHtml,
+  htmlToText,
   inferCategory,
   enrichWithImageDimensions,
   upsertEventSafe,
@@ -215,6 +216,36 @@ function normalizeImage(src) {
 }
 
 /**
+ * Fetch the full event description from a Stan Hywet detail page.
+ *
+ * The /public-events listing only exposes an optional one-line `.alert`
+ * teaser; the real, multi-paragraph description lives on the per-event
+ * Drupal node at /events/{slug} inside `<div class="field-body">`. We
+ * pull that on the second pass so the event detail page has the full
+ * write-up rather than a blank "About this event" section.
+ *
+ * Failures here are non-fatal — we fall back to the listing teaser
+ * (which may itself be empty). Returning null lets the caller decide.
+ */
+async function fetchEventDescription(href) {
+  if (!href) return null
+  try {
+    const html = await fetchHtml(href)
+    // Match the .field-body div and its inner HTML. Drupal nests this
+    // inside the event node; the regex is non-greedy to stop at the
+    // first closing tag, which is enough because field-body never
+    // contains its own block-level wrapper.
+    const m = html.match(/<div[^>]*class="[^"]*field-body[^"]*"[^>]*>([\s\S]*?)<\/div>\s*(?=<div|<\/div>|<footer|<aside)/i)
+    if (!m) return null
+    const text = htmlToText(m[1] || '').trim()
+    return text || null
+  } catch (err) {
+    console.warn(`  ⚠ Could not fetch description for ${href}: ${err.message}`)
+    return null
+  }
+}
+
+/**
  * Parse the `.event-item` cards out of the listing HTML.  Returns an array
  * of raw event records {title, dateText, alertText, href, imageUrl, slug}.
  */
@@ -326,9 +357,14 @@ async function processEvents(cards, venueId, organizerId) {
       const endMs   = endAt ? new Date(endAt).getTime() : startMs
       if (endMs < Date.now() - 86_400_000) { skipped++; continue }
 
-      const description = card.alertText && card.alertText.length > 0
-        ? card.alertText
-        : null
+      // Prefer the full description from the event's detail page;
+      // fall back to the listing teaser only if the detail fetch
+      // failed or the field-body was empty. This keeps the event
+      // detail page from rendering a bare "No description available."
+      // for events the source obviously has copy for.
+      const detailDescription = await fetchEventDescription(card.href)
+      const description = detailDescription
+        ?? (card.alertText && card.alertText.length > 0 ? card.alertText : null)
 
       const row = {
         title:           card.title,

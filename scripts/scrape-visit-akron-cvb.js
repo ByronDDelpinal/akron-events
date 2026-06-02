@@ -368,6 +368,16 @@ async function processEvents(docs, orgId) {
       const sourceId = doc.recid ? String(doc.recid) : (doc._id ? String(doc._id) : null)
       if (!sourceId) { skipped++; continue }
 
+      // CVB detail page lives at /event/{slug}/{recid}/. The slug is a
+      // lowercased, hyphenated form of the title — but the server
+      // redirects on any slug as long as the recid is correct, so the
+      // exact slug only matters for prettier URLs in the address bar.
+      const titleSlug = title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+      const detailUrl = `${BASE_URL}/event/${titleSlug || 'event'}/${sourceId}/`
+
       const row = {
         title,
         description,
@@ -379,7 +389,12 @@ async function processEvents(docs, orgId) {
         price_max,
         age_restriction: 'not_specified',
         image_url:       bestImage(doc.media_raw),
+        // Direct ticketing/registration link advertised by the source.
+        // Many CVB listings omit this; the source_url fallback below
+        // guarantees the event page always has at least one outbound
+        // CTA so users can finish the action they came for.
         ticket_url:      doc.linkUrl || null,
+        source_url:      detailUrl,
         source:          SOURCE_KEY,
         source_id:       sourceId,
         status:          'published',

@@ -12,7 +12,7 @@ import {
 const DEFAULT_EVENT = {
   title: '', description: '', status: 'published', category: '',
   start_at: '', end_at: '', price_min: 0, price_max: null,
-  age_restriction: 'not_specified', ticket_url: '', image_url: '',
+  age_restriction: 'not_specified', ticket_url: '', source_url: '', image_url: '',
   featured: false, manual_overrides: {},
 }
 
@@ -114,6 +114,7 @@ function EventForm({
       price_max:       form.price_max ?? null,
       age_restriction: form.age_restriction ?? 'not_specified',
       ticket_url:      form.ticket_url ?? null,
+      source_url:      form.source_url ?? null,
       image_url:       form.image_url ?? null,
       featured:        form.featured ?? false,
       manual_overrides: overrides,
@@ -213,6 +214,10 @@ function EventForm({
 
         <FormField label="Ticket URL" field="ticket_url" overrides={overrides} onToggleOverride={toggleOverride}>
           <FormInput value={form.ticket_url} onChange={e => setField('ticket_url', e.target.value)} />
+        </FormField>
+
+        <FormField label="Source URL" field="source_url" overrides={overrides} onToggleOverride={toggleOverride}>
+          <FormInput value={form.source_url} onChange={e => setField('source_url', e.target.value)} />
         </FormField>
 
         <FormField label="Image URL" field="image_url" overrides={overrides} onToggleOverride={toggleOverride}>

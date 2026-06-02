@@ -485,11 +485,33 @@ function MobileInfoGrid({ event, price }) {
 }
 
 function ActionButtons({ event, price }) {
+  // Akron Pulse is an aggregator, not a ticketing platform, so every
+  // event page MUST surface at least one outbound link the user can
+  // follow to register, RSVP, or read the source listing. The CTA
+  // chain is:
+  //
+  //   1. ticket_url   — direct purchase/registration link (best case)
+  //   2. source_url   — the event's detail page on the source's site
+  //
+  // source_url is populated by every scraper via the upsertEventSafe
+  // helper (defaulting to ticket_url) and explicitly by sources where
+  // the detail page and ticketing page diverge (e.g. visit_akron_cvb).
+  const primaryUrl   = event.ticket_url || event.source_url || null
+  const isTicketLink = !!event.ticket_url
+  const primaryLabel = isTicketLink
+    ? (price.free ? 'Register — Free' : `Get Tickets — ${price.label}`)
+    : 'View Event Details →'
+
   return (
     <>
-      {event.ticket_url && (
-        <a href={event.ticket_url} target="_blank" rel="noopener noreferrer" className="btn-ticket">
-          {price.free ? 'Register — Free' : `Get Tickets — ${price.label}`}
+      {primaryUrl && (
+        <a
+          href={primaryUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn-ticket"
+        >
+          {primaryLabel}
         </a>
       )}
       <a
