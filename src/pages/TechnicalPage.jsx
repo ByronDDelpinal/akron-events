@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { Fragment, useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { SEO } from '@/lib/seo'
 import './TechnicalPage.css'
@@ -171,6 +171,24 @@ const DATA_SOURCES = [
     notes:       'Uses the shared Squarespace Events Collection module. Monthly "Leadership on Main" speaker series plus other community leadership events. Free admission with complimentary food.',
     status:      'active',
   },
+  {
+    key:         'rialto',
+    label:       'The Rialto Theatre',
+    method:      'REST API',
+    methodDetail:'Squarespace Events Collection JSON (?format=json&view=upcoming)',
+    venue:       'The Rialto Theatre — 1000 Kenmore Blvd',
+    notes:       "Kenmore-neighborhood live-music venue run by musicians for musicians. Pulls the /calendar Squarespace collection, strips the trailing date stamp Rialto appends to every title (\"Band Name - 05/27/2026\" → \"Band Name\"), and tags recurring series — Living Room (acoustic), Emerging Sounds (local artists), Irish session, and the spoken-word Angry Cow Poetry night.",
+    status:      'active',
+  },
+  {
+    key:         'crown_point_ecology',
+    label:       'Crown Point Ecology Center',
+    method:      'REST API',
+    methodDetail:'Squarespace Events Collection JSON (?format=json&view=upcoming)',
+    venue:       'Crown Point Ecology Center — 3220 Ira Rd, Bath Twp.',
+    notes:       'Nonprofit 115-acre regenerative farm and nature center. Squarespace events collection covers the Meadow Music summer concert series, Rooted Conversations speaker series, monthly Seasons on the Land nature walks, Rise and Shine youth programs, the Taste of Earth fundraiser, and seasonal fundraisers (e.g. the Dead at Harvest immersive murder mystery in the historic Century Barn). Default venue is the main farm campus; per-event venues only created when Squarespace returns a distinct off-site location.',
+    status:      'active',
+  },
 
   // ── iCalendar (ICS) feeds ──────────────────────────────────────────────
   // These sources publish a machine-readable .ics file (RFC 5545). The shared
@@ -212,6 +230,15 @@ const DATA_SOURCES = [
     methodDetail:'Community events calendar iCal — auto-discovered from /events page',
     venue:       'Regional (Greater Akron)',
     notes:       'Akron Life advertises both RSS and ICS subscription on their events calendar. The scraper prefers ICS because it gives structured start/end times and timezone info. Categorization maps VEVENT summary/description keywords to the canonical category set.',
+    status:      'active',
+  },
+  {
+    key:         'life_gurukula',
+    label:       'Life Gurukula',
+    method:      'ICS feed',
+    methodDetail:'The Events Calendar (Tribe) iCalendar export — ?post_type=tribe_events&ical=1&eventDisplay=list',
+    venue:       'Life Gurukula — 1230 W Market St',
+    notes:       'Vedanta retreat center and residential ashrama on West Market. Routed through the shared runIcsScraper pipeline. The list-view ICS endpoint returns all upcoming events instead of just the current month, so multi-day retreats (Stepping Stones, the youth/adult CHYK retreats) and one-off classes both flow in. Yoga and meditation map to fitness, classes/workshops to education, retreats and pujas to community.',
     status:      'active',
   },
 
@@ -307,6 +334,15 @@ const DATA_SOURCES = [
     status:      'degraded',
   },
   {
+    key:         'akron_urban_league',
+    label:       'Akron Urban League',
+    method:      'HTML scrape',
+    methodDetail:'WordPress (custom AUL theme) — /home/events/ listing + detail pages',
+    venue:       'Akron Urban League — multiple program sites',
+    notes:       'Server-rendered WordPress site with no REST or Tribe Events feed exposed. Scraper enumerates event URLs from the /home/events/ listing (and the /events-archive/ pattern), then fetches each detail page and parses og:* meta tags plus body copy for date ("January 19, 2026"), time, venue, description, and registration link. article:published_time is the WP post date, not the event date, so it is explicitly ignored. Typical run yields ~5–15 active community-impact events at a time.',
+    status:      'active',
+  },
+  {
     key:         'stan_hywet',
     label:       'Stan Hywet Hall & Gardens',
     method:      'HTML scrape',
@@ -333,10 +369,280 @@ const DATA_SOURCES = [
     method:      'HTML scrape',
     methodDetail:'window.__SERVER_DATA__ + internal POST API — Akron geo-feed',
     venue:       'Regional events (Akron / Summit County)',
-    notes:       'Public API deprecated in 2020. Scraper fetches the Akron search page, extracts event buckets from window.__SERVER_DATA__, and paginates via the internal /api/v3/destination/search/ POST endpoint using session cookies for auth. Catches the long tail of community events — including many Akron organizers who publish only to Eventbrite (The Matinee, House Three Thirty, The Green Dragon Inn, Summit County Historical Society, Bounce Innovation Hub, Black Chamber of Commerce, Akron Black Artist Guild, Interbelt Nite Club, Akron-Canton Regional Foodbank, BLU-Tique). These organizers are all captured via the citywide geo-feed rather than per-organizer scrapes.',
+    notes:       'Public API deprecated in 2020. Scraper fetches the Akron search page, extracts event buckets from window.__SERVER_DATA__, and paginates via the internal /api/v3/destination/search/ POST endpoint using session cookies for auth. Catches the long tail of community events through one citywide geo-feed rather than per-organizer scrapes.',
     status:      'active',
   },
+
+  // ── Aggregator-routed organizations ────────────────────────────────────
+  // These orgs/venues don't have a dedicated scraper — they ride on an
+  // aggregator's ingestion (Eventbrite geo-feed, Ticketmaster 25-mile
+  // radius, Simpleview CVB install). They appear as their own rows so the
+  // page accurately reflects every event source we cover. `subOf` tells the
+  // render to roll event counts and last-run up to the parent scraper.
+  {
+    key:    'tm_blossom_music_center',
+    subOf:  'ticketmaster',
+    label:  'Blossom Music Center',
+    method: 'REST API',
+    methodDetail:'Routed through the Ticketmaster geo-radius (no dedicated scraper)',
+    venue:  'Blossom Music Center — 1145 W Steels Corners Rd, Cuyahoga Falls',
+    notes:  'Cleveland Orchestra summer pavilion and a major touring-concert venue. Sits ~8 miles from downtown Akron, well inside the 25-mile Ticketmaster radius, so the full season schedule arrives without a separate ingest.',
+    status: 'active',
+  },
+  {
+    key:    'sv_jsk_center',
+    subOf:  'visit_akron_cvb',
+    label:  'John S. Knight Center',
+    method: 'REST API',
+    methodDetail:'Routed through the Visit Akron Simpleview install (no dedicated scraper)',
+    venue:  'John S. Knight Center — 77 E Mill St',
+    notes:  "Downtown Akron's primary convention center sits on the same Simpleview platform as Visit Akron CVB, so its events flow through the citywide CVB API automatically. A dedicated scraper would just be a category filter on the same source.",
+    status: 'active',
+  },
+  {
+    key:    'eb_house_three_thirty',
+    subOf:  'eventbrite',
+    label:  'House Three Thirty',
+    method: 'HTML scrape',
+    methodDetail:'Routed through the Eventbrite citywide geo-feed (organizer 61445316323)',
+    venue:  '532 W Market St — community arts, music & event space',
+    notes:  'All ticketed House Three Thirty events publish through Eventbrite and are geotagged 532 W Market St, so they flow into the citywide Eventbrite scraper. Pinning the organizer ID could serve as a fallback if the geo-feed ever misses an event.',
+    status: 'active',
+  },
+  {
+    key:    'eb_the_matinee',
+    subOf:  'eventbrite',
+    label:  'The Matinee',
+    method: 'HTML scrape',
+    methodDetail:'Routed through the Eventbrite citywide geo-feed',
+    venue:  'The Matinee — downtown Akron music & event space',
+    notes:  'The Matinee publishes its public-facing programming exclusively through Eventbrite, so events arrive via the citywide geo-feed.',
+    status: 'active',
+  },
+  {
+    key:    'eb_green_dragon_inn',
+    subOf:  'eventbrite',
+    label:  'The Green Dragon Inn',
+    method: 'HTML scrape',
+    methodDetail:'Routed through the Eventbrite citywide geo-feed',
+    venue:  'The Green Dragon Inn — downtown Akron music venue',
+    notes:  'Ticketed shows post to Eventbrite and are picked up by the geo-feed; the Downtown Akron Partnership scraper also catches them in its monthly listings, so we have dual coverage for redundancy.',
+    status: 'active',
+  },
+  {
+    key:    'eb_summit_historical',
+    subOf:  'eventbrite',
+    label:  'Summit County Historical Society',
+    method: 'HTML scrape',
+    methodDetail:'Routed through the Eventbrite citywide geo-feed',
+    venue:  'Summit County Historical Society — Perkins Stone Mansion / John Brown House',
+    notes:  'Lecture series, mansion tours, and historic-site programming. Tickets sold via Eventbrite.',
+    status: 'active',
+  },
+  {
+    key:    'eb_bounce_innovation_hub',
+    subOf:  'eventbrite',
+    label:  'Bounce Innovation Hub',
+    method: 'HTML scrape',
+    methodDetail:'Routed through the Eventbrite citywide geo-feed',
+    venue:  'Bounce Innovation Hub — 526 S Main St',
+    notes:  "Akron's largest startup and entrepreneurship hub. Pitch nights, workshops, and demo days all run through Eventbrite.",
+    status: 'active',
+  },
+  {
+    key:    'eb_black_chamber',
+    subOf:  'eventbrite',
+    label:  'Akron Black Chamber of Commerce',
+    method: 'HTML scrape',
+    methodDetail:'Routed through the Eventbrite citywide geo-feed',
+    venue:  'Akron Black Chamber of Commerce — citywide programming',
+    notes:  'Networking events, business workshops, and community programming for Black-owned businesses in Akron. Eventbrite is the canonical channel.',
+    status: 'active',
+  },
+  {
+    key:    'eb_black_artist_guild',
+    subOf:  'eventbrite',
+    label:  'Akron Black Artist Guild',
+    method: 'HTML scrape',
+    methodDetail:'Routed through the Eventbrite citywide geo-feed',
+    venue:  'Akron Black Artist Guild — multiple venues',
+    notes:  'Artist showcases, exhibitions, and community arts events. Programming is published through Eventbrite.',
+    status: 'active',
+  },
+  {
+    key:    'eb_interbelt',
+    subOf:  'eventbrite',
+    label:  'Interbelt Nite Club',
+    method: 'HTML scrape',
+    methodDetail:'Routed through the Eventbrite citywide geo-feed',
+    venue:  'Interbelt Nite Club — 70 N Howard St',
+    notes:  "Long-running LGBTQ+ nightclub. Themed nights and drag shows are ticketed via Eventbrite.",
+    status: 'active',
+  },
+  {
+    key:    'eb_akron_canton_foodbank',
+    subOf:  'eventbrite',
+    label:  'Akron-Canton Regional Foodbank',
+    method: 'HTML scrape',
+    methodDetail:'Routed through the Eventbrite citywide geo-feed',
+    venue:  'Akron-Canton Regional Foodbank — 350 Opportunity Pkwy',
+    notes:  'Volunteer shifts, donor events, and food-distribution programming. Sign-ups and ticketing run through Eventbrite.',
+    status: 'active',
+  },
+  {
+    key:    'eb_blu_tique',
+    subOf:  'eventbrite',
+    label:  'BLU-Tique',
+    method: 'HTML scrape',
+    methodDetail:'Routed through the Eventbrite citywide geo-feed',
+    venue:  'BLU-Tique — 47 E Market St (BLU Jazz+ second-floor lounge)',
+    notes:  "Smaller-format jazz, comedy, and private-event lounge upstairs from BLU Jazz+. Its calendar runs through Eventbrite, separate from the BLU Jazz+ TurnTable Tickets listing.",
+    status: 'active',
+  },
 ]
+
+// ── Source groupings by platform / data-feed family ──────────────────────────
+// Renders the Data Sources section as a series of tables — one per platform —
+// so a reader can scan section headings ("Eventbrite", "The Events Calendar",
+// "Ticketmaster") and answer "are we pulling from X, and how?" without reading
+// 38 card bodies. Order is editorial: aggregators first, then standards-based
+// platforms (Tribe, ICS, Squarespace, LiveWhale), then single-platform APIs,
+// then the bespoke HTML scrapers as a final catch-all.
+const SOURCE_GROUPS = [
+  {
+    id:    'eventbrite',
+    title: 'Eventbrite',
+    description: "Eventbrite's public API was deprecated in 2020, so we scrape the citywide Akron search results — extracting events from window.__SERVER_DATA__ and paginating the internal /api/v3/destination/search/ POST endpoint with session cookies. One geo-scoped feed catches the long tail of community organizers who publish only to Eventbrite (House Three Thirty, The Matinee, Akron Black Artist Guild, Bounce Innovation Hub, etc.) without per-organizer scrapers.",
+  },
+  {
+    id:    'ticketmaster',
+    title: 'Ticketmaster',
+    description: 'Ticketmaster Discovery API v2 with a 25-mile geo-radius from downtown Akron over a 90-day window. Covers Blossom Music Center, Akron Civic Theatre, EJ Thomas Hall, and the Cleveland-adjacent shows that travel through the area. New Ticketmaster-hosted venues inside the radius are picked up automatically.',
+  },
+  {
+    id:    'tribe',
+    title: 'The Events Calendar (Tribe / WordPress)',
+    description: 'Sites running the WordPress "Events Calendar" plugin (a.k.a. Tribe Events) expose a documented REST API at /wp-json/tribe/events/v1/events. We paginate it directly — categories, venues, and cost data come through structured. The most common CMS in the Akron civic-org ecosystem.',
+  },
+  {
+    id:    'ics',
+    title: 'iCalendar (ICS) Feeds',
+    description: "When a venue publishes an .ics calendar subscription (RFC 5545), we fetch and parse it directly via the shared scripts/lib/ics.js module — line unfolding, TZID conversion, and TEXT escape handling included. Each per-source scraper is a thin config wrapper around runIcsScraper.",
+  },
+  {
+    id:    'squarespace',
+    title: 'Squarespace Events Collection',
+    description: 'Squarespace sites with a native Events collection expose structured JSON at ?format=json&view=upcoming. The shared lib/squarespace.js fetches it and normalises the response (epoch-ms timestamps, location object, body HTML) into our common event shape.',
+  },
+  {
+    id:    'livewhale',
+    title: 'LiveWhale (University of Akron)',
+    description: "UAkron's campus calendar runs on LiveWhale, which exposes a JSON endpoint returning 90 days of all campus events. One fetch produces four ingestion sources: the default UAkron bucket plus three sub-routed by group_title (EJ Thomas Hall, Myers School of Art, Cummings Center for the History of Psychology).",
+  },
+  {
+    id:    'simpleview',
+    title: 'Simpleview (Visit Akron / Summit CVB)',
+    description: "Simpleview runs the official convention-and-visitors-bureau site. Auth via a public session token, then queries against /includes/rest_v2/plugins_events_events_by_date/find/ with a MongoDB-style filter ($and / $in / $date / $gte / $lte). The John S. Knight Center sits on the same install, so its events surface here without a separate scraper.",
+  },
+  {
+    id:    'communico',
+    title: 'Communico (Akron-Summit Library)',
+    description: 'Communico (also branded Libnet) is the calendar/programs platform behind the Akron-Summit County Public Library. A single API call returns ~400+ programs across all 27+ branches over a 180-day window.',
+  },
+  {
+    id:    'mlb',
+    title: 'MLB Stats API (RubberDucks)',
+    description: 'The MLB official stats endpoint (statsapi.mlb.com), filtered by teamId 402 for the RubberDucks. Returns the full home-game schedule with promotion details (Fireworks Night, Bark in the Park, etc.) carried through into event descriptions.',
+  },
+  {
+    id:    'revize',
+    title: 'Revize (City of Akron)',
+    description: 'The City of Akron runs on Revize CMS. Its events feed is the same JSON endpoint the on-page FullCalendar widget consumes (/_assets_/plugins/revizeCalendar/calendar_data_handler.php). We ingest four city-managed calendars — Events, Parks & Rec, Lock 3, and Great Streets Akron — and explicitly skip the meetings/HR/oversight calendars.',
+  },
+  {
+    id:    'wp-hybrid',
+    title: 'EventON & custom WordPress',
+    description: "WordPress sites that don't expose a Tribe Events feed — typically because they use the EventON plugin or hand-rolled custom post types — get a per-site combination: AJAX or WP REST API for the schedule, secondary fetches for images and descriptions.",
+  },
+  {
+    id:    'html',
+    title: 'Custom HTML Scrapers',
+    description: "When a venue's CMS exposes no machine-readable feed, the scraper parses the rendered HTML directly. Each one is bespoke to its target site's structure. Most are stable for years; CMS redesigns are caught by the Scraper Health monitor below.",
+  },
+]
+
+// Maps each DATA_SOURCES key to its SOURCE_GROUPS id. Kept separate from the
+// source records so the existing entries stay easy to edit and the grouping is
+// auditable at a glance.
+const SOURCE_GROUP_BY_KEY = {
+  // Aggregators
+  eventbrite:         'eventbrite',
+  ticketmaster:       'ticketmaster',
+
+  // The Events Calendar (Tribe / WordPress)
+  summit_artspace:    'tribe',
+  summit_metro_parks: 'tribe',
+  cvnp_conservancy:   'tribe',
+  players_guild:      'tribe',
+  missing_falls:      'tribe',
+  torchbearers:       'tribe',
+
+  // iCalendar (ICS) feeds
+  akron_symphony:      'ics',
+  north_hill_cdc:      'ics',
+  akron_public_schools:'ics',
+  akron_life:          'ics',
+  life_gurukula:       'ics',
+
+  // Squarespace Events Collection
+  leadership_akron:    'squarespace',
+  rialto:              'squarespace',
+  crown_point_ecology: 'squarespace',
+
+  // LiveWhale (UAkron)
+  uakron_calendar:  'livewhale',
+  ejthomas_hall:    'livewhale',
+  uakron_myers_art: 'livewhale',
+  uakron_chp:       'livewhale',
+
+  // Single-platform APIs
+  visit_akron_cvb:     'simpleview',
+  akron_library:       'communico',
+  rubberducks:         'mlb',
+  city_of_akron_lock3: 'revize',
+
+  // EventON / custom WordPress
+  jillys_music_room: 'wp-hybrid',
+  akronym_brewing:   'wp-hybrid',
+
+  // Custom HTML scrapers
+  akron_art_museum:       'html',
+  akron_civic:            'html',
+  akron_zoo:              'html',
+  downtown_akron:         'html',
+  weathervane:            'html',
+  ohio_shakespeare:       'html',
+  painting_twist:         'html',
+  blu_jazz:               'html',
+  akron_childrens_museum: 'html',
+  nightlight_cinema:      'html',
+  stan_hywet:             'html',
+  akron_urban_league:     'html',
+
+  // Aggregator-routed organizations (share a parent scraper via `subOf`)
+  tm_blossom_music_center:'ticketmaster',
+  sv_jsk_center:          'simpleview',
+  eb_house_three_thirty:  'eventbrite',
+  eb_the_matinee:         'eventbrite',
+  eb_green_dragon_inn:    'eventbrite',
+  eb_summit_historical:   'eventbrite',
+  eb_bounce_innovation_hub:'eventbrite',
+  eb_black_chamber:       'eventbrite',
+  eb_black_artist_guild:  'eventbrite',
+  eb_interbelt:           'eventbrite',
+  eb_akron_canton_foodbank:'eventbrite',
+  eb_blu_tique:           'eventbrite',
+}
 
 // ── Human-readable scraper name mapping ──────────────────────────────────────
 const SCRAPER_LABELS = {
@@ -373,6 +679,10 @@ const SCRAPER_LABELS = {
   akron_life:         'Akron Life',
   stan_hywet:         'Stan Hywet',
   city_of_akron_lock3:'City of Akron (Lock 3)',
+  akron_urban_league: 'Akron Urban League',
+  rialto:             'The Rialto Theatre',
+  life_gurukula:      'Life Gurukula',
+  crown_point_ecology:'Crown Point Ecology Center',
   eventbrite:         'Eventbrite',
 }
 
@@ -383,16 +693,6 @@ const SCRAPER_LABELS = {
 // implicit gap. Revisit any entry when the underlying conditions change.
 
 const EVALUATED_SOURCES = [
-  {
-    name:   'John S. Knight Center',
-    url:    'https://www.visitakron-summit.org/knight-center/upcoming-events/',
-    reason: "Runs on the same Simpleview install as Visit Akron CVB. JSK events surface in the Visit Akron API automatically — a separate scraper would just be a category filter on the same source.",
-  },
-  {
-    name:   'House Three Thirty',
-    url:    'https://www.eventbrite.com/o/house-three-thirty-61445316323',
-    reason: 'All ticketed events route through Eventbrite (organizer 61445316323) and are geotagged "532 W Market St, Akron", so they already flow in through the citywide Eventbrite geo-search. Pinning the organizer ID could serve as a fallback quality boost if the geo feed ever misses an event.',
-  },
   {
     name:   'Greystone Hall',
     url:    'https://www.visitakron-summit.org/greystone-hall/',
@@ -450,11 +750,6 @@ function SourceBadge({ status }) {
   )
 }
 
-function MethodBadge({ method }) {
-  const slug = method.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z-]/g, '')
-  return <span className={`tp-method tp-method--${slug}`}>{method}</span>
-}
-
 function HealthBadge({ state }) {
   const labels = { ok: '✓ OK', error: '✕ Error', stale: '⚠ Stale', warn: '⚠ Low events' }
   return <span className={`tp-health tp-health--${state}`}>{labels[state] ?? state}</span>
@@ -467,6 +762,8 @@ export default function TechnicalPage() {
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(null)
   const [eventCounts, setEventCounts] = useState({})
+  // Per-row expanded notes — keys are DATA_SOURCES.key values
+  const [expanded, setExpanded] = useState({})
 
   useEffect(() => {
     async function load() {
@@ -512,6 +809,16 @@ export default function TechnicalPage() {
   const totalEvents = Object.values(eventCounts).reduce((a, b) => a + b, 0)
   const activeAlerts = health.filter(h => h.alert).length
 
+  // SOURCE_GROUPS lookup for the table's platform column / anchor links.
+  const groupById = {}
+  SOURCE_GROUPS.forEach(g => { groupById[g.id] = g })
+
+  // Sources alphabetised by display label — the table is a flat directory
+  // where the platform lives in a column rather than a section header. Each
+  // platform's own roll-up (sources · events · description) lives below in
+  // the Platforms section.
+  const sortedSources = [...DATA_SOURCES].sort((a, b) => a.label.localeCompare(b.label))
+
   return (
     <>
       <SEO
@@ -551,54 +858,95 @@ export default function TechnicalPage() {
           </div>
         </div>
 
-        {/* ── Data Sources ── */}
+        {/* ── Data Sources — single flat directory ── */}
         <section className="tp-section">
           <div className="tp-section__hd">
             <h2 className="tp-section__title">Data Sources</h2>
             <p className="tp-section__desc">
-              {DATA_SOURCES.filter(s => s.status === 'active').length} sources are
-              live{DATA_SOURCES.filter(s => s.status === 'planned').length > 0
-                ? `, plus ${DATA_SOURCES.filter(s => s.status === 'planned').length} evaluated and queued for build-out`
-                : ''}. The mix spans official REST APIs (Ticketmaster, MLB Stats,
-              LiveWhale, Simpleview CVB, Revize, Tribe Events, Communico,
-              Squarespace), iCalendar subscriptions, and direct HTML scrapers.
-              All ingestion runs server-side on a scheduled basis.
+              Every venue, organizer, and feed that produces events on this site,
+              sorted alphabetically. The <strong>Source</strong> column tells you
+              where the data comes from — Eventbrite, Ticketmaster, The Events
+              Calendar (Tribe), an iCalendar subscription, a Squarespace events
+              collection, or a per-site scraper. Sources that ride on an
+              aggregator (House Three Thirty via Eventbrite, Blossom Music Center
+              via Ticketmaster) get their own row but roll their event count and
+              last-run up to the parent. Click any row for the method detail and
+              per-source notes. The "Platforms" section below covers each
+              ingestion approach in depth.
             </p>
           </div>
 
-          <div className="tp-sources">
-            {DATA_SOURCES.map(src => {
-              const liveCount = eventCounts[src.key]
-              const hRow      = healthByKey[src.key]
-              return (
-                <div key={src.key} className={`tp-source tp-source--${src.status}`}>
-                  <div className="tp-source__top">
-                    <div className="tp-source__name">{src.label}</div>
-                    <div className="tp-source__badges">
-                      <SourceBadge status={src.status} />
-                      <MethodBadge method={src.method} />
-                    </div>
-                  </div>
-
-                  <div className="tp-source__venue">{src.venue}</div>
-                  <div className="tp-source__detail">{src.methodDetail}</div>
-                  <p className="tp-source__notes">{src.notes}</p>
-
-                  <div className="tp-source__meta">
-                    {liveCount != null && (
-                      <span className="tp-source__count">
-                        {liveCount.toLocaleString()} event{liveCount !== 1 ? 's' : ''} in DB
-                      </span>
-                    )}
-                    {hRow && (
-                      <span className="tp-source__lastrun">
-                        Last run {formatAge(hRow.hours_since_run)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
+          <div className="tp-table-wrap">
+            <table className="tp-table tp-sources-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Coverage</th>
+                  <th>Source</th>
+                  <th>Status</th>
+                  <th className="tp-table__num">Events</th>
+                  <th>Last run</th>
+                  <th aria-label="Toggle details" />
+                </tr>
+              </thead>
+              <tbody>
+                {sortedSources.map(src => {
+                  const groupId   = SOURCE_GROUP_BY_KEY[src.key]
+                  const group     = groupById[groupId]
+                  const liveCount = eventCounts[src.key]
+                  const hRow      = healthByKey[src.key]
+                  const isSubOf   = !!src.subOf
+                  const isOpen    = !!expanded[src.key]
+                  return (
+                    <Fragment key={src.key}>
+                      <tr
+                        className={`tp-grow tp-grow--${src.status} ${isOpen ? 'tp-grow--open' : ''}`}
+                        onClick={() => setExpanded(prev => ({ ...prev, [src.key]: !prev[src.key] }))}
+                      >
+                        <td className="tp-grow__name">
+                          {src.label}
+                          {isSubOf && <span className="tp-grow__via"> · via {SCRAPER_LABELS[src.subOf] ?? src.subOf}</span>}
+                        </td>
+                        <td className="tp-grow__venue">{src.venue}</td>
+                        <td className="tp-grow__platform">
+                          <a href={`#platform-${groupId}`} onClick={e => e.stopPropagation()}>
+                            {group?.title ?? groupId}
+                          </a>
+                        </td>
+                        <td><SourceBadge status={src.status} /></td>
+                        <td className="tp-table__num">
+                          {isSubOf
+                            ? <span className="tp-grow__rollup">rolled up</span>
+                            : loading
+                              ? '—'
+                              : liveCount != null
+                                ? liveCount.toLocaleString()
+                                : '0'}
+                        </td>
+                        <td className="tp-grow__time">
+                          {isSubOf ? '—' : hRow ? formatAge(hRow.hours_since_run) : '—'}
+                        </td>
+                        <td className="tp-grow__toggle" aria-hidden="true">
+                          <span className={`tp-chevron ${isOpen ? 'tp-chevron--open' : ''}`}>▸</span>
+                        </td>
+                      </tr>
+                      {isOpen && (
+                        <tr className="tp-grow-detail">
+                          <td colSpan={7}>
+                            <div className="tp-grow-detail__inner">
+                              <div className="tp-grow-detail__method">
+                                <strong>How</strong> {src.methodDetail}
+                              </div>
+                              <p className="tp-grow-detail__notes">{src.notes}</p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         </section>
 
@@ -699,6 +1047,61 @@ export default function TechnicalPage() {
               )}
             </div>
           )}
+        </section>
+
+        {/* ── Platforms (learn-more roll-up) ── */}
+        <section className="tp-section">
+          <div className="tp-section__hd">
+            <h2 className="tp-section__title">Platforms</h2>
+            <p className="tp-section__desc">
+              The same handful of platforms account for every source in the table
+              above. Each card below totals the sources and events it covers, then
+              explains the integration approach — useful when the question shifts
+              from "are we pulling X?" to "how exactly are we pulling it?".
+            </p>
+          </div>
+
+          <div className="tp-platforms">
+            {SOURCE_GROUPS.map(group => {
+              const sourcesInGroup = DATA_SOURCES.filter(s => SOURCE_GROUP_BY_KEY[s.key] === group.id)
+              if (sourcesInGroup.length === 0) return null
+
+              const eventTotal = sourcesInGroup.reduce(
+                (sum, s) => sum + (eventCounts[s.key] ?? 0),
+                0
+              )
+
+              return (
+                <div key={group.id} id={`platform-${group.id}`} className="tp-platform">
+                  <div className="tp-platform__hd">
+                    <h3 className="tp-platform__title">{group.title}</h3>
+                    <div className="tp-platform__stats">
+                      <span className="tp-platform__stat">
+                        <strong>{sourcesInGroup.length}</strong> source{sourcesInGroup.length !== 1 ? 's' : ''}
+                      </span>
+                      {!loading && eventTotal > 0 && (
+                        <span className="tp-platform__stat">
+                          <strong>{eventTotal.toLocaleString()}</strong> event{eventTotal !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <p className="tp-platform__desc">{group.description}</p>
+                  <ul className="tp-platform__sources">
+                    {sourcesInGroup
+                      .slice()
+                      .sort((a, b) => a.label.localeCompare(b.label))
+                      .map(s => (
+                        <li key={s.key} className="tp-platform__source">
+                          {s.label}
+                          {s.subOf && <span className="tp-platform__via"> (via {SCRAPER_LABELS[s.subOf] ?? s.subOf})</span>}
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )
+            })}
+          </div>
         </section>
 
         {/* ── How it works ── */}
