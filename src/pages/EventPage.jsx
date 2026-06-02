@@ -80,13 +80,21 @@ export default function EventPage() {
   // upstream since the link was created), replace the history entry
   // with the up-to-date /events/{slug}/{id} form. Using replace=true
   // keeps the back button pointing at the page they came from.
+  //
+  // The `event.id === id` guard is critical: when navigating between
+  // event pages (e.g. clicking a card in RelatedEvents), useParams
+  // updates with the new id+slug before useEvent's fetch lands, so for
+  // one render the hook still returns the *previous* event. Without
+  // this guard, the effect compares the new slug against the stale
+  // event's canonical slug, sees a mismatch, and rewrites the URL back
+  // to the old event — making the related-event cards appear broken.
   useEffect(() => {
-    if (!event) return
+    if (!event || event.id !== id) return
     const canonicalSlug = makeEventSlug(event)
     if (slug !== canonicalSlug) {
       navigate(eventPath(event), { replace: true })
     }
-  }, [event, slug, navigate])
+  }, [event, id, slug, navigate])
 
   if (loading) return <div className="event-loading">Loading event…</div>
   if (error || !event) return (
