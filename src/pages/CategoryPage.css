@@ -50,12 +50,251 @@
   font-size: 1.02rem;
   line-height: 1.65;
   color: var(--text-muted);
-  max-width: 780px;
   margin: 0 0 24px;
 }
 
 .hub-share {
   margin-bottom: 36px;
+}
+
+/* ── Search input ──────────────────────────────────────────────────
+ *
+ * Sits between the share row and the inline filter panel. Plain text
+ * only — no intent suggestion dropdown like the homepage hero. Spans
+ * the full content width so the hub header reads as one tidy column.
+ */
+.hub-search {
+  position: relative;
+  margin: 0 0 20px;
+}
+.hub-search-input {
+  width: 100%;
+  padding: 12px 40px 12px 42px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--border);
+  background: var(--bg-card, var(--bg, #fff));
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+.hub-search-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+.hub-search-input:focus {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-tint-15, rgba(212,160,53,0.15));
+}
+.hub-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.hub-search-clear {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: none;
+  background: var(--border);
+  color: var(--text);
+  font-size: 0.7rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.hub-search-clear:hover {
+  background: var(--amber);
+  color: #fff;
+}
+
+/* ── Inline filter & sort panel ────────────────────────────────────
+ *
+ * Renders the Category / Price / Custom-date-range sections that
+ * live behind the homepage's modal tray, expanded inline on the page
+ * so users can scan and toggle filters without an extra click. Sort
+ * lives in the panel header as a dropdown on the right; "Hide
+ * sources" was removed in favour of the per-date-group overflow card
+ * ("See N more from …"). Spans the full hub-page content width.
+ */
+.hub-filters {
+  margin: 0 0 36px;
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg-card, var(--bg, #fff));
+}
+.hub-filters-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.hub-filters-title {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.hub-filters-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.hub-filters-clear {
+  border: none;
+  background: none;
+  padding: 4px 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--amber);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+.hub-filters-clear:hover {
+  background: var(--amber-tint-15, rgba(212,160,53,0.12));
+}
+
+/* Sort dropdown — right-hand side of the filter panel header. Native
+   <select> styled to match the inline chips visually: small, pill-ish,
+   amber focus ring. The caret is a single SVG baked into the
+   background so the control stays one element. */
+.hub-filters-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.hub-filters-sort-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+.hub-filters-sort-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 6px 30px 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background-color: var(--bg);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'><path d='M1 1l4 4 4-4' stroke='%23808080' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.86rem;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.hub-filters-sort-select:hover {
+  border-color: var(--amber);
+}
+.hub-filters-sort-select:focus {
+  outline: none;
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-tint-15, rgba(212,160,53,0.15));
+}
+.hub-filter-section {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.hub-filter-section-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding-top: 6px;
+}
+.hub-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.hub-filter-chip {
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.84rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.hub-filter-chip:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+.hub-filter-chip.active {
+  background: var(--amber);
+  color: #fff;
+  border-color: var(--amber);
+}
+.hub-filter-date-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+.hub-filter-date-label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+}
+.hub-filter-date-input {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+}
+.hub-filter-date-input:focus {
+  outline: none;
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-tint-15, rgba(212,160,53,0.15));
+}
+.hub-filter-date-clear {
+  align-self: end;
+  margin-bottom: 1px;
+  border: none;
+  background: none;
+  padding: 6px 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--amber);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.hub-filter-date-clear:hover {
+  background: var(--amber-tint-15, rgba(212,160,53,0.12));
 }
 
 /* ── Section headings ──────────────────────────────────────────── */
@@ -167,5 +406,17 @@
   }
   .hub-events-grid {
     grid-template-columns: 1fr;
+  }
+  /* Stack the label above the chip row on narrow screens — the
+     two-column 120px-label layout gets cramped below ~500px. */
+  .hub-filter-section {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .hub-filter-section-label {
+    padding-top: 0;
+  }
+  .hub-filters {
+    padding: 14px;
   }
 }
