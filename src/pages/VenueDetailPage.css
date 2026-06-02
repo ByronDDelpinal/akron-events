@@ -34,7 +34,12 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: var(--amber);
+  /* Eyebrow sits inside .venue-detail-hero, which paints --bg-nav. Use the
+     "on-dark" amber so themes whose --amber is too close to their nav
+     background (e.g. Twilight Plum: #4A2640 amber on #2D1A28 nav) still
+     hit AA contrast. Mirrors the pattern HomePage/AboutPage already use
+     for hero accents over --bg-nav. */
+  color: var(--amber-on-dark);
   margin-bottom: var(--space-sm);
 }
 .venue-detail-title {

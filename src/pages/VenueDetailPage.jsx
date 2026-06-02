@@ -44,6 +44,13 @@ export default function VenueDetailPage() {
   const venueAreas = venue.areas ?? []
   const venueOrg = venue.organization ?? null
 
+  // Shared directions URL — used by the "Get directions" link and
+  // passed into VenueMap so the modal's pin popup links to the same
+  // destination. Includes state for slightly more accurate geocoding.
+  const directionsUrl = `https://maps.google.com/?q=${encodeURIComponent(
+    [venue.name, venue.address, venue.city, venue.state].filter(Boolean).join(' ')
+  )}`
+
   // ── SEO: Place schema + breadcrumb + list of upcoming events ────
   const seoTitle = `Venue: ${venue.name} — Upcoming Events in ${venue.city || 'Akron'}`
   const seoDesc = (
@@ -117,9 +124,7 @@ export default function VenueDetailPage() {
                   {venue.city}{venue.state ? `, ${venue.state}` : ''}{venue.zip ? ` ${venue.zip}` : ''}
                 </p>
                 <a
-                  href={`https://maps.google.com/?q=${encodeURIComponent(
-                    [venue.name, venue.address, venue.city, venue.state].filter(Boolean).join(' ')
-                  )}`}
+                  href={directionsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="venue-info-link"
@@ -131,7 +136,17 @@ export default function VenueDetailPage() {
               {/* Map */}
               {hasMap && (
                 <div className="venue-map-wrap">
-                  <VenueMap lat={venue.lat} lng={venue.lng} venueName={venue.name} />
+                  <VenueMap
+                    lat={venue.lat}
+                    lng={venue.lng}
+                    venueName={venue.name}
+                    venueAddress={[
+                      venue.address,
+                      [venue.city, venue.state].filter(Boolean).join(', '),
+                      venue.zip,
+                    ].filter(Boolean).join('\n')}
+                    directionsUrl={directionsUrl}
+                  />
                 </div>
               )}
 

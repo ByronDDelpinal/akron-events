@@ -392,14 +392,195 @@
   opacity: 0.7;
 }
 
-/* ── Small venue map (EventPage sidebar) ─────────────────────────────── */
+/* ── Small venue map (EventPage sidebar / VenueDetailPage info card) ─── */
+/*
+ * The preview is a clickable button — clicking opens the interactive map
+ * in a modal. We keep the legacy .venue-map-wrap rule because
+ * VenueDetailPage.css extends it with top/bottom borders to chain the
+ * map into the info-card stack; .venue-map-preview is the new owner of
+ * the dimensions + framing.
+ */
 .venue-map-wrap {
   width: 100%;
+}
+
+.venue-map-preview {
+  position: relative;
+  display: block;
+  width: 100%;
   height: 200px;
+  margin-top: var(--space-lg);
+  padding: 0;
+  background: var(--bg-nav);
+  border: var(--border-width-thin) solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
-  margin-top: var(--space-lg);
-  border: var(--border-width-thin) solid var(--border);
+  cursor: pointer;
+  transition:
+    border-color var(--transition-medium),
+    box-shadow var(--transition-medium);
+}
+.venue-map-preview:hover,
+.venue-map-preview:focus-visible {
+  border-color: var(--amber-tint-50);
+  box-shadow: 0 4px 16px var(--overlay-dark-15);
+}
+.venue-map-preview:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* "Click to interact" affordance — bottom-right pill, mirrors the
+ * homepage map's "Click to enable map interaction" hint. The pill
+ * stays dark in every theme (the map tiles behind it are always
+ * dark-v11), so we lock the colors to the dark-mode tokens rather
+ * than using surface tokens like --bg-card that flip with theme. */
+.venue-map-preview-hint {
+  position: absolute;
+  bottom: var(--space-md);
+  right: var(--space-md);
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  background: var(--bg-nav);
+  backdrop-filter: blur(8px);
+  color: var(--overlay-light-90);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-pill);
+  border: var(--border-width-thin) solid var(--overlay-light-12);
+  pointer-events: none;
+  transition:
+    border-color var(--transition-medium),
+    transform var(--transition-medium);
+}
+.venue-map-preview:hover .venue-map-preview-hint,
+.venue-map-preview:focus-visible .venue-map-preview-hint {
+  border-color: var(--amber-tint-50);
+  transform: translateY(-1px);
+}
+
+/* ── Interactive map inside Modal ──────────────────────────────────────
+ * Sits inside <Modal size="full">. The map fills the remaining height
+ * after the header so pan/zoom feel generous. The reusable Modal owns
+ * the close button + Escape handling — we only render the venue
+ * context + the map itself.
+ */
+.venue-map-modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  /* Compact, focused modal — wide enough for the map to be useful
+   * but not so tall it consumes the whole viewport. Caps below the
+   * Modal container's own max-height (100vh - 48px) so we never get
+   * a scrollbar inside the modal. */
+  height: 560px;
+  max-height: calc(100vh - 96px);
+}
+
+/* Close button contrast override — scoped via :has() so we don't
+ * touch other modals. The shared Modal styles the close as
+ * --bg-secondary on --text-muted, which vanishes here against both
+ * the light header strip and the dark mapbox tiles. Swap to a dark
+ * pill (--bg-nav stays dark in every theme) with a light glyph and
+ * drop shadow. Border-radius is inherited from the Modal default
+ * (--radius-sm) — same rounded-square shape as elsewhere in the app. */
+.modal-container:has(.venue-map-modal) .modal-close {
+  background: var(--bg-nav);
+  color: var(--overlay-light-90);
+  border: var(--border-width-thin) solid var(--overlay-light-12);
+  box-shadow: 0 2px 10px var(--overlay-dark-30);
+}
+.modal-container:has(.venue-map-modal) .modal-close:hover {
+  background: var(--coral);
+  color: var(--white);
+  border-color: var(--coral);
+}
+.venue-map-modal-header {
+  padding: var(--space-lg) calc(var(--space-2xl) + 32px) var(--space-md) var(--space-2xl);
+  border-bottom: var(--border-width-thin) solid var(--border);
+}
+.venue-map-modal-title {
+  font-family: var(--font-display);
+  font-size: var(--text-h6);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+.venue-map-modal-map {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* The pin popup inside the modal uses the existing .map-popup chrome
+ * but without the scrolling event list — just the venue name, address,
+ * and a prominent directions CTA. The previous implementation reused
+ * .map-popup-directions which renders amber text on a faint surface,
+ * and the contrast collapsed under some themes (the amber token can
+ * resolve to a muted coral that's near-invisible on dark-purple
+ * surfaces). The CTA is now a solid amber button so contrast is
+ * locked in regardless of theme. */
+.venue-map-pin-popup {
+  width: 280px;
+}
+.venue-map-pin-popup .map-popup-header {
+  padding: var(--space-md) var(--space-lg);
+  align-items: center;
+}
+
+.venue-map-pin-address {
+  font-family: var(--font-body);
+  font-size: var(--text-xxs);
+  font-weight: 500;
+  color: var(--overlay-light-70);
+  line-height: 1.4;
+  white-space: pre-line;
+}
+
+.venue-map-pin-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  /* Solid amber button. --chip-active-txt is the canonical "text on
+   * amber" token used elsewhere (see .grid-promo-btn--subscribe), so
+   * it stays in sync if the amber pair is ever retuned. */
+  background: var(--amber);
+  color: var(--chip-active-txt);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-decoration: none;
+  padding: var(--space-md) var(--space-lg);
+  min-height: 44px;
+  border: none;
+  transition: background var(--transition-fast);
+}
+.venue-map-pin-cta:hover,
+.venue-map-pin-cta:focus-visible {
+  background: var(--amber-hover);
+  outline: none;
+}
+.venue-map-pin-cta svg {
+  flex-shrink: 0;
+}
+
+@media (max-width: 600px) {
+  .venue-map-modal {
+    /* On phones, lean into the available height — the 560px desktop
+     * size would feel cramped on a portrait viewport. Still capped
+     * by the Modal container's max-height. */
+    height: calc(100vh - 96px);
+    min-height: 360px;
+    max-height: calc(100vh - 64px);
+  }
+  .venue-map-modal-header {
+    padding: var(--space-md) calc(var(--space-lg) + 32px) var(--space-md) var(--space-lg);
+  }
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────── */

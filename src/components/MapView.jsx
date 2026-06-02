@@ -18,6 +18,7 @@ import MapGL, { Marker, Popup, NavigationControl } from 'react-map-gl/mapbox'
 import { format } from 'date-fns'
 import { eventPath } from '@/lib/slug'
 import { formatPrice } from '@/lib/eventFormatting'
+import Modal from '@/components/Modal'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import './MapView.css'
 
@@ -286,33 +287,165 @@ function VenuePin({ count, active }) {
   )
 }
 
-// ── Small static venue map (used on EventPage) ────────────────────────────
+// ── Small static venue map (used on EventPage / VenueDetailPage) ──────────
+//
+// Renders a non-interactive thumbnail with a "Click to interact" overlay.
+// Activating opens the reusable <Modal> with an interactive map inside —
+// pan, scroll-zoom, and pinch-zoom all work. Clicking the pin reveals a
+// popup with a prominent "Get directions" link (when `directionsUrl` is
+// supplied by the caller).
+//
+// Props:
+//   lat, lng        – required; component returns null without them
+//   venueName       – optional; shown in the modal header and pin popup
+//   venueAddress    – optional; rendered as a secondary line in the
+//                     pin popup so the user can sanity-check the
+//                     location without leaving the map
+//   directionsUrl   – optional; passed-through link target so callers
+//                     keep control over how the directions query is
+//                     composed (e.g. with/without state, zip, etc.)
+export function VenueMap({ lat, lng, venueName, venueAddress, directionsUrl }) {
+  const [expanded, setExpanded] = useState(false)
 
-export function VenueMap({ lat, lng, venueName }) {
   if (!MAPBOX_TOKEN || lat == null || lng == null) return null
 
-  // No opacity-gated fade-in: mapbox-gl's `load` event sometimes fires
-  // before React attaches its listener, which would leave the map stuck
-  // at opacity 0 (rendered as a blank white box inside the info card).
-  // The map renders cleanly without the fade — tiles come in on their
-  // own with the library's built-in transitions.
   return (
-    <div className="venue-map-wrap">
-      <MapGL
-        initialViewState={{
-          longitude: Number(lng),
-          latitude:  Number(lat),
-          zoom:      15,
-        }}
-        style={{ width: '100%', height: '100%' }}
-        mapStyle={MAP_STYLE}
-        mapboxAccessToken={MAPBOX_TOKEN}
-        interactive={false}
+    <>
+      <button
+        type="button"
+        className="venue-map-preview"
+        onClick={() => setExpanded(true)}
+        aria-label={venueName
+          ? `Open interactive map for ${venueName}`
+          : 'Open interactive map'}
       >
-        <Marker longitude={Number(lng)} latitude={Number(lat)} anchor="bottom">
-          <VenuePin count={1} active={false} />
-        </Marker>
-      </MapGL>
+        {/* Non-interactive thumbnail. The opacity-gated fade-in is omitted
+         * because mapbox-gl's `load` event sometimes fires before React
+         * attaches its listener, which previously left the map stuck at
+         * opacity 0 (rendered as a blank white box). Tiles fade in via
+         * mapbox's own transitions. */}
+        <MapGL
+          initialViewState={{
+            longitude: Number(lng),
+            latitude:  Number(lat),
+            zoom:      15,
+          }}
+          style={{ width: '100%', height: '100%' }}
+          mapStyle={MAP_STYLE}
+          mapboxAccessToken={MAPBOX_TOKEN}
+          interactive={false}
+          attributionControl={false}
+        >
+          <Marker longitude={Number(lng)} latitude={Number(lat)} anchor="bottom">
+            <VenuePin count={1} active={false} />
+          </Marker>
+        </MapGL>
+        <span className="venue-map-preview-hint" aria-hidden="true">
+          <ExpandIcon />
+          Click to interact
+        </span>
+      </button>
+
+      <Modal
+        open={expanded}
+        onClose={() => setExpanded(false)}
+        size="lg"
+      >
+        <InteractiveVenueMap
+          lat={lat}
+          lng={lng}
+          venueName={venueName}
+          venueAddress={venueAddress}
+          directionsUrl={directionsUrl}
+        />
+      </Modal>
+    </>
+  )
+}
+
+// ── Interactive venue map (rendered inside <Modal>) ───────────────────────
+//
+// Full mapbox interactivity — drag-pan, scroll-zoom, double-click-zoom,
+// and `touchZoomRotate` (which provides two-finger pinch-zoom) are all
+// enabled by default when `interactive` is left at its default `true`.
+// We start with the pin's popup open so the "Get directions" CTA is
+// visible immediately; clicking the pin toggles it.
+function InteractiveVenueMap({ lat, lng, venueName, venueAddress, directionsUrl }) {
+  const [popupOpen, setPopupOpen] = useState(true)
+
+  return (
+    <div className="venue-map-modal">
+      {venueName && (
+        <div className="venue-map-modal-header">
+          <span className="venue-map-modal-title">{venueName}</span>
+        </div>
+      )}
+      <div className="venue-map-modal-map">
+        <MapGL
+          initialViewState={{
+            longitude: Number(lng),
+            latitude:  Number(lat),
+            zoom:      15,
+          }}
+          style={{ width: '100%', height: '100%' }}
+          mapStyle={MAP_STYLE}
+          mapboxAccessToken={MAPBOX_TOKEN}
+        >
+          <NavigationControl position="top-right" showCompass={false} />
+          <Marker
+            longitude={Number(lng)}
+            latitude={Number(lat)}
+            anchor="bottom"
+            onClick={(e) => {
+              e.originalEvent.stopPropagation()
+              setPopupOpen((open) => !open)
+            }}
+          >
+            <VenuePin count={1} active={popupOpen} />
+          </Marker>
+          {popupOpen && (
+            <Popup
+              longitude={Number(lng)}
+              latitude={Number(lat)}
+              anchor="bottom"
+              offset={42}
+              closeButton={false}
+              closeOnClick={false}
+              className="map-popup-outer"
+              maxWidth="280px"
+            >
+              <div className="map-popup venue-map-pin-popup">
+                <div className="map-popup-header">
+                  <div className="map-popup-header-text">
+                    <span className="map-popup-venue">{venueName ?? 'Venue'}</span>
+                    {venueAddress && (
+                      <span className="venue-map-pin-address">{venueAddress}</span>
+                    )}
+                  </div>
+                  <button
+                    className="map-popup-close"
+                    aria-label="Close popup"
+                    onClick={() => setPopupOpen(false)}
+                  >
+                    <CloseIcon />
+                  </button>
+                </div>
+                {directionsUrl && (
+                  <a
+                    className="venue-map-pin-cta"
+                    href={directionsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <DirectionsIcon />
+                    Get directions
+                  </a>
+                )}
+              </div>
+            </Popup>
+          )}
+        </MapGL>
+      </div>
     </div>
   )
 }
@@ -340,6 +473,17 @@ function ResetIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 12a9 9 0 1 0 3-6.74L3 8" />
       <path d="M3 3v5h5" />
+    </svg>
+  )
+}
+
+function ExpandIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 3h6v6" />
+      <path d="M9 21H3v-6" />
+      <path d="M21 3l-7 7" />
+      <path d="M3 21l7-7" />
     </svg>
   )
 }

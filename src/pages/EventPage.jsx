@@ -106,6 +106,16 @@ export default function EventPage() {
 
   const price = formatPrice(event.price_min, event.price_max)
 
+  // Shared Google Maps directions URL — referenced by both the mobile
+  // and sidebar venue blocks (InfoRow + VenueMap). Kept as a single
+  // value so the link target stays consistent everywhere on the page.
+  const venueDirectionsUrl = event.venue
+    ? `https://maps.google.com/?q=${encodeURIComponent(
+        [event.venue.name, event.venue.address, event.venue.city]
+          .filter(Boolean).join(' ')
+      )}`
+    : null
+
   // ── Image routing ──
   // Walk the event → venue → organizer fallback chain. `banner_eligible`
   // and `image_width`/`image_height` only exist for event-row images
@@ -233,7 +243,7 @@ export default function EventPage() {
                 <div className="mobile-venue-card">
                   <InfoRow icon={<PinIcon />} label="Venue"
                     value={`${event.venue.name}\n${event.venue.address ?? ''}, ${event.venue.city}`}
-                    link={`https://maps.google.com/?q=${encodeURIComponent(event.venue.name + ' ' + (event.venue.address ?? '') + ' ' + event.venue.city)}`}
+                    link={venueDirectionsUrl}
                     linkLabel="Get directions"
                     internalLink={`/venues/${event.venue.id}`}
                     internalLinkLabel="View venue"
@@ -242,6 +252,9 @@ export default function EventPage() {
                     lat={event.venue.lat}
                     lng={event.venue.lng}
                     venueName={event.venue.name}
+                    venueAddress={[event.venue.address, event.venue.city]
+                      .filter(Boolean).join(', ')}
+                    directionsUrl={venueDirectionsUrl}
                   />
                 </div>
               )}
@@ -297,7 +310,7 @@ export default function EventPage() {
                 <>
                   <InfoRow icon={<PinIcon />} label="Venue"
                     value={`${event.venue.name}\n${event.venue.address ?? ''}, ${event.venue.city}`}
-                    link={`https://maps.google.com/?q=${encodeURIComponent(event.venue.name + ' ' + (event.venue.address ?? '') + ' ' + event.venue.city)}`}
+                    link={venueDirectionsUrl}
                     linkLabel="Get directions"
                     internalLink={`/venues/${event.venue.id}`}
                     internalLinkLabel="View venue"
@@ -306,6 +319,9 @@ export default function EventPage() {
                     lat={event.venue.lat}
                     lng={event.venue.lng}
                     venueName={event.venue.name}
+                    venueAddress={[event.venue.address, event.venue.city]
+                      .filter(Boolean).join(', ')}
+                    directionsUrl={venueDirectionsUrl}
                   />
                 </>
               )}
