@@ -150,7 +150,7 @@ export default function AboutPage() {
         <p className="about-p">
           Wrong info, a duplicate, a venue we're not tracking — reach out.
           I read everything.{' '}
-          <a href="mailto:byronddelpinal@gmail.com">byronddelpinal@gmail.com</a>
+          <a href="mailto:byron@akronpulse.com">byron@akronpulse.com</a>
         </p>
 
         <div className="about-divider" />

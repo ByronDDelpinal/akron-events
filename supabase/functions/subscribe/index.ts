@@ -37,10 +37,12 @@ const BASE_URL = Deno.env.get('PUBLIC_SITE_URL') || 'https://akronpulse.com'
 // `from` can be overridden via RESEND_FROM env var so a future domain
 // migration is a single secret update instead of a redeploy. Default
 // is the verified `akronpulse.com` apex domain (the old
-// `events.supportlocalakron.com` was retired May 2026).
+// `events.supportlocalakron.com` was retired May 2026). `replyTo`
+// routes replies to a real human inbox; overridable via RESEND_REPLY_TO.
 const THEME = {
   brandName: 'Akron Pulse',
   from: Deno.env.get('RESEND_FROM') || 'Akron Pulse <digest@akronpulse.com>',
+  replyTo: Deno.env.get('RESEND_REPLY_TO') || 'byron@akronpulse.com',
   colors: {
     primary:       '#0E5163',
     textPrimary:   '#1F2A30',
@@ -227,6 +229,7 @@ async function sendConfirmationEmail(email: string, token: string) {
   await sendEmail('confirmation', {
     from: THEME.from,
     to: [email],
+    reply_to: THEME.replyTo,
     subject: `Confirm your ${THEME.brandName} subscription`,
     html: `
       <div style="font-family: ${f.body}; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
@@ -257,6 +260,7 @@ async function sendPreferencesEmail(email: string, token: string) {
   await sendEmail('preferences', {
     from: THEME.from,
     to: [email],
+    reply_to: THEME.replyTo,
     subject: `Your ${THEME.brandName} preferences link`,
     html: `
       <div style="font-family: ${f.body}; max-width: 480px; margin: 0 auto; padding: 40px 20px;">

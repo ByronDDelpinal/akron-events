@@ -43,6 +43,6 @@ export const EMAIL_THEME = {
   email: {
     fromName: 'Akron Pulse',
     fromAddress: 'digest@akronpulse.com', // verified in Resend May 2026; the Edge functions also accept a RESEND_FROM env override
-    replyTo: null,                        // optional
+    replyTo: 'byron@akronpulse.com',      // replies to digest emails route to the human inbox
   },
 }

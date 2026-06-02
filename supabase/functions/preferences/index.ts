@@ -39,6 +39,7 @@ const ADMIN_NOTIFY_EMAIL = (Deno.env.get('ADMIN_NOTIFY_EMAIL') || '')
 const THEME = {
   brandName: 'Akron Pulse',
   from: Deno.env.get('RESEND_FROM') || 'Akron Pulse <digest@akronpulse.com>',
+  replyTo: Deno.env.get('RESEND_REPLY_TO') || 'byron@akronpulse.com',
   colors: {
     primary:       '#0E5163',
     textPrimary:   '#1F2A30',
@@ -227,6 +228,7 @@ async function sendAdminConfirmedNotification(args: {
   const response = await resend.emails.send({
     from: THEME.from,
     to: ADMIN_NOTIFY_EMAIL,
+    reply_to: THEME.replyTo,
     subject: `[${THEME.brandName}] Subscriber confirmed`,
     html: `
       <div style="font-family: ${f.body}; max-width: 520px; margin: 0 auto; padding: 32px 20px;">

@@ -31,12 +31,14 @@ const TAIL_EVENT_COUNT = 8
 
 // ── Brand theme (mirrors src/lib/emailTheme.js — update both together) ──
 // `from` falls back to RESEND_FROM env var for parity with subscribe
-// fn, so a future sender change is one secret update.
+// fn, so a future sender change is one secret update. `replyTo`
+// routes replies to a real human inbox; overridable via RESEND_REPLY_TO.
 const THEME = {
   brandName: 'Akron Pulse',
   copyrightHolder: 'Akron Pulse',
   location: 'Akron, OH',
   from: Deno.env.get('RESEND_FROM') || 'Akron Pulse <digest@akronpulse.com>',
+  replyTo: Deno.env.get('RESEND_REPLY_TO') || 'byron@akronpulse.com',
   colors: {
     primary:       '#0E5163',
     background:    '#FCFAF4',
@@ -644,7 +646,7 @@ Deno.serve(async (req) => {
     console.log(`[send-digest] ${flatEvents.length} events in 30-day window`)
 
     // ── Step 3+4+5: Filter → Render → Batch send ──
-    const emailBatch: { from: string; to: string[]; subject: string; html: string; headers: Record<string, string> }[] = []
+    const emailBatch: { from: string; to: string[]; reply_to: string; subject: string; html: string; headers: Record<string, string> }[] = []
     const sendLog: { subscriber_id: string; event_count: number; status: string; error_message?: string }[] = []
 
     for (const sub of subscribers as Subscriber[]) {
@@ -668,6 +670,7 @@ Deno.serve(async (req) => {
         emailBatch.push({
           from: THEME.from,
           to: [sub.email],
+          reply_to: THEME.replyTo,
           subject,
           html,
           headers: {
