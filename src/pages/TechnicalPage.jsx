@@ -256,9 +256,9 @@ const DATA_SOURCES = [
     key:         'akron_civic',
     label:       'Akron Civic Theatre',
     method:      'HTML scrape',
-    methodDetail:'Bolt CMS — /view-all-shows page',
+    methodDetail:'Schema.org Event JSON-LD on theatreakron.com homepage',
     venue:       'Akron Civic Theatre, The Knight Stage, Wild Oscar\'s — 182 S Main St',
-    notes:       'Bolt CMS renders a structured text listing. Parser extracts venue / date / title triplets and maps each sub-venue to its own record. Opening night used for date ranges.',
+    notes:       "The Civic publishes its calendar to two domains: the legacy Bolt CMS at akroncivic.com and a modern WordPress build at theatreakron.com. As of 2026-06 we read theatreakron.com because every page emits a clean Schema.org Event JSON-LD list (~10–12 upcoming shows on the homepage). Same venue, same events, but the structured-data block is far less fragile than the Bolt three-line-text format we used to regex. Sub-venue routing (The Knight Stage, Wild Oscar's, PNC Plaza) is preserved by inspecting event titles and descriptions for those names. Migration of 2026-06 swapped the source URL and parser; venue + organiser records stay the same.",
     status:      'active',
   },
   {
@@ -377,6 +377,42 @@ const DATA_SOURCES = [
     methodDetail:'WRHS Lucy CMS — /do-see/events/{YYYY}/{MM} calendar pages + per-event detail pages',
     venue:       'Hale Farm & Village — 2686 Oak Hill Rd, Bath Township',
     notes:       "90-acre living-history museum operated by the Western Reserve Historical Society. Migrated off Akron Life in 2026-06 — Hale Farm was the single highest-volume organiser in the Evvnt feed (~32 events / 30 days) and direct ingestion lets us drop those rows via COVERED_BY_DIRECT_SCRAPER. WRHS runs a server-rendered Lucy CMS calendar at /do-see/events/YYYY/MM that emits an HTML table of <td> event cells; we walk 6 months forward, filter on the `.location` text to keep only \"Hale Farm & Village\" (skipping Cleveland History Center and Crawford Auto Aviation Museum — both 30+ mi outside our 25-mi Akron radius), then fetch each detail page. og:title carries title + day + time-range in a tidy three-segment string, the date is parseable from the URL slug, og:image is the banner, and the body content yields the bio paragraphs + price.",
+    status:      'active',
+  },
+  {
+    key:         'kent_stage',
+    label:       'The Kent Stage',
+    method:      'HTML scrape',
+    methodDetail:'Schema.org Event JSON-LD on each /event/<slug>/ detail page',
+    venue:       'The Kent Stage — 175 E Main St, Kent (~13 mi NE of Akron)',
+    notes:       "Independent 600-seat concert venue in Kent, ~13 mi inside our 25-mile Akron radius. Books touring folk, country, blues, Americana, indie, and comedy. Migrated off Akron Life in 2026-06 as priority #2 in the dwindle plan — Evvnt only surfaced ~4 of their shows but the venue books many more per quarter. kentstage.org is WordPress + Elementor with no Tribe REST API or ICS export, but every /event/<slug>/the-kent-stage/kent-ohio/ detail page emits a clean Schema.org Event JSON-LD block carrying name (HTML-entity-encoded), startDate with TZ offset, location, offers (price + etix.com ticket URL), image, and description. The scraper fetches /events/, harvests all event permalinks (skipping the perpetual gift-card permalink), then parses the JSON-LD on each detail. Kent Stage emits price:0 on paid shows; when the offer URL points at a real ticketing host (etix, ticketweb, seatengine) we treat 0 as \"unknown\" and fall back to a body \"$N\" sniff so paid concerts don't land as free.",
+    status:      'active',
+  },
+  {
+    key:         'cvart',
+    label:       'Cuyahoga Valley Art Center',
+    method:      'HTML scrape',
+    methodDetail:'WordPress (AIOSEO) — /events/ index + per-event detail pages, regex over body text',
+    venue:       'Cuyahoga Valley Art Center — 2131 Front St, Cuyahoga Falls',
+    notes:       'Community art center and gallery in downtown Cuyahoga Falls (~7 mi N of Akron). Migrated off Akron Life in 2026-06 as priority #3 in the dwindle plan. cvart.org runs WordPress with the AIOSEO plugin but no Tribe Events plugin and no Schema.org Event JSON-LD — the scraper walks /events/, drops the `call-` slug family (those are artist submission deadlines, not consumer events), and on each Artist Reception page parses two structured "Day, Month DD, YYYY @ H:MM am/pm" lines for start/end. The "ON DISPLAY:" / "ON VIEW:" exhibit window is captured separately and prepended to the description so attendees see the full run, not just reception night. Detail pages reuse the org logo as og:image so we leave image_url null.',
+    status:      'active',
+  },
+  {
+    key:         'cascade_locks',
+    label:       'Cascade Locks Park Association',
+    method:      'REST API',
+    methodDetail:'Squarespace Events Collection JSON (?format=json&view=upcoming)',
+    venue:       'Cascade Locks Park Association — 57 W North St (HQ); programming along the canal corridor',
+    notes:       "Nonprofit stewarding the historic Ohio & Erie Canal locks and Cascade Valley greenway just north of downtown Akron. Programs the Beech Street Trailhead (Lock 10), Ferndale Street trailhead, and seasonal canal-corridor events. Migrated off Akron Life in 2026-06. Uses the same Squarespace events-collection JSON pattern as Leadership Akron, Rialto, and Crown Point Ecology via lib/squarespace.js. Per-event venue routing falls back to HQ when Squarespace's location field is empty (typical for Free Lunch Friday and towpath walks where the address is given in body text rather than the structured location object).",
+    status:      'active',
+  },
+  {
+    key:         'akron_marathon',
+    label:       'Akron Marathon Race Series',
+    method:      'HTML scrape',
+    methodDetail:'/future-race-dates/ on akronmarathon.org — text-date scrape, paired with hard-coded race-series metadata',
+    venue:       'Downtown Akron course — Akron Marathon Charitable Corporation HQ at 155 E Voris St',
+    notes:       "Three race weekends per year — Akron 8K & 1M (June), Half Marathon & 10K (August), full Marathon with relay (September). akronmarathon.org is WordPress + Divi with no Tribe API, no JSON-LD, and no event detail pages — the canonical schedule is the static /future-race-dates/ page. The scraper extracts every Month DD, YYYY string in document order, buckets them by year (always exactly three per year), and pairs each year's [first, second, third] dates with the [8K, Half, Marathon] race-series metadata (title, description, tags, /race-series/ ticket URL). Migrated off Akron Life in 2026-06 — Evvnt was tagging races as community rather than fitness. Default 7:00 AM Eastern start; categorised fitness.",
     status:      'active',
   },
 
@@ -588,6 +624,11 @@ const SOURCE_GROUPS = [
     description: "Evvnt is the syndication platform behind Akron Life Magazine's events calendar. The on-page Discovery widget calls a global the current plugin no longer exposes, so we skip the DOM and hit the unauthenticated REST endpoint (/api/publisher/11072/widget_events) directly. Evvnt is high-volume but low-fidelity — categories are frequently wrong and many events are backfilled from venues we already scrape — so we run our own category inference and a hostname/organiser-based dedup pass against every other scraper before upserting.",
   },
   {
+    id:    'schema-jsonld',
+    title: 'Schema.org Event JSON-LD',
+    description: "Some independent WordPress venues don't expose a REST API or an ICS feed but do embed a clean Schema.org @type:Event JSON-LD block on every detail page (name, startDate, location, offers, image, description). When that's the case the scraper just harvests permalinks from the listing page and reads the structured-data block on each — no HTML parsing of card markup required.",
+  },
+  {
     id:    'wp-hybrid',
     title: 'EventON & custom WordPress',
     description: "WordPress sites that don't expose a Tribe Events feed — typically because they use the EventON plugin or hand-rolled custom post types — get a per-site combination: AJAX or WP REST API for the schedule, secondary fetches for images and descriptions.",
@@ -628,6 +669,7 @@ const SOURCE_GROUP_BY_KEY = {
   leadership_akron:    'squarespace',
   rialto:              'squarespace',
   crown_point_ecology: 'squarespace',
+  cascade_locks:       'squarespace',
 
   // LiveWhale (UAkron)
   uakron_calendar:  'livewhale',
@@ -641,6 +683,7 @@ const SOURCE_GROUP_BY_KEY = {
   rubberducks:         'mlb',
   city_of_akron_lock3: 'revize',
   killbox_comedy:      'seatengine',
+  akron_marathon:      'html',
 
   // EventON / custom WordPress
   jillys_music_room: 'wp-hybrid',
@@ -648,7 +691,6 @@ const SOURCE_GROUP_BY_KEY = {
 
   // Custom HTML scrapers
   akron_art_museum:       'html',
-  akron_civic:            'html',
   akron_zoo:              'html',
   downtown_akron:         'html',
   weathervane:            'html',
@@ -660,6 +702,11 @@ const SOURCE_GROUP_BY_KEY = {
   stan_hywet:             'html',
   akron_urban_league:     'html',
   hale_farm:              'html',
+  cvart:                  'html',
+
+  // Schema.org Event JSON-LD on every detail page
+  kent_stage:             'schema-jsonld',
+  akron_civic:            'schema-jsonld',
 
   // Aggregator-routed organizations (share a parent scraper via `subOf`)
   tm_blossom_music_center:'ticketmaster',
@@ -713,6 +760,10 @@ const SCRAPER_LABELS = {
   city_of_akron_lock3:'City of Akron (Lock 3)',
   killbox_comedy:     'KillBox Comedy Club',
   hale_farm:          'Hale Farm & Village',
+  kent_stage:         'The Kent Stage',
+  cvart:              'CV Art Center',
+  cascade_locks:      'Cascade Locks',
+  akron_marathon:     'Akron Marathon',
   akron_urban_league: 'Akron Urban League',
   rialto:             'The Rialto Theatre',
   life_gurukula:      'Life Gurukula',

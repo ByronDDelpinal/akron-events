@@ -118,7 +118,7 @@ const COVERED_BY_DIRECT_SCRAPER = [
   { scraper: 'summit_metro_parks',     domains: ['summitmetroparks.org'],                            organisers: ['summit metro parks'] },
   { scraper: 'cvnp_conservancy',       domains: ['conservancyforcvnp.org'],                          organisers: ['conservancy for cuyahoga', 'cuyahoga valley national park'] },
   { scraper: 'akron_art_museum',       domains: ['akronartmuseum.org'],                              organisers: ['akron art museum'] },
-  { scraper: 'akron_civic',            domains: ['akroncivic.com', 'akroncivictheatre.com'],         organisers: ['akron civic'] },
+  { scraper: 'akron_civic',            domains: ['akroncivic.com', 'akroncivictheatre.com', 'theatreakron.com'], organisers: ['akron civic'] },
   { scraper: 'akron_zoo',              domains: ['akronzoo.org'],                                    organisers: ['akron zoo'] },
   { scraper: 'akron_childrens_museum', domains: ['akronchildrensmuseum.org'],                        organisers: ["akron children's museum", 'akron childrens museum'] },
   { scraper: 'akron_symphony',         domains: ['akronsymphony.org'],                               organisers: ['akron symphony'] },
@@ -147,6 +147,9 @@ const COVERED_BY_DIRECT_SCRAPER = [
   { scraper: 'summit_artspace',        domains: ['summitartspace.org'],                              organisers: ['summit artspace'] },
   { scraper: 'killbox_comedy',         domains: ['thekillboxcomedyclub.com'],                        organisers: ['killbox comedy club', 'the killbox'] },
   { scraper: 'hale_farm',              domains: ['wrhs.org'],                                        organisers: ['hale farm', 'western reserve historical society', 'wrhs'] },
+  { scraper: 'kent_stage',             domains: ['kentstage.org'],                                   organisers: ['kent stage', 'the kent stage'] },
+  { scraper: 'cvart',                  domains: ['cvart.org'],                                       organisers: ['cuyahoga valley art center', 'cvac'] },
+  { scraper: 'cascade_locks',          domains: ['cascadelocks.org'],                                organisers: ['cascade locks park association', 'cascade locks'] },
   // LiveWhale (UAkron) sub-sources all surface through uakron.edu
   { scraper: 'uakron_calendar',        domains: ['uakron.edu', 'ejthomashall.com'],                  organisers: ['university of akron', 'e.j. thomas', 'ej thomas', 'myers school of art', 'cummings center'] },
 ]

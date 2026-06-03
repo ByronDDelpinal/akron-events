@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useTheme } from '@/hooks/useTheme'
+import { getThemeLogo } from '@/lib/themes'
 import './Header.css'
 
 export default function Header() {
   const [scrolled,    setScrolled]    = useState(false)
   const [menuOpen,    setMenuOpen]    = useState(false)
+  const [theme] = useTheme()
   const location  = useLocation()
   const navigate  = useNavigate()
   const isHome    = location.pathname === '/'
@@ -48,7 +51,12 @@ export default function Header() {
     <header className={`site-header${scrolled ? ' scrolled' : ''}${menuOpen ? ' menu-open' : ''}`}>
       <div className="header-inner">
         <Link to="/" className="nav-logo">
-          <div className="logo-dot" />
+          <img
+            src={getThemeLogo(theme)}
+            alt=""
+            className="nav-logo-img"
+            aria-hidden="true"
+          />
           Akron <span className="amber">Pulse</span>
         </Link>
 

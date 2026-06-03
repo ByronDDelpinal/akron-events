@@ -1,8 +1,36 @@
 /**
  * scrape-akron-civic.js
  *
- * Scrapes upcoming shows from Akron Civic Theatre's "View All Shows" page.
- * Akron Civic uses Bolt CMS with a structured text listing of shows.
+ * Scrapes upcoming shows from the Akron Civic Theatre. As of 2026-06,
+ * the Civic publishes its event calendar to two domains:
+ *
+ *   • akroncivic.com  — legacy Bolt CMS, plain-text listing
+ *   • theatreakron.com — modern WordPress build with Schema.org
+ *     Event JSON-LD on every page (~10–12 upcoming shows surface on
+ *     the homepage at a time)
+ *
+ * We use theatreakron.com because the JSON-LD is structurally richer
+ * and far less fragile than parsing the Bolt CMS three-line-block
+ * text format. Same venue, same events; this just switches sources.
+ *
+ * Strategy:
+ *   1. GET https://www.theatreakron.com/ (homepage carries the
+ *      JSON-LD Event list).
+ *   2. Walk every <script type="application/ld+json"> block, flatten
+ *      @graph entries, and keep @type="Event" rows.
+ *   3. For each event extract name, startDate (ISO + TZ), location,
+ *      url, image, description — same fields the existing pipeline
+ *      uses.
+ *   4. Route sub-venue events (The Knight Stage, Wild Oscar's, PNC
+ *      Plaza) to their own venue record via the CIVIC_VENUES
+ *      dispatcher when the event title or description names them;
+ *      otherwise default to the main Akron Civic Theatre venue.
+ *
+ * Migration note (2026-06): this scraper used to parse the legacy
+ * Bolt CMS HTML at akroncivic.com/view-all-shows. theatreakron.com
+ * is the same venue's modern WordPress site and exposes structured
+ * data instead of text we had to regex out. Both domains are owned
+ * by the Akron Civic Theatre.
  *
  * Usage:
  *   node scripts/scrape-akron-civic.js
@@ -24,95 +52,17 @@ import {
   ensureVenue as ensureVenueGeneric,
   ensureOrganization,
   linkOrganizationVenue,
-  easternToIso,
 } from './lib/normalize.js'
 
-const SOURCE_URL = 'https://www.akroncivic.com/view-all-shows'
+// ── Constants ──────────────────────────────────────────────────────────────
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+const SOURCE_KEY  = 'akron_civic'
+const SOURCE_URL  = 'https://www.theatreakron.com/'
+const USER_AGENT  = 'Mozilla/5.0 (compatible; AkronPulseBot/1.0; +https://akronpulse.com)'
 
-const MONTH_MAP = {
-  january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
-  july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
-  jan: 1, feb: 2, mar: 3, apr: 4, jun: 6, jul: 7, aug: 8,
-  sep: 9, sept: 9, oct: 10, nov: 11, dec: 12,
-}
-
-/**
- * Parse a date string like:
- *   "March 22 - April 12, 2026"  → start "2026-03-22"
- *   "Thursday, April 3, 2026"    → "2026-04-03"
- *   "March 22 - 29"              → start "2026-03-22" (year inferred)
- * Returns the start date as "YYYY-MM-DD" or null.
- */
-function parseDateString(raw) {
-  if (!raw) return null
-  const s = raw.trim()
-
-  // Strip leading day-of-week
-  const stripped = s.replace(/^(monday|tuesday|wednesday|thursday|friday|saturday|sunday),?\s*/i, '')
-
-  // Pattern: "Month DD - Month DD, YYYY" or "Month DD, YYYY"
-  const fullRangeMatch = stripped.match(
-    /^([A-Za-z]+)\s+(\d{1,2})\s*[-–]\s*(?:[A-Za-z]+\s+)?(\d{1,2}),?\s*(\d{4})/
-  )
-  if (fullRangeMatch) {
-    const [, mon, day, , year] = fullRangeMatch
-    const m = MONTH_MAP[mon.toLowerCase()]
-    if (m) return `${year}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`
-  }
-
-  // Pattern: "Month DD, YYYY"
-  const singleDateMatch = stripped.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s*(\d{4})/)
-  if (singleDateMatch) {
-    const [, mon, day, year] = singleDateMatch
-    const m = MONTH_MAP[mon.toLowerCase()]
-    if (m) return `${year}-${String(m).padStart(2,'0')}-${String(parseInt(day)).padStart(2,'0')}`
-  }
-
-  // Pattern: "Month DD - DD" (no year — infer)
-  const shortRangeMatch = stripped.match(/^([A-Za-z]+)\s+(\d{1,2})\s*[-–]\s*(\d{1,2})$/)
-  if (shortRangeMatch) {
-    const [, mon, day] = shortRangeMatch
-    const m = MONTH_MAP[mon.toLowerCase()]
-    if (m) {
-      const year = new Date().getFullYear()
-      return `${year}-${String(m).padStart(2,'0')}-${String(parseInt(day)).padStart(2,'0')}`
-    }
-  }
-
-  // Pattern: "Month DD - Month DD" (no year)
-  const crossMonthMatch = stripped.match(/^([A-Za-z]+)\s+(\d{1,2})\s*[-–]\s*([A-Za-z]+)\s+(\d{1,2})$/)
-  if (crossMonthMatch) {
-    const [, mon, day] = crossMonthMatch
-    const m = MONTH_MAP[mon.toLowerCase()]
-    if (m) {
-      const year = new Date().getFullYear()
-      return `${year}-${String(m).padStart(2,'0')}-${String(parseInt(day)).padStart(2,'0')}`
-    }
-  }
-
-  return null
-}
-
-/** Slug-based source_id */
-function slugify(title) {
-  return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-}
-
-/** Derive tags from show title keywords */
-function deriveTags(title) {
-  const lower = title.toLowerCase()
-  const tags  = ['theatre', 'live-performance', 'downtown-akron']
-  if (lower.includes('musical') || lower.includes(' music')) tags.push('musical')
-  if (lower.includes('comedy') || lower.includes('laugh')) tags.push('comedy')
-  if (lower.includes('symphony') || lower.includes('orchestra') || lower.includes('classical')) tags.push('classical')
-  if (lower.includes('ballet') || lower.includes('dance')) tags.push('dance')
-  return tags
-}
-
-// ── Known sub-venues at Akron Civic ───────────────────────────────────────
-
+// Known sub-venues inside the Akron Civic complex. Keys are
+// lowercased substrings searched against the event name + description;
+// the value is the venue record.
 const CIVIC_VENUES = {
   'akron civic theatre': {
     address: '182 S Main St', city: 'Akron', state: 'OH', zip: '44308',
@@ -136,11 +86,10 @@ const CIVIC_VENUES = {
   },
 }
 
-async function ensureCivicVenue(venueName) {
-  const displayName = venueName ?? 'Akron Civic Theatre'
-  const key = displayName.toLowerCase().trim()
+async function ensureCivicVenue(displayName) {
+  const key  = (displayName || 'Akron Civic Theatre').toLowerCase().trim()
   const info = CIVIC_VENUES[key] ?? CIVIC_VENUES['akron civic theatre']
-  return ensureVenueGeneric(displayName, {
+  return ensureVenueGeneric(displayName || 'Akron Civic Theatre', {
     address:       info.address,
     city:          info.city,
     state:         info.state,
@@ -149,198 +98,200 @@ async function ensureCivicVenue(venueName) {
     lng:           info.lng,
     parking_type:  info.parking_type,
     parking_notes: info.parking_notes,
-    website:       'https://www.akroncivic.com',
+    website:       'https://www.theatreakron.com',
   })
 }
 
 async function ensureCivicOrganizer() {
   return ensureOrganization('Akron Civic Theatre', {
-    website:     'https://www.akroncivic.com',
-    description: 'Akron Civic Theatre is a historic performing arts venue in downtown Akron presenting Broadway touring productions, concerts, comedy, and local performances.',
+    website:     'https://www.theatreakron.com',
+    description:
+      'Akron Civic Theatre is a historic performing arts venue in downtown Akron presenting ' +
+      'Broadway touring productions, concerts, comedy, and local performances on three stages: ' +
+      "the main theatre, The Knight Stage, and Wild Oscar's.",
   })
 }
 
-// ── HTML fetch ─────────────────────────────────────────────────────────────
+// ── HTML fetch ────────────────────────────────────────────────────────────
 
 async function fetchHtml(url) {
   const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; AkronEventsBot/1.0)',
-      'Accept':     'text/html,application/xhtml+xml',
-    },
+    headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml' },
   })
   if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`)
   return res.text()
 }
 
-// ── Parse shows ────────────────────────────────────────────────────────────
+// ── JSON-LD extraction ───────────────────────────────────────────────────
 
 /**
- * The Bolt CMS page at /view-all-shows has a predictable 3-line structure
- * within each show block:
- *   1) Venue name
- *   2) Date range / single date
- *   3) Show title
- *
- * We try multiple extraction strategies for resilience.
+ * Walk every <script type="application/ld+json"> block in the HTML and
+ * return a flat list of every Schema.org Event entry. theatreakron.com
+ * emits one Event object per upcoming show, sometimes inside an @graph,
+ * sometimes as a top-level array.
  */
-function parseShows(html) {
-  const shows = []
-
-  // Strategy 1: Look for <article> or <div> elements with class patterns
-  // Extract date patterns and surrounding context
-  const datePattern = /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}/gi
-
-  // Strategy 2: Extract main text and parse blocks
-  // Remove scripts/styles
-  const cleanHtml = html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-
-  // Try to isolate the main content area
-  const mainMatch = cleanHtml.match(/<main[\s\S]*?<\/main>/i) ??
-                    cleanHtml.match(/<div[^>]*class="[^"]*content[^"]*"[\s\S]*?<\/div>/i) ??
-                    [cleanHtml]
-
-  const mainHtml = mainMatch[0] ?? cleanHtml
-
-  // Strip all HTML tags to get the text content
-  const rawText = stripHtml(mainHtml)
-
-  // Split into lines and clean up
-  const lines = rawText
-    .split(/\n/)
-    .map(l => l.trim())
-    .filter(l => l.length > 0)
-
-  // Find all date lines
-  const seen = new Set()
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-
-    // Check if this line is a date-like string
-    const isDate = /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d/i.test(line)
-    if (!isDate) continue
-
-    const dateStr = parseDateString(line)
-    if (!dateStr) continue
-
-    // Look backward for a venue name (typically 1 line before date)
-    const venueLine = i > 0 ? lines[i - 1] : ''
-    const knownVenueKeys = Object.keys(CIVIC_VENUES)
-    const isVenue = knownVenueKeys.some(k => venueLine.toLowerCase().includes(k)) ||
-                    /civic|knight|oscar|plaza/i.test(venueLine)
-    const venueName = isVenue ? venueLine : 'Akron Civic Theatre'
-
-    // Look forward for the show title (typically 1 line after date)
-    const titleLine = lines[i + 1] ?? ''
-    if (!titleLine || titleLine.length < 3) continue
-
-    // Skip if title looks like another date or a navigation item
-    if (/^\d{4}$/.test(titleLine)) continue
-    if (/^(January|February|March|April|May|June|July|August|September|October|November|December)/i.test(titleLine)) continue
-
-    // Skip past show dates
-    const now = new Date()
-    const showDate = new Date(dateStr + 'T19:30:00')
-    if (showDate < now) continue
-
-    const id = slugify(titleLine)
-    if (seen.has(id)) continue
-    seen.add(id)
-
-    shows.push({
-      title:    titleLine,
-      dateStr,
-      venue:    venueName,
-    })
+function extractEventsFromHtml(html) {
+  const events = []
+  const re = /<script\s+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi
+  for (const m of html.matchAll(re)) {
+    let parsed
+    try { parsed = JSON.parse(m[1]) } catch { continue }
+    const items = Array.isArray(parsed) ? parsed : [parsed]
+    for (const item of items) {
+      const entries = item && item['@graph'] ? item['@graph'] : [item]
+      for (const e of entries) {
+        const t = e?.['@type']
+        if (t === 'Event' || (Array.isArray(t) && t.includes('Event'))) events.push(e)
+      }
+    }
   }
-
-  return shows
+  return events
 }
 
-// ── Process ────────────────────────────────────────────────────────────────
+function decodeEntities(s) {
+  return String(s || '')
+    .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(parseInt(c, 10)))
+    .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>').replace(/&apos;/g, "'").replace(/&#039;/g, "'").replace(/&nbsp;/g, ' ')
+}
 
-async function processShows(shows, organizerId) {
+/** Find a sub-venue mentioned in the title or description; default to main. */
+function detectSubVenue(title, description) {
+  const text = `${title || ''} ${description || ''}`.toLowerCase()
+  if (text.includes('the knight stage') || /\bknight stage\b/.test(text)) return 'The Knight Stage'
+  if (text.includes("wild oscar"))                                          return "Wild Oscar's"
+  if (text.includes('pnc plaza'))                                           return 'PNC Plaza'
+  return 'Akron Civic Theatre'
+}
+
+/** Slug-based source_id. */
+function slugify(title) {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+/** Derive tags from show title keywords (kept compatible with prior scraper). */
+function deriveTags(title) {
+  const lower = (title || '').toLowerCase()
+  const tags  = ['theatre', 'live-performance', 'downtown-akron']
+  if (lower.includes('musical') || lower.includes(' music')) tags.push('musical')
+  if (lower.includes('comedy') || lower.includes('laugh'))    tags.push('comedy')
+  if (lower.includes('symphony') || lower.includes('orchestra') || lower.includes('classical')) tags.push('classical')
+  if (lower.includes('ballet') || lower.includes('dance'))    tags.push('dance')
+  if (lower.includes('broadway') || lower.includes('tour'))   tags.push('broadway-tour')
+  return tags
+}
+
+// ── Process + upsert ─────────────────────────────────────────────────────
+
+async function processEvents(rawEvents, organizerId) {
   let inserted = 0, skipped = 0
+  const seen   = new Set()
+  const now    = Date.now()
 
-  for (const show of shows) {
+  for (const ld of rawEvents) {
     try {
-      const venueId  = await ensureCivicVenue(show.venue)
-      const startAt  = easternToIso(show.dateStr, '19:30:00')
+      const title = decodeEntities(ld.name)
+      if (!title) { skipped++; continue }
 
+      const startAt = ld.startDate ? new Date(ld.startDate).toISOString() : null
       if (!startAt) { skipped++; continue }
+      const endAt   = ld.endDate   ? new Date(ld.endDate).toISOString()   : null
+
+      // Past-event guard (1-day grace)
+      if (new Date(startAt).getTime() < now - 86_400_000) { skipped++; continue }
+
+      const description = decodeEntities(typeof ld.description === 'string' ? ld.description : null)
+        // Sometimes the description comes back as HTML; strip if so.
+      const cleanDesc = description ? stripHtml(description).slice(0, 2000) : null
+
+      const subVenue = detectSubVenue(title, cleanDesc)
+      const venueId  = await ensureCivicVenue(subVenue)
+
+      // Image: ld.image can be a string, an array, or an object {url}
+      const imageUrl =
+        typeof ld.image === 'string' ? ld.image
+        : Array.isArray(ld.image)    ? ld.image[0]
+        : (ld.image?.url ?? null)
+
+      // Offers → ticket URL + price when present
+      const offers = Array.isArray(ld.offers) ? ld.offers : (ld.offers ? [ld.offers] : [])
+      const offer  = offers[0] || {}
+      const ticketUrl = ld.url || offer.url || 'https://www.theatreakron.com/'
+      const rawPrice  = Number(offer.price)
+      const priceMin  = Number.isFinite(rawPrice) && rawPrice > 0 ? rawPrice : null
+
+      const id = slugify(title) + '-' + startAt.slice(0, 10)
+      if (seen.has(id)) { skipped++; continue }
+      seen.add(id)
 
       const row = {
-        title:           show.title,
-        description:     null,
+        title,
+        description:     cleanDesc,
         start_at:        startAt,
-        end_at:          null,
+        end_at:          endAt,
         category:        'art',
-        tags:            deriveTags(show.title),
-        price_min:       25,
+        tags:            deriveTags(title),
+        price_min:       priceMin,
         price_max:       null,
         age_restriction: 'not_specified',
-        image_url:       null,
-        ticket_url:      'https://www.akroncivic.com/tickets',
-        // Akron Civic's CMS doesn't expose per-show detail URLs, so we
-        // fall back to the all-shows page as the canonical source.
-        source_url:      SOURCE_URL,
-        source:          'akron_civic',
-        source_id:       slugify(show.title),
+        image_url:       imageUrl,
+        ticket_url:      ticketUrl,
+        source:          SOURCE_KEY,
+        source_id:       id,
         status:          'published',
         featured:        false,
       }
 
       const enrichedRow = await enrichWithImageDimensions(row)
       const { data: upserted, error } = await upsertEventSafe(enrichedRow)
-
       if (error) {
         console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)
         skipped++
-      } else {
-        await linkEventVenue(upserted.id, venueId)
-        await linkEventOrganization(upserted.id, organizerId)
-        inserted++
+        continue
       }
+      if (venueId)     await linkEventVenue(upserted.id, venueId)
+      if (organizerId) await linkEventOrganization(upserted.id, organizerId)
+      inserted++
     } catch (err) {
-      console.warn(`  ⚠ Error processing "${show.title}":`, err.message)
+      console.warn(`  ⚠ Error processing "${ld?.name}":`, err.message)
       skipped++
     }
   }
-
   return { inserted, skipped }
 }
 
-// ── Entry point ────────────────────────────────────────────────────────────
+// ── Entry point ──────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('🚀  Starting Akron Civic Theatre ingestion…')
+  console.log('🎭  Starting Akron Civic Theatre ingestion (theatreakron.com JSON-LD)…')
   const start = Date.now()
 
   try {
     const organizerId = await ensureCivicOrganizer()
+    // Pre-create the main venue so the org/venue link table has a row even
+    // when the first event happens at a sub-venue (Knight Stage, etc.).
+    const mainVenueId = await ensureCivicVenue('Akron Civic Theatre')
+    if (organizerId && mainVenueId) await linkOrganizationVenue(organizerId, mainVenueId)
 
     console.log(`\n🔍  Fetching ${SOURCE_URL}…`)
-    const html  = await fetchHtml(SOURCE_URL)
-    const shows = parseShows(html)
-    console.log(`  Found ${shows.length} upcoming shows`)
+    const html = await fetchHtml(SOURCE_URL)
+    const rawEvents = extractEventsFromHtml(html)
+    console.log(`  Found ${rawEvents.length} JSON-LD events`)
 
-    if (shows.length === 0) {
-      console.warn('  ⚠ No shows parsed — HTML structure may have changed. Inspect the page manually.')
+    if (rawEvents.length === 0) {
+      console.warn('  ⚠ No events parsed — theatreakron.com may have changed JSON-LD structure.')
     }
 
-    console.log(`\n📥  Processing ${shows.length} shows…`)
-    const { inserted, skipped } = await processShows(shows, organizerId)
+    console.log(`\n📥  Processing ${rawEvents.length} events…`)
+    const { inserted, skipped } = await processEvents(rawEvents, organizerId)
 
-    await logUpsertResult('akron_civic', inserted, 0, skipped, {
-      eventsFound: shows.length,
+    await logUpsertResult(SOURCE_KEY, inserted, 0, skipped, {
+      eventsFound: rawEvents.length,
       durationMs:  Date.now() - start,
     })
-    console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s`)
+    console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s — ${inserted} inserted, ${skipped} skipped`)
   } catch (err) {
-    await logScraperError('akron_civic', err, start)
+    await logScraperError(SOURCE_KEY, err, start)
     process.exit(1)
   }
 }

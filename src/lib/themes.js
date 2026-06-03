@@ -92,6 +92,30 @@ export const LEGACY_THEME_STORAGE_KEY = 'turnout.theme'
 export const isValidTheme = (id) => THEMES.some((t) => t.id === id)
 
 /**
+ * Per-theme logo image paths (served from public/theme-logos/).
+ * Files are named AkronPulse_<Theme-Name>.png.
+ */
+const THEME_LOGOS = {
+  'akron-pulse':   '/theme-logos/AkronPulse_Civic-Teal.png',
+  'grand-piano':   '/theme-logos/AkronPulse_Grand-Piano.png',
+  'pulse-red':     '/theme-logos/AkronPulse_Pulse-Red.png',
+  'twilight-plum': '/theme-logos/AkronPulse_Twilight-Plum.png',
+  'forest-amber':  '/theme-logos/AkronPulse_Forest-Amber.png',
+  'civic-classic': '/theme-logos/AkronPulse_Civic-Classic.png',
+  'harbor-civic':  '/theme-logos/AkronPulse_Harbor-Civic.png',
+  'violet-hour':   '/theme-logos/AkronPulse_Violet-Hour.png',
+  'boardwalk':     '/theme-logos/AkronPulse_Boardwalk.png',
+  'olive-grove':   '/theme-logos/AkronPulse_Olive-Grove.png',
+  'arcade-night':  '/theme-logos/AkronPulse_Arcade-Night.png',
+  'stargazer':     '/theme-logos/AkronPulse_Stargazer.png',
+  'prime-time':    '/theme-logos/AkronPulse_Prime-Time.png',
+}
+
+/** Returns the logo URL for a theme id, falling back to the default. */
+export const getThemeLogo = (id) =>
+  THEME_LOGOS[id] || THEME_LOGOS[DEFAULT_THEME]
+
+/**
  * Per-theme typography.
  *
  * Each entry contributes:

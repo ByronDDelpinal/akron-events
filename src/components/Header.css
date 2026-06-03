@@ -40,14 +40,12 @@
   flex-shrink: 0;
   margin-right: var(--space-3xl);
 }
-.logo-dot {
-  width: 9px; height: 9px;
-  border-radius: var(--radius-round);
-  background: var(--amber-on-dark);
-  box-shadow: 0 0 0 3px var(--amber-tint-25);
-  flex-shrink: 0;
-}
 .nav-logo .amber { color: var(--amber-on-dark); }
+.nav-logo-img {
+  height: 28px;
+  width: auto;
+  display: block;
+}
 
 .nav-links {
   display: flex;
