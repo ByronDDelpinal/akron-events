@@ -546,8 +546,8 @@ export default function HomePage() {
       {/* ── MAP VIEW ── */}
       {view === 'map' && (
         mapLoading
-          ? <div className="map-loading"><span>Loading map data…</span></div>
-          : <MapView events={mapEvents} />
+          ? <div className="map-loading"><span>Loading map…</span></div>
+          : <MapView events={mapEvents} onBackToList={() => setView('list')} />
       )}
 
       {/* ── LIST VIEW ── */}

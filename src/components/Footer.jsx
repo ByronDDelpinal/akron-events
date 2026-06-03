@@ -21,16 +21,11 @@ export default function Footer() {
   const [theme, setTheme] = useTheme()
   const isAdmin = pathname.startsWith('/admin')
 
-  // ── Scroll-driven slim bar opacity ────────────────────────────────
-  // `netDown` accumulates net downward scroll (px). Scrolling down
-  // increases it toward FADE_DISTANCE (opacity → 0); scrolling up
-  // decreases it back toward 0 (opacity → 1).
-  const [slimOpacity,    setSlimOpacity]    = useState(1)
-  const [footerVisible,  setFooterVisible]  = useState(false)
+  const [slimOpacity,   setSlimOpacity]   = useState(1)
+  const [footerVisible, setFooterVisible] = useState(false)
   const footerRef = useRef(null)
 
-  // IntersectionObserver: when the full footer enters the viewport the
-  // slim bar should hide — the user has reached the real footer.
+  // IntersectionObserver: hide slim bar when the real footer is in view.
   useEffect(() => {
     if (isAdmin) return
     const el = footerRef.current
@@ -46,14 +41,14 @@ export default function Footer() {
   // Scroll handler: track net downward travel, map to opacity.
   useEffect(() => {
     if (isAdmin) return
-    let lastY  = window.scrollY
+    let lastY   = window.scrollY
     let netDown = 0
 
     const handle = () => {
-      const y  = window.scrollY
-      const dy = y - lastY
-      lastY    = y
-      netDown  = Math.max(0, Math.min(FADE_DISTANCE, netDown + dy))
+      const y   = window.scrollY
+      const dy  = y - lastY
+      lastY     = y
+      netDown   = Math.max(0, Math.min(FADE_DISTANCE, netDown + dy))
       setSlimOpacity(1 - netDown / FADE_DISTANCE)
     }
 
@@ -75,12 +70,12 @@ export default function Footer() {
     window.location.reload()
   }
 
-  // The slim bar hides when the full footer is scrolled into view.
   const effectiveOpacity = footerVisible ? 0 : slimOpacity
+  const hidden = effectiveOpacity < 0.05
 
   return (
     <>
-      {/* ── Full footer — always in document flow ─────────────────── */}
+      {/* ── Full footer — always in document flow ── */}
       <footer ref={footerRef}>
         <div className="footer-expandable-inner">
           <p className="footer-tagline">Everything happening in Akron &amp; Summit County, all in one place.</p>
@@ -140,21 +135,14 @@ export default function Footer() {
 
         <div className="footer-slim">
           <div className="footer-logo">
-            <img
-              src={getThemeLogo(theme)}
-              alt=""
-              aria-hidden="true"
-              className="footer-logo-img"
-            />
+            <img src={getThemeLogo(theme)} alt="" aria-hidden="true" className="footer-logo-img" />
           </div>
-
           <div className="footer-links">
             <Link to="/">Browse Events</Link>
             <Link to="/submit">Submit an Event</Link>
             <Link to="/subscribe">Get the Newsletter</Link>
             <Link to="/about">About</Link>
           </div>
-
           <p className="footer-copy">
             © {new Date().getFullYear()} Akron Pulse
             <span className="footer-copy-sep" aria-hidden="true"> · </span>
@@ -163,18 +151,26 @@ export default function Footer() {
         </div>
       </footer>
 
-      {/* ── Fixed slim bar — scroll-driven opacity ────────────────── */}
+      {/* ── Fixed slim bar — scroll-driven opacity ──
+       * Visible on page load; fades out as user scrolls down into the grid.
+       * Hides completely when the real footer enters the viewport.
+       *
+       * Desktop (single row): logo · vibes · Events · Venues · Organizations · The Pulse · © 2026
+       * Mobile (two rows):    row 1 = logo + vibes  /  row 2 = links + copyright
+       * Very small mobile:    "Events" hidden (homepage is the primary nav target) */}
       <div
-        className={`footer-slim-bar${effectiveOpacity < 0.05 ? ' footer-slim-bar--hidden' : ''}`}
+        className={`footer-slim-bar${hidden ? ' footer-slim-bar--hidden' : ''}`}
         style={{ '--slim-opacity': effectiveOpacity }}
-        aria-hidden="true"
+        aria-hidden={hidden}
       >
         <div className="footer-slim-bar-inner">
-          <div className="footer-slim-bar-logo">
-            <img src={getThemeLogo(theme)} alt="" className="footer-logo-img" />
-          </div>
 
-          <div className="footer-slim-bar-middle">
+          {/* Row 1 on mobile: logo + vibe switcher */}
+          <div className="footer-slim-bar-identity">
+            <Link to="/" className="footer-slim-bar-logo" aria-label="Akron Pulse — home" tabIndex={hidden ? -1 : 0}>
+              <img src={getThemeLogo(theme)} alt="" className="footer-logo-img" />
+            </Link>
+
             <div className="footer-slim-vibes">
               <label htmlFor="footer-slim-theme-select" className="footer-slim-vibes-label">
                 Vibes:
@@ -185,27 +181,30 @@ export default function Footer() {
                 value={theme}
                 onChange={(e) => setTheme(e.target.value)}
                 aria-label="Theme"
-                tabIndex={effectiveOpacity < 0.1 ? -1 : 0}
+                tabIndex={hidden ? -1 : 0}
               >
                 {THEMES.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
+                  <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
             </div>
-
-            <div className="footer-links footer-slim-bar-links">
-              <Link to="/" tabIndex={effectiveOpacity < 0.1 ? -1 : 0}>Browse Events</Link>
-              <Link to="/submit" tabIndex={effectiveOpacity < 0.1 ? -1 : 0}>Submit an Event</Link>
-              <Link to="/subscribe" tabIndex={effectiveOpacity < 0.1 ? -1 : 0}>Get the Newsletter</Link>
-              <Link to="/about" tabIndex={effectiveOpacity < 0.1 ? -1 : 0}>About</Link>
-            </div>
           </div>
 
-          <p className="footer-copy footer-slim-bar-copy">
-            © {new Date().getFullYear()} Akron Pulse
-          </p>
+          {/* Row 2 on mobile: nav links + copyright */}
+          <div className="footer-slim-bar-nav">
+            <nav className="footer-slim-bar-links" aria-label="Quick navigation">
+              {/* Hidden on very small screens — homepage already primary destination */}
+              <Link to="/" className="footer-slim-bar-link footer-slim-bar-link--events" tabIndex={hidden ? -1 : 0}>Events</Link>
+              <Link to="/venues" className="footer-slim-bar-link" tabIndex={hidden ? -1 : 0}>Venues</Link>
+              <Link to="/organizations" className="footer-slim-bar-link" tabIndex={hidden ? -1 : 0}>Organizations</Link>
+              <Link to="/subscribe" className="footer-slim-bar-link footer-slim-bar-link--pulse" tabIndex={hidden ? -1 : 0}>The Pulse</Link>
+            </nav>
+
+            <p className="footer-copy footer-slim-bar-copy">
+              © {new Date().getFullYear()} Akron Pulse
+            </p>
+          </div>
+
         </div>
       </div>
     </>

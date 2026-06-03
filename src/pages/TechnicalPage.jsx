@@ -415,6 +415,15 @@ const DATA_SOURCES = [
     notes:       "Three race weekends per year — Akron 8K & 1M (June), Half Marathon & 10K (August), full Marathon with relay (September). akronmarathon.org is WordPress + Divi with no Tribe API, no JSON-LD, and no event detail pages — the canonical schedule is the static /future-race-dates/ page. The scraper extracts every Month DD, YYYY string in document order, buckets them by year (always exactly three per year), and pairs each year's [first, second, third] dates with the [8K, Half, Marathon] race-series metadata (title, description, tags, /race-series/ ticket URL). Migrated off Akron Life in 2026-06 — Evvnt was tagging races as community rather than fitness. Default 7:00 AM Eastern start; categorised fitness.",
     status:      'active',
   },
+  {
+    key:         'get_away_with_murder',
+    label:       'Get Away With Murder',
+    method:      'HTML scrape',
+    methodDetail:'Schema.org Event JSON-LD on the 330tix.com/organizations/get-away-with-murder-killer-parties listing',
+    venue:       'Get Away With Murder Theatre — 1653 Merriman Rd, Akron',
+    notes:       "Akron immersive-theatre company (murder-mystery parties, acting/audition workshops). Final scraper in the 2026-06 Akron Life dwindle plan. Their marketing site is a Weebly page, but every ticketed event lives on a 330tix.com organisation listing — that page emits clean Schema.org Event JSON-LD with name, description, location, start/end with TZ offset, offers, and ticket URL. We hit the org page directly rather than scraping 330tix at large (which would mostly duplicate Hale Farm). About 5–6 events per month: a mix of immersive theatre runs and acting/audition workshops, categorised art vs. education based on title keywords.",
+    status:      'active',
+  },
 
   // ── Aggregators ────────────────────────────────────────────────────────
   {
@@ -707,6 +716,7 @@ const SOURCE_GROUP_BY_KEY = {
   // Schema.org Event JSON-LD on every detail page
   kent_stage:             'schema-jsonld',
   akron_civic:            'schema-jsonld',
+  get_away_with_murder:   'schema-jsonld',
 
   // Aggregator-routed organizations (share a parent scraper via `subOf`)
   tm_blossom_music_center:'ticketmaster',
@@ -764,6 +774,7 @@ const SCRAPER_LABELS = {
   cvart:              'CV Art Center',
   cascade_locks:      'Cascade Locks',
   akron_marathon:     'Akron Marathon',
+  get_away_with_murder: 'Get Away With Murder',
   akron_urban_league: 'Akron Urban League',
   rialto:             'The Rialto Theatre',
   life_gurukula:      'Life Gurukula',

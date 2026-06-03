@@ -37,15 +37,22 @@ footer {
   pointer-events: none;
 }
 
+/* Desktop: single flex row — identity group left, nav group right */
 .footer-slim-bar-inner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-md) var(--space-lg);
+  gap: var(--space-xl);
   max-width: 1280px;
   margin: 0 auto;
-  padding: var(--space-md) var(--space-xl);
+  padding: var(--space-sm) var(--space-xl);
+}
+
+/* Left group: logo + vibe switcher */
+.footer-slim-bar-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-shrink: 0;
 }
 
 .footer-slim-bar-logo {
@@ -54,33 +61,77 @@ footer {
   flex-shrink: 0;
 }
 
-.footer-slim-bar-middle {
+/* Right group: nav links + copyright */
+.footer-slim-bar-nav {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-md) var(--space-lg);
-  flex: 1 1 auto;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  flex: 1;
+  gap: var(--space-lg);
+  min-width: 0;
 }
 
 .footer-slim-bar-links {
-  margin-bottom: 0 !important;
-  gap: var(--space-lg) !important;
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  flex-wrap: nowrap;
 }
-.footer-slim-bar-links a {
-  font-size: var(--text-xs) !important;
+
+.footer-slim-bar-link {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--overlay-light-50);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--transition-medium);
 }
+.footer-slim-bar-link:hover { color: var(--amber-on-dark); }
+
+/* "The Pulse" subscribe link gets amber emphasis */
+.footer-slim-bar-link--pulse {
+  color: var(--amber-on-dark);
+  font-weight: 600;
+}
+.footer-slim-bar-link--pulse:hover { opacity: 0.8; }
 
 .footer-slim-bar-copy {
   margin: 0;
   white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--overlay-light-50);
 }
 
+/* Mobile (≤640px): two rows
+   Row 1 = identity (logo left, vibes right)
+   Row 2 = nav links left, copyright right */
 @media (max-width: 640px) {
-  .footer-slim-bar-links,
-  .footer-slim-bar-copy {
-    display: none;
+  .footer-slim-bar-inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-xs);
+    padding: var(--space-sm) var(--space-lg);
   }
+
+  .footer-slim-bar-identity {
+    justify-content: space-between;
+  }
+
+  .footer-slim-bar-nav {
+    justify-content: space-between;
+    gap: var(--space-sm);
+  }
+
+  .footer-slim-bar-links {
+    gap: var(--space-md);
+    flex-wrap: wrap;
+  }
+}
+
+/* Very small (≤380px): drop Events — homepage is already the primary nav target */
+@media (max-width: 380px) {
+  .footer-slim-bar-link--events { display: none; }
 }
 
 /* ── Logo ─────────────────────────────────────────────────────────── */

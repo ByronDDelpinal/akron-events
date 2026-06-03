@@ -40,7 +40,7 @@ const CATEGORY_EMOJI = {
 
 // ── Main component ────────────────────────────────────────────────────────
 
-export default function MapView({ events }) {
+export default function MapView({ events, onBackToList }) {
   const navigate = useNavigate()
   const mapRef = useRef(null)
   const [popupVenueId, setPopupVenueId] = useState(null)
@@ -111,7 +111,7 @@ export default function MapView({ events }) {
         {/* Scroll-to-zoom hint overlay */}
         {!mapActive && (
           <div className="map-activate-hint">
-            <span>Click to enable map interaction</span>
+            <span>Click to interact</span>
           </div>
         )}
 
@@ -165,16 +165,25 @@ export default function MapView({ events }) {
           )}
         </MapGL>
 
-        {/* ── Event count badge ── */}
-        <div className="map-count-badge">
-          <span className="map-count-primary">
-            {mappedEventCount} {mappedEventCount === 1 ? 'event' : 'events'} at {venues.length} {venues.length === 1 ? 'venue' : 'venues'}
-          </span>
-          {unmappedCount > 0 && (
-            <span className="map-count-note">
-              · {unmappedCount} without location
-            </span>
+        {/* ── Top-left: Back to list + event count ── */}
+        <div className="map-top-bar">
+          {onBackToList && (
+            <button className="map-back-btn" onClick={onBackToList} aria-label="Back to list view">
+              <BackIcon /> List
+            </button>
           )}
+          <div className="map-count-badge">
+            <span className="map-count-primary">
+              {mappedEventCount} {mappedEventCount === 1 ? 'event' : 'events'}
+            </span>
+            <span className="map-count-sep">·</span>
+            <span className="map-count-secondary">
+              {venues.length} {venues.length === 1 ? 'venue' : 'venues'}
+            </span>
+            {unmappedCount > 0 && (
+              <span className="map-count-note">&nbsp;({unmappedCount} unmapped)</span>
+            )}
+          </div>
         </div>
 
         {/* ── Recenter button ── */}
@@ -183,13 +192,6 @@ export default function MapView({ events }) {
             <ResetIcon /> Akron
           </button>
         )}
-      </div>
-
-      {/* ── Bottom edge indicator ── */}
-      <div className="map-bottom-edge">
-        <div className="map-bottom-edge-line" />
-        <span className="map-bottom-edge-label">End of map</span>
-        <div className="map-bottom-edge-line" />
       </div>
     </div>
   )
@@ -484,6 +486,15 @@ function ExpandIcon() {
       <path d="M9 21H3v-6" />
       <path d="M21 3l-7 7" />
       <path d="M3 21l7-7" />
+    </svg>
+  )
+}
+
+function BackIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 12H5" />
+      <path d="m12 5-7 7 7 7" />
     </svg>
   )
 }

@@ -150,6 +150,7 @@ const COVERED_BY_DIRECT_SCRAPER = [
   { scraper: 'kent_stage',             domains: ['kentstage.org'],                                   organisers: ['kent stage', 'the kent stage'] },
   { scraper: 'cvart',                  domains: ['cvart.org'],                                       organisers: ['cuyahoga valley art center', 'cvac'] },
   { scraper: 'cascade_locks',          domains: ['cascadelocks.org'],                                organisers: ['cascade locks park association', 'cascade locks'] },
+  { scraper: 'get_away_with_murder',   domains: ['getawaywithmurdermystery.weebly.com'],             organisers: ['get away with murder', 'gawm'] },
   // LiveWhale (UAkron) sub-sources all surface through uakron.edu
   { scraper: 'uakron_calendar',        domains: ['uakron.edu', 'ejthomashall.com'],                  organisers: ['university of akron', 'e.j. thomas', 'ej thomas', 'myers school of art', 'cummings center'] },
 ]

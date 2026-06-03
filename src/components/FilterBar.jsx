@@ -65,45 +65,7 @@ export default function FilterBar({
     <>
       <div className="filter-bar">
 
-        {/* ── Row 1: Date tabs + view toggle [TOGGLED OFF FOR NOW] ── */}
-        {/* <div className="filter-date-row">
-          <div className="filter-date-tabs">
-            {DATE_TABS.map(tab => (
-              <button
-                key={tab.label}
-                className={`date-tab ${dateRange === tab.id ? 'active' : ''}`}
-                onClick={() => onDateRange(tab.id === dateRange ? null : tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="view-toggle" role="group" aria-label="View mode">
-            <button
-              className={`view-toggle-btn ${view === 'list' ? 'active' : ''}`}
-              onClick={() => onView('list')}
-              aria-pressed={view === 'list'}
-              title="List view"
-            >
-              <ListIcon /> List
-            </button>
-            <button
-              className={`view-toggle-btn ${view === 'map' ? 'active' : ''}`}
-              onClick={() => onView('map')}
-              aria-pressed={view === 'map'}
-              title="Map view"
-            >
-              <MapIcon /> Map
-            </button>
-          </div>
-        </div> */}
-
-        {/* ── Row 2: Filter & Sort + View mode toggle ──
-         * Intents (Date Night, Family Fun, Give Back) used to occupy a full
-         * pill-bar row between the date tabs and this row. They now live
-         * inside the Filter & Sort tray alongside raw categories so the
-         * sticky filter zone stays a tight two rows. */}
+        {/* ── Row 1: Filter & Sort + View mode + List/Map toggle ── */}
         <div className="filter-actions-row">
           <div className="filter-actions">
             <button
@@ -118,9 +80,34 @@ export default function FilterBar({
             </button>
           </div>
 
-          {cardViewMode && onCardViewMode && (
-            <ViewModeToggle mode={cardViewMode} onChange={onCardViewMode} />
-          )}
+          <div className="filter-actions-right">
+            {/* Card view density toggle — hidden in map view */}
+            {view === 'list' && cardViewMode && onCardViewMode && (
+              <ViewModeToggle mode={cardViewMode} onChange={onCardViewMode} />
+            )}
+
+            {/* List / Map toggle */}
+            {onView && (
+              <div className="view-toggle" role="group" aria-label="View mode">
+                <button
+                  className={`view-toggle-btn ${view === 'list' ? 'active' : ''}`}
+                  onClick={() => onView('list')}
+                  aria-pressed={view === 'list'}
+                  title="List view"
+                >
+                  <ListIcon /> List
+                </button>
+                <button
+                  className={`view-toggle-btn ${view === 'map' ? 'active' : ''}`}
+                  onClick={() => onView('map')}
+                  aria-pressed={view === 'map'}
+                  title="Map view"
+                >
+                  <MapIcon /> Map
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── Active filter summary strip ── */}

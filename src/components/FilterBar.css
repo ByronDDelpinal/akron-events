@@ -1,10 +1,13 @@
-/* ── Wrapper ── */
+/* ── Wrapper ──
+ * Hard cap: row 1 (actions) + optional row 2 (active pills). Never more.
+ * overflow: hidden ensures no third row can bleed in from any future change. */
 .filter-bar {
   background: var(--bg-page);
   border-bottom: var(--border-width-thin) solid var(--border);
   position: sticky;
   top: 64px;
   z-index: 90;
+  overflow: hidden;
 }
 
 /* ════════════════════════════════
@@ -53,20 +56,15 @@
   font-weight: 700;
 }
 
-/* View toggle — pinned to the right of row 1 */
+/* View toggle — pill housing the List / Map buttons */
 .view-toggle {
   display: flex;
   align-items: center;
+  gap: var(--space-2xs);
+  flex-shrink: 0;
   background: var(--chip-bg);
   border-radius: var(--radius-pill);
   padding: var(--space-2xs);
-  gap: var(--space-2xs);
-  flex-shrink: 0;
-  margin-left: var(--space-md);
-  border-left: var(--border-width-thin) solid var(--border);
-  padding-left: var(--space-lg);
-  background: transparent;
-  border-radius: 0;
 }
 
 .view-toggle-btn {
@@ -87,7 +85,7 @@
 }
 .view-toggle-btn:hover { color: var(--amber); }
 .view-toggle-btn.active {
-  background: var(--bg-nav);
+  background: var(--amber);
   color: var(--chip-active-txt);
   font-weight: 600;
 }
@@ -103,6 +101,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
+  flex-wrap: nowrap; /* must never wrap — that would create a 3rd line */
 }
 
 /* Scrollable pill area */
@@ -172,6 +171,14 @@
 
 /* ── Fixed left-hand controls ── */
 .filter-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+}
+
+/* ── Right-side controls group (view density + list/map toggle) ── */
+.filter-actions-right {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
@@ -250,7 +257,7 @@
 
 /* ── Mobile ── */
 @media (max-width: 640px) {
-  .filter-bar { top: 56px; } /* shorter header on mobile */
+  .filter-bar { top: 64px; } /* header is always 64px tall */
 
   .filter-date-row,
   .filter-actions-row,
