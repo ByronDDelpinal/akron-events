@@ -185,119 +185,12 @@ export function categoryFromEventbriteNames(categoryName, subcategoryName) {
 // over generic ones (band/tour/show). Calibrated against ~250 already-
 // labeled Akron events and ~250 currently-'other' Eventbrite events.
 
-// Match "@ Venue" or "at Venue" allowing one or two intervening words
-// (e.g. "at the Akron Barmacy"). Limited to known Akron-area music spots.
-const _MUSIC_VENUES = /(@|\bat)\s+(the\s+)?(?:\w+\s+){0,2}(old 97|vortex|matinee|musica|jilly'?s|barmacy|blu jazz|empire concert|goodyear theat(er|re)|akron civic|knight stage|tangier|stage door|lock 4|kent stage|civic theatre)\b/i
-const _GENERIC_TOUR_EXCLUSION = /(walking|guided|historical|garden|home|food|brewery|trolley|architecture|museum|self[- ]guided|virtual|haunted|farm|driving|kayak|free|weekly|exhibit|art|behind[- ]?the[- ]?scenes|members'?|public|private|holiday|cemetery|winery|wine|history|ghost)\s+tour|tour\s*:/i
-// Followers of "Learn" that are promotional CTAs, not a subject of learning.
-// Used by the "Learn X" education heuristic below to suppress false positives
-// like "Learn more about…", "Learn why…", "Learn about…".
-const _LEARN_NOT_EDUCATIONAL = /\blearn\s+(more|why|all|about|everything|here|now|first|today|tomorrow)\b/i
-
-/**
- * Infer an events.category value from free text. Pure function, no I/O.
- * @param {string} title       — event title
- * @param {string} description — event description (optional)
- * @returns {string}             — one of: music, art, food, community,
- *                                  nonprofit, sports, fitness, education,
- *                                  nature, other
- */
-export function inferCategory(title = '', description = '') {
-  const text  = `${title || ''} ${description || ''}`.toLowerCase()
-  const tLow  = (title || '').toLowerCase()
-
-  // ── Comedy open mic → art (must run before music's open-mic rule) ───────
-  if (/\bcomedy (open mic|night)\b/.test(text) || (/\bopen mic\b/.test(text) && /\bcomedy|comedians?\b/.test(text))) return 'art'
-
-  // ── Music — strong, unambiguous signals ─────────────────────────────────
-  if (/\b(concert|symphony|orchestra|recital|live music|live band|open mic|karaoke|sing[- ]along|songwriter night|jazz night|blues night|dj set|sound check|album release|ep release|single release|musical guest|tribute (band|act|show|to)|spotify|on spotify)\b/.test(text)) return 'music'
-  if (/\btribute\b/.test(text)) return 'music'
-  // "Tour" in the title is overwhelmingly a music-tour signal *except* when
-  // qualified by walking/guided/garden/etc.
-  if (/\btour\b/.test(tLow) && !_GENERIC_TOUR_EXCLUSION.test(text)) return 'music'
-  // Known Akron-area music venues
-  if (_MUSIC_VENUES.test(title)) return 'music'
-
-  // ── Sports — specific teams and game language ──────────────────────────
-  if (/\b(rubberducks|cleveland cavaliers|cleveland browns|cleveland guardians|cleveland indians|cavs|browns|guardians|hockey game|baseball game|basketball game|tournament championship|home game|home court|matchday|playoff|stadium)\b/.test(text)) return 'sports'
-  // "X vs. Y" or "X vs Y" — game language; rule out movie/book titles which
-  // tend to phrase it differently
-  if (/\b[a-z][a-z .'&]+ vs\.? [a-z][a-z .'&]+\b/.test(tLow)) return 'sports'
-
-  // ── Fitness — strong signals (races, classes, water sports) ────────────
-  if (/\b(5k|10k|half[- ]?marathon|marathon|fun run|trail run|color run|yoga|pilates|crossfit|spin class|hiit|cardio|paddleboard(ing)?|kayak(ing)?|canoe|stand[- ]up paddle|cycle class|cycling class|barre class)\b/.test(text)) return 'fitness'
-
-  // ── Education — strong signals (certification, training, professional dev)
-  if (/\b(certification|professional development|continuing education|sat prep|gre prep|esol classes|ged classes|lean six sigma|pmp|leadership training|sales training|management training|conflict resolution training|coding bootcamp|reiki .* certification|six sigma)\b/.test(text)) return 'education'
-  if (/\b\d+[- ]day workshop\b/.test(text)) return 'education'
-  if (/\b(seminar|lecture series|symposium|webinar|conference|masterclass)\b/.test(text)) return 'education'
-  // Consumer safety / fraud prevention / digital literacy — frequently
-  // mislabeled because titles lack classic "education" keywords.
-  if (/\b(scam|scammer|fraud|phishing|identity theft|cyber(security| safety)|online safety|consumer (safety|protection|fraud)|financial (literacy|safety|fraud)|digital literacy|internet safety|password safety|outsmart|avoid (scams?|fraud)|protect yourself)\b/.test(text)) return 'education'
-  // Information sessions, orientations, and clinics are almost always educational
-  if (/\b(information session|info session|orientation (session|program)?|new student orientation|open enrollment|enrollment clinic|free clinic|financial aid clinic|tax clinic|legal clinic|resource fair)\b/.test(text)) return 'education'
-
-  // ── Art — galleries, exhibits, theater, comedy, drag ────────────────────
-  if (/\b(gallery|exhibition|exhibit opening|opening (reception|celebration)|artist reception|artist talk|sculpture show|mural unveiling|art show|art fair|installation|vernissage)\b/.test(text)) return 'art'
-  if (/\b(theat(re|er)|playwright|broadway|stage production|musical (theatre|theater|production)s?|opera|ballet|dance company|stand[- ]?up comedy|comedy night|comedy show|improv|drag (show|brunch|king|queen|bingo))\b/.test(text)) return 'art'
-  if (/\b(paint (and|&|n)\s*sip|puff (and|&|n)\s*paint|paint(ing)? class|pottery|ceramics|sketching workshop|drawing class)\b/.test(text)) return 'art'
-
-  // ── Food — culinary, dining, drinks ─────────────────────────────────────
-  if (/\b(brewery|winery|wine tasting|beer tasting|cooking class|culinary|food truck|food festival|restaurant week|tap takeover|chef'?s table|tasting menu|wine dinner|whiskey tasting|cocktail (class|essentials|workshop)|brunch|luncheon|dinner show|drag brunch|sake|sushi tasting|cheese tasting|bourbon tasting|coffee tasting|chocolate tasting|culinary class)\b/.test(text)) return 'food'
-
-  // ── Music — softer signals (after we've ruled out food/art/edu) ────────
-  //
-  // Title-only profession/format words. Kept tight because a bare title is
-  // a strong signal: "Jane Doe Band", "Live Performance Saturday" etc.
-  if (/\b(band\b|live performance|performer|musician|vocalist|jam session|sing[- ]?along)\b/.test(tLow)) return 'music'
-
-  // Description-side signals. Aggregator feeds like Evvnt frequently tag
-  // music shows as "community" or "lifestyle" when the title is just the
-  // artist's name ("Daniel Rylander", "SSX", "Colin John Music: Literacy
-  // Blues"). When that happens we lean on artist-bio vocabulary in the
-  // description to recover the music category.
-  //
-  //   - Musician profession words (singer-songwriter, guitarist, drummer,
-  //     multi-instrumentalist, …) — vanishingly rare outside music.
-  //   - "N-piece band" — qualified by "band", unambiguous.
-  //   - Music-industry phrases — "music scene", "debut album", "released
-  //     their EP", "touring band", "on tour", "tribute act".
-  //   - Subgenre names too specific to mean anything else — metalcore,
-  //     nu-metal, bluegrass, EDM, etc. Broad genre words (rock, country,
-  //     folk, metal) are deliberately omitted because they false-positive
-  //     on "rock climbing", "country fair", "folk art".
-  if (/\b(singer[- ]songwriter|guitarist|drummer|bassist|saxophonist|pianist|trumpeter|cellist|violinist|multi[- ]?instrumentalist|frontman|frontwoman|frontperson)\b/.test(text)) return 'music'
-  if (/\b(two|three|four|five|six|seven|eight)[- ]piece band\b/.test(text)) return 'music'
-  if (/\b(music scene|debut (album|record|ep|single)|released (his|her|their) (debut |first |new |latest )?(album|record|ep|single)|touring (band|artist|musician)|nationally touring|on tour\b)\b/.test(text)) return 'music'
-  if (/\b(blues|jazz|metalcore|nu[- ]metal|death metal|hardcore punk|grindcore|hip[- ]?hop|rap music|reggae|bluegrass|americana|alt[- ]?country|shoegaze|electronica|\bedm\b)\b/.test(text)) return 'music'
-
-  if (/\b(music night|night of music|performance by|featuring [a-z]+ band)\b/.test(text)) return 'music'
-
-  // ── Education — softer signals ──────────────────────────────────────────
-  if (/\b(workshop|class\b|course|training session|lesson|book club|book discussion|study group|reading group)\b/.test(text)) return 'education'
-  // "Learn X" — a how-to event, typically educational (Learn Chicago Stepping,
-  // Learn to Knit, Learn Excel, etc.).
-  //
-  // Exclusion list catches the most common false-positive pattern: marketing
-  // copy that uses "Learn more about…" / "Learn why…" / "Learn about…" as
-  // generic CTAs.  Those phrases dominate aggregator descriptions and
-  // shouldn't categorise the event as educational on their own.  An explicit
-  // subject ("Learn to Knit", "Learn Chicago Stepping") still matches because
-  // its follower word isn't on the list.
-  if (/\blearn\s+\w/i.test(tLow) && !_LEARN_NOT_EDUCATIONAL.test(tLow)) return 'education'
-
-  // ── Nature ─────────────────────────────────────────────────────────────
-  if (/\b(park|trail|nature walk|nature center|garden|arboretum|zoo|wildlife|botanical|bird walk|hike|hiking|conservation|outdoor adventure|metro park)\b/.test(text)) return 'nature'
-
-  // ── Community ──────────────────────────────────────────────────────────
-  if (/\b(festival|fair|farmers market|street market|parade|block party|community gathering|town hall|civic event|neighborhood meeting|family game night|family event|game night|trivia night|story[- ]?time|story hour|holiday celebration|seniorlinked|senior expo|family gathering)\b/.test(text)) return 'community'
-
-  // ── Nonprofit — fundraisers, service ───────────────────────────────────
-  if (/\b(fundraiser|benefit dinner|silent auction|gala|service event|volunteer day|charity event|nonprofit|food drive|blood drive|donation drive|support group)\b/.test(text)) return 'nonprofit'
-
-  // Fall through
-  return 'other'
-}
+// The text→category classifier moved to its own pure module (no DB/env deps)
+// and was rebuilt from a first-match-wins regex cascade into a SCORED
+// classifier. Re-exported here so the many `import { inferCategory } from
+// './lib/normalize.js'` call sites across the scrapers keep working unchanged.
+// See scripts/lib/category-inference.js for the signal table and weights.
+export { inferCategory, scoreCategories } from './category-inference.js'
 
 export function parseEventbritePrice(ticketClasses = [], isFree = false) {
   if (isFree) return { price_min: 0, price_max: 0 }

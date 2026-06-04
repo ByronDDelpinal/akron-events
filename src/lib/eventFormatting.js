@@ -61,78 +61,20 @@ export function formatEventDate(dateStr) {
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// Gradients
+// Category lookups (gradients, labels, prose)
 // ──────────────────────────────────────────────────────────────────────
-
-/**
- * Map our internal `events.category` enum to the gradient utility class
- * defined in src/styles/globals.css. Used as a category-colored accent
- * across cards, banners, and detail pages.
- */
-export const GRADIENT_MAP = Object.freeze({
-  music:     'gradient-jazz',
-  art:       'gradient-art',
-  community: 'gradient-civic',
-  nonprofit: 'gradient-gala',
-  food:      'gradient-market',
-  sports:    'gradient-sports',
-  fitness:   'gradient-run',
-  education: 'gradient-openmic',
-  nature:    'gradient-forest',
-  other:     'gradient-default',
-})
-
-/**
- * Convenience: returns the gradient class for a category, with the
- * 'gradient-default' fallback so callers never have to remember the
- * `??` line.
- */
-export function gradientFor(category) {
-  return GRADIENT_MAP[category] ?? 'gradient-default'
-}
-
-// ──────────────────────────────────────────────────────────────────────
-// Category labels
-// ──────────────────────────────────────────────────────────────────────
-
-/**
- * Title-case category labels for visible UI surfaces (badges, filters,
- * detail headers). Used by CategoryBadge.
- *
- * Note: "Food & Drink" and "Non-Profit" deliberately don't match the
- * internal slug values — these are user-facing display strings.
- */
-export const CATEGORY_DISPLAY = Object.freeze({
-  music:     'Music',
-  art:       'Art',
-  nonprofit: 'Non-Profit',
-  community: 'Community',
-  food:      'Food & Drink',
-  sports:    'Sports',
-  fitness:   'Fitness',
-  education: 'Education',
-  nature:    'Nature',
-  other:     'Other',
-})
-
-/**
- * Lower-case, single-word category labels used inside running prose
- * (e.g. "More music events", "Browse more art"). Kept separate from
- * CATEGORY_DISPLAY because the title-case labels (e.g. "Food & Drink")
- * don't read well mid-sentence.
- */
-export const CATEGORY_SHORT = Object.freeze({
-  music:     'music',
-  art:       'art',
-  community: 'community',
-  nonprofit: 'nonprofit',
-  food:      'food',
-  sports:    'sports',
-  fitness:   'fitness',
-  education: 'education',
-  nature:    'nature',
-  other:     'other',
-})
+//
+// These now live in the canonical taxonomy registry (src/lib/categories.js)
+// so the filter tray, admin editor, badges, and prose all share one
+// definition. Re-exported here under their historical names so the many
+// existing `import { CATEGORY_DISPLAY, GRADIENT_MAP, ... } from
+// '@/lib/eventFormatting'` call sites keep working unchanged.
+export {
+  GRADIENT_MAP,
+  CATEGORY_DISPLAY,
+  CATEGORY_SHORT,
+  gradientFor,
+} from './categories.js'
 
 // ──────────────────────────────────────────────────────────────────────
 // Venue parking

@@ -138,10 +138,10 @@ export default function Footer() {
             <img src={getThemeLogo(theme)} alt="" aria-hidden="true" className="footer-logo-img" />
           </div>
           <div className="footer-links">
-            <Link to="/">Browse Events</Link>
-            <Link to="/submit">Submit an Event</Link>
-            <Link to="/subscribe">Get the Newsletter</Link>
             <Link to="/about">About</Link>
+            <Link to="/">Browse Events</Link>
+            <Link to="/subscribe">Get the Newsletter</Link>
+            <Link to="/submit">Submit an Event</Link>
           </div>
           <p className="footer-copy">
             © {new Date().getFullYear()} Akron Pulse

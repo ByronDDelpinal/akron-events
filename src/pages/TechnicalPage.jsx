@@ -913,7 +913,22 @@ export default function TechnicalPage() {
   // where the platform lives in a column rather than a section header. Each
   // platform's own roll-up (sources · events · description) lives below in
   // the Platforms section.
+  const [sourceQuery, setSourceQuery] = useState('')
+
   const sortedSources = [...DATA_SOURCES].sort((a, b) => a.label.localeCompare(b.label))
+
+  const filteredSources = sourceQuery.trim()
+    ? (() => {
+        const q = sourceQuery.trim().toLowerCase()
+        return sortedSources.filter(s =>
+          s.label.toLowerCase().includes(q) ||
+          s.venue.toLowerCase().includes(q) ||
+          s.method.toLowerCase().includes(q) ||
+          s.methodDetail.toLowerCase().includes(q) ||
+          (s.notes ?? '').toLowerCase().includes(q)
+        )
+      })()
+    : sortedSources
 
   return (
     <>
@@ -972,6 +987,22 @@ export default function TechnicalPage() {
             </p>
           </div>
 
+          <div className="tp-sources-search">
+            <input
+              type="search"
+              className="tp-sources-search__input"
+              placeholder="Search sources…"
+              value={sourceQuery}
+              onChange={e => setSourceQuery(e.target.value)}
+              aria-label="Filter data sources"
+            />
+            {sourceQuery.trim() && (
+              <span className="tp-sources-search__count">
+                {filteredSources.length} of {sortedSources.length}
+              </span>
+            )}
+          </div>
+
           <div className="tp-table-wrap">
             <table className="tp-table tp-sources-table">
               <thead>
@@ -986,7 +1017,7 @@ export default function TechnicalPage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedSources.map(src => {
+                {filteredSources.map(src => {
                   const groupId   = SOURCE_GROUP_BY_KEY[src.key]
                   const group     = groupById[groupId]
                   const liveCount = eventCounts[src.key]

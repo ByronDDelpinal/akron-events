@@ -2,28 +2,15 @@
  * CategoryBadge — single source of truth for category pills across the app.
  *
  * Owns:
- *   - TAG_CLASS_MAP — category → CSS class for tag colors (this file only)
  *   - CategoryIcon  — small SVG glyph providing a non-color identifier
  *                     (WCAG 1.4.1: don't rely on color alone)
  *
- * Display labels come from `CATEGORY_DISPLAY` in @/lib/eventFormatting
- * so badge copy stays in sync with every other category-aware surface.
+ * Display labels (CATEGORY_DISPLAY) and pill color classes (TAG_CLASS_MAP)
+ * both come from the canonical taxonomy registry (@/lib/categories) so badge
+ * copy and colors stay in sync with every other category-aware surface.
  */
 
-import { CATEGORY_DISPLAY } from '@/lib/eventFormatting'
-
-const TAG_CLASS_MAP = {
-  music:     'tag-music',
-  art:       'tag-art',
-  nonprofit: 'tag-nonprofit',
-  community: 'tag-community',
-  food:      'tag-food',
-  sports:    'tag-sports',
-  fitness:   'tag-fitness',
-  education: 'tag-education',
-  nature:    'tag-nature',
-  other:     'tag-other',
-}
+import { CATEGORY_DISPLAY, TAG_CLASS_MAP } from '@/lib/categories'
 
 export default function CategoryBadge({ category, className = '' }) {
   const tagClass = TAG_CLASS_MAP[category] ?? 'tag-other'

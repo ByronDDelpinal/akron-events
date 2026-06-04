@@ -9,27 +9,48 @@ const FAQS = [
   {
     question: 'What is Akron Pulse?',
     answer:
-      'Akron Pulse is a free directory of local events in Akron, Ohio and Summit County. We track concerts, art shows, community gatherings, fundraisers, farmers markets, sports events, and more — so locals and visitors can find everything happening in one place.',
+      'Akron Pulse is a free directory of local events in Akron (OH) and Summit County. We track concerts, shows, gatherings, fundraisers, markets, games, classes, excursions, and more — so more people can plan, find community, and live the life they dream of.',
   },
   {
     question: 'How much does Akron Pulse cost?',
     answer:
-      'Akron Pulse is free to use and free to submit events to. We exist to make local events easier to discover, not to gatekeep them.',
-  },
-  {
-    question: 'What areas does Akron Pulse cover?',
-    answer:
-      'Akron Pulse covers events in Akron and the broader Summit County, Ohio area, including surrounding neighborhoods like Downtown Akron, Highland Square, North Hill, Cuyahoga Falls, and beyond.',
+      'Akron Pulse will never cost anything nor will it allow advertisements on the site. It exists to serve every Akron resident without compromise.',
   },
   {
     question: 'How do I submit an event to Akron Pulse?',
     answer:
-      'Anyone can submit an event through the Submit page. Submissions are reviewed before being published. We also aggregate events from venue websites and partner organizations.',
+      'Anyone can submit an event through the Submit page. Submissions are reviewed before being published. We also aggregate events from venue websites and partner organizations – so please check to make sure yours isn\'t already listed.',
+    answerNode: (
+      <>
+        Anyone can submit an event through the{' '}
+        <Link to="/submit">Submit page</Link>. Submissions are reviewed before
+        being published. We also aggregate events from venue websites and partner
+        organizations – so please check to make sure yours isn&apos;t already listed.
+      </>
+    ),
   },
   {
-    question: 'How often is Akron Pulse updated?',
+    question: 'Why should I use Akron Pulse?',
     answer:
-      'Akron Pulse is updated daily. New events from partner venues are added continuously, and community-submitted events are reviewed and published within a day or two.',
+      'We\'ve lived in Summit County for more than 10 years and the most common complaint we hear from residents is that they only ever hear about events after they happen. Akron Pulse is designed to change that – it features more local event listings than any other resource in Summit County.',
+  },
+  {
+    question: 'How should I use Akron Pulse?',
+    answer:
+      'We love the website, but we recommend subscribing to our newsletter. You can choose the cadence and focus of your Akron Pulse to explore, find community, discover local gems, and live the life you want here.',
+    answerNode: (
+      <>
+        We love the website, but we recommend{' '}
+        <Link to="/subscribe">subscribing to our newsletter</Link>. You can
+        choose the cadence and focus of your Akron Pulse to explore, find
+        community, discover local gems, and live the life you want here.
+      </>
+    ),
+  },
+  {
+    question: 'Who created Akron Pulse?',
+    answer:
+      'Akron Pulse is a collaboration between Byron Delpinal and Mac Love, two Summit County residents who are tired of hearing people say "there\'s nothing going on" or "nothing to do here." Get the Akron Pulse – you\'ll know better.',
   },
 ]
 
@@ -78,11 +99,10 @@ export default function AboutPage() {
         jsonLd={seoGraph}
       />
       <div className="about-hero">
-        <h1>Akron deserves <span>better</span></h1>
+        <h1>Never miss <span>a beat</span></h1>
         <p>
-          There are concerts, gallery openings, community gatherings, and
-          late-night shows happening in this city every single week.
-          Most people never hear about them.
+          Amazing concerts, exhibitions, games, gatherings, and experiences
+          are happening every week. Akron Pulse has them all.
         </p>
       </div>
 
@@ -138,19 +158,20 @@ export default function AboutPage() {
 
         <h3 className="about-section-title">Frequently asked</h3>
         <div className="about-faqs">
-          {FAQS.map(({ question, answer }) => (
+          {FAQS.map(({ question, answer, answerNode }) => (
             <div key={question} className="about-faq">
               <h4 className="about-faq-q">{question}</h4>
-              <p className="about-faq-a">{answer}</p>
+              <p className="about-faq-a">{answerNode ?? answer}</p>
             </div>
           ))}
         </div>
 
         <h3 className="about-section-title">See something missing?</h3>
         <p className="about-p">
-          Wrong info, a duplicate, a venue we're not tracking — reach out.
-          I read everything.{' '}
-          <a href="mailto:byron@akronpulse.com">byron@akronpulse.com</a>
+          Wrong info, duplicate listing, new venue in town – reach out. We read
+          everything:{' '}
+          <a href="mailto:byron@akronpulse.com">byron@akronpulse.com</a> and{' '}
+          <a href="mailto:mac@akronpulse.com">mac@akronpulse.com</a>
         </p>
 
         <div className="about-divider" />

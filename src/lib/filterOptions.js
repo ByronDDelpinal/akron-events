@@ -12,19 +12,37 @@
  * with the per-date-group overflow UX.
  */
 
+import { CATEGORY_BY_SLUG } from './categories.js'
+
+/**
+ * Build a raw-category chip from the canonical taxonomy registry so the
+ * emoji + label live in exactly one place. Returns `{ kind, value, label }`
+ * in the same shape the tray has always consumed.
+ */
+function rawChip(slug) {
+  const c = CATEGORY_BY_SLUG[slug]
+  return { kind: 'raw', value: slug, label: `${c.emoji} ${c.label}` }
+}
+
+/**
+ * Tray layout: curated intents (defined in intents.js) interleaved with raw
+ * categories. The ORDER here is deliberate UX and is preserved as-is; only the
+ * raw chips' emoji/label now derive from the registry instead of being
+ * hard-coded, so a label change updates the tray, badges, and admin at once.
+ */
 export const CATEGORY_OPTIONS = [
   { kind: 'intent', value: 'date-night', label: '🌙 Date Night' },
-  { kind: 'raw',    value: 'music',      label: '🎵 Music' },
-  { kind: 'raw',    value: 'art',        label: '🎨 Art' },
-  { kind: 'raw',    value: 'food',       label: '🍺 Food & Drink' },
+  rawChip('music'),
+  rawChip('art'),
+  rawChip('food'),
   { kind: 'intent', value: 'family-fun', label: '👨‍👩‍👧 Family Fun' },
-  { kind: 'raw',    value: 'nonprofit',  label: '🤲 Non-Profit' },
-  { kind: 'raw',    value: 'sports',     label: '🏟 Sports' },
-  { kind: 'raw',    value: 'fitness',    label: '🏃 Fitness' },
-  { kind: 'raw',    value: 'education',  label: '📚 Education' },
-  { kind: 'raw',    value: 'nature',     label: '🌿 Nature' },
+  rawChip('nonprofit'),
+  rawChip('sports'),
+  rawChip('fitness'),
+  rawChip('education'),
+  rawChip('nature'),
   { kind: 'intent', value: 'give-back',  label: '💛 Give Back' },
-  { kind: 'raw',    value: 'community',  label: '🤝 Community' },
+  rawChip('community'),
 ]
 
 export const SORT_OPTIONS = [
