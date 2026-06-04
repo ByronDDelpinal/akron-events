@@ -75,14 +75,21 @@ function AppInner() {
   // links like /about#faq still jump to the right place. We only
   // react to pathname changes (not search) so toggling filters on the
   // homepage (`?categories=music`) doesn't yank the user to the top.
+  //
+  // Opt-out: navigations tagged with `state: { preserveScroll: true }`
+  // skip the scroll. The neighborhood map uses this when the user
+  // clicks a polygon to jump between hub pages — every hub shares the
+  // same hero layout, so leaving the scroll alone keeps the map
+  // roughly under their pointer instead of yanking them to the top.
   useEffect(() => {
     if (navigationType === 'POP') return
     if (location.hash) return
+    if (location.state?.preserveScroll) return
     // Use 'instant' rather than 'smooth' — a smooth scroll on every
     // page change competes with the new page's first paint and feels
     // sluggish, especially on event detail pages.
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
-  }, [location.pathname, navigationType])
+  }, [location.pathname, navigationType, location.state])
 
   // Site-wide JSON-LD — appears on every page as a default. Individual
   // pages still render their own <SEO /> for page-specific meta +

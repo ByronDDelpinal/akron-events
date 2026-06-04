@@ -255,7 +255,15 @@ export default function NeighborhoodMap({ activeSlug, className }) {
                 // users open hubs in new tabs.
                 if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
                 e.preventDefault()
-                navigate(`/events/${f.slug}`)
+                // Tag the navigation with preserveScroll so App.jsx's
+                // scroll-to-top effect skips. Every neighborhood hub
+                // shares the same hero layout (breadcrumb / h1 /
+                // intro+map row), which means leaving the user where
+                // they are leaves the map roughly in the same spot
+                // they were just looking at — far less jarring than
+                // jumping them back to the top of the page on every
+                // polygon click.
+                navigate(`/events/${f.slug}`, { state: { preserveScroll: true } })
               }}
               onMouseEnter={() => setHoveredSlug(f.slug)}
               onMouseLeave={() => setHoveredSlug((s) => (s === f.slug ? null : s))}
