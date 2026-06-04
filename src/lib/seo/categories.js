@@ -82,7 +82,10 @@ export const CATEGORY_HUBS = [
     intro:
       "Family-friendly Akron is bigger than most parents realize. Beyond the obvious go-tos — the Akron Zoo, the Akron Children's Museum, Lock 3, and Summit Metro Parks — there's an active calendar of library programs, free outdoor concerts, kid-friendly festivals, fall and winter holiday events, and community days that work for a stroller, a kindergartener, and a tween at the same time. This page filters Akron Pulse to events that are explicitly family-friendly or community-focused: library storytimes, zoo events, parks programs, free outdoor activities, kid-focused workshops, and all-ages community festivals. Pair it with the Free filter to see free family events only, or combine it with the This Weekend filter for weekend plans.",
     relatedSlugs: ['free', 'this-weekend', 'today', 'outdoor'],
-    categoryFilter: ['education', 'community'],
+    // Family is now a cross-cutting facet, not a category combo: shows every
+    // event flagged is_family regardless of content type (kids' zoo day,
+    // children's concert, storytime).
+    facetFilter: ['family'],
   },
   {
     slug: 'art',
@@ -94,7 +97,9 @@ export const CATEGORY_HUBS = [
     intro:
       "Akron's visual art scene anchors around the Akron Art Museum and Summit Artspace, but spreads across a network of galleries, studios, pop-ups, and event spaces. From the Free Thursday programming at the Art Museum to rotating exhibitions at Summit Artspace, the Akron Soul Train artist residencies, the Akronym Brewing taproom shows, and the larger Highland Square and downtown art walks, the city sustains a working calendar of openings, talks, classes, and immersive shows. This page lists every art-related event currently in Akron Pulse — exhibition openings, gallery shows, museum talks, art classes, and creative workshops.",
     relatedSlugs: ['free', 'downtown-akron', 'this-weekend'],
-    categoryFilter: ['art'],
+    // Expanded: the old single `art` category split into four. This hub is the
+    // one destination for anything on a stage, screen, or gallery wall.
+    categoryFilter: ['visual-art', 'theater', 'film', 'comedy', 'festival'],
   },
   {
     slug: 'food-drink',
@@ -106,7 +111,7 @@ export const CATEGORY_HUBS = [
     intro:
       "Akron's food and drink calendar covers a lot of ground: weekly farmers markets in Highland Square, Cuyahoga Falls, and Stow; tap takeovers and beer releases at Akronym Brewing, Hoppin' Frog, R. Shea, Missing Falls, and the rest of Akron's brewery row; restaurant-week-style events; pop-up dinners; food truck rallies at Lock 3; and seasonal events like festivals, holiday markets, and brewery anniversaries. This page collects every food-and-drink event currently in Akron Pulse so you can plan around them. Filter by date or pair with the Downtown Akron page to focus on events in a specific area.",
     relatedSlugs: ['free', 'downtown-akron', 'highland-square', 'this-weekend'],
-    categoryFilter: ['food'],
+    categoryFilter: ['food', 'market'],
   },
   {
     slug: 'outdoor',
@@ -118,7 +123,7 @@ export const CATEGORY_HUBS = [
     intro:
       "Akron sits at the gateway to Cuyahoga Valley National Park and is wrapped in the Summit Metro Parks system — which means the outdoor and festival calendar is unusually deep for a city this size. Hikes, guided walks, running events, riverfront festivals, outdoor concerts at Lock 3, neighborhood block parties, conservancy events at CVNP, and seasonal gatherings in Cuyahoga Falls and downtown all show up here. This page filters Akron Pulse to outdoor, festival, fitness, and nature events so you can plan something that gets you outside.",
     relatedSlugs: ['family', 'this-weekend', 'free'],
-    categoryFilter: ['nature', 'sports', 'fitness'],
+    categoryFilter: ['outdoors', 'sports', 'fitness', 'festival'],
   },
 ]
 
@@ -175,10 +180,10 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'Highland Square',
     title: 'Highland Square Events & Things To Do',
     metaDescription:
-      'Events in the Highland Square neighborhood of Akron, OH — farmers market, The Nightlight, gallery shows, community gatherings, and more.',
+      'Events in the Highland Square neighborhood of Akron, OH — the Highland Theatre, PorchRokr Festival, Countryside Farmers’ Market at Will Christy Park, Mustard Seed Market, restaurants, bars, and community gatherings.',
     h1: 'Highland Square Events & Things To Do',
     intro:
-      "Akron's walkable arts-and-coffee neighborhood, with deep roots — more than half its homes were built before 1940, and past residents include publisher John S. Knight, presidential candidate Wendell Willkie, industrialist Paul W. Litchfield, and Alcoholics Anonymous co-founder Dr. Bob Smith. The Nightlight indie cinema at 30 N. High St., the Highland Square Farmers Market, the Mustard Seed Market & Café, and a tight cluster of bars, restaurants, and shops give the Square its distinct year-round calendar. The Portage Path — the Native American canoe portage between the Cuyahoga and Tuscarawas Rivers that served as the western boundary of white and Native lands from 1785 to 1805 — still runs straight through the neighborhood.",
+      "Highland Square is Akron's walkable arts-and-coffee neighborhood, a stretch of West Market Street where more than half the homes were built before 1940. The calendar's headline event is the annual PorchRokr Festival every August — a free music and art showcase with more than 150 bands playing from neighborhood front porches across one Saturday — and the Highland Theatre (826 W. Market St.) anchors the year-round calendar as a restored 1938 art house and concert venue. The Countryside Farmers' Market at Highland Square runs Thursdays in season at Will Christy Park, and day-to-day life turns on a tight cluster of independent businesses: Mustard Seed Market & Café, Angel Falls Coffee, Mary Coyle Ice Cream, Square Records, and the row of bars and restaurants along West Market. The Portage Path — the Native American canoe portage between the Cuyahoga and Tuscarawas Rivers that served as the western boundary of white and Native lands from 1785 to 1805 — still runs straight through the neighborhood.",
     relatedSlugs: ['wallhaven', 'west-hill', 'west-akron', 'food-drink', 'art'],
     cityMatch: ['Akron'],
   },
@@ -379,7 +384,7 @@ export const NEIGHBORHOOD_HUBS = [
       'Events in the Ellet neighborhood of east Akron, OH — community gatherings, parks programs, and family activities.',
     h1: 'Ellet Events',
     intro:
-      "Akron's largest neighborhood — more than 19,000 residents spread across seven square miles in the city's southeast corner — and arguably its most independent in character, often described as a small town within the city. Englishman Samuel Elliott (sometimes spelled Ellet) bought 500-plus acres here from Col. Simon Perkins in the early 1800s, and the neighborhood wasn't annexed by Akron until 1929. Derby Downs sits in Ellet — the WPA-built three-lane asphalt track that has hosted the All-American Soap Box Derby World Championship every July since 1934 — alongside the Goodyear Airdock, whose eleven 211-foot steel parabolic arches enclose one of the largest open interiors in the world. Expect family events, parks programs, school events, and Derby Downs racing weeks each summer.",
+      "Akron's largest neighborhood — more than 19,000 residents spread across seven square miles in the city's southeast corner — and arguably its most independent in character, often described as a small town within the city. Englishman Samuel Elliott (sometimes spelled Ellet) bought 500-plus acres here from Col. Simon Perkins in the early 1800s, and the neighborhood wasn't annexed by Akron until 1929. Derby Downs sits in Ellet — the WPA-built three-lane asphalt track that has hosted the All-American Soap Box Derby World Championship every July since 1934 — alongside the Goodyear Airdock, whose thirteen 211-foot steel arches enclose 364,000 square feet of column-free interior. When it was finished in 1929 it was the largest building in the world without interior supports, and the Navy's USS Akron and USS Macon airships were both built inside it. Expect family events, parks programs, school events, and Derby Downs racing weeks each summer.",
     relatedSlugs: ['east-akron', 'goodyear-heights'],
     cityMatch: ['Akron'],
   },
@@ -448,7 +453,7 @@ export const NEIGHBORHOOD_HUBS = [
       'Events in the Sherbondy Hill neighborhood of Akron, OH — community programs and gatherings southwest of downtown.',
     h1: 'Sherbondy Hill Events',
     intro:
-      "Adjacent to downtown and bordered by Kenmore, West Akron, and Highland Square. The name traces back to Melcher Sherbondy, who bought 368 acres here around 1816; the neighborhood was briefly renamed Lane-Wooster before being restored to Sherbondy Hill in 2017 in recognition of its history as one of Akron's most historically Black neighborhoods (87% of residents identify as Black, the largest such concentration in the city) and its early ties to Akron's Jewish community. NBA star LeBron James grew up here. Anchors include Perkins Woods pool, Miller South School for the Visual and Performing Arts, the Akron Zoo, the Odom Branch Library, the Helen Arnold CLC, the Akron Urban League, and Cleveland Clinic Akron General just over the line — and the corridor is one of the city's \"Great Streets\" investment targets.",
+      "Adjacent to downtown and bordered by Kenmore, West Akron, and Highland Square. The name traces back to Melcher Sherbondy, who bought 368 acres here around 1816; the neighborhood was briefly renamed Lane-Wooster before being restored to Sherbondy Hill in 2017 in recognition of its history as one of Akron's most historically Black neighborhoods and its early ties to Akron's Jewish community. Anchors include Perkins Woods pool, Miller South School for the Visual and Performing Arts, the Akron Zoo, the Odom Branch Library, the Helen Arnold CLC, the Akron Urban League, and Cleveland Clinic Akron General just over the line — and the corridor is one of the city's \"Great Streets\" investment targets.",
     relatedSlugs: ['west-akron', 'kenmore', 'summit-lake'],
     cityMatch: ['Akron'],
   },
@@ -520,23 +525,31 @@ export const CITY_HUBS = [
     h1: 'Cuyahoga Falls, OH Events',
     intro:
       "Cuyahoga Falls — \"the Falls\" to locals — is Summit County's second-largest city, hugging the Cuyahoga River just north of Akron. The walkable historic Front Street district anchors downtown with restaurants, bars, and a year-round event calendar; the city's Riverfront Centre and Water Works Park host concerts and festivals through the warm months. Blossom Music Center, the summer home of the Cleveland Orchestra and a major touring-act venue, sits on the city's edge. The 1932 Sheraton Suites at the Falls and the restored Falls Theatre add to the downtown scene. Expect a calendar weighted toward concerts, Front Street festivals, parks programming, and riverfront community events.",
-    relatedSlugs: ['stow', 'munroe-falls', 'concerts', 'outdoor'],
+    relatedSlugs: ['stow', 'tallmadge', 'concerts', 'outdoor'],
     cityMatch: ['Cuyahoga Falls'],
   },
 
-  // ── Stow ─────────────────────────────────────────────────────────
+  // ── Stow (+ Silver Lake) ─────────────────────────────────────────
+  //
+  // The tiny village of Silver Lake (~2,500 residents, incorporated
+  // 1929) sits encircled by Stow on three sides and Cuyahoga Falls on
+  // the fourth. Rather than ship it as a separate hub with almost no
+  // event volume, Silver Lake folds into Stow: the Stow polygon on
+  // the SummitCountyMap absorbs Silver Lake's shape (see the converter's
+  // MERGE_INTO_SLUG), and events filed under venue.city = "Silver Lake"
+  // surface here via cityMatch.
   {
     disabled: true, preview: true,
     slug: 'stow',
     label: 'Stow',
     title: 'Stow, OH Events',
     metaDescription:
-      'Events in Stow, OH — Stow Farmers Market, Silver Springs Park concerts, community programs, and family activities in northern Summit County.',
-    h1: 'Stow, OH Events',
+      'Events in Stow, OH and the village of Silver Lake — Stow Farmers Market, Silver Springs Park concerts, community programs, and family activities in northern Summit County.',
+    h1: 'Stow & Silver Lake Events',
     intro:
-      "Stow is a residential city of about 35,000 in northern Summit County, sharing a high-performing school district with Munroe Falls. The events calendar centers on Silver Springs Park — site of summer concerts in the park, the city's outdoor pool, and the Bow Wow Beach off-leash dog area — plus the Stow Farmers Market that runs Saturday mornings in season at the Stow City Hall lot. The Stow City Center library branch programs community events year-round, and downtown Stow has been quietly rebuilding around restaurant openings on Darrow Road. Expect a calendar of parks programs, farmers markets, library events, and family-friendly community gatherings.",
-    relatedSlugs: ['cuyahoga-falls', 'munroe-falls', 'hudson', 'family'],
-    cityMatch: ['Stow'],
+      "Stow is a residential city of about 35,000 in northern Summit County, sharing a high-performing school district with Munroe Falls. The tiny village of Silver Lake — incorporated 1929 and home to about 2,500 — sits encircled by Stow on three sides, and its events surface on this page rather than a dedicated Silver Lake hub. The shared calendar centers on Silver Springs Park (Stow's outdoor concerts, swimming pool, and the Bow Wow Beach off-leash dog area), the Stow Farmers Market on Saturday mornings in season at the Stow City Hall lot, year-round Stow City Center library programming, and small-village events on and around Silver Lake itself. Downtown Stow has been quietly rebuilding around new restaurants on Darrow Road. Expect a calendar of parks programs, farmers markets, library events, family-friendly community gatherings, and lakeside events through the summer.",
+    relatedSlugs: ['cuyahoga-falls', 'tallmadge', 'hudson', 'family'],
+    cityMatch: ['Stow', 'Silver Lake'],
   },
 
   // ── Hudson ───────────────────────────────────────────────────────
@@ -550,7 +563,7 @@ export const CITY_HUBS = [
     h1: 'Hudson, OH Events',
     intro:
       "Hudson is a small, historic city in the northeast corner of Summit County, anchored by the Hudson Green and the surrounding First & Main mixed-use district. The Hudson Clock Tower (1912) marks the center of a downtown that runs an unusually full event calendar for its size: weekly concerts on the Green through the summer, the Taste of Hudson festival, Light Up Hudson during the holidays, and a steady cadence of farmers markets, art walks, and library programs. The Hudson Library & Historical Society sits on the Green and runs author events, history programs, and exhibitions year-round. Expect a calendar weighted toward outdoor concerts, downtown festivals, and community gatherings.",
-    relatedSlugs: ['stow', 'twinsburg', 'concerts', 'this-weekend'],
+    relatedSlugs: ['stow', 'northeast-summit-county', 'concerts', 'this-weekend'],
     cityMatch: ['Hudson'],
   },
 
@@ -565,128 +578,76 @@ export const CITY_HUBS = [
     h1: 'Green, OH Events',
     intro:
       "Green is a city of about 26,000 in southern Summit County, formed in 1992 from former Green Township and now mostly suburban with a sizable commercial spine along Massillon and Wadsworth Roads. The Green Central Park complex hosts an outdoor amphitheater that runs a summer concert series, plus festivals like the Green Music & Arts Festival, food truck rallies, and movies in the park. Akron-Canton Airport (CAK) sits at the city's edge and runs occasional public events at its terminal. Green Local Schools host concerts and athletics throughout the year. Expect a calendar centered on Central Park events, school programs, and family-oriented community festivals.",
-    relatedSlugs: ['new-franklin', 'norton', 'family', 'outdoor'],
+    relatedSlugs: ['new-franklin', 'barberton', 'family', 'outdoor'],
     cityMatch: ['Green'],
   },
 
-  // ── Fairlawn ─────────────────────────────────────────────────────
+  // ── Fairlawn (+ Copley) ──────────────────────────────────────────
+  //
+  // Copley Township (~17,000 residents) sits directly west of Fairlawn
+  // and shares the Copley-Fairlawn City Schools district with it.
+  // Functionally the two are one community for events and commerce —
+  // the Fairlawn-Bath Branch of the library serves Copley families;
+  // Summit Mall pulls from both. Copley folds into Fairlawn: its
+  // COUSUB polygon absorbs (see MERGE_INTO_SLUG in the converter),
+  // and events with venue.city = "Copley" surface here via cityMatch.
   {
     disabled: true, preview: true,
     slug: 'fairlawn',
     label: 'Fairlawn',
-    title: 'Fairlawn, OH Events',
+    title: 'Fairlawn & Copley, OH Events',
     metaDescription:
-      'Events in Fairlawn, OH — Summit Mall, restaurant district, community programs, and family activities just west of Akron.',
-    h1: 'Fairlawn, OH Events',
+      'Events in Fairlawn and Copley, OH — Summit Mall, Cleveland-Massillon Road, community programs, school events, parks gatherings, and family activities just west of Akron.',
+    h1: 'Fairlawn & Copley Events',
     intro:
-      "Fairlawn is a small city of about 7,000 directly west of Akron, but it punches well above its weight as a regional commercial center. Summit Mall, the West Market Street restaurant corridor, and a cluster of hotels make Fairlawn a frequent destination from across Summit County for shopping, dining, and conferences. The city government's parks system runs a quiet but steady program of community events, and the Fairlawn-Bath Branch of the Akron-Summit County Public Library hosts year-round programming. Not to be confused with the separate Akron neighborhood of Fairlawn Heights, which sits inside the Akron city line.",
-    relatedSlugs: ['copley', 'fairlawn-heights', 'akron'],
-    cityMatch: ['Fairlawn'],
+      "Fairlawn (~7,000) is a small city directly west of Akron that punches well above its weight as a regional commercial center — Summit Mall, the West Market Street restaurant corridor, and a cluster of hotels make it a frequent destination from across Summit County. Copley Township (~17,000) wraps around its western side, anchored by the Cleveland-Massillon Road commercial corridor and sharing the highly regarded Copley-Fairlawn City Schools with Fairlawn proper. The combined calendar runs on Summit Mall events and Fairlawn restaurant happenings, Copley Community Park programs (movies in the park, food-truck nights, summer concerts), Copley-Fairlawn school concerts and athletics, and year-round library programming at the Fairlawn-Bath Branch on West Market Street that serves both communities. Not to be confused with Fairlawn Heights, the Akron neighborhood inside the city line.",
+    relatedSlugs: ['fairlawn-heights', 'akron', 'barberton'],
+    cityMatch: ['Fairlawn', 'Copley'],
   },
 
-  // ── Copley ───────────────────────────────────────────────────────
-  {
-    disabled: true, preview: true,
-    slug: 'copley',
-    label: 'Copley',
-    title: 'Copley, OH Events',
-    metaDescription:
-      'Events in Copley, OH — community programs, school events, parks gatherings, and shopping-district events just west of Akron.',
-    h1: 'Copley, OH Events',
-    intro:
-      "Copley is technically a township but functions as a suburban community of about 17,000 west of Akron, anchored by the Cleveland-Massillon Road commercial corridor and the highly regarded Copley-Fairlawn City Schools. The calendar runs on parks programming, school athletic and music events, and a recurring lineup of community-association gatherings. Copley Community Park hosts movies in the park, food truck nights, and a small concert series in the summer months. The Fairlawn-Bath Branch of the library on West Market Street serves Copley families as well.",
-    relatedSlugs: ['fairlawn', 'norton', 'akron'],
-    cityMatch: ['Copley'],
-  },
-
-  // ── Tallmadge ────────────────────────────────────────────────────
+  // ── Tallmadge (+ Munroe Falls) ───────────────────────────────────
+  //
+  // Munroe Falls (~5,000 residents) sits north of Tallmadge along the
+  // Cuyahoga River, sharing Stow's school district. Rather than ship
+  // it as a separate hub with limited event volume, Munroe Falls
+  // folds into Tallmadge — the Tallmadge polygon on the SummitCountyMap
+  // absorbs its shape (see MERGE_INTO_SLUG in the converter), and
+  // events filed under venue.city = "Munroe Falls" surface here via
+  // cityMatch.
   {
     disabled: true, preview: true,
     slug: 'tallmadge',
     label: 'Tallmadge',
-    title: 'Tallmadge, OH Events',
+    title: 'Tallmadge & Munroe Falls, OH Events',
     metaDescription:
-      'Events in Tallmadge, OH — Tallmadge Circle concerts, historic district programs, parks events, and family activities northeast of Akron.',
-    h1: 'Tallmadge, OH Events',
+      'Events in Tallmadge and Munroe Falls, OH — Tallmadge Circle concerts, Munroe Falls Metro Park, historic district programs, river events, and family activities northeast of Akron.',
+    h1: 'Tallmadge & Munroe Falls Events',
     intro:
-      "Tallmadge is a small city of about 18,000 northeast of Akron, organized around one of the most photographed traffic circles in Ohio — the Tallmadge Circle, a historic green space anchored by the 1825 Tallmadge Church and surrounded by Greek Revival buildings on the National Register. Concerts on the Circle run through the summer along with the Tallmadge Memorial Day Parade and the Holidays on the Circle tree lighting. The Tallmadge Community Centre runs year-round programming, and Tallmadge Schools host concerts and athletics throughout the academic year. Expect a calendar of Circle events, parks programs, school events, and community gatherings.",
-    relatedSlugs: ['stow', 'cuyahoga-falls', 'concerts'],
-    cityMatch: ['Tallmadge'],
+      "Tallmadge and the smaller city of Munroe Falls sit in central Summit County east of Akron. Tallmadge organizes around one of the most photographed traffic circles in Ohio — the Tallmadge Circle, a historic green space anchored by the 1825 Tallmadge Church and surrounded by Greek Revival buildings on the National Register — and Munroe Falls (~5,000 residents) hugs the Cuyahoga River north of it, sharing Stow's well-regarded school district. The combined calendar runs on Concerts on the Circle through the summer, the Tallmadge Memorial Day Parade, Holidays on the Circle tree lighting, Munroe Falls Metro Park kayak access and river programs, and the small parks-and-recreation events both cities run year-round. Expect a calendar of historic-district programs, parks events, school programs, and family-friendly community gatherings across both.",
+    relatedSlugs: ['stow', 'cuyahoga-falls', 'concerts', 'outdoor'],
+    cityMatch: ['Tallmadge', 'Munroe Falls'],
   },
 
-  // ── Barberton ────────────────────────────────────────────────────
+  // ── Barberton (+ Norton) ─────────────────────────────────────────
+  //
+  // Norton (~12,000 residents) borders Barberton on the west — both
+  // are smaller, west-of-Akron cities that share a regional identity
+  // around Wolf Creek and the western Summit County industrial belt.
+  // Norton folds into Barberton: its polygon absorbs (see
+  // MERGE_INTO_SLUG in the converter), and events with venue.city =
+  // "Norton" surface here via cityMatch.
   {
     disabled: true, preview: true,
     slug: 'barberton',
     label: 'Barberton',
-    title: 'Barberton, OH Events',
+    title: 'Barberton & Norton, OH Events',
     metaDescription:
-      'Events in Barberton, OH — Lake Anna Park concerts, Magic City Mile, downtown festivals, and community events southwest of Akron.',
-    h1: 'Barberton, OH Events',
+      'Events in Barberton and Norton, OH — Lake Anna Park concerts, Wolf Creek Environmental Center, Magic City festivals, parks programs, and community events west of Akron.',
+    h1: 'Barberton & Norton Events',
     intro:
-      "Barberton — the \"Magic City\" — is a historic industrial city of about 25,000 southwest of Akron, founded in 1891 by O.C. Barber and reshaped by the matchstick, boiler, and rubber industries. Lake Anna sits at the heart of downtown and hosts Lake Anna Park concerts, Mum Fest in October, and seasonal festivals year-round. Barberton is also legendary for its Serbian-American \"Barberton chicken\" houses — Belgrade Gardens, Hopocan Gardens, White House Chicken, and Milich's Village Inn have been frying chicken in the city for decades. Expect a calendar weighted toward downtown festivals, Lake Anna programming, and Barberton Public Library events.",
-    relatedSlugs: ['norton', 'akron', 'food-drink', 'concerts'],
-    cityMatch: ['Barberton'],
-  },
-
-  // ── Twinsburg ────────────────────────────────────────────────────
-  {
-    disabled: true, preview: true,
-    slug: 'twinsburg',
-    label: 'Twinsburg',
-    title: 'Twinsburg, OH Events',
-    metaDescription:
-      'Events in Twinsburg, OH — Twins Days Festival, Liberty Park, community programs, and family activities in northeast Summit County.',
-    h1: 'Twinsburg, OH Events',
-    intro:
-      "Twinsburg is a city of about 19,000 in northeast Summit County, internationally famous for the Twins Days Festival — the world's largest annual gathering of twins, held the first weekend of August every year since 1976. Outside that one weekend, the calendar runs on Liberty Park (a Cleveland Metroparks-anchored complex shared with Solon), the Twinsburg Square commercial district, and Twinsburg City Schools events. The Twinsburg Community Center programs concerts, dance and fitness classes, and a year-round event series. Expect a calendar centered on Liberty Park programs, school events, and the unmistakable Twins Days weekend.",
-    relatedSlugs: ['macedonia', 'hudson', 'family'],
-    cityMatch: ['Twinsburg'],
-  },
-
-  // ── Macedonia ────────────────────────────────────────────────────
-  {
-    disabled: true, preview: true,
-    slug: 'macedonia',
-    label: 'Macedonia',
-    title: 'Macedonia, OH Events',
-    metaDescription:
-      'Events in Macedonia, OH — Macedonia City Park, Longwood Park concerts, family activities, and community events in northeast Summit County.',
-    h1: 'Macedonia, OH Events',
-    intro:
-      "Macedonia is a city of about 12,000 in the far northeast corner of Summit County, next to Twinsburg and adjacent to Cuyahoga County's Bedford Heights and Solon. The Macedonia Family Recreation Center anchors community programming, Longwood Park hosts summer concert and movie series, and the I-271 / Route 8 corridor brings shopping center events at Macedonia Commons. Nordonia Hills City Schools — Macedonia plus neighboring Northfield Center, Sagamore Hills, and Northfield Village — host concerts, athletics, and academic events throughout the year. Expect a calendar of parks events, family activities, and school programs.",
-    relatedSlugs: ['twinsburg', 'hudson'],
-    cityMatch: ['Macedonia'],
-  },
-
-  // ── Norton ───────────────────────────────────────────────────────
-  {
-    disabled: true, preview: true,
-    slug: 'norton',
-    label: 'Norton',
-    title: 'Norton, OH Events',
-    metaDescription:
-      'Events in Norton, OH — Loyal Oak Park, Wolf Creek Environmental Center, community programs, and family activities west of Akron.',
-    h1: 'Norton, OH Events',
-    intro:
-      "Norton is a city of about 12,000 west of Akron, mostly residential with rolling hills and a calendar driven by parks and community programs. The Wolf Creek Environmental Center runs nature programs year-round and Loyal Oak Park hosts community events through the warmer months. Norton City Schools hold a steady lineup of concerts, athletics, and academic events. The Norton Branch of the Akron-Summit County Public Library is a hub for library programming. Expect a calendar of parks events, nature programs, library events, and family-oriented community gatherings.",
-    relatedSlugs: ['barberton', 'copley', 'outdoor'],
-    cityMatch: ['Norton'],
-  },
-
-  // ── Munroe Falls ─────────────────────────────────────────────────
-  {
-    disabled: true, preview: true,
-    slug: 'munroe-falls',
-    label: 'Munroe Falls',
-    title: 'Munroe Falls, OH Events',
-    metaDescription:
-      'Events in Munroe Falls, OH — Munroe Falls Metro Park, Cuyahoga River programs, community gatherings, and family activities just east of Cuyahoga Falls.',
-    h1: 'Munroe Falls, OH Events',
-    intro:
-      "Munroe Falls is a small city of about 5,000 on the Cuyahoga River between Cuyahoga Falls and Stow, sharing the well-regarded Stow-Munroe Falls City Schools with its larger neighbor. Munroe Falls Metro Park — part of the Summit Metro Parks system, with kayak access on the river and trails through restored wetland — is the centerpiece of the local event calendar. The city itself runs concerts and movies in the park during summer and a small holiday tree-lighting in winter. Expect a calendar weighted toward parks programs, school events, and small-city community gatherings.",
-    relatedSlugs: ['cuyahoga-falls', 'stow', 'outdoor'],
-    cityMatch: ['Munroe Falls'],
+      "Barberton — the \"Magic City\" — is a historic industrial city of about 25,000 southwest of Akron, founded in 1891 by O.C. Barber and reshaped by the matchstick, boiler, and rubber industries. Norton (~12,000) sits along its western edge with a quieter, more residential character. Lake Anna anchors downtown Barberton and hosts Lake Anna Park concerts, Mum Fest in October, and seasonal festivals year-round; the city is also legendary for its Serbian-American \"Barberton chicken\" houses — Belgrade Gardens, Hopocan Gardens, White House Chicken, and Milich's Village Inn have been frying chicken there for decades. Norton contributes the Wolf Creek Environmental Center (nature programs year-round), Loyal Oak Park summer events, and Norton City Schools concerts and athletics. Expect a combined calendar weighted toward downtown Barberton festivals, Lake Anna programming, Wolf Creek nature events, library programs at both libraries, and community gatherings across the two cities.",
+    relatedSlugs: ['akron', 'fairlawn', 'food-drink', 'outdoor'],
+    cityMatch: ['Barberton', 'Norton'],
   },
 
   // ── New Franklin ─────────────────────────────────────────────────
@@ -728,19 +689,19 @@ export const CITY_HUBS = [
     cityMatch: ['Bath', 'Boston', 'Boston Township', 'Richfield', 'Peninsula'],
   },
 
-  // ── Northeast Summit County ─────────────────────────────────────
+  // ── Northeast Summit County (incl. Macedonia + Twinsburg) ──────
   {
     disabled: true, preview: true,
     slug: 'northeast-summit-county',
     label: 'Northeast Summit County',
     title: 'Northeast Summit County Events',
     metaDescription:
-      'Events in northeast Summit County — Sagamore Hills Township, Northfield Center Township and Northfield Village, Boston Heights, Reminderville, Twinsburg Township, and Silver Lake.',
+      'Events across northeast Summit County — Macedonia, Twinsburg (incl. Twins Days), Sagamore Hills Township, Northfield Center Township and Northfield Village, Boston Heights, and Reminderville.',
     h1: 'Northeast Summit County Events',
     intro:
-      "Northeast Summit County wraps from Macedonia and Twinsburg up against the Cuyahoga County line: Sagamore Hills Township, Northfield Center Township and the village of Northfield, the small villages of Boston Heights and Reminderville, Twinsburg Township just east of the city, and the unusual little village of Silver Lake nestled between Cuyahoga Falls and Stow. The calendar runs heavily on Nordonia Hills programming (the school district that ties Macedonia / Northfield Center / Sagamore Hills together), the Hard Rock Rocksino events bringing concerts into Northfield, Liberty Park's shared-with-Cleveland-Metroparks events, and small-village festivals. This page lists every Akron Pulse event in the northeast quadrant.",
-    relatedSlugs: ['macedonia', 'twinsburg', 'hudson', 'cuyahoga-falls'],
-    cityMatch: ['Sagamore Hills', 'Northfield', 'Northfield Center', 'Boston Heights', 'Reminderville', 'Silver Lake'],
+      "Northeast Summit County stretches from Akron's eastern edge up to the Cuyahoga County line. The two anchor cities are Macedonia (~12,000) in the far northeast corner — next to Cuyahoga County's Bedford Heights and Solon, with Longwood Park concert series and Macedonia Commons shopping events — and Twinsburg (~19,000), famous worldwide for the Twins Days Festival, the largest annual gathering of twins anywhere, held every first weekend of August since 1976. Around them sit Sagamore Hills Township, Northfield Center Township and the village of Northfield (home to MGM Northfield Park's concert and event slate), the smaller villages of Boston Heights and Reminderville, and the Twinsburg Township edges that frame Twinsburg city itself. The Nordonia Hills school district ties Macedonia, Northfield Center, Sagamore Hills, and Northfield together; Twinsburg has its own district. This page rolls up every Akron Pulse event in the northeast quadrant.",
+    relatedSlugs: ['hudson', 'cuyahoga-falls', 'stow'],
+    cityMatch: ['Sagamore Hills', 'Northfield', 'Northfield Center', 'Boston Heights', 'Reminderville', 'Twinsburg', 'Macedonia'],
   },
 
   // ── Southeast Summit County ─────────────────────────────────────

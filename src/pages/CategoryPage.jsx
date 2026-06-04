@@ -35,6 +35,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useEvents, PAGE_SIZE } from '@/hooks/useEvents'
+import { INTENTS } from '@/lib/intents'
 import EventCard from '@/components/EventCard'
 import ShareButtons from '@/components/ShareButtons'
 import NewsletterCTA from '@/components/NewsletterCTA'
@@ -221,23 +222,26 @@ export default function CategoryPage() {
   // Categories: locked hubs override the user's choice with the hub's
   // own filter. If the user picked an intent (category preset), expand
   // it. Otherwise fall back to rawCategories.
-  const intentDef = useMemo(() => {
-    if (!activeIntentId) return null
-    // Avoid hard-coding the intent list here — duplicate of categories
-    // mapping in intents.js. Simple inline lookup keeps this file
-    // self-contained without importing the whole intent module for one
-    // expansion.
-    const intents = {
-      'date-night': ['music', 'art', 'food', 'sports'],
-      'family-fun': ['education', 'community'],
-      'give-back':  ['nonprofit', 'community'],
-    }
-    return intents[activeIntentId] || null
-  }, [activeIntentId])
+  // Resolve the active intent from the canonical registry (single source of
+  // truth — no duplicated mapping). Intents carry `categories` and/or `facets`.
+  const intentDef = useMemo(
+    () => (activeIntentId ? (INTENTS.find((i) => i.id === activeIntentId) ?? null) : null),
+    [activeIntentId]
+  )
+  const intentCategories = intentDef?.categories ?? []
+  const intentFacets     = intentDef?.facets ?? []
+
+  // A hub can lock the facet axis (e.g. the Family hub → facetFilter:['family']).
+  const hubFacets = Array.isArray(hub.facetFilter) ? hub.facetFilter : []
 
   const effectiveCategories = lockedDimensions.category
     ? hub.categoryFilter
-    : (rawCategories.length > 0 ? rawCategories : (intentDef ?? []))
+    : (rawCategories.length > 0 ? rawCategories : intentCategories)
+
+  // Facet flags: hub-locked facets always apply; intent facets apply when no
+  // hub facet is set.
+  const effectiveFamily     = hubFacets.includes('family')     || intentFacets.includes('family')
+  const effectiveFundraiser = hubFacets.includes('fundraiser') || intentFacets.includes('fundraiser')
 
   const effectiveFreeOnly = lockedDimensions.price ? true : (priceFilter === 'free')
   const effectivePriceMax = lockedDimensions.price ? null
@@ -321,6 +325,8 @@ export default function CategoryPage() {
   const isAkronNeighborhood = isNeighborhood && NEIGHBORHOOD_SLUGS.has(hub.slug)
   const { events: page, loading, error, total, hasMore } = useEvents({
     categories: effectiveCategories,
+    family:     effectiveFamily,
+    fundraiser: effectiveFundraiser,
     freeOnly:   effectiveFreeOnly,
     priceMax:   effectivePriceMax,
     dateRange:  effectiveDateRange,

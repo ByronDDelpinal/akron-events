@@ -294,7 +294,7 @@ describe('Nightlight: buildEventRow', () => {
     assert.equal(row.start_at, '2026-05-11T00:00:00.000Z')      // 8PM EDT → midnight UTC next day
     assert.equal(row.end_at,   '2026-05-11T01:35:00.000Z')      // +95 min
     assert.equal(row.title, 'Exit 8')
-    assert.equal(row.category, 'art')
+    assert.equal(row.category, 'film')
     assert.deepEqual(row.tags, ['film', 'cinema', 'horror'])
     assert.equal(row.age_restriction, 'not_specified')   // PG-13 has no exact bucket
     assert.equal(row.ticket_url, 'https://nightlightcinema.com/movie/exit-8/')

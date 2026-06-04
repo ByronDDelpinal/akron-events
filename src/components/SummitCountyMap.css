@@ -108,6 +108,11 @@
    only so mouse users don't see it on every click. */
 .summit-county-map a {
   outline: none;
+  /* touch-action: manipulation disables iOS Safari's double-tap-to-
+     zoom on these links so the dblclick handler fires reliably for
+     the polygon shortcut. Pinch / pan still work on the surrounding
+     page. */
+  touch-action: manipulation;
 }
 .summit-county-map a:focus-visible {
   outline: 2px solid var(--amber);

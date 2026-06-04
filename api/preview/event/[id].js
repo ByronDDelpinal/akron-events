@@ -202,8 +202,9 @@ export default async function handler(req) {
       Accept: 'application/json',
     }
     const eventSelect =
-      'id,title,description,start_at,end_at,category,' +
+      'id,title,description,start_at,end_at,' +
       'price_min,price_max,ticket_url,image_url,' +
+      'event_categories(category),' +
       'event_venues(venue:venues(id,name,address,city,state,zip))'
 
     const resp = await fetch(
@@ -216,22 +217,29 @@ export default async function handler(req) {
     const event = Array.isArray(rows) ? rows[0] : null
     if (!event) return fallbackHtml('Event not found', 'no-row')
 
-    // Related events: same category, different id, upcoming, status=published,
-    // ordered by start_at, limit 5. Defensive — if this fetch fails, we
-    // still emit the main event schema. Don't let related-events failure
-    // tank the whole preview response.
+    // Primary content category (the join table holds 1–2; the first is primary).
+    const primaryCategory = event.event_categories?.[0]?.category ?? null
+
+    // Related events: shares the primary category, different id, upcoming,
+    // status=published, ordered by start_at, limit 5. Defensive — if this fetch
+    // fails, we still emit the main event schema.
     let related = []
-    if (event.category) {
+    if (primaryCategory) {
       try {
         const nowIso = new Date(Date.now() - 3 * 3600_000).toISOString()
+        // Inner-join the category table so we can filter the parent by it.
+        const relSelect = eventSelect.replace(
+          'event_categories(category)',
+          'event_categories!inner(category)',
+        )
         const relResp = await fetch(
           `${supabaseUrl}/rest/v1/events?` +
-            `category=eq.${encodeURIComponent(event.category)}` +
+            `event_categories.category=eq.${encodeURIComponent(primaryCategory)}` +
             `&id=neq.${encodeURIComponent(event.id)}` +
             `&status=eq.published` +
             `&start_at=gte.${encodeURIComponent(nowIso)}` +
             `&order=start_at.asc&limit=5` +
-            `&select=${eventSelect}`,
+            `&select=${relSelect}`,
           { headers: supabaseHeaders },
         )
         if (relResp.ok) {
@@ -280,7 +288,7 @@ export default async function handler(req) {
         { name: 'Events',      path: '/' },
         { name: eventTitle,    path: `/events/${event.id}` },
       ], SITE_ORIGIN),
-      buildRelatedItemListSchema(related, SITE_ORIGIN, event.category || 'related'),
+      buildRelatedItemListSchema(related, SITE_ORIGIN, primaryCategory || 'related'),
     ].filter(Boolean)
 
     const jsonLd = {
@@ -294,7 +302,7 @@ export default async function handler(req) {
     // topology in the SSR'd HTML matches what client-side React renders.
     const venueLine = [venue, venueCity].filter(Boolean).join(', ')
     const relatedListHtml = related.length > 0
-      ? `<h2>More ${escapeHtml(event.category || 'related')} events in Akron</h2>\n<ul>\n` +
+      ? `<h2>More ${escapeHtml(primaryCategory || 'related')} events in Akron</h2>\n<ul>\n` +
         related.map(ev => {
           const evVenue = ev.event_venues?.[0]?.venue?.name || ''
           const evDate  = formatDateLine(ev.start_at)

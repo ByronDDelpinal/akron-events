@@ -84,7 +84,7 @@ async function processEvents(rawEvents, venueId, organizerId) {
         description:     descText || null,
         start_at:        ev.utc_start_date ? ev.utc_start_date.replace(' ', 'T') + 'Z' : null,
         end_at:          ev.utc_end_date   ? ev.utc_end_date.replace(' ', 'T') + 'Z'   : null,
-        category:        'art',
+        category:        'theater',
         tags:            ['theatre', 'live-theatre', 'canton', 'performance'],
         price_min,
         price_max,

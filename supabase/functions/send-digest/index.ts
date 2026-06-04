@@ -80,7 +80,8 @@ interface Event {
   description: string | null
   start_at: string
   end_at: string | null
-  category: string
+  category: string        // primary content category (shim; = categories[0])
+  categories: string[]    // 1–2 content categories from event_categories
   tags: string[]
   price_min: number | null
   price_max: number | null
@@ -145,9 +146,11 @@ function filterEventsForSubscriber(allEvents: Event[], sub: Subscriber, now: Dat
     const eventDay = eventStart.getDay()
     if (!prefs.event_days.includes(eventDay)) return false
 
-    // Intents/categories (skip if "all")
+    // Intents/categories (skip if "all"). Events now carry 1–2 content
+    // categories (event.categories); match if ANY overlaps the prefs.
     if (!prefs.intents.includes('all') && prefs.categories.length > 0) {
-      if (!prefs.categories.includes(event.category)) return false
+      const cats = event.categories ?? []
+      if (!cats.some((c) => prefs.categories.includes(c))) return false
     }
 
     // Venue filter (empty = all venues)
@@ -621,8 +624,9 @@ Deno.serve(async (req) => {
     const { data: events, error: evtErr } = await supabase
       .from('events')
       .select(`
-        id, title, description, start_at, end_at, category, tags,
+        id, title, description, start_at, end_at, tags,
         price_min, price_max, age_restriction, image_url, ticket_url, featured,
+        event_categories ( category ),
         event_venues!inner ( venues!inner ( id, name, address, lat, lng, image_url ) ),
         event_organizations ( organizations ( id, name, image_url ) )
       `)
@@ -639,6 +643,9 @@ Deno.serve(async (req) => {
     // Flatten the joined data for easier filtering
     const flatEvents: Event[] = (events || []).map((e: any) => ({
       ...e,
+      categories: (e.event_categories || []).map((ec: any) => ec.category).filter(Boolean),
+      // Primary-category shim so gradient/label helpers keep working.
+      category: (e.event_categories || [])[0]?.category ?? 'other',
       venues: (e.event_venues || []).map((ev: any) => ev.venues).filter(Boolean),
       organizations: (e.event_organizations || []).map((eo: any) => eo.organizations).filter(Boolean),
     }))

@@ -28,13 +28,8 @@ export const CITIES = [
   { slug: 'hudson',          label: 'Hudson'          },
   { slug: 'green',           label: 'Green'           },
   { slug: 'fairlawn',        label: 'Fairlawn'        },
-  { slug: 'copley',          label: 'Copley'          },
   { slug: 'tallmadge',       label: 'Tallmadge'       },
   { slug: 'barberton',       label: 'Barberton'       },
-  { slug: 'twinsburg',       label: 'Twinsburg'       },
-  { slug: 'macedonia',       label: 'Macedonia'       },
-  { slug: 'norton',          label: 'Norton'          },
-  { slug: 'munroe-falls',    label: 'Munroe Falls'    },
   { slug: 'new-franklin',    label: 'New Franklin'    },
 ]
 

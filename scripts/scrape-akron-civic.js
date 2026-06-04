@@ -229,7 +229,7 @@ async function processEvents(rawEvents, organizerId) {
         description:     cleanDesc,
         start_at:        startAt,
         end_at:          endAt,
-        category:        'art',
+        category:        'theater',
         tags:            deriveTags(title),
         price_min:       priceMin,
         price_max:       null,

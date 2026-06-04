@@ -525,6 +525,14 @@ h6 { font-size: var(--text-h6); }
 .tag-education { background: var(--tag-education-bg); color: var(--tag-education-txt); }
 .tag-nature    { background: var(--tag-nature-bg);    color: var(--tag-nature-txt); }
 .tag-other     { background: var(--tag-other-bg);     color: var(--tag-other-txt); }
+/* v2 taxonomy badges. These reuse existing color tokens for now (the `art`
+   bucket split into theater/film/comedy; festival/market are new); swap in
+   dedicated --tag-*-bg/txt tokens later if we want them visually distinct. */
+.tag-theater   { background: var(--tag-art-bg);       color: var(--tag-art-txt); }
+.tag-film      { background: var(--tag-education-bg); color: var(--tag-education-txt); }
+.tag-comedy    { background: var(--tag-nonprofit-bg); color: var(--tag-nonprofit-txt); }
+.tag-festival  { background: var(--tag-community-bg); color: var(--tag-community-txt); }
+.tag-market    { background: var(--tag-food-bg);      color: var(--tag-food-txt); }
 
 /* ════════════════════════════════
    UTILITY

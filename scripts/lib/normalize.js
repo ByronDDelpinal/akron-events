@@ -10,6 +10,8 @@ import { supabaseAdmin } from './supabase-admin.js'
 import { getImageDimensions } from './image-dimensions.js'
 import { normalizeImageUrl } from './image-url-normalizer.js'
 import { resolveNeighborhoodSlug } from './neighborhood-resolver.js'
+import { inferCategories as _inferCategories } from './category-inference.js'
+import { V1_TO_V2, CATEGORY_SLUGS } from '../../src/lib/categories.js'
 
 // ════════════════════════════════════════════════════════════════════════════
 // HTML / TEXT UTILITIES
@@ -191,7 +193,7 @@ export function categoryFromEventbriteNames(categoryName, subcategoryName) {
 // classifier. Re-exported here so the many `import { inferCategory } from
 // './lib/normalize.js'` call sites across the scrapers keep working unchanged.
 // See scripts/lib/category-inference.js for the signal table and weights.
-export { inferCategory, scoreCategories } from './category-inference.js'
+export { inferCategory, inferCategories, scoreCategories } from './category-inference.js'
 
 export function parseEventbritePrice(ticketClasses = [], isFree = false) {
   if (isFree) return { price_min: 0, price_max: 0 }
@@ -702,17 +704,50 @@ export async function upsertEventSafe(row) {
     sanitized.source_url = sanitized.ticket_url
   }
 
-  // Auto-flag low-confidence categorizations for admin review.
-  // If the scraper didn't already set needs_review and the final category is
-  // 'other' (meaning nothing in the source map or inferCategory matched), mark
-  // it for the review queue so a human can correct it before users see it.
-  if (sanitized.needs_review === undefined && sanitized.category === 'other') {
-    sanitized.needs_review = true
+  // ── Resolve the v2 content categories (array) + facet flags ───────────────
+  // Sources may pass any of:
+  //   • categories: ['music','food']  — explicit v2 list (preferred)
+  //   • category:   'music' | 'art'   — a single hint (v2 OR legacy slug)
+  //   • nothing                       — we infer from title + description
+  // We always run inference too, so even a single source hint gets enriched
+  // toward multi-category when the text clearly supports a second one.
+  const inferred = _inferCategories(sanitized.title, sanitized.description)
+  let categories
+  if (Array.isArray(sanitized.categories) && sanitized.categories.length) {
+    categories = sanitized.categories.slice()
+  } else {
+    categories = inferred.categories.slice()
+    const hint = sanitized.category
+    if (hint) {
+      const mapped = CATEGORY_SLUGS.includes(hint)
+        ? hint
+        : (V1_TO_V2[hint]?.categories?.[0] ?? null)
+      if (mapped && !categories.includes(mapped)) categories = [mapped, ...categories]
+    }
   }
-  // Explicit non-'other' category → confident, clear any stale flag.
-  if (sanitized.needs_review === undefined && sanitized.category !== 'other') {
-    sanitized.needs_review = false
+  categories = [...new Set(categories.filter((c) => CATEGORY_SLUGS.includes(c)))].slice(0, 2)
+  if (categories.length === 0) categories = ['other']
+
+  // Facet flags: honor explicit source flags, else inference. Legacy 'nonprofit'
+  // hint implies fundraiser.
+  const isFamily = sanitized.is_family ?? inferred.family
+  let isFundraiser = sanitized.is_fundraiser ?? inferred.fundraiser
+  if (sanitized.category === 'nonprofit') isFundraiser = true
+
+  // Auto-flag low-confidence categorizations: only 'other' matched AND no facet
+  // flag gave us a useful signal. A storytime (family) or a gala (fundraiser)
+  // that lands on 'other' content is still classified enough to skip review.
+  if (sanitized.needs_review === undefined) {
+    sanitized.needs_review =
+      categories.length === 1 && categories[0] === 'other' && !isFamily && !isFundraiser
   }
+
+  // The single-value `category` column is gone in v2 — strip the category hints
+  // off the events payload and persist the facet flags as real columns.
+  delete sanitized.category
+  delete sanitized.categories
+  sanitized.is_family = isFamily
+  sanitized.is_fundraiser = isFundraiser
 
   const safeRow = await _stripOverriddenFields('events', sanitized)
   const { data, error } = await supabaseAdmin
@@ -720,7 +755,39 @@ export async function upsertEventSafe(row) {
     .upsert(safeRow, { onConflict: 'source,source_id', ignoreDuplicates: false })
     .select('id')
     .single()
+
+  // Sync the content axis into the event_categories join table, unless an admin
+  // has manually locked categories on this event.
+  if (!error && data?.id) {
+    await syncEventCategories(data.id, categories)
+  }
+
   return { data, error, isNew: !error && !!data }
+}
+
+/**
+ * Replace an event's content categories in the join table to match `categories`
+ * (1–2 slugs). Skips entirely when the event has a manual category override, so
+ * admin edits aren't clobbered by a re-scrape. Idempotent.
+ */
+export async function syncEventCategories(eventId, categories) {
+  if (!eventId || !Array.isArray(categories) || categories.length === 0) return
+  try {
+    const { data: existing } = await supabaseAdmin
+      .from('events')
+      .select('manual_overrides')
+      .eq('id', eventId)
+      .maybeSingle()
+    const ov = existing?.manual_overrides
+    if (ov && ('categories' in ov || 'category' in ov)) return // admin-locked
+
+    await supabaseAdmin.from('event_categories').delete().eq('event_id', eventId)
+    const rows = categories.map((category) => ({ event_id: eventId, category }))
+    const { error } = await supabaseAdmin.from('event_categories').insert(rows)
+    if (error) console.warn(`  ⚠ syncEventCategories failed: ${error.message}`)
+  } catch (err) {
+    console.warn(`  ⚠ syncEventCategories exception: ${err.message}`)
+  }
 }
 
 /**

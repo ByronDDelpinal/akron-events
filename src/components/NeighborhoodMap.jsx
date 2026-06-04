@@ -13,14 +13,14 @@
  * Interaction model — unified across desktop and touch:
  *   1. Click any polygon → it highlights and the panel below shows
  *      its name with a "View {name} events →" button.
- *   2. Click that button to navigate.
- *   Polygon clicks never navigate directly. This deliberately
- *   sacrifices a desktop-power-user shortcut for a single, predictable
- *   model that's equally usable on a phone — where hover doesn't
- *   exist and accidentally opening a hub by tapping a small polygon
- *   was the biggest friction point. The button also gives the user
- *   a clear "back out" by selecting another polygon before
- *   committing.
+ *   2. Click that button to navigate, OR double-click / double-tap
+ *      the polygon itself to navigate immediately. The double-tap
+ *      shortcut is for users who know what they want without needing
+ *      the panel's name confirmation; the single-tap-then-button
+ *      flow is the safe default and the only one that mobile users
+ *      will discover from the on-screen affordances. We disable
+ *      iOS Safari's double-tap-to-zoom on the links so the dblclick
+ *      fires reliably on touch.
  *
  * Why fetch the GeoJSON at runtime instead of inlining it:
  *   - 419 KB of polygon data does not belong in the JS bundle every
@@ -244,9 +244,17 @@ export default function NeighborhoodMap({ activeSlug, activeLabelOverride, class
   const selectedLabel = selectedSlug ? NEIGHBORHOOD_LABELS[selectedSlug] : null
   const hasSelection  = selectedSlug && selectedSlug !== activeSlug
 
-  // Click handler for non-active polygons. Selecting only — never
-  // navigating. The dedicated button below is the one and only
-  // commit surface for opening a hub.
+  // Shared navigator — wired by the panel button AND by the
+  // polygon's onDoubleClick. preserveScroll keeps the user anchored
+  // to the map between hub pages (App.jsx's scroll-to-top effect
+  // short-circuits on this route state).
+  const goToSlug = (slug) => {
+    navigate(`/events/${slug}`, { state: { preserveScroll: true } })
+  }
+
+  // Single-click handler for non-active polygons. Selects only —
+  // never navigates. The dedicated button below or a double-click
+  // are the commit surfaces for opening a hub.
   const handlePolygonClick = (e, slug) => {
     // Modified clicks (ctrl/cmd/shift/middle) fall through to the
     // native <a> for new-tab behavior — those users explicitly want
@@ -254,6 +262,16 @@ export default function NeighborhoodMap({ activeSlug, activeLabelOverride, class
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
     e.preventDefault()
     setSelectedSlug(slug)
+  }
+
+  // Double-click / double-tap shortcut. Navigates immediately,
+  // skipping the panel button. The preceding single-click event
+  // already fired (setting selectedSlug); that's harmless because
+  // navigation supersedes it.
+  const handlePolygonDoubleClick = (e, slug) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey) return
+    e.preventDefault()
+    goToSlug(slug)
   }
 
   return (
@@ -295,7 +313,8 @@ export default function NeighborhoodMap({ activeSlug, activeLabelOverride, class
               key={f.slug}
               href={`/events/${f.slug}`}
               onClick={(e) => handlePolygonClick(e, f.slug)}
-              aria-label={`Select ${f.name}`}
+              onDoubleClick={(e) => handlePolygonDoubleClick(e, f.slug)}
+              aria-label={`Select ${f.name} — double-click to open`}
             >
               <title>{f.name}</title>
               <path d={f.d} className={cls} />
@@ -331,7 +350,7 @@ export default function NeighborhoodMap({ activeSlug, activeLabelOverride, class
           <button
             type="button"
             className="neighborhood-map-panel-go"
-            onClick={() => navigate(`/events/${selectedSlug}`, { state: { preserveScroll: true } })}
+            onClick={() => goToSlug(selectedSlug)}
             aria-label={`View ${selectedLabel} events`}
           >
             <span>View {selectedLabel} events</span>

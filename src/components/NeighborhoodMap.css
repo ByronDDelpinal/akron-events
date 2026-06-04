@@ -115,6 +115,14 @@
   /* SVG anchors don't pick up the default browser focus ring as
      cleanly as HTML ones; an explicit outline keeps it crisp. */
   outline: none;
+  /* touch-action: manipulation disables iOS Safari's double-tap-to-
+     zoom on these links. Without it, a quick double-tap on mobile
+     would trigger the browser's zoom gesture instead of firing our
+     dblclick handler — the navigation shortcut would feel broken on
+     phones. "manipulation" still allows pan / pinch-to-zoom on the
+     surrounding page; it only suppresses the implicit double-tap
+     zoom, which is what we want. */
+  touch-action: manipulation;
 }
 .neighborhood-map a:focus-visible {
   outline: 2px solid var(--amber);

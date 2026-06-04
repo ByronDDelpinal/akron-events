@@ -132,7 +132,7 @@ export default async function handler(req) {
     // matches what useEvents/useEvent does in the SPA.
     const resp = await fetch(
       `${supabaseUrl}/rest/v1/events?id=eq.${encodeURIComponent(id)}` +
-        `&select=title,start_at,category,event_venues(venue:venues(name))`,
+        `&select=title,start_at,event_categories(category),event_venues(venue:venues(name))`,
       {
         headers: {
           apikey: supabaseKey,
@@ -146,7 +146,8 @@ export default async function handler(req) {
     const event = Array.isArray(rows) ? rows[0] : null
     if (!event) return fallbackImage('Event not found')
 
-    const gradient  = GRADIENTS[event.category] || GRADIENTS.other
+    const primaryCategory = event.event_categories?.[0]?.category
+    const gradient  = GRADIENTS[primaryCategory] || GRADIENTS.other
     const dateLine  = formatDateLine(event.start_at)
     const venueName = event.event_venues?.[0]?.venue?.name || ''
     const subtitle  = [dateLine, venueName].filter(Boolean).join(' · ')

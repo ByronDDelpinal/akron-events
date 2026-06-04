@@ -472,7 +472,7 @@ export function buildEventRow({ slug, screening, movieMeta, easternDateYmd }) {
     description:     movieMeta?.description || null,
     start_at:        startIso,
     end_at:          endIso,
-    category:        'art',
+    category:        'film',
     tags:            [...new Set(tags)],
     price_min:       0,
     price_max:       null,

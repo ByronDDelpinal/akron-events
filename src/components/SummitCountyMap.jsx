@@ -19,9 +19,12 @@
  *      updates with that city's name + a "View {city} events →"
  *      button.
  *   2. Click the button to navigate (with preserveScroll so the user
- *      stays anchored to the map between hub pages).
- *   Polygon clicks never navigate directly. One predictable model on
- *   desktop AND touch.
+ *      stays anchored to the map between hub pages), OR double-click
+ *      / double-tap the polygon itself to navigate immediately.
+ *   The single-tap-then-button flow is the safe default and the only
+ *   one mobile users discover from the on-screen affordances; the
+ *   double-tap shortcut is for users who know what they want without
+ *   needing the panel confirmation.
  *
  * Why a separate component from NeighborhoodMap (for now):
  *   The geometry is different scale, the GeoJSON is different, and
@@ -202,10 +205,26 @@ export default function SummitCountyMap({ activeSlug, className }) {
   const selectedLabel = selectedSlug ? PLACE_LABELS[selectedSlug] : null
   const hasSelection  = selectedSlug && selectedSlug !== activeSlug
 
+  // Shared navigator — used by the panel button and the polygon's
+  // onDoubleClick. preserveScroll keeps the user anchored to the map
+  // between hub pages.
+  const goToSlug = (slug) => {
+    navigate(`/events/${slug}`, { state: { preserveScroll: true } })
+  }
+
   const handlePolygonClick = (e, slug) => {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
     e.preventDefault()
     setSelectedSlug(slug)
+  }
+
+  // Double-click / double-tap shortcut. Navigates immediately,
+  // skipping the panel button — useful on desktop and on touch
+  // for users who know which city they want.
+  const handlePolygonDoubleClick = (e, slug) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey) return
+    e.preventDefault()
+    goToSlug(slug)
   }
 
   return (
@@ -239,7 +258,8 @@ export default function SummitCountyMap({ activeSlug, className }) {
               key={f.slug}
               href={`/events/${f.slug}`}
               onClick={(e) => handlePolygonClick(e, f.slug)}
-              aria-label={`Select ${f.name}`}
+              onDoubleClick={(e) => handlePolygonDoubleClick(e, f.slug)}
+              aria-label={`Select ${f.name} — double-click to open`}
             >
               <title>{f.name}</title>
               <path d={f.d} className={cls} />
@@ -262,7 +282,7 @@ export default function SummitCountyMap({ activeSlug, className }) {
           <button
             type="button"
             className="summit-county-map-panel-go"
-            onClick={() => navigate(`/events/${selectedSlug}`, { state: { preserveScroll: true } })}
+            onClick={() => goToSlug(selectedSlug)}
             aria-label={`View ${selectedLabel} events`}
           >
             <span>View {selectedLabel} events</span>

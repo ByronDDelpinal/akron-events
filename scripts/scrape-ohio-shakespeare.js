@@ -329,7 +329,7 @@ async function upsertShows(shows, organizerId) {
         description:     show.desc || null,
         start_at:        show.startAt,
         end_at:          null,
-        category:        'art',
+        category:        'theater',
         tags:            ['theatre', 'shakespeare', 'professional-theatre', 'akron', 'live-performance'],
         price_min:       15,
         price_max:       null,

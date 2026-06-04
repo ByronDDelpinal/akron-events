@@ -25,7 +25,7 @@ export default function ReviewQueuePage() {
     const from = page * PAGE_SIZE
     const { data, count, error } = await supabase
       .from('events')
-      .select('id, title, start_at, category, source, source_id, manual_overrides', { count: 'exact' })
+      .select('id, title, start_at, source, source_id, manual_overrides, event_categories ( category )', { count: 'exact' })
       .eq('needs_review', true)
       .order('start_at', { ascending: true })
       .range(from, from + PAGE_SIZE - 1)
@@ -45,7 +45,10 @@ export default function ReviewQueuePage() {
     setSelections(prev => {
       const next = { ...prev }
       events.forEach(ev => {
-        if (!(ev.id in next)) next[ev.id] = ev.category === 'other' ? '' : ev.category
+        if (!(ev.id in next)) {
+          const primary = ev.event_categories?.[0]?.category
+          next[ev.id] = (!primary || primary === 'other') ? '' : primary
+        }
       })
       return next
     })
@@ -57,15 +60,22 @@ export default function ReviewQueuePage() {
 
     setSaving(s => ({ ...s, [ev.id]: true }))
 
-    // Merge the new category into manual_overrides so the scraper can
-    // never overwrite this human decision on a future run.
+    // Merge the category lock into manual_overrides so the scraper can never
+    // overwrite this human decision on a future run. syncEventCategories()
+    // honors a 'category' or 'categories' override key.
     const existingOverrides = ev.manual_overrides ?? {}
     const updatedOverrides  = { ...existingOverrides, category: true }
 
-    const { error } = await supabase
+    // Replace the event's content categories in the join table with the
+    // single chosen category, then clear the review flag + lock it.
+    await supabase.from('event_categories').delete().eq('event_id', ev.id)
+    const { error: catErr } = await supabase
+      .from('event_categories')
+      .insert({ event_id: ev.id, category: newCategory })
+
+    const { error } = catErr ? { error: catErr } : await supabase
       .from('events')
       .update({
-        category:         newCategory,
         manual_overrides: updatedOverrides,
         needs_review:     false,
       })

@@ -107,7 +107,6 @@ function EventForm({
       title:           form.title,
       description:     form.description ?? null,
       status:          form.status,
-      category:        form.category ?? null,
       start_at:        form.start_at,
       end_at:          form.end_at ?? null,
       price_min:       form.price_min ?? 0,
@@ -128,6 +127,18 @@ function EventForm({
     } else {
       const { error } = await supabase.from('events').update(eventFields).eq('id', id)
       if (error) { alert('Save failed: ' + error.message); return }
+    }
+
+    // Content category now lives in the event_categories join table. Replace
+    // the event's categories with the single admin-selected one. (The
+    // manual_overrides entry for 'category' keeps scrapers from re-inferring
+    // over this choice — syncEventCategories in normalize.js honors it.)
+    await supabase.from('event_categories').delete().eq('event_id', id)
+    if (form.category) {
+      const { error: catErr } = await supabase
+        .from('event_categories')
+        .insert({ event_id: id, category: form.category })
+      if (catErr) { alert('Category save failed: ' + catErr.message); return }
     }
 
     // Junction tables

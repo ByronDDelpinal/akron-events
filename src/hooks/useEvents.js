@@ -29,8 +29,38 @@ export const PAGE_SIZE = 24
  * But for many-to-many where events may have 0..N venues, we need left joins.
  * We fetch venues and organizations as nested arrays.
  */
+/**
+ * Build the embedded-category select + apply an any-match (OR) filter on the
+ * event_categories join table.
+ *
+ * PostgREST trick: we embed event_categories TWICE —
+ *   • a normal embed `event_categories(category)` so every event comes back
+ *     with its FULL category list (for badges), and
+ *   • an aliased INNER embed `_catfilter:event_categories!inner(category)`
+ *     used purely to filter the parent down to events that have at least one
+ *     of the requested categories. Without the alias, filtering the embed
+ *     would also prune the displayed list.
+ * Returns the select fragment to splice in; caller applies `.in()` when
+ * categories are present.
+ */
+function categorySelectFragment(categories) {
+  const filterEmbed = categories.length > 0
+    ? '_catfilter:event_categories!inner ( category ),'
+    : ''
+  return `${filterEmbed} event_categories ( category ),`
+}
+
+function applyCategoryFilter(query, categories) {
+  if (categories.length > 0) {
+    query = query.in('_catfilter.category', categories)
+  }
+  return query
+}
+
 export function useEvents({
   categories       = [],
+  family           = false,
+  fundraiser       = false,
   dateRange        = null,
   dateFrom         = null,
   dateTo           = null,
@@ -75,6 +105,7 @@ export function useEvents({
           .from('events')
           .select(`
             *,
+            ${categorySelectFragment(categories)}
             ${venueJoin} ( venue:${venueTbl} ( id, name, address, city, state, zip, lat, lng, parking_type, parking_notes, website, image_url, neighborhood_slug ) ),
             event_organizations ( organization:organizations ( id, name, website, description, image_url ) )
           `, { count: 'exact' })
@@ -90,9 +121,12 @@ export function useEvents({
           query = query.eq('event_venues.venues.neighborhood_slug', neighborhoodSlug)
         }
 
-        if (categories.length > 0) {
-          query = query.in('category', categories)
-        }
+        // Content axis: any-match against the event_categories join table.
+        query = applyCategoryFilter(query, categories)
+
+        // Facet axis: cross-cutting boolean flags.
+        if (family)     query = query.eq('is_family', true)
+        if (fundraiser) query = query.eq('is_fundraiser', true)
 
         if (hiddenSources.length > 0) {
           query = query.not('source', 'in', `(${hiddenSources.join(',')})`)
@@ -179,7 +213,7 @@ export function useEvents({
 
     fetchEvents()
     return () => { cancelled = true }
-  }, [categories.join(','), dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSources.join(','), neighborhoodSlug, sort, limit, offset])
+  }, [categories.join(','), family, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSources.join(','), neighborhoodSlug, sort, limit, offset])
 
   const hasMore = offset + limit < total
 
@@ -292,9 +326,10 @@ export function useVenueEvents(venueId) {
         .from('event_venues')
         .select(`
           event:events (
-            id, title, start_at, end_at, category,
+            id, title, start_at, end_at, is_family, is_fundraiser,
             price_min, price_max, image_url, image_width, image_height,
             ticket_url, age_restriction, status, featured,
+            event_categories ( category ),
             event_organizations ( organization:organizations ( id, name ) )
           )
         `)
@@ -312,12 +347,18 @@ export function useVenueEvents(venueId) {
             .filter(e => new Date(e.start_at).getTime() > Date.now() - 3 * 3600_000)
             .sort((a, b) => new Date(a.start_at) - new Date(b.start_at))
 
-          // Flatten org junction for backward compat
-          setEvents(unwrapped.map(e => ({
-            ...e,
-            organizer: e.event_organizations?.[0]?.organization ?? null,
-            organizations: (e.event_organizations ?? []).map(eo => eo.organization).filter(Boolean),
-          })))
+          // Flatten org + category junctions for backward compat
+          setEvents(unwrapped.map(e => {
+            const cats = (e.event_categories ?? []).map(ec => ec.category).filter(Boolean)
+            return {
+              ...e,
+              categories: cats,
+              category: cats[0] ?? 'other',
+              organizer: e.event_organizations?.[0]?.organization ?? null,
+              organizations: (e.event_organizations ?? []).map(eo => eo.organization).filter(Boolean),
+              event_categories: undefined,
+            }
+          }))
         }
         setLoading(false)
       }
@@ -351,6 +392,7 @@ export function useEvent(id) {
         .from('events')
         .select(`
           *,
+          event_categories ( category ),
           event_venues ( venue:venues (
             id, name, address, city, state, zip,
             parking_type, parking_notes, lat, lng, website, image_url
@@ -395,14 +437,22 @@ export function useEvent(id) {
  *
  * Returns an empty array (not null) when there's nothing to show; the
  * caller's render path treats empty as "render nothing."
+ *
+ * `categories` may be an array (preferred) or a single slug string (back-compat
+ * with callers still passing event.category). Relatedness = shares ANY of the
+ * source event's content categories (matches the OR/any-match filter model).
  */
-export function useRelatedEvents(eventId, category, { limit = 6 } = {}) {
+export function useRelatedEvents(eventId, categories, { limit = 6 } = {}) {
+  const catList = Array.isArray(categories)
+    ? categories.filter(Boolean)
+    : (categories ? [categories] : [])
+
   const [events,  setEvents]  = useState([])
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(null)
 
   useEffect(() => {
-    if (!eventId || !category) {
+    if (!eventId || catList.length === 0) {
       setEvents([])
       setLoading(false)
       return
@@ -417,14 +467,16 @@ export function useRelatedEvents(eventId, category, { limit = 6 } = {}) {
         const { data, error: fetchError } = await supabase
           .from('events')
           .select(`
-            id, title, start_at, end_at, category,
+            id, title, start_at, end_at, is_family, is_fundraiser,
             price_min, price_max, image_url, image_width, image_height,
             ticket_url, age_restriction, status, featured, tags,
+            _catfilter:event_categories!inner ( category ),
+            event_categories ( category ),
             event_venues ( venue:venues ( id, name, city, image_url ) ),
             event_organizations ( organization:organizations ( id, name, image_url ) )
           `)
           .eq('status', 'published')
-          .eq('category', category)
+          .in('_catfilter.category', catList)
           .neq('id', eventId)
           .gte('start_at', new Date(Date.now() - 3 * 3600_000).toISOString())
           .order('start_at', { ascending: true })
@@ -443,7 +495,7 @@ export function useRelatedEvents(eventId, category, { limit = 6 } = {}) {
 
     fetchRelated()
     return () => { cancelled = true }
-  }, [eventId, category, limit])
+  }, [eventId, catList.join(','), limit])
 
   return { events, loading, error }
 }
@@ -457,6 +509,8 @@ export function useRelatedEvents(eventId, category, { limit = 6 } = {}) {
  */
 export function useMapEvents({
   categories    = [],
+  family        = false,
+  fundraiser    = false,
   dateRange     = null,
   dateFrom      = null,
   dateTo        = null,
@@ -481,16 +535,17 @@ export function useMapEvents({
         let query = supabase
           .from('events')
           .select(`
-            id, title, start_at, category, price_min, price_max,
+            id, title, start_at, price_min, price_max, is_family, is_fundraiser,
+            ${categorySelectFragment(categories)}
             event_venues ( venue:venues ( id, name, address, city, lat, lng ) )
           `, { count: 'exact' })
           .eq('status', 'published')
           .gte('start_at', new Date(Date.now() - 3 * 3600_000).toISOString())
           .order('start_at', { ascending: true })
 
-        if (categories.length > 0) {
-          query = query.in('category', categories)
-        }
+        query = applyCategoryFilter(query, categories)
+        if (family)     query = query.eq('is_family', true)
+        if (fundraiser) query = query.eq('is_fundraiser', true)
 
         if (hiddenSources.length > 0) {
           query = query.not('source', 'in', `(${hiddenSources.join(',')})`)
@@ -553,7 +608,16 @@ export function useMapEvents({
           // Flatten venue junction for the map
           const mapped = (data ?? []).map(e => {
             const venues = (e.event_venues ?? []).map(ev => ev.venue).filter(Boolean)
-            return { ...e, venue: venues[0] ?? null, venues, event_venues: undefined }
+            const cats = (e.event_categories ?? []).map(ec => ec.category).filter(Boolean)
+            return {
+              ...e,
+              categories: cats,
+              category: cats[0] ?? 'other', // back-compat: marker color keys off primary
+              venue: venues[0] ?? null,
+              venues,
+              event_venues: undefined,
+              event_categories: undefined,
+            }
           })
           setEvents(mapped)
           setTotal(count ?? 0)
@@ -567,7 +631,7 @@ export function useMapEvents({
 
     fetchMapEvents()
     return () => { cancelled = true }
-  }, [categories.join(','), dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSources.join(',')])
+  }, [categories.join(','), family, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSources.join(',')])
 
   return { events, loading, error, total }
 }
@@ -647,9 +711,10 @@ export function useOrganization(id) {
           venues ( id, name, address, city, state, zip, lat, lng, website, tags, status ),
           event_organizations (
             event:events (
-              id, title, start_at, end_at, category,
+              id, title, start_at, end_at, is_family, is_fundraiser,
               price_min, price_max, image_url, image_width, image_height,
               ticket_url, age_restriction, status, featured,
+              event_categories ( category ),
               event_venues ( venue:venues ( id, name, city ) )
             )
           )
@@ -668,11 +733,17 @@ export function useOrganization(id) {
             .filter(e => e && e.status === 'published')
             .filter(e => new Date(e.start_at).getTime() > Date.now() - 3 * 3600_000)
             .sort((a, b) => new Date(a.start_at) - new Date(b.start_at))
-            .map(e => ({
-              ...e,
-              venue: e.event_venues?.[0]?.venue ?? null,
-              venues: (e.event_venues ?? []).map(ev => ev.venue).filter(Boolean),
-            }))
+            .map(e => {
+              const cats = (e.event_categories ?? []).map(ec => ec.category).filter(Boolean)
+              return {
+                ...e,
+                categories: cats,
+                category: cats[0] ?? 'other',
+                venue: e.event_venues?.[0]?.venue ?? null,
+                venues: (e.event_venues ?? []).map(ev => ev.venue).filter(Boolean),
+                event_categories: undefined,
+              }
+            })
 
           setOrganization({ ...data, events })
         }
@@ -720,8 +791,18 @@ function normalizeEventJoins(event) {
     .map(ea => ea.area)
     .filter(Boolean)
 
+  // Content axis now lives in the event_categories join table. Expose the full
+  // list as `categories`, plus a singular `category` shim (= primary) so the
+  // many components still reading `event.category` keep working until Phase 5
+  // updates them to render the full multi-category set.
+  const categories = (event.event_categories ?? [])
+    .map(ec => ec.category)
+    .filter(Boolean)
+
   return {
     ...event,
+    categories,
+    category:   categories[0] ?? event.category ?? 'other',
     // Backward compat: first venue/org as singular
     venue:      venues[0] ?? null,
     venues,
@@ -732,5 +813,6 @@ function normalizeEventJoins(event) {
     event_venues: undefined,
     event_organizations: undefined,
     event_areas: undefined,
+    event_categories: undefined,
   }
 }

@@ -93,9 +93,11 @@ const SUMMIT_COUNTYFP = '153'
 // City hubs whose canonical entity is administered as a township and
 // thus only appears in COUSUB. Append when adding future
 // township-administered cities to CITIES.
-const COUSUB_FALLBACK_SLUGS = new Set([
-  'copley',
-])
+//
+// Empty today — Copley used to live here before it was folded into
+// the Fairlawn hub. Its COUSUB polygon now routes through
+// MERGE_INTO_SLUG below.
+const COUSUB_FALLBACK_SLUGS = new Set()
 
 // ── Region assignments — townships ──────────────────────────────────
 //
@@ -117,22 +119,51 @@ const TOWNSHIP_REGION = {
   'Coventry':          'southeast-summit-county',
 }
 
-// ── Region assignments — villages ───────────────────────────────────
+// ── Region assignments — places that aggregate into a region ────────
 //
-// Small Summit County villages that don't merit their own hub get
-// rolled into a region too. "Richfield" appears here as a village
-// AND in TOWNSHIP_REGION as a township; they're separate polygons
-// in different shapefiles, both correctly route to the northwest
-// region.
-const VILLAGE_REGION = {
+// Summit County places (villages OR cities) that don't merit their
+// own hub fold into one of the three regional rollups instead.
+// "Richfield" appears here as a village AND in TOWNSHIP_REGION as a
+// township; they're separate polygons in different shapefiles, both
+// correctly route to the northwest region.
+//
+// Twinsburg and Macedonia were previously standalone city hubs but
+// were folded into the northeast region after coverage proved thin —
+// their PLACE polygons land in the NE bag, and their venue.city
+// values surface via the NE hub's cityMatch.
+const PLACE_REGION = {
   'Richfield':      'northwest-summit-county',
   'Peninsula':      'northwest-summit-county',
   'Northfield':     'northeast-summit-county',
   'Boston Heights': 'northeast-summit-county',
   'Reminderville':  'northeast-summit-county',
-  'Silver Lake':    'northeast-summit-county',
+  'Twinsburg':      'northeast-summit-county',
+  'Macedonia':      'northeast-summit-county',
   'Lakemore':       'southeast-summit-county',
   'Mogadore':       'southeast-summit-county',
+}
+
+// ── PLACE / COUSUB → city slug merges ───────────────────────────────
+//
+// Small Summit County places that should be visually and functionally
+// folded into a neighboring city hub rather than rendering as their
+// own polygon or a regional rollup contributor. Each entry maps a
+// TIGER NAME (from EITHER shapefile) to the city slug whose
+// MultiPolygon should absorb its geometry; the absorbing hub's
+// cityMatch already covers the place's venue.city values.
+//
+//   Silver Lake (~2,500 residents, encircled by Stow)       → stow
+//   Munroe Falls (~5,000 residents, river-adjacent to
+//     Tallmadge, shares Stow's school district)             → tallmadge
+//   Norton (~12,000 residents, west of Barberton, shares
+//     the western industrial belt)                          → barberton
+//   Copley Township (~17,000 residents, shares Copley-
+//     Fairlawn schools and library with Fairlawn)           → fairlawn
+const MERGE_INTO_SLUG = {
+  'Silver Lake':  'stow',
+  'Munroe Falls': 'tallmadge',
+  'Norton':       'barberton',
+  'Copley':       'fairlawn',
 }
 
 // ── Per-source slug maps for the individual city hubs ───────────────
@@ -179,7 +210,7 @@ const SOURCES = [
     label:    'PLACE',
     base:     PLACE_BASE,
     slugMap:  SLUG_FOR_NAME_PLACE,
-    regionMap: VILLAGE_REGION,
+    regionMap: PLACE_REGION,
     isTownship: false,
     matches:  () => true,
     download: 'https://www2.census.gov/geo/tiger/TIGER2025/PLACE/tl_2025_39_place.zip',
@@ -199,14 +230,30 @@ const SOURCES = [
 ]
 
 /**
- * Read one shapefile, push individual city features into
- * `cityFeatures`, and add township/village polygons to the regional
- * accumulator. Returns nothing — mutates the accumulators.
+ * Read one shapefile and route every matched feature into the right
+ * accumulator. Mutates the accumulators in place. Three kinds of
+ * matches per feature, in priority order:
+ *
+ *   1. Slug match (a canonical city) — its polygons become the
+ *      primary geometry for that slug.
+ *   2. Merge-into match (Silver Lake → stow) — its polygons get
+ *      appended to a city slug that's already (or about to be)
+ *      populated by its own primary match.
+ *   3. Region match (a township or village in PLACE_REGION /
+ *      TOWNSHIP_REGION) — its polygons fill in a regional rollup.
+ *
+ * Each feature can only match one category — once we've routed it,
+ * we move on.
  */
-async function readSource(source, cityFeatures, citySeen, regionPolys) {
+async function readSource(source, cityPolys, cityPrimary, regionPolys) {
   const wantsCities  = Object.keys(source.slugMap).length > 0
   const wantsRegions = Object.keys(source.regionMap).length > 0
-  if (!wantsCities && !wantsRegions) return
+  // MERGE_INTO_SLUG is global — both PLACE and COUSUB can contribute
+  // merged polygons (Copley's NAME is in COUSUB; Silver Lake / Munroe
+  // Falls / Norton come from PLACE). The match is by NAME so any
+  // source with the matching key fires.
+  const wantsMerge   = true
+  if (!wantsCities && !wantsRegions && !wantsMerge) return
 
   try {
     await stat(`${source.base}.shp`)
@@ -251,21 +298,31 @@ async function readSource(source, cityFeatures, citySeen, regionPolys) {
     //    when our city hub is the township flavor (Copley).
     const citySlug = source.slugMap[name]
     if (citySlug && (!source.isTownship || isTownshipFeature)) {
-      if (citySeen.has(citySlug)) {
+      if (cityPrimary[citySlug]) {
         throw new Error(
           `Duplicate NAME match "${name}" → "${citySlug}" in ${source.label}.`,
         )
       }
-      citySeen.add(citySlug)
-      cityFeatures.push({
-        type: 'Feature',
-        properties: { slug: citySlug, name, source: source.label },
-        geometry: reprojectGeometry(geometry),
-      })
-      continue   // a feature is either a city OR a regional contributor, never both
+      const polys = toMultiPolygonCoords(reprojectGeometry(geometry))
+      cityPolys[citySlug].push(...polys)
+      cityPrimary[citySlug] = { name, source: source.label }
+      continue
     }
 
-    // 2. Regional rollup match. For COUSUB regions we require
+    // 2. Merge-into match (Silver Lake → stow, Copley → fairlawn,
+    //    etc.). Appends to a city slug's polygon bag without claiming
+    //    the slug — the primary city polygon still has to come from a
+    //    slugMap match elsewhere. For COUSUB merges we require
+    //    township flavor (same gate as the region path) so a same-NAME
+    //    city COUSUB doesn't double-merge alongside its PLACE feature.
+    const mergeTargetSlug = MERGE_INTO_SLUG[name]
+    if (mergeTargetSlug && (!source.isTownship || isTownshipFeature)) {
+      const polys = toMultiPolygonCoords(reprojectGeometry(geometry))
+      cityPolys[mergeTargetSlug].push(...polys)
+      continue
+    }
+
+    // 3. Regional rollup match. For COUSUB regions we require
     //    township flavor to avoid scooping up the city features
     //    (which have the same NAME).
     const regionSlug = source.regionMap[name]
@@ -278,23 +335,32 @@ async function readSource(source, cityFeatures, citySeen, regionPolys) {
 
 // ── Main ────────────────────────────────────────────────────────────
 async function main() {
-  const cityFeatures = []
-  const citySeen     = new Set()
+  // One polygon-array accumulator per city slug, so a single city
+  // can absorb extras from MERGE_INTO_SLUG (Silver Lake → stow) and
+  // still emit one Feature at the end.
+  const cityPolys = Object.fromEntries(
+    CITIES.map((c) => [c.slug, []]),
+  )
+  // Records the primary match for each slug — its NAME (for the
+  // emitted feature's properties.name) and source label (for the
+  // run summary). Stays empty for slugs that haven't been matched
+  // yet, which the post-load validator below relies on.
+  const cityPrimary = {}
 
   // One polygon-array accumulator per region. We emit a single
-  // MultiPolygon Feature per region at the end, with .coordinates set
-  // to this array.
+  // MultiPolygon Feature per region at the end.
   const regionPolys = Object.fromEntries(
     REGIONS.map((r) => [r.slug, []]),
   )
 
   for (const source of SOURCES) {
-    await readSource(source, cityFeatures, citySeen, regionPolys)
+    await readSource(source, cityPolys, cityPrimary, regionPolys)
   }
 
-  // Validate city coverage — same hard failure as before.
+  // Validate city coverage — every canonical slug needs a primary
+  // match. Merge-only matches don't count.
   const expectedCities = new Set(CITIES.map((c) => c.slug))
-  const missing = [...expectedCities].filter((s) => !citySeen.has(s))
+  const missing = [...expectedCities].filter((s) => !cityPrimary[s])
   if (missing.length > 0) {
     console.error(
       `\nMissing ${missing.length} canonical Summit County cities after ` +
@@ -306,6 +372,19 @@ async function main() {
     }
     process.exit(1)
   }
+
+  // Build one Feature per city slug. Polygons come from cityPolys —
+  // which may include merged sources like Silver Lake — emitted as
+  // a MultiPolygon so the consumer doesn't have to branch by type.
+  const cityFeatures = CITIES.map((c) => ({
+    type: 'Feature',
+    properties: {
+      slug:   c.slug,
+      name:   cityPrimary[c.slug].name,
+      source: cityPrimary[c.slug].source,
+    },
+    geometry: { type: 'MultiPolygon', coordinates: cityPolys[c.slug] },
+  }))
 
   // Validate region coverage — at least one polygon per region.
   // Empty regions usually mean a NAME drift in TIGER (e.g. a township
@@ -320,7 +399,7 @@ async function main() {
       console.error(`   - ${r.slug}  (${r.label})`)
     }
     console.error(
-      `\nCheck the TOWNSHIP_REGION / VILLAGE_REGION maps in this\n` +
+      `\nCheck the TOWNSHIP_REGION / PLACE_REGION maps in this\n` +
       `script — TIGER may have renamed or restructured a township\n` +
       `or village.\n`,
     )

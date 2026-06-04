@@ -1,20 +1,8 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { SEO } from '@/lib/seo'
+import { ADMIN_CATEGORIES as CATEGORIES } from '@/lib/categories'
 import './SubmitPage.css'
-
-const CATEGORIES = [
-  { value: 'music',     label: 'Music' },
-  { value: 'art',       label: 'Art' },
-  { value: 'nonprofit', label: 'Non-Profit / Fundraiser' },
-  { value: 'community', label: 'Community' },
-  { value: 'food',      label: 'Food & Drink' },
-  { value: 'sports',    label: 'Sports' },
-  { value: 'fitness',   label: 'Fitness' },
-  { value: 'education', label: 'Education' },
-  { value: 'nature',    label: 'Nature' },
-  { value: 'other',     label: 'Other' },
-]
 
 export default function SubmitPage() {
   const [form,    setForm]    = useState({
@@ -41,7 +29,6 @@ export default function SubmitPage() {
         description:     form.description || null,
         start_at:        form.start_at,
         end_at:          form.end_at || null,
-        category:        form.category,
         ticket_url:      form.ticket_url || null,
         // For user-submitted events the "Ticket / RSVP link" is the
         // only outbound URL we capture, so mirror it into source_url
@@ -64,6 +51,14 @@ export default function SubmitPage() {
         .select('id')
         .single()
       if (insertError) throw insertError
+
+      // Content category now lives in the event_categories join table.
+      if (form.category) {
+        const { error: catError } = await supabase
+          .from('event_categories')
+          .insert({ event_id: inserted.id, category: form.category })
+        if (catError) console.warn('[submit] event_categories insert failed', catError)
+      }
 
       // Fire the operator notification email. Wrapped so a function
       // hiccup never blocks the user-facing success — the row is

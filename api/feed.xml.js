@@ -66,7 +66,10 @@ function itemEntry(event) {
     `    <guid isPermaLink="true">${xmlEscape(url)}</guid>`,
     `    <pubDate>${rfc822(event.created_at || event.updated_at || event.start_at)}</pubDate>`,
     `    <description>${xmlEscape(summary)}</description>`,
-    event.category ? `    <category>${xmlEscape(event.category)}</category>` : '',
+    ...(event.event_categories ?? [])
+      .map((ec) => ec.category)
+      .filter(Boolean)
+      .map((c) => `    <category>${xmlEscape(c)}</category>`),
     `    <source url="${xmlEscape(SITE_ORIGIN + '/feed.xml')}">${xmlEscape(FEED_TITLE)}</source>`,
     '  </item>',
   ].filter(Boolean).join('\n')
@@ -91,8 +94,9 @@ export default async function handler(req, res) {
   const { data, error } = await supabase
     .from('events')
     .select(`
-      id, title, description, category,
+      id, title, description,
       start_at, created_at, updated_at,
+      event_categories ( category ),
       event_venues ( venue:venues ( name ) )
     `)
     .eq('status', 'published')

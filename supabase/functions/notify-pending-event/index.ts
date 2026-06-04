@@ -213,7 +213,7 @@ interface EventRow {
   description: string | null
   start_at: string
   end_at: string | null
-  category: string
+  event_categories?: { category: string }[]
   tags: string[] | null
   price_min: number | null
   price_max: number | null
@@ -241,7 +241,7 @@ function buildNotificationHtml(
 
   const rows: { label: string; value: string; mono?: boolean }[] = [
     { label: 'Title',       value: escapeHtml(event.title) },
-    { label: 'Category',    value: escapeHtml(event.category) },
+    { label: 'Categories',  value: escapeHtml((event.event_categories ?? []).map((ec) => ec.category).join(', ') || '—') },
     { label: 'Starts',      value: escapeHtml(fmtDateTime(event.start_at)) },
   ]
   if (event.end_at) rows.push({ label: 'Ends', value: escapeHtml(fmtDateTime(event.end_at)) })
@@ -414,7 +414,7 @@ async function handleNotify(req: Request): Promise<Response> {
   // is readable here even when the public anon read policy excludes it.
   const { data: event, error: fetchErr } = await supabase
     .from('events')
-    .select('id, title, description, start_at, end_at, category, tags, price_min, price_max, age_restriction, ticket_url, source, status')
+    .select('id, title, description, start_at, end_at, tags, price_min, price_max, age_restriction, ticket_url, source, status, event_categories(category)')
     .eq('id', eventId)
     .single()
 

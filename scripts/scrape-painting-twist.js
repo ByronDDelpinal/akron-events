@@ -295,7 +295,7 @@ async function processEvents(events, venueId, organizerId) {
         description:     null,
         start_at:        startAt,
         end_at:          null,
-        category:        'art',
+        category:        'visual-art',
         tags:            ['paint-and-sip', 'art', 'fairlawn', 'social', 'date-night', 'girls-night'],
         price_min:       ev.price_min,
         price_max:       ev.price_max,

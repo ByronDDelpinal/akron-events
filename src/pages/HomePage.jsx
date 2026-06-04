@@ -124,12 +124,18 @@ export default function HomePage() {
 
   // ── Derived: what to pass to useEvents ────────────────────────────────
   const activeIntent      = INTENTS.find(i => i.id === activeIntentId) ?? null
-  // Tray raw categories narrow; if empty, fall back to intent's categories
+  const intentFacets      = activeIntent?.facets ?? []
+  // Tray raw categories narrow; if empty, fall back to intent's categories.
+  // Facet-only intents (Family, Give Back) carry no categories — they filter
+  // purely on the facet flags below.
   const effectiveCategories = rawCategories.length > 0
     ? rawCategories
-    : (activeIntent?.freeOnly ? [] : (activeIntent?.categories ?? []))
-  // freeOnly is true when intent is Free Fun, OR tray price is 'free'
-  const effectiveFreeOnly = (activeIntent?.freeOnly ?? false) || priceFilter === 'free'
+    : (activeIntent?.categories ?? [])
+  // Facet flags from the active intent (the new cross-cutting axis).
+  const effectiveFamily     = intentFacets.includes('family')
+  const effectiveFundraiser = intentFacets.includes('fundraiser')
+  // freeOnly is true when the intent carries the 'free' facet, OR tray price is 'free'
+  const effectiveFreeOnly = intentFacets.includes('free') || priceFilter === 'free'
   // priceMax only applies when not using freeOnly
   const effectivePriceMax = effectiveFreeOnly ? null : priceFilter
 
@@ -163,7 +169,7 @@ export default function HomePage() {
 
   // Track the filter signature so we can reset pagination on any change
   const activePageSize = cardViewMode === 'efficient' ? COMPACT_PAGE_SIZE : PAGE_SIZE
-  const filterKey = `${activeIntentId}|${effectiveCategories.join(',')}|${dateRange}|${dateFrom}|${dateTo}|${search}|${effectiveFreeOnly}|${effectivePriceMax}|${sort}|${cardViewMode}`
+  const filterKey = `${activeIntentId}|${effectiveCategories.join(',')}|${effectiveFamily}|${effectiveFundraiser}|${dateRange}|${dateFrom}|${dateTo}|${search}|${effectiveFreeOnly}|${effectivePriceMax}|${sort}|${cardViewMode}`
   const prevFilterKey = useRef(filterKey)
 
   // On filter change: signal a refresh but keep old events visible
@@ -179,6 +185,8 @@ export default function HomePage() {
   // ── Data fetch (one page at a time) ───────────────────────────────────
   const { events: page, loading, error, total, hasMore } = useEvents({
     categories: effectiveCategories,
+    family:        effectiveFamily,
+    fundraiser:    effectiveFundraiser,
     dateRange, dateFrom, dateTo,
     search,
     freeOnly:      effectiveFreeOnly,
@@ -191,6 +199,8 @@ export default function HomePage() {
   // Separate unpaginated fetch for the map — same filters, all results
   const { events: mapEvents, loading: mapLoading, total: mapTotal } = useMapEvents({
     categories: effectiveCategories,
+    family:        effectiveFamily,
+    fundraiser:    effectiveFundraiser,
     dateRange, dateFrom, dateTo,
     search,
     freeOnly:      effectiveFreeOnly,
@@ -414,6 +424,7 @@ export default function HomePage() {
       {(ENABLED_CATEGORY_HUBS.length + ENABLED_NEIGHBORHOOD_HUBS.length) > 0 && (
         <nav className="home-hub-strip" aria-label="Browse Akron events by category and neighborhood">
           <p className="home-hub-strip-label">Popular searches</p>
+          <div className="home-hub-strip-scroll-wrap">
           <ul className="home-hub-strip-list">
             {ENABLED_CATEGORY_HUBS.map((h) => (
               <li key={`cat-${h.slug}`}>
@@ -426,6 +437,7 @@ export default function HomePage() {
               </li>
             ))}
           </ul>
+          </div>
         </nav>
       )}
 

@@ -23,6 +23,7 @@ export default function EventsListPage() {
       .from('events')
       .select(`
         *,
+        event_categories ( category ),
         event_venues ( venue_id, venue:venues ( id, name ) ),
         event_organizations ( organization_id, organization:organizations ( id, name ) ),
         event_areas ( area_id, area:areas ( id, name ) )
@@ -94,7 +95,7 @@ export default function EventsListPage() {
                     <Link to={`/admin/events/${event.id}/edit`} className="admin-td-link">{event.title}</Link>
                   </td>
                   <td><StatusBadge status={event.status} /></td>
-                  <td>{event.category}</td>
+                  <td>{(event.event_categories ?? []).map(ec => ec.category).join(', ')}</td>
                   <td className="admin-td-nowrap">
                     {event.start_at ? format(new Date(event.start_at), 'MMM d, yyyy') : '—'}
                   </td>

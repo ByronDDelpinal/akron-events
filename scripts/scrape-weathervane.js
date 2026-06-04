@@ -243,7 +243,7 @@ async function processShows(shows, venueId, organizerId) {
         description:     null,
         start_at:        startAt,
         end_at:          null,
-        category:        'art',
+        category:        'theater',
         tags:            ['theatre', 'community-theatre', 'live-performance', 'akron'],
         price_min:       20,
         price_max:       null,
