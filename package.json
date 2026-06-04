@@ -66,6 +66,7 @@
     "check:venues:quiet": "node scripts/check-venue-duplicates.js --quiet",
     "gis:convert": "node scripts/convert-neighborhoods.js",
     "gis:convert-summit": "node scripts/convert-summit-county.js",
+    "gis:convert-cities": "node scripts/convert-summit-cities.js",
     "classify:venues": "node scripts/classify-venues-by-polygon.js",
     "classify:venues:execute": "node scripts/classify-venues-by-polygon.js --execute"
   },

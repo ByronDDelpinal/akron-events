@@ -1,0 +1,190 @@
+/**
+ * SummitCountyMap.css
+ *
+ * Visual treatment matches NeighborhoodMap.css — same color tokens,
+ * same active/selected/idle vocabulary — so users moving between the
+ * county-level map and the neighborhood-level map see one consistent
+ * language. Class names are namespaced so the two stylesheets can
+ * coexist without interfering when the maps end up on the same page.
+ *
+ * Like NeighborhoodMap, this stylesheet deliberately omits a :hover
+ * fill rule on the polygons. The map is click-driven so behavior
+ * reads identically on desktop and touch.
+ */
+
+.summit-county-map {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Loading / error states ─────────────────────────────────────── */
+.summit-county-map--loading,
+.summit-county-map--unavailable {
+  min-height: 280px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg-card, var(--bg, #fff));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.summit-county-map--unavailable code {
+  font-family: var(--font-mono, monospace);
+  background: var(--bg-secondary, var(--border));
+  color: var(--text);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+}
+
+.summit-county-map-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.summit-county-map--loading {
+  animation: summit-county-map-loading-pulse 1.4s ease-in-out infinite;
+}
+@keyframes summit-county-map-loading-pulse {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .summit-county-map--loading { animation: none; }
+}
+
+/* ── SVG frame ──────────────────────────────────────────────────── */
+.summit-county-map-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--bg-card, var(--bg, #fff));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  overflow: hidden;
+}
+
+/* ── Polygon shapes ─────────────────────────────────────────────── */
+
+.summit-county-map-shape {
+  fill: var(--bg-secondary, var(--border));
+  stroke: var(--border-mid, var(--border));
+  stroke-width: 1;
+  stroke-linejoin: round;
+  transition: fill 0.12s ease, stroke 0.12s ease, stroke-width 0.12s ease;
+  cursor: pointer;
+  outline: none;
+}
+
+/* Selected state — applied only when the user explicitly clicks a
+   polygon. Coral (the theme's secondary accent) is visually distinct
+   from the brand amber used for the active hub. */
+.summit-county-map-shape--selected {
+  fill: var(--coral-tint-25, var(--coral-tint-15, rgba(188, 79, 40, 0.25)));
+  stroke: var(--coral, currentColor);
+  stroke-width: 1.5;
+}
+
+/* Active polygon — brand amber, fully saturated, no pointer interaction
+   because it's the current page. */
+.summit-county-map-shape--active {
+  fill: var(--amber, #96671E);
+  stroke: var(--amber-hover, var(--amber, #7A5416));
+  stroke-width: 2;
+  cursor: default;
+}
+
+/* Keyboard focus ring on the link wrapping each shape — focus-visible
+   only so mouse users don't see it on every click. */
+.summit-county-map a {
+  outline: none;
+}
+.summit-county-map a:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Panel ──────────────────────────────────────────────────────── */
+.summit-county-map-panel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-card, var(--bg, #fff));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  min-height: 56px;
+}
+
+.summit-county-map-panel-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.summit-county-map-panel-eyebrow {
+  margin: 0 0 2px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.summit-county-map-panel-name {
+  margin: 0;
+  font-family: var(--font-display, inherit);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary, var(--text, inherit));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.summit-county-map-panel-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--amber, #96671E);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  font-family: var(--font-display, inherit);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, transform 0.06s;
+}
+.summit-county-map-panel-go:hover {
+  background: var(--amber-hover, var(--amber, #7A5416));
+}
+.summit-county-map-panel-go:active {
+  transform: scale(0.97);
+}
+.summit-county-map-panel-go:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+.summit-county-map-panel-hint {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 0 4px;
+  margin: 0;
+}

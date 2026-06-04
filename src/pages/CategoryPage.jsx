@@ -32,13 +32,14 @@
  *   - JSON-LD @graph: BreadcrumbList, ItemList of upcoming events
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useEvents, PAGE_SIZE } from '@/hooks/useEvents'
 import EventCard from '@/components/EventCard'
 import ShareButtons from '@/components/ShareButtons'
 import NewsletterCTA from '@/components/NewsletterCTA'
 import NeighborhoodMap from '@/components/NeighborhoodMap'
+import SummitCountyMap from '@/components/SummitCountyMap'
 import SourceOverflowCard from '@/components/SourceOverflowCard'
 import DateHeading from '@/components/DateHeading'
 import { groupEventsByDate, applySourceCap } from '@/lib/eventGrouping'
@@ -57,8 +58,10 @@ import {
   getHub,
   getCategoryHub,
   getNeighborhoodHub,
+  getCityHub,
 } from '@/lib/seo'
 import { NEIGHBORHOOD_SLUGS } from '@/lib/neighborhoods'
+import { CITY_SLUGS, AKRON_SLUG, AKRON_LABEL } from '@/lib/cities'
 import { eventPath } from '@/lib/slug'
 import './CategoryPage.css'
 
@@ -138,8 +141,15 @@ export default function CategoryPage() {
   // homepage chips — only people with the URL see it.
   if (!hub || (hub.disabled && !hub.preview)) return <Navigate to="/" replace />
 
-  const isCategory = !!getCategoryHub(slug)
+  const isCategory     = !!getCategoryHub(slug)
   const isNeighborhood = !isCategory && !!getNeighborhoodHub(slug)
+  const isCity         = !isCategory && !isNeighborhood && !!getCityHub(slug)
+  // Akron-the-city is special: it shows the Akron neighborhood map
+  // (not the Summit County map) since users on /events/akron drill
+  // INTO Akron neighborhoods rather than across to other cities.
+  // Every Akron-neighborhood hub also lists Akron as its breadcrumb
+  // parent, which keeps "Home > Akron > Highland Square" valid.
+  const isAkronCity    = isCity && hub.slug === AKRON_SLUG
 
   const lockedDimensions = useMemo(() => getLockedDimensions(hub, isCategory), [hub, isCategory])
 
@@ -248,6 +258,15 @@ export default function CategoryPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [resultsKey,  setResultsKey]  = useState(0)
 
+  // Akron city hub map toggle. Defaults to the neighborhood drill-down
+  // — that's the most useful first view, since 24 polygons are the
+  // user's reason to be on /events/akron at all. Switching to
+  // "summit-county" swaps in the SummitCountyMap with Akron active,
+  // giving a one-click zoom-out without leaving the page. Local state,
+  // not URL-backed: the choice is a UI preference and shouldn't
+  // pollute shareable links.
+  const [akronMapView, setAkronMapView] = useState('neighborhoods')
+
   // Source-overflow expansion state — same pattern as HomePage.
   // Library/CDC/etc. calendars can dominate a single day's listing;
   // the cap shows the first SOURCE_CAP from each source per day, with
@@ -333,18 +352,20 @@ export default function CategoryPage() {
     }
   }, [page, loading, offset])
 
-  // For non-Akron city hubs (Cuyahoga Falls / Stow / Fairlawn &
-  // Copley), apply the client-side cityMatch filter. The polygon set
-  // doesn't cover these municipalities so we can't push down — they
-  // still benefit from infinite scroll, just with an approximate
-  // post-filter count (matches per page vary). Akron-neighborhood and
-  // category hubs pass straight through.
+  // For city hubs (Akron city + every other Summit County city),
+  // apply the client-side cityMatch filter. We don't push city
+  // filtering down to Supabase yet — the neighborhoodSlug inner-join
+  // trick that the Akron-neighborhood hubs use doesn't have a direct
+  // city analog wired up. Hubs still benefit from pagination + the
+  // infinite-scroll grid; counts on those pages are approximate per
+  // page rather than exact. Akron-neighborhood and category hubs
+  // pass straight through (they're already exact server-side).
   const events = useMemo(() => {
-    if (isNeighborhood && !isAkronNeighborhood) {
+    if (isCity) {
       return allEvents.filter((e) => eventMatchesNeighborhood(e, hub))
     }
     return allEvents
-  }, [allEvents, isNeighborhood, isAkronNeighborhood, hub])
+  }, [allEvents, isCity, hub])
 
   const grouped = useMemo(() => groupEventsByDate(events), [events])
 
@@ -384,13 +405,23 @@ export default function CategoryPage() {
     return () => observer.disconnect()
   }, [hasMore, allEvents.length])
 
-  // ── SEO graph ──
+  // ── Breadcrumb trail ──
+  // Akron neighborhoods nest under the Akron city hub so the
+  // hierarchy reads as "Home > Akron > Highland Square". City hubs
+  // (Akron included) sit one level below Home: "Home > Cuyahoga
+  // Falls". Category hubs stay flat under Home as before. The same
+  // trail drives both the visible <nav> and the JSON-LD
+  // BreadcrumbList SEO graph.
   const canonicalPath = `/events/${hub.slug}`
-  const breadcrumb = breadcrumbSchema([
-    { name: 'Home', url: '/' },
-    { name: 'Events', url: '/' },
-    { name: hub.label, url: canonicalPath },
-  ])
+  const breadcrumbTrail = useMemo(() => {
+    const trail = [{ name: 'Home', url: '/' }]
+    if (isNeighborhood) {
+      trail.push({ name: AKRON_LABEL, url: `/events/${AKRON_SLUG}` })
+    }
+    trail.push({ name: hub.label, url: canonicalPath })
+    return trail
+  }, [isNeighborhood, hub.label, canonicalPath])
+  const breadcrumb = breadcrumbSchema(breadcrumbTrail)
   const itemList = itemListSchema(
     events.slice(0, 20).map((e) => ({
       name: e.title,
@@ -427,33 +458,86 @@ export default function CategoryPage() {
        *  the global selector. The semantic site header lives in
        *  the shared <Header /> component. */}
       <div className="hub-header">
+        {/* Breadcrumb. Driven by breadcrumbTrail so the visible
+            navigation and the JSON-LD BreadcrumbList stay in lockstep.
+            The final crumb is rendered as plain text since it's the
+            current page; earlier crumbs are clickable links. */}
         <nav className="hub-breadcrumb" aria-label="Breadcrumb">
-          <Link to="/">Home</Link>
-          <span aria-hidden="true">›</span>
-          <span>{hub.label}</span>
+          {breadcrumbTrail.map((crumb, i) => {
+            const isLast = i === breadcrumbTrail.length - 1
+            return (
+              <Fragment key={crumb.url}>
+                {i > 0 && <span aria-hidden="true">›</span>}
+                {isLast
+                  ? <span aria-current="page">{crumb.name}</span>
+                  : <Link to={crumb.url}>{crumb.name}</Link>}
+              </Fragment>
+            )
+          })}
         </nav>
         <h1 className="hub-h1">{hub.h1}</h1>
 
         {/* Hero body.
          *
-         * Neighborhood hubs whose slug matches one of the 24
-         * canonical Akron neighborhoods (NEIGHBORHOOD_SLUGS) get a
-         * two-column hero: intro paragraph on the left, interactive
-         * neighborhood map on the right. The map is driven by
-         * public/akron-neighborhoods.geojson — the active polygon
-         * is brand-highlighted, hovered polygons light up in coral
-         * (the secondary accent), and clicking any non-active
-         * polygon navigates to that neighborhood's hub page. The
-         * grid collapses to a single column on narrow viewports —
-         * see CategoryPage.css.
+         * Three map-driven hero layouts, picked by hub type:
          *
-         * Non-Akron city hubs (Cuyahoga Falls, Stow, Fairlawn &
-         * Copley) and category hubs keep the single-column intro
-         * since the polygon set only covers Akron city limits. */}
-        {isNeighborhood && NEIGHBORHOOD_SLUGS.has(hub.slug) ? (
+         *   - Akron neighborhood hub: NeighborhoodMap with this
+         *     neighborhood active. User can click another polygon to
+         *     pivot inside Akron.
+         *   - Akron city hub (/events/akron): NeighborhoodMap with
+         *     no active slug. The map IS the discovery surface for
+         *     drilling into a specific neighborhood.
+         *   - Any other city hub (/events/cuyahoga-falls, etc.):
+         *     SummitCountyMap with this city active. User can click
+         *     across to other Summit County cities — or to Akron,
+         *     which lands on the neighborhood-drill version above.
+         *   - Category hubs and anything else: single-column intro
+         *     with no map.
+         *
+         * The grid collapses to single column on narrow viewports —
+         * see CategoryPage.css. */}
+        {isNeighborhood ? (
           <div className="hub-hero-grid">
             <p className="hub-intro hub-intro--with-map">{hub.intro}</p>
             <NeighborhoodMap activeSlug={hub.slug} />
+          </div>
+        ) : isAkronCity ? (
+          <div className="hub-hero-grid">
+            <p className="hub-intro hub-intro--with-map">{hub.intro}</p>
+            <div className="akron-map-stack">
+              {/* Map swap — default is the neighborhood drill-down;
+                  toggle below switches to the county-level zoom-out
+                  with Akron pre-selected. */}
+              {akronMapView === 'neighborhoods'
+                ? <NeighborhoodMap activeSlug={null} activeLabelOverride="all of Akron" />
+                : <SummitCountyMap activeSlug={AKRON_SLUG} />}
+
+              {/* Zoom-level dropdown.
+               *  Sits under the map so it reads as a meta-control on
+               *  the widget rather than a competing primary action.
+               *  Local state only — not URL-backed — because the
+               *  view is a personal preference, not a shareable
+               *  filter dimension. */}
+              <div className="akron-map-toggle">
+                <label htmlFor="akron-map-toggle-select" className="akron-map-toggle-label">
+                  View
+                </label>
+                <select
+                  id="akron-map-toggle-select"
+                  className="akron-map-toggle-select"
+                  value={akronMapView}
+                  onChange={(e) => setAkronMapView(e.target.value)}
+                >
+                  <option value="neighborhoods">Akron Neighborhoods</option>
+                  <option value="summit-county">Summit County</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        ) : isCity ? (
+          <div className="hub-hero-grid">
+            <p className="hub-intro hub-intro--with-map">{hub.intro}</p>
+            <SummitCountyMap activeSlug={hub.slug} />
           </div>
         ) : (
           <p className="hub-intro">{hub.intro}</p>
@@ -467,7 +551,7 @@ export default function CategoryPage() {
             url={canonicalPath}
             title={hub.h1}
             text={hub.metaDescription}
-            campaign={isCategory ? 'category_hub' : 'neighborhood_hub'}
+            campaign={isCategory ? 'category_hub' : isCity ? 'city_hub' : 'neighborhood_hub'}
           />
         </div>
 
@@ -638,7 +722,7 @@ export default function CategoryPage() {
           gets the prompt before they decide to leave the page. */}
       <NewsletterCTA
         variant="hub"
-        surface={isCategory ? 'category_hub' : 'neighborhood_hub'}
+        surface={isCategory ? 'category_hub' : isCity ? 'city_hub' : 'neighborhood_hub'}
       />
 
       {related.length > 0 && (

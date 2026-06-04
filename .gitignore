@@ -46,3 +46,11 @@ design-proposals/
 # vendored skill content — managed by skills-lock.json; re-sync locally
 .agents/
 .claude/skills/
+
+# raw GIS source shapefiles — too large for git (Census TIGER files
+# regularly exceed GitHub's 100 MB single-file limit). The conversion
+# scripts in scripts/convert-*.js emit the compact GeoJSON we ship
+# into public/, which IS committed.
+data/gis/us_county_boundaries/
+data/gis/ohio_places/
+data/gis/ohio_county_subs/

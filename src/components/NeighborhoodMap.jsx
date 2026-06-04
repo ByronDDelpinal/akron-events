@@ -54,7 +54,14 @@
  *
  * Props:
  *   activeSlug — slug of the neighborhood whose hub page is currently
- *     rendered. Receives the brand highlight; clicks do nothing.
+ *     rendered. Receives the brand highlight; clicks do nothing. Pass
+ *     null when rendering the map in a context that has no active
+ *     neighborhood (e.g. the Akron city hub — see the override below).
+ *   activeLabelOverride — optional. When set, replaces the panel's
+ *     name line so a parent can show something other than a literal
+ *     neighborhood label. Used on the Akron city hub to render
+ *     "You're viewing | all of Akron" instead of the dash fallback
+ *     you'd otherwise get from a null activeSlug.
  *   className — optional, lets the parent control layout slot.
  */
 
@@ -159,7 +166,7 @@ const PAD    = 12
 
 // ── Component ──────────────────────────────────────────────────────
 
-export default function NeighborhoodMap({ activeSlug, className }) {
+export default function NeighborhoodMap({ activeSlug, activeLabelOverride, className }) {
   const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
@@ -232,7 +239,8 @@ export default function NeighborhoodMap({ activeSlug, className }) {
     )
   }
 
-  const activeLabel   = activeSlug   ? NEIGHBORHOOD_LABELS[activeSlug]   : null
+  const activeLabel = activeLabelOverride
+    ?? (activeSlug ? NEIGHBORHOOD_LABELS[activeSlug] : null)
   const selectedLabel = selectedSlug ? NEIGHBORHOOD_LABELS[selectedSlug] : null
   const hasSelection  = selectedSlug && selectedSlug !== activeSlug
 

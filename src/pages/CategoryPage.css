@@ -90,6 +90,72 @@
   }
 }
 
+/* ── Akron city hub map stack ──────────────────────────────────────
+ *
+ * The Akron city hub (and only the Akron city hub) lets the user
+ * swap between the Akron-neighborhood drill-down and the Summit
+ * County zoom-out. The map + toggle live in this stack so they read
+ * as one widget; the toggle sits below so it doesn't compete with
+ * the map's own panel and button for visual weight.
+ */
+.akron-map-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.akron-map-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--bg-card, var(--bg, #fff));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+}
+
+.akron-map-toggle-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Native <select> with a tasteful caret painted via background-image
+   so the control reads as a single element. Mirrors the styling on
+   .hub-filters-sort-select so users see a familiar dropdown shape
+   across the hub UI. */
+.akron-map-toggle-select {
+  flex: 1;
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 6px 30px 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background-color: var(--bg, #fff);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'><path d='M1 1l4 4 4-4' stroke='%23808080' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  color: var(--text);
+  font-family: var(--font-display, inherit);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.akron-map-toggle-select:hover {
+  border-color: var(--amber);
+}
+
+.akron-map-toggle-select:focus-visible {
+  outline: none;
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-tint-15, rgba(150, 103, 30, 0.15));
+}
+
 .hub-share {
   margin-bottom: 36px;
 }
