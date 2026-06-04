@@ -5,11 +5,22 @@
  *
  * Renders public/akron-neighborhoods.geojson directly as SVG paths,
  * keyed by canonical slug. The active neighborhood is filled with the
- * theme's brand color (`--amber`), siblings are muted, hovered
+ * theme's brand color (`--amber`), siblings are muted, previewed
  * siblings light up in the theme's secondary accent (`--coral`) so
- * the "you are here" highlight and the "this is hoverable" highlight
- * never conflict visually. Clicking any non-active polygon navigates
- * to that neighborhood's hub page.
+ * the "you are here" highlight and the "this is the one you tapped"
+ * highlight never conflict visually.
+ *
+ * Interaction model — unified across desktop and touch:
+ *   1. Click any polygon → it highlights and the panel below shows
+ *      its name with a "View {name} events →" button.
+ *   2. Click that button to navigate.
+ *   Polygon clicks never navigate directly. This deliberately
+ *   sacrifices a desktop-power-user shortcut for a single, predictable
+ *   model that's equally usable on a phone — where hover doesn't
+ *   exist and accidentally opening a hub by tapping a small polygon
+ *   was the biggest friction point. The button also gives the user
+ *   a clear "back out" by selecting another polygon before
+ *   committing.
  *
  * Why fetch the GeoJSON at runtime instead of inlining it:
  *   - 419 KB of polygon data does not belong in the JS bundle every
@@ -152,7 +163,11 @@ export default function NeighborhoodMap({ activeSlug, className }) {
   const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
-  const [hoveredSlug, setHoveredSlug] = useState(null)
+  // selectedSlug is the polygon the user has clicked but hasn't
+  // committed to opening yet. The panel and polygon highlight both
+  // react to it; only the "View events" button reads from it to
+  // actually navigate.
+  const [selectedSlug, setSelectedSlug] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -161,6 +176,12 @@ export default function NeighborhoodMap({ activeSlug, className }) {
       .catch((e) => { if (!cancelled) setError(e.message) })
     return () => { cancelled = true }
   }, [])
+
+  // Reset selection whenever the active hub changes. Without this, a
+  // user who selected a polygon, then navigated via some other path
+  // would land on a new hub still showing the stale selection from
+  // the previous page.
+  useEffect(() => { setSelectedSlug(null) }, [activeSlug])
 
   // Pre-compute SVG paths once per dataset. Re-renders driven by hover
   // state never recompute the geometry — only the className changes.
@@ -211,13 +232,21 @@ export default function NeighborhoodMap({ activeSlug, className }) {
     )
   }
 
-  const activeLabel = activeSlug ? NEIGHBORHOOD_LABELS[activeSlug] : null
-  const hoveredLabel = hoveredSlug ? NEIGHBORHOOD_LABELS[hoveredSlug] : null
-  // The caption shows whichever name is most informative at the moment:
-  // the hovered one if it isn't the active hub, otherwise the active
-  // one — so the user always knows what their pointer is over.
-  const captionLabel =
-    hoveredSlug && hoveredSlug !== activeSlug ? hoveredLabel : activeLabel
+  const activeLabel   = activeSlug   ? NEIGHBORHOOD_LABELS[activeSlug]   : null
+  const selectedLabel = selectedSlug ? NEIGHBORHOOD_LABELS[selectedSlug] : null
+  const hasSelection  = selectedSlug && selectedSlug !== activeSlug
+
+  // Click handler for non-active polygons. Selecting only — never
+  // navigating. The dedicated button below is the one and only
+  // commit surface for opening a hub.
+  const handlePolygonClick = (e, slug) => {
+    // Modified clicks (ctrl/cmd/shift/middle) fall through to the
+    // native <a> for new-tab behavior — those users explicitly want
+    // to open the link, so we honor it.
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+    e.preventDefault()
+    setSelectedSlug(slug)
+  }
 
   return (
     <figure className={`neighborhood-map ${className ?? ''}`}>
@@ -230,68 +259,93 @@ export default function NeighborhoodMap({ activeSlug, className }) {
         {/* One <path> per neighborhood. The active hub renders as a
             plain <g> with aria-current="page" — it's a destination,
             not a navigation target. Every other hub renders as an
-            <a> so click + Enter + middle-click all behave like
-            normal navigation. The href is the real route so SSR
-            crawlers and link-preview tools follow it; React Router
-            intercepts the click event for SPA navigation. */}
+            <a> so the link is still discoverable by screen readers
+            and middle-click / cmd-click can open it in a new tab.
+            Regular clicks only select — see handlePolygonClick — so
+            users have a chance to verify the polygon's name in the
+            panel before committing to a navigation. */}
         {features.map((f) => {
-          const isActive = f.slug === activeSlug
-          const className = `neighborhood-map-shape ${isActive ? 'neighborhood-map-shape--active' : ''}`
+          const isActive   = f.slug === activeSlug
+          const isSelected = f.slug === selectedSlug && !isActive
+          const cls = [
+            'neighborhood-map-shape',
+            isActive   ? 'neighborhood-map-shape--active'   : '',
+            isSelected ? 'neighborhood-map-shape--selected' : '',
+          ].filter(Boolean).join(' ')
+
           if (isActive) {
             return (
               <g key={f.slug} aria-current="page">
                 <title>{f.name}</title>
-                <path d={f.d} className={className} />
+                <path d={f.d} className={cls} />
               </g>
             )
           }
+
           return (
             <a
               key={f.slug}
               href={`/events/${f.slug}`}
-              onClick={(e) => {
-                // Let modified clicks (ctrl/cmd/shift/middle-click)
-                // fall through to native href behavior — that's how
-                // users open hubs in new tabs.
-                if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
-                e.preventDefault()
-                // Tag the navigation with preserveScroll so App.jsx's
-                // scroll-to-top effect skips. Every neighborhood hub
-                // shares the same hero layout (breadcrumb / h1 /
-                // intro+map row), which means leaving the user where
-                // they are leaves the map roughly in the same spot
-                // they were just looking at — far less jarring than
-                // jumping them back to the top of the page on every
-                // polygon click.
-                navigate(`/events/${f.slug}`, { state: { preserveScroll: true } })
-              }}
-              onMouseEnter={() => setHoveredSlug(f.slug)}
-              onMouseLeave={() => setHoveredSlug((s) => (s === f.slug ? null : s))}
-              onFocus={() => setHoveredSlug(f.slug)}
-              onBlur={() => setHoveredSlug((s) => (s === f.slug ? null : s))}
-              aria-label={`Go to ${f.name} events`}
+              onClick={(e) => handlePolygonClick(e, f.slug)}
+              aria-label={`Select ${f.name}`}
             >
               <title>{f.name}</title>
-              <path d={f.d} className={className} />
+              <path d={f.d} className={cls} />
             </a>
           )
         })}
       </svg>
 
-      {/* Caption — surfaces the current label so users on touch
-          devices (no hover) still get feedback about which polygon
-          they tapped, and sighted desktop users get a name reveal
-          on hover without the SVG needing per-polygon labels. */}
-      <figcaption className="neighborhood-map-caption">
-        {captionLabel ? (
-          <>
-            <span className="neighborhood-map-caption-dot" aria-hidden="true" />
-            {captionLabel}
-          </>
-        ) : (
-          'Hover or tap a neighborhood to explore'
+      {/* Sticky panel.
+       *
+       * Default state — nothing selected: shows the active hub's
+       * name as "You're viewing X". Tells the user the map is
+       * interactive without committing to anything.
+       *
+       * Selected state — a non-active polygon has been clicked: the
+       * eyebrow reads "Selected", the name updates, and a
+       * "View {Name} events →" button appears. That button is the
+       * sole navigation surface — clicking polygons never opens a
+       * hub directly. The neighborhood name is interpolated into
+       * the button so the user always sees exactly where they're
+       * about to go before they commit. */}
+      <div className="neighborhood-map-panel">
+        <div className="neighborhood-map-panel-text">
+          <p className="neighborhood-map-panel-eyebrow">
+            {hasSelection ? 'Selected' : "You're viewing"}
+          </p>
+          <p className="neighborhood-map-panel-name">
+            {selectedLabel ?? activeLabel ?? '—'}
+          </p>
+        </div>
+
+        {hasSelection && (
+          <button
+            type="button"
+            className="neighborhood-map-panel-go"
+            onClick={() => navigate(`/events/${selectedSlug}`, { state: { preserveScroll: true } })}
+            aria-label={`View ${selectedLabel} events`}
+          >
+            <span>View {selectedLabel} events</span>
+            <svg
+              width="14" height="14" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor"
+              strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </button>
         )}
-      </figcaption>
+      </div>
+
+      {/* One-line affordance hint, shown only when nothing is
+          selected so it doesn't compete with the button. */}
+      {!hasSelection && (
+        <p className="neighborhood-map-panel-hint">
+          Tap a neighborhood to select it
+        </p>
+      )}
     </figure>
   )
 }

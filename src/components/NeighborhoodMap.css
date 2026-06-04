@@ -3,11 +3,17 @@
  *
  * Visual contract:
  *   idle           — muted fill, thin border (reads as "outline only")
- *   hover/focus    — coral fill (secondary accent — clearly distinct
- *                    from the brand amber so hover never gets
- *                    confused with active)
+ *   selected       — coral fill (secondary accent — clearly distinct
+ *                    from the brand amber so "selected" never gets
+ *                    confused with "active"). Only set after a click;
+ *                    hover does nothing on this map.
  *   active         — brand amber fill, dark stroke, no pointer
  *                    interaction
+ *
+ * No hover styling, by design — the map is click-driven so its
+ * behavior reads identically on desktop and touch. Hover would
+ * suggest interactivity that doesn't move the user closer to
+ * navigating, which was making the mobile experience feel broken.
  *
  * All colors come from the theme token palette so the map adapts to
  * every theme automatically. Tested against the bright/light/dark
@@ -82,11 +88,12 @@
   outline: none;
 }
 
-/* Hover + keyboard focus state. Coral (theme's secondary accent) is
-   visually distinct from amber (brand) so the active polygon stays
-   the clear "selected" signal even when something else is hovered. */
-.neighborhood-map a:hover .neighborhood-map-shape,
-.neighborhood-map a:focus-visible .neighborhood-map-shape {
+/* Selected state — applied via the --selected class when the user
+   clicks a polygon. Coral (the theme's secondary accent) stays
+   visually distinct from the brand amber used on the active hub, so
+   "where you are now" and "where you'll go if you press the button"
+   read as two different signals. */
+.neighborhood-map-shape--selected {
   fill: var(--coral-tint-25, var(--coral-tint-15, rgba(188, 79, 40, 0.25)));
   stroke: var(--coral, currentColor);
   stroke-width: 1.5;
@@ -115,25 +122,102 @@
   border-radius: 4px;
 }
 
-/* ── Caption ───────────────────────────────────────────────────── */
-.neighborhood-map-caption {
-  display: inline-flex;
+/* ── Preview panel ──────────────────────────────────────────────
+ *
+ * Sticky panel below the SVG. Always shows the active hub name as a
+ * baseline ("You're viewing X"). When a non-active polygon is
+ * previewed — by hover on desktop or first-tap on mobile — the panel
+ * swaps to that name with a dedicated "View events" button. The
+ * button is the primary CTA for touch users (tapping the small
+ * polygon a second time is fiddly on phones); on desktop it's a
+ * symmetric alternative to clicking the polygon.
+ */
+.neighborhood-map-panel {
+  display: flex;
   align-items: center;
-  gap: 8px;
-  font-family: var(--font-display, inherit);
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--text-primary, var(--text, inherit));
-  min-height: 1.4em;   /* prevents layout jump as the label changes */
-  padding: 0 4px;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-card, var(--bg, #fff));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  /* Keeps the panel's height steady whether or not the button is
+     showing — prevents layout-shift jiggle on every hover. */
+  min-height: 56px;
 }
 
-.neighborhood-map-caption-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 999px;
-  background: var(--amber);
-  /* Soft outline matches the SVG's active stroke so the dot reads
-     as a mini-legend for the highlighted polygon. */
-  box-shadow: 0 0 0 2px var(--bg-card, #fff), 0 0 0 3px var(--amber-border, var(--amber, #96671E));
+.neighborhood-map-panel-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.neighborhood-map-panel-eyebrow {
+  margin: 0 0 2px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.neighborhood-map-panel-name {
+  margin: 0;
+  font-family: var(--font-display, inherit);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary, var(--text, inherit));
+  /* Long neighborhood names (Highland Square, Fairlawn Heights,
+     Coventry Crossing) need truncation guards on narrow viewports. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.neighborhood-map-panel-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--amber, #96671E);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  font-family: var(--font-display, inherit);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  flex-shrink: 0;
+  /* Touch-friendly hit area — 44px tall is the minimum for comfortable
+     mobile tapping per Apple HIG / WCAG. The horizontal padding +
+     font-size land us there without an explicit min-height. */
+  transition: background 0.15s, transform 0.06s;
+}
+
+.neighborhood-map-panel-go:hover {
+  background: var(--amber-hover, var(--amber, #7A5416));
+}
+
+.neighborhood-map-panel-go:active {
+  transform: scale(0.97);
+}
+
+.neighborhood-map-panel-go:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+/* ── Hint line ──────────────────────────────────────────────────
+ *
+ * One-line affordance copy that surfaces the interaction model on
+ * the user's first viewing of a hub. Hidden during a preview so the
+ * eyebrow's instruction ("Tap again to open") is the only call to
+ * action on screen.
+ */
+.neighborhood-map-panel-hint {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 0 4px;
+  margin: 0;
 }
