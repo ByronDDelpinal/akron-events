@@ -241,13 +241,36 @@ export function parseCost(costStr) {
   return { price_min: min, price_max: max > min ? max : null }
 }
 
-/** Map ACM event category to our category enum */
+/**
+ * Map ACM event to our category enum.
+ *
+ * Defaults to 'community' — the Akron Children's Museum is a
+ * kids/family destination, not a school, and the bulk of its
+ * calendar (open play nights, special events, parties, family
+ * activities) belongs in community. The previous logic defaulted to
+ * 'education' AND escalated any source category containing "program"
+ * to education, which mis-labeled the whole calendar — including
+ * recurring play events like Delight Nights.
+ *
+ * Only escalate to 'education' when the source category OR title
+ * carries an explicit instructional signal: a class, workshop, lesson,
+ * course, camp, school session, or story time. Both fields are
+ * checked together so a generic "Programs" category with title
+ * "Art Class" still resolves correctly.
+ */
 export function mapCategory(categoryStr, title = '') {
-  const lower = (categoryStr || title).toLowerCase()
-  if (lower.includes('program')) return 'education'
-  if (lower.includes('special event') || lower.includes('fundrais')) return 'community'
-  // Museum is primarily education/family
-  return 'education'
+  const text = `${categoryStr || ''} ${title || ''}`.toLowerCase()
+
+  // Fundraisers always slot to community regardless of other signals.
+  if (text.includes('fundrais')) return 'community'
+
+  // Instructional keywords — kept tight on purpose. \b boundaries
+  // stop "classical" / "encampment" / etc. from false-matching, and
+  // "story time" is allowed with or without the space.
+  const EDUCATIONAL = /\b(class(es)?|workshop|lesson|course|camp|school|story\s*time|tutorial)\b/
+  if (EDUCATIONAL.test(text)) return 'education'
+
+  return 'community'
 }
 
 // ── Normalise ─────────────────────────────────────────────────────────────
