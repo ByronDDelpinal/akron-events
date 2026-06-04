@@ -349,6 +349,21 @@
   margin-bottom: 56px;
 }
 
+/* Dim the existing grid while a fresh first page is loading after a
+ * filter change. Same trick HomePage uses (.content--refreshing) —
+ * keep what's on screen visible but signal "results are updating" so
+ * users don't see a content flash. The new page replaces the dim once
+ * it lands. */
+.hub-events--refreshing .cards-grid,
+.hub-events--refreshing .hub-events-grid {
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+/* Legacy single-grid class kept for callers that haven't moved to the
+ * date-grouped renderer yet. The new renderer uses .cards-grid (the
+ * global grid class shared with HomePage) so the visual matches. */
 .hub-events-grid {
   display: grid;
   /* Mirror HomePage comfortable grid: auto-fill cards at min 280px so
@@ -365,39 +380,6 @@
 
 .hub-empty a {
   color: var(--amber);
-}
-
-/* ── FAQ block ─────────────────────────────────────────────────── */
-
-.hub-faq {
-  margin-bottom: 56px;
-  padding-top: 32px;
-  border-top: 1px solid var(--border);
-}
-
-.hub-faq-list {
-  margin: 0;
-  display: grid;
-  gap: 24px;
-}
-
-.hub-faq-item {
-  /* dt/dd inside a div keeps the semantic FAQ structure (helps
-     screen readers + matches the FAQPage JSON-LD pairing). */
-}
-
-.hub-faq-item dt {
-  font-weight: 700;
-  font-size: 1.05rem;
-  margin-bottom: 6px;
-  color: var(--text);
-}
-
-.hub-faq-item dd {
-  margin: 0;
-  color: var(--text-muted);
-  line-height: 1.6;
-  font-size: 0.97rem;
 }
 
 /* ── Related hubs strip ────────────────────────────────────────── */

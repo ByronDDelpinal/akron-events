@@ -33,23 +33,6 @@ export const CATEGORY_HUBS = [
     h1: 'Events in Akron This Weekend',
     intro:
       "Looking for something to do in Akron this weekend? You're in the right place. Every Saturday and Sunday in Summit County brings a fresh lineup of concerts, festivals, art openings, farmers markets, family activities, and community gatherings. Akron Pulse pulls together every published event happening Friday night through Sunday evening in one place — no scrolling between half a dozen venue calendars, no missing the great free thing happening four blocks away. Browse by category below, or jump straight into the full weekend list. Listings update throughout the day as new events get added by venues, organizations, and community submissions.",
-    faqs: [
-      {
-        question: 'What free events are happening in Akron this weekend?',
-        answer:
-          "Akron Pulse lists every free event happening in Akron each weekend, sourced from Lock 3, the Akron Art Museum, Summit Metro Parks, Highland Square, Stan Hywet, the Akron-Summit County Public Library, and community-submitted events. Use the Free filter on the homepage to see only free events.",
-      },
-      {
-        question: 'Where is the best place to find Akron events this weekend?',
-        answer:
-          "Akron Pulse is a free local events directory covering all of Akron and Summit County. We aggregate listings from city venues, museums, parks, theaters, organizations, and community submissions so you can see everything happening in one place — no scrolling between separate venue calendars.",
-      },
-      {
-        question: 'Are there family-friendly events in Akron this weekend?',
-        answer:
-          "Yes — Akron's family-friendly weekend lineup typically includes events at Lock 3, the Akron Zoo, the Akron Children's Museum, Summit Metro Parks, and the Akron-Summit County Public Library. Filter by the Family Fun preset on the homepage to see only kid-friendly events.",
-      },
-    ],
     relatedSlugs: ['today', 'free', 'concerts', 'family'],
     dateRange: 'this_weekend',
   },
@@ -62,18 +45,6 @@ export const CATEGORY_HUBS = [
     h1: 'Things to Do in Akron Today',
     intro:
       "Need plans tonight? This page lists every event happening in Akron, OH today — pulled live from local venues, community organizations, the City of Akron's Lock 3 calendar, the Akron Art Museum, Summit Metro Parks, and dozens of other published sources. Whether you're after a free outdoor concert, a gallery opening, a fitness class, a fundraiser, or a kid-friendly daytime activity, this is the one page worth checking before you head out. Listings auto-refresh throughout the day as new events go live and as today's earlier events conclude.",
-    faqs: [
-      {
-        question: 'What is there to do in Akron tonight?',
-        answer:
-          "Akron Pulse lists every event happening tonight across Akron and Summit County — concerts, art shows, food events, sports, community gatherings, and more. Filter by Free or by category to narrow the list to what fits your evening.",
-      },
-      {
-        question: 'Are there any free events in Akron today?',
-        answer:
-          "Yes — Akron typically has multiple free events every day, especially at Lock 3, Summit Metro Parks, the Akron-Summit County Public Library, and various community venues. Use the Free filter to see only free events happening today.",
-      },
-    ],
     relatedSlugs: ['this-weekend', 'free', 'concerts'],
     dateRange: 'today',
   },
@@ -86,23 +57,6 @@ export const CATEGORY_HUBS = [
     h1: 'Free Events in Akron, OH',
     intro:
       "Akron has one of the best free events scenes in northeast Ohio. Between the City of Akron's Lock 3 summer programming, free admission days at the Akron Art Museum, weekly events at the Akron-Summit County Public Library, programs in Summit Metro Parks, and community festivals across Highland Square, North Hill, Cuyahoga Falls, and downtown, there's almost always something happening that costs nothing. This page collects every free event currently scheduled in Akron Pulse. Free here means an event with a published price of zero — concerts, art openings, library programs, outdoor festivals, fitness classes, lectures, fundraisers with no entry fee, and community gatherings.",
-    faqs: [
-      {
-        question: 'Are there free concerts in Akron?',
-        answer:
-          "Yes — Lock 3 in downtown Akron hosts a free outdoor concert series throughout the summer, and many community festivals, library events, and venue showcases throughout the year include free live music. Check the Free Events page on Akron Pulse for the current list.",
-      },
-      {
-        question: 'What free events does the City of Akron host?',
-        answer:
-          "The City of Akron hosts a long-running free events program at Lock 3 in downtown Akron, including outdoor concerts, family movie nights, holiday celebrations, festivals, and the holiday ice rink. Akron Pulse ingests the official Lock 3 calendar so all of these events appear on the Free Events page.",
-      },
-      {
-        question: 'Is the Akron Art Museum free?',
-        answer:
-          "The Akron Art Museum offers Free Thursdays and various free admission days throughout the year. Special exhibitions and member events may carry a ticket price — check the individual event page for details.",
-      },
-    ],
     relatedSlugs: ['this-weekend', 'concerts', 'family', 'art'],
     freeOnly: true,
   },
@@ -115,23 +69,6 @@ export const CATEGORY_HUBS = [
     h1: 'Concerts & Live Music in Akron, OH',
     intro:
       "Akron's live music scene runs deep — from the Akron Civic Theatre and the Akron Symphony at E.J. Thomas Hall to the rotating bookings at Jilly's Music Room, Blu Jazz+, The Nightlight, Musica, Missing Falls Brewery, and the City of Akron's free Lock 3 outdoor concert series. This page lists every upcoming concert and live music event currently scheduled in Akron and across Summit County. Jazz, indie, classical, country, blues, hip-hop, tribute acts, college shows, and community festivals — they're all here. Use the price filter to narrow down to free concerts only, or pair the concerts filter with the This Weekend or Today date filters to see what's playing right now.",
-    faqs: [
-      {
-        question: "What concerts are coming up in Akron?",
-        answer:
-          "Akron Pulse aggregates every upcoming concert and live music event from local venues including the Akron Civic Theatre, E.J. Thomas Hall, Lock 3, Jilly's Music Room, Blu Jazz+, The Nightlight, Musica, and Missing Falls Brewery. Browse the full concert listings on this page.",
-      },
-      {
-        question: 'Are there free concerts at Lock 3 in Akron?',
-        answer:
-          "Yes — the City of Akron's Lock 3 outdoor stage hosts a free summer concert series each year, plus free seasonal events. All published Lock 3 concerts appear on Akron Pulse.",
-      },
-      {
-        question: 'Where is the Akron Civic Theatre?',
-        answer:
-          "The Akron Civic Theatre is at 182 S Main St, Akron, OH 44308 in downtown Akron. Akron Pulse links directly to its full event calendar.",
-      },
-    ],
     relatedSlugs: ['this-weekend', 'free', 'downtown-akron'],
     categoryFilter: ['music'],
   },
@@ -144,23 +81,6 @@ export const CATEGORY_HUBS = [
     h1: 'Family-Friendly Events in Akron, OH',
     intro:
       "Family-friendly Akron is bigger than most parents realize. Beyond the obvious go-tos — the Akron Zoo, the Akron Children's Museum, Lock 3, and Summit Metro Parks — there's an active calendar of library programs, free outdoor concerts, kid-friendly festivals, fall and winter holiday events, and community days that work for a stroller, a kindergartener, and a tween at the same time. This page filters Akron Pulse to events that are explicitly family-friendly or community-focused: library storytimes, zoo events, parks programs, free outdoor activities, kid-focused workshops, and all-ages community festivals. Pair it with the Free filter to see free family events only, or combine it with the This Weekend filter for weekend plans.",
-    faqs: [
-      {
-        question: 'What family events are happening in Akron this weekend?',
-        answer:
-          "Akron Pulse filters family-friendly events including the Akron Zoo, Children's Museum, Summit Metro Parks programs, library events, and community festivals. Combine the Family page with the This Weekend filter to see this weekend's lineup.",
-      },
-      {
-        question: 'Are Summit Metro Parks events free?',
-        answer:
-          "Most Summit Metro Parks programs and events are free. Akron Pulse ingests the parks calendar so every published park program appears alongside other family-friendly events.",
-      },
-      {
-        question: 'How much does the Akron Children’s Museum cost?',
-        answer:
-          "Check the individual event page for the current admission cost — Akron Pulse links directly to each event's listing where the museum publishes up-to-date pricing.",
-      },
-    ],
     relatedSlugs: ['free', 'this-weekend', 'today', 'outdoor'],
     categoryFilter: ['education', 'community'],
   },
@@ -173,18 +93,6 @@ export const CATEGORY_HUBS = [
     h1: 'Art Shows & Gallery Events in Akron, OH',
     intro:
       "Akron's visual art scene anchors around the Akron Art Museum and Summit Artspace, but spreads across a network of galleries, studios, pop-ups, and event spaces. From the Free Thursday programming at the Art Museum to rotating exhibitions at Summit Artspace, the Akron Soul Train artist residencies, the Akronym Brewing taproom shows, and the larger Highland Square and downtown art walks, the city sustains a working calendar of openings, talks, classes, and immersive shows. This page lists every art-related event currently in Akron Pulse — exhibition openings, gallery shows, museum talks, art classes, and creative workshops.",
-    faqs: [
-      {
-        question: 'When does the Akron Art Museum have free admission?',
-        answer:
-          "The Akron Art Museum offers Free Thursdays. Specific exhibitions and member events may have separate ticketing. Always check the individual event listing for the most current information.",
-      },
-      {
-        question: 'What is the Akron Art Walk?',
-        answer:
-          "The Akron Art Walk is a recurring downtown event where galleries and artist spaces open their doors for free public viewing. Listings appear on Akron Pulse whenever the next walk is scheduled.",
-      },
-    ],
     relatedSlugs: ['free', 'downtown-akron', 'this-weekend'],
     categoryFilter: ['art'],
   },
@@ -197,18 +105,6 @@ export const CATEGORY_HUBS = [
     h1: 'Food & Drink Events in Akron, OH',
     intro:
       "Akron's food and drink calendar covers a lot of ground: weekly farmers markets in Highland Square, Cuyahoga Falls, and Stow; tap takeovers and beer releases at Akronym Brewing, Hoppin' Frog, R. Shea, Missing Falls, and the rest of Akron's brewery row; restaurant-week-style events; pop-up dinners; food truck rallies at Lock 3; and seasonal events like festivals, holiday markets, and brewery anniversaries. This page collects every food-and-drink event currently in Akron Pulse so you can plan around them. Filter by date or pair with the Downtown Akron page to focus on events in a specific area.",
-    faqs: [
-      {
-        question: 'Where can I find a farmers market in Akron?',
-        answer:
-          "Akron has multiple seasonal farmers markets, including Highland Square Farmers Market and markets in Cuyahoga Falls and Stow. Akron Pulse lists every market currently in season.",
-      },
-      {
-        question: 'What food events are at Lock 3?',
-        answer:
-          "Lock 3 hosts food truck rallies, festivals, and free community food events throughout the year. The City of Akron Lock 3 calendar feeds directly into Akron Pulse.",
-      },
-    ],
     relatedSlugs: ['free', 'downtown-akron', 'highland-square', 'this-weekend'],
     categoryFilter: ['food'],
   },
@@ -221,18 +117,6 @@ export const CATEGORY_HUBS = [
     h1: 'Outdoor & Festival Events in Akron',
     intro:
       "Akron sits at the gateway to Cuyahoga Valley National Park and is wrapped in the Summit Metro Parks system — which means the outdoor and festival calendar is unusually deep for a city this size. Hikes, guided walks, running events, riverfront festivals, outdoor concerts at Lock 3, neighborhood block parties, conservancy events at CVNP, and seasonal gatherings in Cuyahoga Falls and downtown all show up here. This page filters Akron Pulse to outdoor, festival, fitness, and nature events so you can plan something that gets you outside.",
-    faqs: [
-      {
-        question: 'What outdoor events are at Cuyahoga Valley National Park?',
-        answer:
-          "Akron Pulse ingests the CVNP Conservancy event calendar, so every published Cuyahoga Valley National Park event appears here — hikes, guided walks, photography events, and conservation programs.",
-      },
-      {
-        question: 'Are Summit Metro Parks events free?',
-        answer:
-          "Most Summit Metro Parks programs are free. Akron Pulse lists every published parks program.",
-      },
-    ],
     relatedSlugs: ['family', 'this-weekend', 'free'],
     categoryFilter: ['nature', 'sports', 'fitness'],
   },
@@ -240,32 +124,38 @@ export const CATEGORY_HUBS = [
 
 // ── Neighborhood / Area hub pages ───────────────────────────────────
 //
-// IMPORTANT: every entry below is currently `disabled: true`.
+// All 24 City-of-Akron neighborhoods get a registry entry. Three
+// non-Akron city hubs (Cuyahoga Falls, Stow, Fairlawn & Copley)
+// follow at the bottom — they're separate municipalities, not Akron
+// neighborhoods, and match by venue.city rather than the polygon
+// slug (see CategoryPage's eventMatchesNeighborhood).
 //
-// The original venue-keyword matching (`venueIncludes`) was authored
-// from memory without verified data — see docs/neighborhoods.md for
-// the full story. Until the City of Akron's official 24-neighborhood
-// polygon set is ingested (PostGIS + `ST_Contains` against
-// `venues.lat`/`lng`), these hubs filter to wrong results, so they
-// are hidden from:
-//   - the sitemap (api/sitemap.xml.js reads ENABLED_HUB_PATHS)
-//   - the footer (src/components/Footer.jsx)
-//   - the homepage chip strip (src/pages/HomePage.jsx)
-//   - related-hub strips on category pages
-// Hub URLs themselves still resolve — CategoryPage redirects disabled
-// hubs to the homepage so any previously-shared link stays useful.
+// Status today (June 2026):
+//   Every Akron neighborhood hub is `disabled: true, preview: true`.
+//   - `disabled: true` keeps the hub out of the sitemap, footer,
+//     related-hub strips, and homepage chips — i.e. unlisted.
+//   - `preview: true` makes CategoryPage skip the redirect, so the
+//     URL itself resolves and the page renders. Anyone with the URL
+//     can browse it; nobody else finds it.
 //
-// When polygons land:
-//   1. Drop the `disabled` flag.
-//   2. Replace `venueIncludes` with the polygon lookup (the page
-//      already filters by venue when a hub is a neighborhood — only
-//      the matcher needs to change).
-//   3. Verify each hub renders a sensible event list before letting
-//      the sitemap rebuild include them.
+//   This is the audit mode the project sits in while we backfill
+//   venue.neighborhood_slug coverage. Once a neighborhood has enough
+//   classified venues to fill a real event list, flip its hub by
+//   dropping the `preview` and `disabled` flags in lockstep.
+//
+// Matching:
+//   For Akron-neighborhood hubs, CategoryPage matches events whose
+//   venue.neighborhood_slug === hub.slug. That column is populated
+//   by:
+//     - admin venue editor (manual)
+//     - scripts/classify-venues-by-polygon.js (one-time backfill)
+//     - scripts/lib/normalize.js ensureVenue (auto on scrape)
+//   See docs/neighborhoods.md for the full pipeline.
 
 export const NEIGHBORHOOD_HUBS = [
+  // ── Downtown ─────────────────────────────────────────────────────
   {
-    disabled: true, // see header note — venue matcher is unverified
+    disabled: true, preview: true,
     slug: 'downtown-akron',
     label: 'Downtown Akron',
     title: 'Downtown Akron Events',
@@ -273,51 +163,14 @@ export const NEIGHBORHOOD_HUBS = [
       'Events happening in downtown Akron, OH — concerts at Lock 3 and the Civic Theatre, gallery openings, festivals, food events, and more.',
     h1: 'Downtown Akron Events',
     intro:
-      "Downtown Akron is the gravitational center of the city's events scene. The Akron Civic Theatre, Lock 3, the Akron Art Museum, Musica, E.J. Thomas Performing Arts Hall, the John S. Knight Center, Canal Park, and a dense cluster of restaurants and breweries all sit within a few blocks of each other. That density means downtown anchors most weekend nights in Akron: a Civic Theatre show, a Lock 3 concert, a brewery tap takeover, and a museum opening can all happen within walking distance on the same night. This page filters Akron Pulse to events in downtown Akron venues so you can see everything happening downtown in one place. Pair it with the Free filter to see only free downtown events.",
-    faqs: [
-      {
-        question: 'What is happening at Lock 3 this weekend?',
-        answer:
-          "Lock 3 is a City of Akron-owned outdoor venue in downtown Akron that hosts free concerts, festivals, food truck rallies, family movies, and seasonal events. Akron Pulse ingests the official Lock 3 calendar — see the current Lock 3 events on the Downtown Akron page.",
-      },
-      {
-        question: 'Where is the Akron Civic Theatre?',
-        answer:
-          "The Akron Civic Theatre is at 182 S Main St, Akron, OH 44308 in downtown Akron.",
-      },
-      {
-        question: 'What free events are happening downtown?',
-        answer:
-          "Downtown Akron hosts many free events, especially at Lock 3 and the Akron Art Museum's Free Thursdays. Combine the Downtown Akron page with the Free filter to see them all.",
-      },
-    ],
-    relatedSlugs: ['concerts', 'free', 'this-weekend'],
+      "Downtown is anchored by the 1929 Akron Civic Theatre — the \"Jewel on Main Street\" — and its newer 200-seat Knight Stage that opened in 2021. Across the way, Lock 3's Maynard Performance Pavilion holds up to 3,500 people and runs free outdoor concerts every weekend from May through September, plus year-round ice rinks and food. The Akron Art Museum, Musica, E.J. Thomas Performing Arts Hall, the John S. Knight Center, and Canal Park (home of the RubberDucks) sit within walking distance, alongside a dense block of restaurants and breweries. Downtown was also the site of the 1851 Ohio Women's Rights Convention where Sojourner Truth delivered her \"Ain't I A Woman?\" speech — historical weight that still threads through the calendar.",
+    relatedSlugs: ['west-hill', 'university-park', 'cascade-valley', 'concerts', 'free'],
     cityMatch: ['Akron'],
-    venueIncludes: [
-      'Lock 3',
-      'Akron Civic',
-      'Akron Art Museum',
-      'Musica',
-      'E.J. Thomas',
-      'EJ Thomas',
-      'John S. Knight',
-      'Canal Park',
-      'Summit Artspace',
-      'Akronym',
-      'Blu Jazz',
-      "Jilly's",
-      'Akron-Summit County Public Library Main',
-    ],
   },
+
+  // ── Central-west cluster (Highland Square + neighbors) ───────────
   {
-    disabled: true, // hidden from sitemap, footer, related strips, homepage chips
-    // `preview: true` makes the route itself resolve to the hub page so
-    // we can share a direct link to view the work-in-progress design
-    // (typically the neighborhood map + intro layout). The hub stays
-    // `disabled: true` so it remains absent from every index surface —
-    // only people with the URL see it. Drop `preview` when the hub is
-    // ready to fully ship; drop `disabled` at the same time.
-    preview: true,
+    disabled: true, preview: true,
     slug: 'highland-square',
     label: 'Highland Square',
     title: 'Highland Square Events & Things To Do',
@@ -325,35 +178,53 @@ export const NEIGHBORHOOD_HUBS = [
       'Events in the Highland Square neighborhood of Akron, OH — farmers market, The Nightlight, gallery shows, community gatherings, and more.',
     h1: 'Highland Square Events & Things To Do',
     intro:
-      "Highland Square is Akron's walkable arts-and-coffee neighborhood. The Nightlight indie cinema, the Highland Square Farmers Market, several boutique shops, neighborhood bars, and a cluster of restaurants and cafés give the Square its own distinct, year-round event calendar. This page lists every Akron Pulse event happening in or around Highland Square — film screenings, the weekly farmers market in season, gallery and shop events, community gatherings, and neighborhood festivals.",
-    faqs: [
-      {
-        question: 'What movies are playing at The Nightlight in Akron?',
-        answer:
-          "The Nightlight is an indie cinema in Highland Square at 30 N High St, Akron, OH. Akron Pulse links to upcoming Nightlight screenings on the Highland Square page.",
-      },
-      {
-        question: 'When is the Highland Square Farmers Market?',
-        answer:
-          "The Highland Square Farmers Market runs on a recurring weekly schedule during market season. Specific dates and times appear on Akron Pulse when each upcoming market is published.",
-      },
-    ],
-    relatedSlugs: ['food-drink', 'art', 'this-weekend'],
+      "Akron's walkable arts-and-coffee neighborhood, with deep roots — more than half its homes were built before 1940, and past residents include publisher John S. Knight, presidential candidate Wendell Willkie, industrialist Paul W. Litchfield, and Alcoholics Anonymous co-founder Dr. Bob Smith. The Nightlight indie cinema at 30 N. High St., the Highland Square Farmers Market, the Mustard Seed Market & Café, and a tight cluster of bars, restaurants, and shops give the Square its distinct year-round calendar. The Portage Path — the Native American canoe portage between the Cuyahoga and Tuscarawas Rivers that served as the western boundary of white and Native lands from 1785 to 1805 — still runs straight through the neighborhood.",
+    relatedSlugs: ['wallhaven', 'west-hill', 'west-akron', 'food-drink', 'art'],
     cityMatch: ['Akron'],
-    // Map mockup config. The map image is the City of Akron neighborhood
-    // poster (docs/neighborhood-map.webp, copied into public/) — used
-    // as a static stand-in until Art × Love's branded GIS / SVG lands.
-    // `hotspot` is a percentage-positioned highlight overlay (origin
-    // top-left of the image) sitting over Highland Square's polygon on
-    // the poster. Coordinates were eyeballed from the poster; when the
-    // real SVG ships, the highlight will become an interactive <path>
-    // and these mockup hints go away.
-    mapMockup: {
-      hotspot: { x: 38, y: 43 },  // approx center of Highland Square
-    },
   },
   {
-    disabled: true, // see header note — venue matcher is unverified
+    disabled: true, preview: true,
+    slug: 'wallhaven',
+    label: 'Wallhaven',
+    title: 'Wallhaven Events',
+    metaDescription:
+      'Events in the Wallhaven neighborhood of Akron, OH — community programs, small-business pop-ups, and gatherings along West Market Street.',
+    h1: 'Wallhaven Events',
+    intro:
+      "About four miles northwest of downtown at the busy crossroads of West Market Street, West Exchange Street, and Hawkins Avenue, Wallhaven is the commercial heart of Akron's western neighborhoods. Roughly 5,000 residents share two square miles of dense retail and dining — Swensons Drive-In, Ken Stewart's Grille, the Eye Opener diner, Graf's Garden Shop, Whole Foods, and Acme Fresh Market all sit within a few blocks of each other. Hardesty Park hosts the annual Akron Arts Expo every July, drawing artists from across the region. The neighborhood pulls a steady calendar of library programs at the Wallhaven branch, neighborhood-association gatherings, and West Market storefront events.",
+    relatedSlugs: ['highland-square', 'west-akron', 'northwest-akron'],
+    cityMatch: ['Akron'],
+  },
+  {
+    disabled: true, preview: true,
+    slug: 'west-hill',
+    label: 'West Hill',
+    title: 'West Hill Events',
+    metaDescription:
+      'Events in the West Hill neighborhood of Akron, OH — between downtown and Highland Square. Community gatherings, historic-district programs, and more.',
+    h1: 'West Hill Events',
+    intro:
+      "The historic residential ridge climbing west out of downtown that filled in as middle-class residents fled the smoke of East Side rubber plants in the early 20th century. The Hall Park Allotment Historic District is the centerpiece — American Foursquare, Craftsman, Colonial, and Medieval Revival homes developed by Philander Hall between 1902 and 1919 at the height of Akron's rubber boom. Glendale Cemetery (founded 1839, on the National Register since 2001) sits on the western edge with its Gothic Revival Civil War Memorial Chapel, and the WPA-built Glendale Steps — 242 hand-laid sandstone steps from 1936–37 — descend the hillside as a Depression-era monument to stonecraft. Expect community gatherings, historic-home programs, and outdoor events on the steps.",
+    relatedSlugs: ['downtown-akron', 'highland-square', 'cascade-valley'],
+    cityMatch: ['Akron'],
+  },
+  {
+    disabled: true, preview: true,
+    slug: 'west-akron',
+    label: 'West Akron',
+    title: 'West Akron Events',
+    metaDescription:
+      'Events in West Akron — community programs, neighborhood gatherings, school events, and family activities west of downtown.',
+    h1: 'West Akron Events',
+    intro:
+      "A sprawling residential grid about three miles west of downtown, with tree-lined streets and one of Akron's most deliberate civic histories. West Side Neighbors, Inc. ran one of the city's most successful integration efforts here from 1967 to 1990 — a biracial and interfaith project to demonstrate that an integrated neighborhood could thrive with full services and engaged residents. Anchors today include the Maple Valley Branch Library, the John Brown home (preserved by the Summit County Historical Society), and the Dr. Bob house — boyhood home of one of the co-founders of Alcoholics Anonymous. The calendar runs on library programs, school events, neighborhood-association gatherings, and faith-community events.",
+    relatedSlugs: ['highland-square', 'wallhaven', 'sherbondy-hill', 'kenmore'],
+    cityMatch: ['Akron'],
+  },
+
+  // ── Northern arc ─────────────────────────────────────────────────
+  {
+    disabled: true, preview: true,
     slug: 'north-hill',
     label: 'North Hill',
     title: 'North Hill Community Events',
@@ -361,20 +232,254 @@ export const NEIGHBORHOOD_HUBS = [
       'Events in the North Hill neighborhood of Akron, OH — community festivals, cultural events, food, and gatherings.',
     h1: 'North Hill Community Events',
     intro:
-      "North Hill is one of Akron's most culturally rich neighborhoods, anchored by the North Hill Community Development Corporation and the Exchange House. The neighborhood hosts community festivals, multicultural events, food gatherings, and youth programs reflecting North Hill's deep immigrant and refugee community. This page filters Akron Pulse to North Hill events so the neighborhood's calendar is easy to surface in one place.",
-    faqs: [
-      {
-        question: 'What is the North Hill Community Development Corporation?',
-        answer:
-          "The North Hill CDC is a neighborhood-focused organization that runs community events, supports local entrepreneurship, and operates the Exchange House. Akron Pulse ingests their event calendar.",
-      },
-    ],
-    relatedSlugs: ['family', 'free', 'this-weekend'],
+      "One of Akron's most culturally rich neighborhoods and home to the second-largest Nepali-Bhutanese community in the United States — more than 5,000 refugees have resettled here since the first family arrived in 2008. The North Hill Community Development Corporation and the Exchange House (a multicultural gathering space opened by the Better Block Foundation in February 2017) anchor a calendar of ESL classes, health workshops, concerts by the Nepali Druk Fusion band, a community garden, and multicultural festivals. North High School is roughly half South Asian and fields one of the region's strongest soccer teams; storefronts that sat empty for years have filled with immigrant-owned small businesses.",
+    relatedSlugs: ['chapel-hill', 'merriman-hills', 'cascade-valley', 'family', 'free'],
     cityMatch: ['Akron'],
-    venueIncludes: ['North Hill', 'Exchange House'],
   },
   {
-    disabled: true, // see header note — also, these are separate cities, not Akron neighborhoods
+    disabled: true, preview: true,
+    slug: 'chapel-hill',
+    label: 'Chapel Hill',
+    title: 'Chapel Hill Events',
+    metaDescription:
+      'Events in the Chapel Hill neighborhood of northeast Akron — community gatherings, parks programs, and family activities.',
+    h1: 'Chapel Hill Events',
+    intro:
+      "In northeast Akron, named after the Chapel Hill Mall that opened in 1967 and shaped the neighborhood for more than fifty years before closing and converting into a business park. The neighborhood's character is in transition — about 5,600 residents, 60% non-white, and a third Asian, making Chapel Hill the Akron neighborhood with the highest percentage of Asian residents. Roughly 70% of housing is rental, and the area sits at a junction of national retailers and a major highway with strong transit access. Expect a calendar of community gatherings, library events, and immigrant-led cultural programs.",
+    relatedSlugs: ['north-hill', 'goodyear-heights', 'merriman-hills'],
+    cityMatch: ['Akron'],
+  },
+  {
+    disabled: true, preview: true,
+    slug: 'cascade-valley',
+    label: 'Cascade Valley',
+    title: 'Cascade Valley Events',
+    metaDescription:
+      'Events in the Cascade Valley neighborhood of Akron — Little Cuyahoga River corridor, Cascade Locks Park, outdoor programs.',
+    h1: 'Cascade Valley Events',
+    intro:
+      "Until recently called Elizabeth Park Valley, Cascade Valley fills the Little Cuyahoga River corridor between downtown Akron and the northern neighborhoods. It grew up around the Ohio & Erie Canal in the mid-19th century, and that history shapes its calendar today: Cascade Locks Park (locks 10–16 of the canal), the restored Mustill House & Store (a general store that served canal traffic from the 1820s onward), the Cascade Locks Historic District, and the Towpath Trail running north–south through the neighborhood. Cascade Valley Metro Park sits just upstream. Expect outdoor events, towpath programs, conservation gatherings, and Akron-history walks.",
+    relatedSlugs: ['downtown-akron', 'north-hill', 'west-hill', 'outdoor'],
+    cityMatch: ['Akron'],
+  },
+  {
+    disabled: true, preview: true,
+    slug: 'merriman-hills',
+    label: 'Merriman Hills',
+    title: 'Merriman Hills Events',
+    metaDescription:
+      'Events in the Merriman Hills neighborhood of Akron, OH — community programs and family gatherings in the city’s northern hills.',
+    h1: 'Merriman Hills Events',
+    intro:
+      "A small residential neighborhood in the northern hills, between Merriman Valley to the north and Wallhaven / Northwest Akron to the south. Merriman Hills is one of the three neighborhoods added in the 2017 redesign of Akron's neighborhood map, and current rankings list it as the city's safest neighborhood with a median household income above $120,000. The calendar is quiet by Akron standards, leaning on neighborhood-association programs, parks events, and family gatherings.",
+    relatedSlugs: ['merriman-valley', 'northwest-akron', 'fairlawn-heights'],
+    cityMatch: ['Akron'],
+  },
+  {
+    disabled: true, preview: true,
+    slug: 'merriman-valley',
+    label: 'Merriman Valley',
+    title: 'Merriman Valley Events',
+    metaDescription:
+      'Events in the Merriman Valley neighborhood of Akron, OH — outdoor recreation, parks events, and Cuyahoga Valley access.',
+    h1: 'Merriman Valley Events',
+    intro:
+      "Lines the Cuyahoga River northwest of downtown and serves as Akron's main gateway into Cuyahoga Valley National Park. Liberty Commons anchors the dining and retail strip — about twenty restaurants and bars (The Blue Door, Sushi Katsu, Vasili's Greek, Portal West Coffee, Sal's Gelato, Blimp City Bike & Hike, The Merchant Tavern, Merriman Valley Pizza) with shops covering everything from holistic stones to handmade tacos. Sand Run Metro Park sits just over the line. Expect a calendar weighted toward outdoor events, dining-district pop-ups, river programs, and seasonal markets, with a steady nightlife scene threaded through.",
+    relatedSlugs: ['high-hampton', 'merriman-hills', 'cascade-valley', 'outdoor'],
+    cityMatch: ['Akron'],
+  },
+  {
+    disabled: true, preview: true,
+    slug: 'high-hampton',
+    label: 'High Hampton',
+    title: 'High Hampton Events',
+    metaDescription:
+      'Events in the High Hampton neighborhood at the northern edge of Akron, OH — community programs and parks events.',
+    h1: 'High Hampton Events',
+    intro:
+      "One of the three neighborhoods added in the 2017 redesign of Akron's map, High Hampton sits on the city's northern edge against the Cuyahoga Falls line. Rolling hills, large homes, and spacious lawns give it a quieter character than the dense central neighborhoods — and some residents even carry Cuyahoga Falls mailing addresses. The events calendar is small and residential, built around neighborhood-association programs and family gatherings.",
+    relatedSlugs: ['merriman-valley', 'chapel-hill'],
+    cityMatch: ['Akron'],
+  },
+
+  // ── Northwest ───────────────────────────────────────────────────
+  {
+    disabled: true, preview: true,
+    slug: 'northwest-akron',
+    label: 'Northwest Akron',
+    title: 'Northwest Akron Events',
+    metaDescription:
+      'Events in Northwest Akron — Stan Hywet Hall & Gardens, Sand Run Metro Park, community programs, and family activities.',
+    h1: 'Northwest Akron Events',
+    intro:
+      "Anchored by Stan Hywet Hall & Gardens — the 70-acre Tudor Revival estate of Goodyear co-founder F.A. Seiberling, with a name that means \"stone quarry\" in Old English — and Sand Run Metro Park's nearly 1,000 acres of trails, picnic shelters, and the Sand Run Lodge. Portage Country Club rounds out the green space. Most homes were built in the 1920s as smaller variations on the Stan Hywet workers' housing pattern. The calendar runs heavily on Stan Hywet's year-round programming (the Ohio Mart, Murder Mystery weekends, Deck the Hall during the holidays), outdoor events in the metro parks, and neighborhood-association gatherings.",
+    relatedSlugs: ['fairlawn-heights', 'merriman-hills', 'wallhaven', 'outdoor'],
+    cityMatch: ['Akron'],
+  },
+  {
+    disabled: true, preview: true,
+    slug: 'fairlawn-heights',
+    label: 'Fairlawn Heights',
+    title: 'Fairlawn Heights Events',
+    metaDescription:
+      'Events in the Fairlawn Heights neighborhood of Akron, OH — community gatherings and family activities just inside the western city line.',
+    h1: 'Fairlawn Heights Events',
+    intro:
+      "Built in the 1910s by F.A. Seiberling's Fairlawn Heights Company as a home neighborhood for Goodyear executives, planned by Boston landscape architect Harold S. Wagner alongside a 150-acre country club. Akron annexed the area in 1932 when residents needed city water; the bones of the original plan — winding hillside streets, mature trees, and a thoughtful mix of Tudor, Georgian, French Norman, Chateaux, and later Bauhaus and ranch homes ranging from 3,000 to 10,000 square feet — are still visible everywhere. Bordered by West Market, I-77, Miller Road, and Frank Boulevard. The calendar centers on neighborhood-association programs and small West Market events. Not to be confused with the separate city of Fairlawn just to the west — those events live on the Fairlawn & Copley page.",
+    relatedSlugs: ['northwest-akron', 'merriman-hills', 'wallhaven', 'fairlawn-copley'],
+    cityMatch: ['Akron'],
+  },
+
+  // ── Eastern arc ─────────────────────────────────────────────────
+  {
+    disabled: true, preview: true,
+    slug: 'goodyear-heights',
+    label: 'Goodyear Heights',
+    title: 'Goodyear Heights Events',
+    metaDescription:
+      'Events in the Goodyear Heights neighborhood of Akron, OH — Goodyear Heights Metro Park, community gatherings, and family programs.',
+    h1: 'Goodyear Heights Events',
+    intro:
+      "Akron's most nationally recognized historic neighborhood, designed in 1912–13 by landscape architect Warren Manning as a Garden City model for Goodyear factory workers. The plan favored sweeping curves over a street grid and wove in churches, schools, parks, and shops within walking distance — a state-of-the-art example of company-town planning that turned up in books and architecture journals nationwide. Goodyear Heights Metro Park sits at its core. Housing styles range across American Foursquare, Craftsman, Colonial, and Medieval Revival, with mature trees lining brick streets and hilly topography giving the neighborhood its name. Expect a calendar of park programs, historic-home events, and tight-knit community gatherings.",
+    relatedSlugs: ['east-akron', 'chapel-hill', 'ellet', 'outdoor'],
+    cityMatch: ['Akron'],
+  },
+  {
+    disabled: true, preview: true,
+    slug: 'east-akron',
+    label: 'East Akron',
+    title: 'East Akron Events',
+    metaDescription:
+      'Events in the East Akron neighborhood — community programs, church gatherings, school events, and family activities east of downtown.',
+    h1: 'East Akron Events',
+    intro:
+      "Stretches east of downtown between Middlebury and Goodyear Heights with deep ties to the rubber industry. The intersection of Goodyear Boulevard and East Market Street was the commercial anchor for East Akron through most of the 20th century, with the old Goodyear buildings holding a company school, multiple recreation facilities, a theater, a bank, and storefronts. That historic Goodyear campus has been redeveloped as The East End — a 1.4-million-square-foot mixed-use district that now includes more than 100 loft apartments and a Hilton Garden Inn — and the corner is filling back in as a hub again. The calendar pulls from community-association programs, faith-community gatherings, school events, and East End commercial events.",
+    relatedSlugs: ['middlebury', 'goodyear-heights', 'ellet'],
+    cityMatch: ['Akron'],
+  },
+  {
+    disabled: true, preview: true,
+    slug: 'middlebury',
+    label: 'Middlebury',
+    title: 'Middlebury Events',
+    metaDescription:
+      'Events in the historic Middlebury neighborhood of Akron, OH — community programs and gatherings east of downtown.',
+    h1: 'Middlebury Events',
+    intro:
+      "The oldest neighborhood in Akron — its own community until officially merging with the city in 1872, and founded by sea captain Joseph Hart and miller Aaron Norton in 1807 when they built a grist mill on the Little Cuyahoga. The Merrill family started Middlebury's pottery industry in 1847; in 1898 the Seiberling brothers founded Goodyear Tire & Rubber Company here, and Mohawk, Phoenix, and Kelly-Springfield followed by 1921. Today the neighborhood borders the University of Akron, the former Goodyear HQ (now The East End), and Summa Hospital, and it's a focus of active community revitalization efforts. Expect a calendar of community-association programs, small-venue events, and history walks.",
+    relatedSlugs: ['downtown-akron', 'east-akron', 'university-park'],
+    cityMatch: ['Akron'],
+  },
+  {
+    disabled: true, preview: true,
+    slug: 'ellet',
+    label: 'Ellet',
+    title: 'Ellet Events',
+    metaDescription:
+      'Events in the Ellet neighborhood of east Akron, OH — community gatherings, parks programs, and family activities.',
+    h1: 'Ellet Events',
+    intro:
+      "Akron's largest neighborhood — more than 19,000 residents spread across seven square miles in the city's southeast corner — and arguably its most independent in character, often described as a small town within the city. Englishman Samuel Elliott (sometimes spelled Ellet) bought 500-plus acres here from Col. Simon Perkins in the early 1800s, and the neighborhood wasn't annexed by Akron until 1929. Derby Downs sits in Ellet — the WPA-built three-lane asphalt track that has hosted the All-American Soap Box Derby World Championship every July since 1934 — alongside the Goodyear Airdock, whose eleven 211-foot steel parabolic arches enclose one of the largest open interiors in the world. Expect family events, parks programs, school events, and Derby Downs racing weeks each summer.",
+    relatedSlugs: ['east-akron', 'goodyear-heights'],
+    cityMatch: ['Akron'],
+  },
+
+  // ── University / center-south ───────────────────────────────────
+  {
+    disabled: true, preview: true,
+    slug: 'university-park',
+    label: 'University Park',
+    title: 'University Park Events',
+    metaDescription:
+      'Events in the University Park neighborhood of Akron, OH — University of Akron campus events, E.J. Thomas Hall performances, and student gatherings.',
+    h1: 'University Park Events',
+    intro:
+      "Built around the University of Akron's main campus and the working-class neighborhood that wraps around it. Over 90% of residents are under 45, and the several blocks immediately around campus may be the most-walked stretch in Akron. E.J. Thomas Performing Arts Hall, the John S. Knight Center, university lectures, Zips athletics, performances, the Goodyear Polymer Center, and student-organization events drive a calendar that's busy year-round and especially dense during the academic year. South and east of campus the working-class character holds steady, with a significant mix of student rental housing folded in.",
+    relatedSlugs: ['downtown-akron', 'middlebury', 'south-akron'],
+    cityMatch: ['Akron'],
+  },
+
+  // ── Southern arc ────────────────────────────────────────────────
+  {
+    disabled: true, preview: true,
+    slug: 'south-akron',
+    label: 'South Akron',
+    title: 'South Akron Events',
+    metaDescription:
+      'Events in the South Akron neighborhood — community gatherings, parks programs, and family activities south of downtown.',
+    h1: 'South Akron Events',
+    intro:
+      "Laid out in December 1825, when Irish laborers building the Ohio & Erie Canal threw up roughly 100 cabins along the right-of-way. It was called \"South\" because Eliakim Crosby founded \"North Akron\" (today's Cascade) in 1833, and the two villages merged and incorporated together in 1836 — making South Akron's bones older than the city itself. Modern South Akron mixes residential blocks with light industry along the South Main Street corridor between downtown and Firestone Park. The calendar pulls from community-association programs, faith-community events, and parks programming.",
+    relatedSlugs: ['firestone-park', 'university-park', 'summit-lake'],
+    cityMatch: ['Akron'],
+  },
+  {
+    disabled: true, preview: true,
+    slug: 'firestone-park',
+    label: 'Firestone Park',
+    title: 'Firestone Park Events',
+    metaDescription:
+      'Events in the historic Firestone Park neighborhood of Akron, OH — Derby Downs (All-American Soap Box Derby), Firestone Park itself, and family events.',
+    h1: 'Firestone Park Events',
+    intro:
+      "Planned over a century ago by Harvey S. Firestone as a model neighborhood for his tire-company workers, with landscape architect Alling S. DeForest laying out tree-lined boulevards that curve around the central Firestone Park itself — a public park literally shaped like the Firestone shield emblem. The original concept was families of different income levels living together in varied housing styles, with churches, schools, and shops all within walking distance — and that walkability still defines the neighborhood. Three neighborhood parks, charming early-20th-century architecture, and a calendar weighted toward family events, parks programming, and historic-home gatherings.",
+    relatedSlugs: ['south-akron', 'kenmore', 'coventry-crossing'],
+    cityMatch: ['Akron'],
+  },
+  {
+    disabled: true, preview: true,
+    slug: 'kenmore',
+    label: 'Kenmore',
+    title: 'Kenmore Events',
+    metaDescription:
+      'Events in the Kenmore neighborhood of southwest Akron, OH — Kenmore Boulevard music district, community gatherings, and small-business events.',
+    h1: 'Kenmore Events',
+    intro:
+      "Was its own city before being annexed by Akron in 1929, with a commercial spine along Kenmore Boulevard that became the first Akron neighborhood business district added to the National Register of Historic Places (2019). The Better Kenmore CDC has driven a deep revitalization since 2016: at last count there were a dozen music-related businesses inside a three-block radius — two guitar shops, six recording studios, two live music venues, plus music schools — earning the corridor the nickname Akron's \"Music Row.\" Most of the new businesses are owned by Kenmore residents, and more than half are female- or minority-owned. Expect a calendar of independent music shows, neighborhood pop-ups, business-district events, and community-development programs.",
+    relatedSlugs: ['firestone-park', 'sherbondy-hill', 'west-akron', 'coventry-crossing'],
+    cityMatch: ['Akron'],
+  },
+  {
+    disabled: true, preview: true,
+    slug: 'sherbondy-hill',
+    label: 'Sherbondy Hill',
+    title: 'Sherbondy Hill Events',
+    metaDescription:
+      'Events in the Sherbondy Hill neighborhood of Akron, OH — community programs and gatherings southwest of downtown.',
+    h1: 'Sherbondy Hill Events',
+    intro:
+      "Adjacent to downtown and bordered by Kenmore, West Akron, and Highland Square. The name traces back to Melcher Sherbondy, who bought 368 acres here around 1816; the neighborhood was briefly renamed Lane-Wooster before being restored to Sherbondy Hill in 2017 in recognition of its history as one of Akron's most historically Black neighborhoods (87% of residents identify as Black, the largest such concentration in the city) and its early ties to Akron's Jewish community. NBA star LeBron James grew up here. Anchors include Perkins Woods pool, Miller South School for the Visual and Performing Arts, the Akron Zoo, the Odom Branch Library, the Helen Arnold CLC, the Akron Urban League, and Cleveland Clinic Akron General just over the line — and the corridor is one of the city's \"Great Streets\" investment targets.",
+    relatedSlugs: ['west-akron', 'kenmore', 'summit-lake'],
+    cityMatch: ['Akron'],
+  },
+  {
+    disabled: true, preview: true,
+    slug: 'summit-lake',
+    label: 'Summit Lake',
+    title: 'Summit Lake Events',
+    metaDescription:
+      'Events around Summit Lake in Akron, OH — Summit Lake Nature Center, Reach Akron programs, towpath access, and outdoor events.',
+    h1: 'Summit Lake Events',
+    intro:
+      "Built around Summit Lake itself in southern Akron, and one of the city's most ambitious civic-revitalization sites — Reimagining the Civic Commons has poured years of investment in alongside the Knight Foundation, Summit Metro Parks, the Ohio & Erie Canalway Coalition, and the City of Akron. The Summit Lake Nature Center now occupies a former tire-factory pump house with lakefront views, interpretive exhibits, and a community garden. The 2.25-mile Ohio & Erie Canal Summit Lake Trail (completed in 2023, with new bridges at Kenmore Boulevard and the North Shore) ties the lake's east and west sides into the Towpath Trail. The Reach Opportunity Center runs sports, after-school, and adult-services programming. Expect outdoor events, nature programs, and community gatherings on and around the lake.",
+    relatedSlugs: ['sherbondy-hill', 'south-akron', 'kenmore', 'outdoor'],
+    cityMatch: ['Akron'],
+  },
+  {
+    disabled: true, preview: true,
+    slug: 'coventry-crossing',
+    label: 'Coventry Crossing',
+    title: 'Coventry Crossing Events',
+    metaDescription:
+      'Events in the Coventry Crossing neighborhood at the southern edge of Akron, OH — community programs and family activities.',
+    h1: 'Coventry Crossing Events',
+    intro:
+      "One of the three neighborhoods added in the 2017 redesign of Akron's neighborhood map, Coventry Crossing sits at the city's far southern edge against the Coventry Township line. The neighborhood was built as a planned community — new traditional homes with colonial influences put up between the 1980s and the early 2000s, organized around an HOA, with a small neighborhood park (including a splash pad) and direct access to Firestone Metro Park's 258 acres. The calendar is quiet by Akron standards and skews toward family activities and parks programming.",
+    relatedSlugs: ['firestone-park', 'kenmore'],
+    cityMatch: ['Akron'],
+  },
+  {
+    disabled: true, // separate municipality, not an Akron neighborhood
     slug: 'fairlawn-copley',
     label: 'Fairlawn & Copley',
     title: 'Fairlawn & Copley Events',
@@ -383,12 +488,11 @@ export const NEIGHBORHOOD_HUBS = [
     h1: 'Fairlawn & Copley Events',
     intro:
       "Fairlawn and Copley sit just west of Akron and run their own active event calendars, especially around community programs, shopping center events at Summit Mall, and family activities. This page lists every Akron Pulse event happening in Fairlawn or Copley.",
-    faqs: [],
     relatedSlugs: ['family', 'free', 'this-weekend'],
     cityMatch: ['Fairlawn', 'Copley'],
   },
   {
-    disabled: true, // see header note — also, Cuyahoga Falls is a separate city, not an Akron neighborhood
+    disabled: true, // separate municipality, not an Akron neighborhood
     slug: 'cuyahoga-falls',
     label: 'Cuyahoga Falls',
     title: 'Cuyahoga Falls Events',
@@ -397,18 +501,11 @@ export const NEIGHBORHOOD_HUBS = [
     h1: 'Cuyahoga Falls Events',
     intro:
       "Cuyahoga Falls is a riverfront city in Summit County north of Akron, home to a long list of seasonal events on Front Street, riverfront festivals, parks programs, and Blossom Music Center shows on the city's edge. This page lists every Akron Pulse event happening in Cuyahoga Falls.",
-    faqs: [
-      {
-        question: 'What is happening at Blossom Music Center?',
-        answer:
-          "Blossom Music Center is the summer home of the Cleveland Orchestra and a major outdoor concert venue near Cuyahoga Falls. Akron Pulse links to upcoming Blossom shows whenever they are published.",
-      },
-    ],
     relatedSlugs: ['concerts', 'outdoor', 'this-weekend'],
     cityMatch: ['Cuyahoga Falls'],
   },
   {
-    disabled: true, // see header note — also, Stow is a separate city, not an Akron neighborhood
+    disabled: true, // separate municipality, not an Akron neighborhood
     slug: 'stow',
     label: 'Stow',
     title: 'Stow, OH Events',
@@ -417,7 +514,6 @@ export const NEIGHBORHOOD_HUBS = [
     h1: 'Stow, OH Events',
     intro:
       "Stow is a Summit County city just north of Akron with a steady year-round calendar of community programs, the Stow Farmers Market in season, parks events, and family-friendly activities. This page filters Akron Pulse to Stow events.",
-    faqs: [],
     relatedSlugs: ['family', 'this-weekend'],
     cityMatch: ['Stow'],
   },

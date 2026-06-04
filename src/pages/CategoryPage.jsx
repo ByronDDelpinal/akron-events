@@ -8,12 +8,12 @@
  *
  * Why one component for both:
  *   - The page structure is identical: hero header, unique intro copy,
- *     filter-able event list, FAQ block, related-hubs strip.
+ *     filter-able event list, related-hubs strip.
  *   - The only thing that changes between a category and a
  *     neighborhood is which filter the page applies before listing
- *     events (category vs. venue city/name).
+ *     events (category vs. venue neighborhood_slug / city).
  *   - Sharing the component guarantees both hub types emit the same
- *     SEO surface (canonical, OG, JSON-LD ItemList + FAQ + Breadcrumb).
+ *     SEO surface (canonical, OG, JSON-LD ItemList + Breadcrumb).
  *
  * Light search / filter / sort layer (added 2026-06):
  *   Each hub page now exposes a plain text search input below the
@@ -29,17 +29,19 @@
  *
  * SEO surface emitted here:
  *   - <title>, <meta description>, canonical, OG, Twitter (via <SEO />)
- *   - JSON-LD @graph: BreadcrumbList, ItemList of upcoming events,
- *     FAQPage (when the hub has FAQs)
+ *   - JSON-LD @graph: BreadcrumbList, ItemList of upcoming events
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useEvents, PAGE_SIZE } from '@/hooks/useEvents'
 import EventCard from '@/components/EventCard'
 import ShareButtons from '@/components/ShareButtons'
 import NewsletterCTA from '@/components/NewsletterCTA'
-import NeighborhoodMapMockup from '@/components/NeighborhoodMapMockup'
+import NeighborhoodMap from '@/components/NeighborhoodMap'
+import SourceOverflowCard from '@/components/SourceOverflowCard'
+import DateHeading from '@/components/DateHeading'
+import { groupEventsByDate, applySourceCap } from '@/lib/eventGrouping'
 import {
   CATEGORY_OPTIONS,
   SORT_OPTIONS,
@@ -50,7 +52,6 @@ import {
   buildGraph,
   breadcrumbSchema,
   itemListSchema,
-  faqPageSchema,
   hubTitle,
   hubDescription,
   getHub,
@@ -233,49 +234,155 @@ export default function CategoryPage() {
     : (priceFilter === 'free' ? null : priceFilter)
   const effectiveDateRange = lockedDimensions.dateRange ? hub.dateRange : null
 
-  // ── Event fetch ──
-  // Categories use the homepage's category/freeOnly/dateRange filters
-  // (server-side narrows the result set) and now also pass through the
-  // user's search / sort / hide-sources / custom-date overrides.
-  //
-  // Neighborhoods fetch a wider window and filter client-side because
-  // the venue-city match isn't expressible in a PostgREST `.eq()`. We
-  // still pass through search/sort so the user's text query and sort
-  // pick still narrow the candidate set before client filtering.
-  const fetchParams = isCategory
-    ? {
-        categories: effectiveCategories,
-        freeOnly:   effectiveFreeOnly,
-        priceMax:   effectivePriceMax,
-        dateRange:  effectiveDateRange,
-        dateFrom,
-        dateTo,
-        search,
-        sort,
-        limit:      PAGE_SIZE * 2, // hub pages show more than the homepage default
-      }
-    : {
-        // Pull a wider window for neighborhood pages so client-side
-        // venue filtering has enough candidates. The total volume is
-        // small enough that 100 events is well within Supabase row
-        // limits.
-        search,
-        priceMax:  effectivePriceMax,
-        freeOnly:  effectiveFreeOnly,
-        dateFrom,
-        dateTo,
-        sort,
-        limit:     100,
-      }
+  // ── Pagination state ──
+  // Mirrors HomePage's accumulating-pages pattern: each Supabase fetch
+  // returns one PAGE_SIZE page, an IntersectionObserver sentinel at the
+  // end of the grid triggers the next, and allEvents is the cumulative
+  // list rendered as date groups. Hub pages can have hundreds of events
+  // (downtown alone) so we never want to materialize everything upfront,
+  // and the user wants accurate totals — `total` from useEvents
+  // (PostgREST count=exact) gives the real number even when only a
+  // handful of pages are loaded.
+  const [offset,      setOffset]      = useState(0)
+  const [allEvents,   setAllEvents]   = useState([])
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [resultsKey,  setResultsKey]  = useState(0)
 
-  const { events: rawEvents, loading, error, total } = useEvents(fetchParams)
+  // Source-overflow expansion state — same pattern as HomePage.
+  // Library/CDC/etc. calendars can dominate a single day's listing;
+  // the cap shows the first SOURCE_CAP from each source per day, with
+  // an overflow card that expands the rest on click. Keys are
+  // `${dateKey}-${source}`.
+  const [expandedSources, setExpandedSources] = useState(() => new Set())
+  const toggleSource = useCallback((dateKey, source) => {
+    const key = `${dateKey}-${source}`
+    setExpandedSources((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
 
-  const events = useMemo(() => {
-    if (isNeighborhood) {
-      return rawEvents.filter((e) => eventMatchesNeighborhood(e, hub))
+  // ── Filter signature → reset pagination on any change ──
+  // Includes hub.slug so navigating from one neighborhood map polygon
+  // to another (same component instance, different slug param) resets
+  // the page rather than appending to the previous hub's events.
+  const filterKey = [
+    hub.slug,
+    activeIntentId,
+    effectiveCategories.join(','),
+    effectiveDateRange,
+    dateFrom,
+    dateTo,
+    search,
+    effectiveFreeOnly,
+    effectivePriceMax,
+    sort,
+  ].join('|')
+  const prevFilterKey = useRef(filterKey)
+  useEffect(() => {
+    if (prevFilterKey.current !== filterKey) {
+      prevFilterKey.current = filterKey
+      setOffset(0)
+      setIsRefreshing(true)
+      // Don't clear allEvents — old cards stay visible (dimmed via
+      // CSS) until the new first page lands. Avoids a content-jump
+      // flash when only one filter changes.
     }
-    return rawEvents
-  }, [rawEvents, isNeighborhood, hub])
+  }, [filterKey])
+
+  // ── Data fetch ──
+  // For all three hub types (category, Akron neighborhood, non-Akron
+  // city), we push every available filter into Supabase. The
+  // neighborhood-slug filter is the inner-join trick documented in
+  // useEvents. Non-Akron city hubs (Cuyahoga Falls etc.) still need
+  // a client-side cityMatch pass below since they don't have a
+  // neighborhood_slug.
+  const isAkronNeighborhood = isNeighborhood && NEIGHBORHOOD_SLUGS.has(hub.slug)
+  const { events: page, loading, error, total, hasMore } = useEvents({
+    categories: effectiveCategories,
+    freeOnly:   effectiveFreeOnly,
+    priceMax:   effectivePriceMax,
+    dateRange:  effectiveDateRange,
+    dateFrom,
+    dateTo,
+    search,
+    sort,
+    neighborhoodSlug: isAkronNeighborhood ? hub.slug : null,
+    limit:    PAGE_SIZE,
+    offset,
+  })
+
+  // Append each incoming page to the accumulator, deduped by id so
+  // any timing-related double-fetch can't render duplicate cards.
+  useEffect(() => {
+    if (loading) return
+    if (offset === 0) {
+      setAllEvents(page)
+      setIsRefreshing(false)
+      // Bumping resultsKey rotates the date-group div keys, which
+      // remounts them — that retriggers the CSS entrance animation
+      // for the fresh first page (same trick HomePage uses).
+      setResultsKey((k) => k + 1)
+    } else {
+      setAllEvents((prev) => {
+        const ids = new Set(prev.map((e) => e.id))
+        return [...prev, ...page.filter((e) => !ids.has(e.id))]
+      })
+    }
+  }, [page, loading, offset])
+
+  // For non-Akron city hubs (Cuyahoga Falls / Stow / Fairlawn &
+  // Copley), apply the client-side cityMatch filter. The polygon set
+  // doesn't cover these municipalities so we can't push down — they
+  // still benefit from infinite scroll, just with an approximate
+  // post-filter count (matches per page vary). Akron-neighborhood and
+  // category hubs pass straight through.
+  const events = useMemo(() => {
+    if (isNeighborhood && !isAkronNeighborhood) {
+      return allEvents.filter((e) => eventMatchesNeighborhood(e, hub))
+    }
+    return allEvents
+  }, [allEvents, isNeighborhood, isAkronNeighborhood, hub])
+
+  const grouped = useMemo(() => groupEventsByDate(events), [events])
+
+  // ── Infinite scroll ──
+  // Same IntersectionObserver pattern HomePage uses. A zero-height
+  // sentinel sits below the grid; when it enters a 1500px-tall
+  // prefetch zone above the viewport bottom we fetch the next page.
+  // The observer is recreated on hasMore / count flips so a freshly-
+  // painted page can immediately trigger the next if the sentinel
+  // is still inside the zone.
+  const sentinelRef = useRef(null)
+  const loadingRef  = useRef(loading)
+  useEffect(() => { loadingRef.current = loading }, [loading])
+
+  const loadMoreRef = useRef()
+  loadMoreRef.current = () => {
+    if (loadingRef.current || !hasMore) return
+    setOffset((prev) => prev + PAGE_SIZE)
+  }
+
+  useEffect(() => {
+    if (!hasMore) return
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            loadMoreRef.current?.()
+            break
+          }
+        }
+      },
+      { rootMargin: '0px 0px 1500px 0px' },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasMore, allEvents.length])
 
   // ── SEO graph ──
   const canonicalPath = `/events/${hub.slug}`
@@ -290,9 +397,8 @@ export default function CategoryPage() {
       url: eventPath(e),
     })),
   )
-  const faq = hub.faqs && hub.faqs.length > 0 ? faqPageSchema(hub.faqs) : undefined
 
-  const seoGraph = buildGraph(breadcrumb, itemList, faq)
+  const seoGraph = buildGraph(breadcrumb, itemList)
 
   // ── Related hubs strip ── (Action 08: internal linking)
   // Skip disabled hubs in the related-hubs strip too — we don't want
@@ -330,23 +436,24 @@ export default function CategoryPage() {
 
         {/* Hero body.
          *
-         * Neighborhood hubs that ship with a `mapMockup` (config in
-         * src/lib/seo/categories.js) get a two-column hero: intro
-         * paragraph on the left, branded neighborhood map on the
-         * right. This mirrors the Art × Love poster layout the
-         * project is targeting. The grid collapses to a single
-         * column on narrow viewports — see CategoryPage.css.
+         * Neighborhood hubs whose slug matches one of the 24
+         * canonical Akron neighborhoods (NEIGHBORHOOD_SLUGS) get a
+         * two-column hero: intro paragraph on the left, interactive
+         * neighborhood map on the right. The map is driven by
+         * public/akron-neighborhoods.geojson — the active polygon
+         * is brand-highlighted, hovered polygons light up in coral
+         * (the secondary accent), and clicking any non-active
+         * polygon navigates to that neighborhood's hub page. The
+         * grid collapses to a single column on narrow viewports —
+         * see CategoryPage.css.
          *
-         * Category hubs and neighborhood hubs without a map keep
-         * the original single-column intro so nothing about the
-         * existing pages changes. */}
-        {isNeighborhood && hub.mapMockup ? (
+         * Non-Akron city hubs (Cuyahoga Falls, Stow, Fairlawn &
+         * Copley) and category hubs keep the single-column intro
+         * since the polygon set only covers Akron city limits. */}
+        {isNeighborhood && NEIGHBORHOOD_SLUGS.has(hub.slug) ? (
           <div className="hub-hero-grid">
             <p className="hub-intro hub-intro--with-map">{hub.intro}</p>
-            <NeighborhoodMapMockup
-              activeLabel={hub.label}
-              hotspot={hub.mapMockup.hotspot}
-            />
+            <NeighborhoodMap activeSlug={hub.slug} />
           </div>
         ) : (
           <p className="hub-intro">{hub.intro}</p>
@@ -421,62 +528,118 @@ export default function CategoryPage() {
         />
       </div>
 
-      <section className="hub-events" aria-labelledby="hub-events-heading">
+      <section
+        className={`hub-events${isRefreshing ? ' hub-events--refreshing' : ''}`}
+        aria-labelledby="hub-events-heading"
+      >
         <h2 id="hub-events-heading" className="hub-section-heading">
-          {events.length > 0
-            ? `${events.length} upcoming ${events.length === 1 ? 'event' : 'events'}`
-            : 'Upcoming events'}
+          {/* For Akron neighborhoods + category hubs we have an exact
+              server-side count, so `total` reflects every event that
+              matches the active filters — not just the loaded pages.
+              That's the "accurate event count of everything" the user
+              asked for, even when only the first PAGE_SIZE are
+              materialized below. Non-Akron city hubs fall back to the
+              client-filtered length since cityMatch happens here. */}
+          {(() => {
+            const showCount = isAkronNeighborhood || isCategory
+              ? total
+              : events.length
+            if (showCount > 0) {
+              return `${showCount.toLocaleString()} upcoming ${showCount === 1 ? 'event' : 'events'}`
+            }
+            return 'Upcoming events'
+          })()}
         </h2>
 
-        {loading && (
+        {/* Initial load — only show a spinner state when we have
+            nothing to render yet. During a filter refresh the old
+            grid stays visible (dimmed via .hub-events--refreshing)
+            so the page doesn't flash. */}
+        {loading && allEvents.length === 0 && !isRefreshing && (
           <p className="hub-empty">Loading events…</p>
         )}
 
-        {!loading && error && (
+        {error && (
           <p className="hub-empty">Couldn't load events right now. Please try again.</p>
         )}
 
-        {!loading && !error && events.length === 0 && (
+        {!loading && !isRefreshing && !error && events.length === 0 && (
           <p className="hub-empty">
             No upcoming events match your filters. Try clearing them, or{' '}
             <Link to="/">browse all events</Link>.
           </p>
         )}
 
-        {!loading && events.length > 0 && (
-          <div className="hub-events-grid">
-            {events.map((event) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                viewMode="comfortable"
-              />
-            ))}
+        {/* Date-grouped grid with source-overflow caps. Each day
+            wraps its own .cards-grid, headed by a DateHeading. Within
+            each day, applySourceCap interleaves SourceOverflowCard
+            tiles after a source's third event — clicking one expands
+            the rest in place. */}
+        {grouped.map(([dateKey, dayEvents]) => {
+          const items = applySourceCap(dayEvents, expandedSources, dateKey)
+          return (
+            <div key={`${resultsKey}-${dateKey}`}>
+              <DateHeading dateKey={dateKey} />
+              <div className="cards-grid">
+                {items.map((item) => {
+                  if (item.type === 'overflow') {
+                    return (
+                      <SourceOverflowCard
+                        key={`overflow-${item.dateKey}-${item.source}`}
+                        source={item.source}
+                        hiddenCount={item.hiddenCount}
+                        isExpanded={item.isExpanded}
+                        onToggle={() => toggleSource(item.dateKey, item.source)}
+                      />
+                    )
+                  }
+                  const ev = item.event
+                  return (
+                    <div
+                      key={ev.id}
+                      className={`card-enter${item.isRevealed ? ' card-reveal' : ''}`}
+                    >
+                      <EventCard event={ev} viewMode="comfortable" />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+
+        {/* Infinite scroll sentinel + end-of-list marker. Same
+            IntersectionObserver wiring as HomePage. When hasMore
+            flips false we render the "Showing all N events" line
+            using the exact server count so the user always sees the
+            real total. */}
+        {allEvents.length > 0 && (
+          <div className="load-more">
+            {hasMore ? (
+              <>
+                <div ref={sentinelRef} aria-hidden="true" className="load-more-sentinel" />
+                <p className="load-more-loading" aria-live="polite">
+                  <span className="load-more-spinner" aria-hidden="true" />
+                  <span className="sr-only">Loading more events…</span>
+                </p>
+              </>
+            ) : (
+              <p className="load-more-end">
+                Showing all {(isAkronNeighborhood || isCategory ? total : events.length).toLocaleString()}{' '}
+                {(isAkronNeighborhood || isCategory ? total : events.length) === 1 ? 'event' : 'events'}
+              </p>
+            )}
           </div>
         )}
       </section>
 
-      {/* Newsletter callout sits between the events list and the FAQ
-          so anyone who already scanned the list gets the prompt
-          before they decide to leave the page. */}
+      {/* Newsletter callout sits between the events list and the
+          related-hubs strip so anyone who already scanned the list
+          gets the prompt before they decide to leave the page. */}
       <NewsletterCTA
         variant="hub"
         surface={isCategory ? 'category_hub' : 'neighborhood_hub'}
       />
-
-      {hub.faqs && hub.faqs.length > 0 && (
-        <section className="hub-faq" aria-labelledby="hub-faq-heading">
-          <h2 id="hub-faq-heading" className="hub-section-heading">Frequently asked questions</h2>
-          <dl className="hub-faq-list">
-            {hub.faqs.map((q, i) => (
-              <div key={i} className="hub-faq-item">
-                <dt>{q.question}</dt>
-                <dd>{q.answer}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      )}
 
       {related.length > 0 && (
         <section className="hub-related" aria-labelledby="hub-related-heading">

@@ -110,19 +110,11 @@ export default function AboutPage() {
         <div className="about-bar" />
 
         <p className="about-p">
-          Akron doesn't have a noise problem. It has a signal problem.
-        </p>
-
-        <p className="about-p">
-          Events get posted across a dozen different websites, buried in Facebook groups,
-          or quietly announced to whoever already follows the right accounts.
-          The city gets written off as sleepy by people who simply didn't know where to look.
-        </p>
-
-        <p className="about-p">
-          Akron Pulse is one place to look. We pull from local venue calendars, ticketing
-          platforms, and community submissions — updated daily, no duplicates, no noise.
-          If it's happening in Akron, it should be here.
+          Akron Pulse will make sure you learn about an event a week early, not a day late.
+          We pull data from local websites, venue calendars, ticketing platforms, community
+          mailers, and user submissions – updated daily, no duplicates, no noise – to give
+          you the most comprehensive and reliable events calendar in Summit County. The best
+          part – you can tailor it to the cadence that works best for you. Check it out!
         </p>
 
         <div className="about-divider" />
@@ -147,12 +139,16 @@ export default function AboutPage() {
 
         <div className="about-divider" />
 
-        <h3 className="about-section-title">Have an event to share?</h3>
-        <p className="about-p">
-          If you're an organizer, venue, or community member with something
-          happening in Akron, we'd love to feature it.{' '}
-          <Link to="/submit">Submit your event →</Link>
-        </p>
+        <div className="about-submit-banner">
+          <div className="about-submit-banner__text">
+            <h3 className="about-submit-banner__title">Have an event to share?</h3>
+            <p className="about-submit-banner__desc">
+              If you're an organizer, venue, or community member with something
+              happening in Akron, we'd love to feature it.
+            </p>
+          </div>
+          <Link to="/submit" className="about-submit-banner__btn">Submit your event →</Link>
+        </div>
 
         <div className="about-divider" />
 

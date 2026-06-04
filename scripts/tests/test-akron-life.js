@@ -2,7 +2,6 @@
  * test-akron-life.js
  *
  * Unit tests for the Akron Life scraper (Evvnt Discovery API) — covering:
- *   • haversineMiles — geographic distance math
  *   • isInAkronArea  — Akron-area geo gate
  *   • isBackfilledFromDirectScraper — cross-source dedupe guard
  *   • mapCategory    — EVVNT_CATEGORY_MAP lookup + inferCategory fallback
@@ -21,26 +20,35 @@ process.env.SUPABASE_SERVICE_ROLE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY  
 
 // ── Re-implement scraper logic for testability ────────────────────────────
 
-const AKRON_LAT          = 41.0814
-const AKRON_LNG          = -81.5190
-const MAX_DISTANCE_MILES = 25
+// Mirrors scrape-akron-life.js: primary check is point-in-polygon
+// against the actual Summit County boundary; town blocklist is the
+// fallback for coord-less venues.
+import { preloadSummitCountyBoundary, pointInSummitCounty } from '../lib/summit-county.js'
 
-function haversineMiles(lat1, lon1, lat2, lon2) {
-  const R  = 6_371_000
-  const φ1 = lat1 * Math.PI / 180
-  const φ2 = lat2 * Math.PI / 180
-  const Δφ = (lat2 - lat1) * Math.PI / 180
-  const Δλ = (lon2 - lon1) * Math.PI / 180
-  const a  = Math.sin(Δφ/2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) ** 2
-  return (2 * R * Math.asin(Math.sqrt(a))) / 1609.34
-}
+const NOT_SUMMIT_COUNTY_TOWNS = new Set([
+  'cleveland', 'strongsville', 'brecksville', 'broadview heights',
+  'independence', 'north royalton', 'parma', 'parma heights',
+  'seven hills', 'solon', 'bedford', 'lakewood', 'westlake',
+  'beachwood', 'shaker heights', 'cleveland heights',
+  'kent', 'aurora', 'streetsboro', 'ravenna',
+  'medina', 'wadsworth', 'brunswick',
+  'canton', 'north canton', 'massillon', 'alliance', 'louisville',
+  'uniontown',
+])
 
 function isInAkronArea(venue) {
   if (!venue) return false
   const lat = Number(venue.latitude), lng = Number(venue.longitude)
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false
-  return haversineMiles(lat, lng, AKRON_LAT, AKRON_LNG) <= MAX_DISTANCE_MILES
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    return pointInSummitCounty(lat, lng)
+  }
+  const town = String(venue.town ?? '').toLowerCase().trim()
+  if (town && NOT_SUMMIT_COUNTY_TOWNS.has(town)) return false
+  return true
 }
+
+// Tests reference the polygon — make sure it's loaded before the suite runs.
+await preloadSummitCountyBoundary()
 
 const SOURCES_WE_SCRAPE_DIRECTLY = new Set(['ticketmaster', 'eventbrite'])
 
@@ -125,97 +133,75 @@ function parseEvvntPrices(prices) {
   return { price_min: min, price_max: max > min ? max : null }
 }
 
-// ── haversineMiles ────────────────────────────────────────────────────────
+// ── isInAkronArea (polygon-primary, town-fallback) ────────────────────────
 
-describe('Akron Life — haversineMiles', () => {
-  it('returns 0 for identical coordinates', () => {
-    assert.equal(haversineMiles(41.0814, -81.5190, 41.0814, -81.5190), 0)
-  })
-
-  it('returns a positive distance between two different points', () => {
-    // Cleveland (41.4993, -81.6944) is ~25 miles from downtown Akron
-    const d = haversineMiles(41.0814, -81.5190, 41.4993, -81.6944)
-    assert.ok(d > 0, 'distance should be positive')
-  })
-
-  it('is roughly symmetric (A→B ≈ B→A)', () => {
-    const d1 = haversineMiles(41.0814, -81.5190, 41.4993, -81.6944)
-    const d2 = haversineMiles(41.4993, -81.6944, 41.0814, -81.5190)
-    assert.ok(Math.abs(d1 - d2) < 0.001, 'Haversine should be symmetric')
-  })
-
-  it('Akron to Cleveland is approximately 30 miles', () => {
-    const d = haversineMiles(41.0814, -81.5190, 41.4993, -81.6944)
-    assert.ok(d > 25 && d < 35, `Expected ~30 mi, got ${d.toFixed(2)}`)
-  })
-
-  it('Akron to Columbus (~100 mi) is well above 25 miles', () => {
-    const d = haversineMiles(41.0814, -81.5190, 39.9612, -82.9988)
-    assert.ok(d > 90, `Expected ~100 mi, got ${d.toFixed(2)}`)
-  })
-
-  it('Akron downtown to a nearby suburb is within a few miles', () => {
-    // Cuyahoga Falls is ~3 miles NE of downtown Akron
-    const d = haversineMiles(41.0814, -81.5190, 41.1334, -81.4846)
-    assert.ok(d < 6, `Expected < 6 mi to Cuyahoga Falls, got ${d.toFixed(2)}`)
-  })
-
-  it('handles negative longitudes (western hemisphere) correctly', () => {
-    const d = haversineMiles(41.0814, -81.5190, 41.0814, -81.5190)
-    assert.equal(d, 0)
-  })
-})
-
-// ── isInAkronArea ─────────────────────────────────────────────────────────
-
-describe('Akron Life — isInAkronArea', () => {
-  it('returns true for a venue at downtown Akron coords', () => {
+describe('Akron Life — isInAkronArea (polygon path)', () => {
+  it('returns true for downtown Akron coords', () => {
     assert.equal(isInAkronArea({ latitude: 41.0814, longitude: -81.5190 }), true)
   })
 
-  it('returns true for a venue within 25 miles (e.g. Cuyahoga Falls)', () => {
+  it('returns true for Cuyahoga Falls coords (Summit County)', () => {
     assert.equal(isInAkronArea({ latitude: 41.1334, longitude: -81.4846 }), true)
   })
 
-  it('returns false for a venue clearly outside 25 miles (Cleveland)', () => {
-    // Cleveland ~25+ mi — actually just over the boundary, but Columbus is safe
-    assert.equal(isInAkronArea({ latitude: 39.9612, longitude: -82.9988 }), false)
+  it('returns true for Hale Farm (Bath Township, Summit County)', () => {
+    assert.equal(isInAkronArea({ latitude: 41.2017, longitude: -81.6486 }), true)
   })
 
-  it('returns false when venue is null', () => {
-    assert.equal(isInAkronArea(null), false)
+  it('returns true for Blossom Music Center (Cuyahoga Falls)', () => {
+    assert.equal(isInAkronArea({ latitude: 41.1858, longitude: -81.5544 }), true)
   })
 
-  it('returns false when venue is undefined', () => {
-    assert.equal(isInAkronArea(undefined), false)
+  it('returns false for Strongsville coords (the original leak)', () => {
+    assert.equal(isInAkronArea({ latitude: 41.3141, longitude: -81.8194 }), false)
   })
 
-  it('returns false when latitude is missing', () => {
-    assert.equal(isInAkronArea({ longitude: -81.5190 }), false)
+  it('returns false for Cleveland downtown coords', () => {
+    assert.equal(isInAkronArea({ latitude: 41.4993, longitude: -81.6944 }), false)
   })
 
-  it('returns false when longitude is missing', () => {
-    assert.equal(isInAkronArea({ latitude: 41.0814 }), false)
+  it('returns false for Kent (Portage County) coords', () => {
+    assert.equal(isInAkronArea({ latitude: 41.1537, longitude: -81.3576 }), false)
   })
 
-  it('returns false when latitude is null', () => {
-    assert.equal(isInAkronArea({ latitude: null, longitude: -81.5190 }), false)
+  it('returns false for Brecksville (Cuyahoga County) coords', () => {
+    assert.equal(isInAkronArea({ latitude: 41.3187, longitude: -81.6263 }), false)
   })
 
-  it('returns false when latitude is a non-numeric string', () => {
-    assert.equal(isInAkronArea({ latitude: 'unknown', longitude: -81.5190 }), false)
-  })
-
-  it('returns false when coords are NaN', () => {
-    assert.equal(isInAkronArea({ latitude: NaN, longitude: NaN }), false)
-  })
-
-  it('accepts numeric-string coordinates (Evvnt sometimes serialises as strings)', () => {
+  it('accepts numeric-string coordinates (Evvnt sometimes stringifies)', () => {
     assert.equal(isInAkronArea({ latitude: '41.0814', longitude: '-81.5190' }), true)
   })
+})
 
-  it('returns false for empty object (no coord fields)', () => {
-    assert.equal(isInAkronArea({}), false)
+describe('Akron Life — isInAkronArea (town fallback when no coords)', () => {
+  it('returns true for an Akron venue with no coords', () => {
+    assert.equal(isInAkronArea({ town: 'Akron' }), true)
+  })
+
+  it('returns false for Strongsville without coords (town blocklist)', () => {
+    assert.equal(isInAkronArea({ town: 'Strongsville' }), false)
+  })
+
+  it('returns false for other blocklist towns without coords', () => {
+    for (const town of ['Cleveland', 'Kent', 'Aurora', 'Wadsworth', 'Canton', 'Brecksville', 'Solon', 'Massillon']) {
+      assert.equal(isInAkronArea({ town }), false, `Expected ${town} to be blocked`)
+    }
+  })
+
+  it('is case-insensitive on the town field', () => {
+    assert.equal(isInAkronArea({ town: 'STRONGSVILLE' }), false)
+    assert.equal(isInAkronArea({ town: '  strongsville  ' }), false)
+  })
+
+  it('returns true when neither coords nor a known town — permissive default', () => {
+    assert.equal(isInAkronArea({ town: '' }), true)
+    assert.equal(isInAkronArea({ town: null }), true)
+    assert.equal(isInAkronArea({}), true)
+  })
+
+  it('returns false when venue is null or undefined', () => {
+    assert.equal(isInAkronArea(null), false)
+    assert.equal(isInAkronArea(undefined), false)
   })
 })
 

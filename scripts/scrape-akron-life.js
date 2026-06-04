@@ -41,6 +41,7 @@ import {
   upsertEventSafe, linkEventVenue, linkEventOrganization,
   ensureVenue, ensureOrganization, linkOrganizationVenue,
 } from './lib/normalize.js'
+import { preloadSummitCountyBoundary, pointInSummitCounty } from './lib/summit-county.js'
 
 const SOURCE_KEY    = 'akron_life'
 const PUBLISHER_ID  = 11072
@@ -54,37 +55,71 @@ const MAX_PAGES     = Number(process.env.AKRON_LIFE_MAX_PAGES) || 10
 // ahead, but most of our users won't browse beyond a few months.
 const HORIZON_DAYS  = 180
 
-// ── Akron-area geographic gate ────────────────────────────────────────────
-// Evvnt's publisher_id=11072 feed mixes hyper-local Akron events with
-// nationwide backfill from Ticketmaster, Eventbrite, etc. — Byron has
-// confirmed events ~2 hours away in the calendar. We require every event
-// to be within MAX_DISTANCE_MILES of downtown Akron. Matches the radius
-// used by scrape-eventbrite.js and fetch-ticketmaster.js (40km / ~25 mi).
-const AKRON_LAT          = 41.0814
-const AKRON_LNG          = -81.5190
-const MAX_DISTANCE_MILES = 25
-
-function haversineMiles(lat1, lon1, lat2, lon2) {
-  const R  = 6_371_000  // Earth radius in metres
-  const φ1 = lat1 * Math.PI / 180
-  const φ2 = lat2 * Math.PI / 180
-  const Δφ = (lat2 - lat1) * Math.PI / 180
-  const Δλ = (lon2 - lon1) * Math.PI / 180
-  const a  = Math.sin(Δφ/2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) ** 2
-  return (2 * R * Math.asin(Math.sqrt(a))) / 1609.34
-}
+// ── Summit County geography gate ──────────────────────────────────────────
+//
+// Primary check: point-in-polygon against the actual Summit County
+// boundary (TIGER/Line 2025, GEOID 39153 — see scripts/lib/summit-county.js
+// + public/summit-county-boundary.geojson). This is authoritative —
+// no town strings, no radius, no false positives at the borders.
+//
+// Fallback for coord-less venues: a small blocklist of known non-Summit
+// cities so an event with town="Strongsville" and missing lat/lng still
+// gets dropped. When neither coords nor a recognised town are present,
+// the event is treated as in-scope (Byron's explicit preference: "100%
+// Summit County internally, even if one or two slip through").
+//
+// Direct per-venue scrapers (Kent Stage in Portage County, etc.) bypass
+// this gate. It only governs Evvnt's national aggregator backfill.
+const NOT_SUMMIT_COUNTY_TOWNS = new Set([
+  // Cuyahoga County (Cleveland metro)
+  'cleveland', 'east cleveland', 'cleveland heights', 'shaker heights',
+  'university heights', 'south euclid', 'lyndhurst', 'mayfield',
+  'mayfield heights', 'gates mills', 'pepper pike', 'beachwood',
+  'orange', 'moreland hills', 'hunting valley', 'chagrin falls',
+  'solon', 'bedford', 'bedford heights', 'oakwood village',
+  'walton hills', 'glenwillow', 'maple heights', 'garfield heights',
+  'newburgh heights', 'cuyahoga heights', 'valley view', 'independence',
+  'brecksville', 'broadview heights', 'north royalton', 'seven hills',
+  'parma', 'parma heights', 'strongsville', 'brooklyn', 'brook park',
+  'middleburg heights', 'berea', 'olmsted falls', 'north olmsted',
+  'fairview park', 'rocky river', 'lakewood', 'bay village',
+  'westlake', 'avon', 'avon lake', 'north ridgeville', 'euclid',
+  'richmond heights', 'highland heights', 'willowick',
+  // Portage / Medina / Stark / Lake / Lorain / Wayne
+  'kent', 'aurora', 'streetsboro', 'ravenna', 'mantua', 'garrettsville',
+  'hiram', 'rootstown', 'windham',
+  'medina', 'wadsworth', 'brunswick', 'lodi', 'seville',
+  'sharon center', 'rittman', 'spencer',
+  'canton', 'north canton', 'massillon', 'alliance', 'louisville',
+  'uniontown', 'east canton', 'minerva', 'hartville', 'magnolia',
+  'navarre', 'brewster',
+  'mentor', 'painesville', 'willoughby', 'eastlake', 'wickliffe',
+  'kirtland', 'lorain', 'elyria', 'amherst', 'wooster', 'orrville',
+])
 
 /**
- * Returns true when the event's venue lat/lng is within MAX_DISTANCE_MILES
- * of downtown Akron. False when coords are missing — without geography we
- * can't verify locality, and the venue.town / post_code fields are
- * unreliable (one Bath, OH venue had Bath, WV coordinates).
+ * True iff the venue is in (or, as fallback, not-known-to-be-outside)
+ * Summit County, OH.
+ *
+ * Hierarchy:
+ *   1. If lat/lng is present → point-in-polygon → authoritative.
+ *   2. Else if town matches the non-Summit blocklist → false.
+ *   3. Else true (permissive default for missing data).
+ *
+ * Requires `preloadSummitCountyBoundary()` to have been awaited before
+ * the first call. main() does this once at scraper startup.
  */
 function isInAkronArea(venue) {
   if (!venue) return false
+
   const lat = Number(venue.latitude), lng = Number(venue.longitude)
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false
-  return haversineMiles(lat, lng, AKRON_LAT, AKRON_LNG) <= MAX_DISTANCE_MILES
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    return pointInSummitCounty(lat, lng)
+  }
+
+  const town = String(venue.town ?? '').toLowerCase().trim()
+  if (town && NOT_SUMMIT_COUNTY_TOWNS.has(town)) return false
+  return true
 }
 
 // ── Cross-source dedupe by hostname + organiser ──────────────────────────
@@ -409,6 +444,10 @@ async function main() {
   const start = Date.now()
 
   try {
+    // Load the Summit County polygon once before the per-event loop;
+    // pointInSummitCounty() is synchronous after this point.
+    await preloadSummitCountyBoundary()
+
     const organizerId = await ensureOrganization('Akron Life Magazine', {
       website:     'https://www.akronlife.com',
       description: 'Akron Life is a regional lifestyle magazine covering dining, arts, culture, and community events across Greater Akron.',
@@ -439,9 +478,10 @@ async function main() {
     // All filtering is purely in-memory (no DB calls) so it's cheap to be
     // strict here. Four drop reasons:
     //   1. outOfWindow — past or beyond the HORIZON_DAYS horizon
-    //   2. outsideArea — venue lat/lng > MAX_DISTANCE_MILES from Akron, OR
-    //                    coords missing (Evvnt's town field has been seen
-    //                    misrepresenting West Virginia venues as Bath, OH)
+    //   2. outsideArea — venue.town isn't a Summit County municipality
+    //                    (Akron, Cuyahoga Falls, Stow, Hudson, Bath, etc.).
+    //                    Events with no town fall here too — we'd rather
+    //                    miss a few than leak a wrong-county one.
     //   3. noLink      — no real external URL we could link the user to;
     //                    akronlife.com's broken event pages don't count
     //   4. dupSource   — already covered by a scrape-<name>.js we run

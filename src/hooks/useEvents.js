@@ -30,17 +30,22 @@ export const PAGE_SIZE = 24
  * We fetch venues and organizations as nested arrays.
  */
 export function useEvents({
-  categories    = [],
-  dateRange     = null,
-  dateFrom      = null,
-  dateTo        = null,
-  search        = null,
-  freeOnly      = false,
-  priceMax      = null,
-  hiddenSources = [],
-  sort          = 'soonest',
-  limit         = PAGE_SIZE,
-  offset        = 0,
+  categories       = [],
+  dateRange        = null,
+  dateFrom         = null,
+  dateTo           = null,
+  search           = null,
+  freeOnly         = false,
+  priceMax         = null,
+  hiddenSources    = [],
+  // When set, restrict to events whose venue.neighborhood_slug matches.
+  // This is the push-down used by neighborhood hub pages so they don't
+  // have to fetch 100 events and filter client-side — which silently
+  // misses events when other neighborhoods crowd the first page.
+  neighborhoodSlug = null,
+  sort             = 'soonest',
+  limit            = PAGE_SIZE,
+  offset           = 0,
 } = {}) {
   const [events,  setEvents]  = useState([])
   const [loading, setLoading] = useState(true)
@@ -55,15 +60,35 @@ export function useEvents({
       setError(null)
 
       try {
+        // The venue embed is an inner join only when neighborhoodSlug is
+        // set — that flips PostgREST into "filter the parent by the
+        // child" mode and lets us hand the slug constraint to Postgres
+        // (see the .eq below). Without !inner, embedded filters become
+        // a "filter the embedded resource" — the event still comes
+        // back, just with venue=null, which would silently lie to the
+        // matcher. The empty-string trick keeps the syntax stable
+        // whether or not we're filtering.
+        const venueJoin = neighborhoodSlug ? 'event_venues!inner' : 'event_venues'
+        const venueTbl  = neighborhoodSlug ? 'venues!inner'      : 'venues'
+
         let query = supabase
           .from('events')
           .select(`
             *,
-            event_venues ( venue:venues ( id, name, address, city, state, zip, lat, lng, parking_type, parking_notes, website, image_url, neighborhood_slug ) ),
+            ${venueJoin} ( venue:${venueTbl} ( id, name, address, city, state, zip, lat, lng, parking_type, parking_notes, website, image_url, neighborhood_slug ) ),
             event_organizations ( organization:organizations ( id, name, website, description, image_url ) )
           `, { count: 'exact' })
           .eq('status', 'published')
           .gte('start_at', new Date(Date.now() - 3 * 3600_000).toISOString())
+
+        if (neighborhoodSlug) {
+          // PostgREST embedded-table filter: references the actual table
+          // names (`event_venues.venues.neighborhood_slug`), not the
+          // `venue:` alias we used in the select. Inner-joined embeds
+          // propagate the filter up so the events query returns only
+          // rows where at least one joined venue matches.
+          query = query.eq('event_venues.venues.neighborhood_slug', neighborhoodSlug)
+        }
 
         if (categories.length > 0) {
           query = query.in('category', categories)
@@ -154,7 +179,7 @@ export function useEvents({
 
     fetchEvents()
     return () => { cancelled = true }
-  }, [categories.join(','), dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSources.join(','), sort, limit, offset])
+  }, [categories.join(','), dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSources.join(','), neighborhoodSlug, sort, limit, offset])
 
   const hasMore = offset + limit < total
 

@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useRef, useCallback, Fragment } from 'react'
-import { format, isToday, isTomorrow } from 'date-fns'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useEvents, useMapEvents, PAGE_SIZE } from '@/hooks/useEvents'
 import { supabase } from '@/lib/supabase'
@@ -9,6 +8,8 @@ import EventCard from '@/components/EventCard'
 import FilterBar from '@/components/FilterBar'
 import MapView from '@/components/MapView'
 import SourceOverflowCard from '@/components/SourceOverflowCard'
+import DateHeading from '@/components/DateHeading'
+import { groupEventsByDate, applySourceCap } from '@/lib/eventGrouping'
 import { INTENTS, SEARCH_SUGGESTIONS } from '@/lib/intents'
 import {
   SEO,
@@ -21,83 +22,6 @@ import {
 } from '@/lib/seo'
 import { eventPath } from '@/lib/slug'
 import './HomePage.css'
-
-// ── Source overflow cap ───────────────────────────────────────────────────────
-// Per-source limit before an overflow card is injected. Events beyond this
-// count are hidden until the user clicks the overflow card to expand them.
-const SOURCE_CAP = 3
-
-/**
- * applySourceCap(dayEvents, expandedSources, dateKey)
- *
- * Takes a flat, time-sorted array of events for one day and returns a mixed
- * array of items that the grid should render:
- *
- *   { type: 'event',    event, isRevealed }
- *   { type: 'overflow', source, dateKey, hiddenCount, isExpanded }
- *
- * Algorithm:
- *  - Count events per source as we walk the list.
- *  - When a source hits SOURCE_CAP+1, inject an overflow card *at that position*
- *    (the card stays here forever — its grid slot never shifts).
- *  - Subsequent events from that source are hidden unless expanded.
- *  - Expanded sources show their hidden events immediately after the overflow
- *    card, interleaved in correct time order.
- */
-function applySourceCap(dayEvents, expandedSources, dateKey) {
-  // sourceCounts: how many events we've emitted (not including overflow card) per source
-  const sourceCounts    = {}
-  // overflowEmitted: have we already emitted the overflow card for this source?
-  const overflowEmitted = {}
-  // hiddenEvents: buffer of events suppressed per source (needed for total count)
-  const hiddenCounts    = {}
-
-  // First pass — collect how many events each source has beyond the cap so
-  // we know the overflow card label before we emit it.
-  const sourceTotal = {}
-  for (const ev of dayEvents) {
-    const src = ev.source ?? 'unknown'
-    sourceTotal[src] = (sourceTotal[src] ?? 0) + 1
-  }
-
-  const items = []
-
-  for (const ev of dayEvents) {
-    const src        = ev.source ?? 'unknown'
-    const count      = sourceCounts[src] ?? 0
-    const isExpanded = expandedSources.has(`${dateKey}-${src}`)
-    const total      = sourceTotal[src]
-
-    if (count < SOURCE_CAP) {
-      // Always show events within the cap
-      items.push({ type: 'event', event: ev, isRevealed: false })
-      sourceCounts[src] = count + 1
-    } else {
-      // This source has hit the cap
-      if (!overflowEmitted[src]) {
-        // Emit the overflow card at this exact position (will never move)
-        const hiddenCount = total - SOURCE_CAP
-        items.push({
-          type: 'overflow',
-          source: src,
-          dateKey,
-          hiddenCount,
-          isExpanded,
-        })
-        overflowEmitted[src] = true
-        hiddenCounts[src]    = hiddenCount
-      }
-
-      // Only show the event if this source is expanded
-      if (isExpanded) {
-        items.push({ type: 'event', event: ev, isRevealed: true })
-      }
-      // (if not expanded, event is simply omitted from the item list)
-    }
-  }
-
-  return items
-}
 
 // ── localStorage key for persisting card view mode ──
 const VIEW_MODE_KEY = 'akronpulse_card_view_mode'
@@ -114,30 +38,6 @@ function getStoredViewMode() {
     const v = localStorage.getItem(VIEW_MODE_KEY)
     return v === 'efficient' ? 'efficient' : 'comfortable'
   } catch { return 'comfortable' }
-}
-
-function groupEventsByDate(events) {
-  const groups = {}
-  events.forEach((event) => {
-    const key = format(new Date(event.start_at), 'yyyy-MM-dd')
-    if (!groups[key]) groups[key] = []
-    groups[key].push(event)
-  })
-  return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b))
-}
-
-function DateHeading({ dateKey }) {
-  const d = new Date(dateKey + 'T12:00:00')
-  return (
-    <div className="date-group">
-      <div className="date-heading">
-        <span className="date-label">{format(d, 'EEEE, MMMM d')}</span>
-        {isToday(d)    && <span className="today-badge">Today</span>}
-        {isTomorrow(d) && <span className="today-badge" style={{ background: 'var(--green-mid)' }}>Tomorrow</span>}
-        <div className="date-line" />
-      </div>
-    </div>
-  )
 }
 
 export default function HomePage() {

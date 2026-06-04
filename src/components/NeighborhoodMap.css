@@ -1,0 +1,139 @@
+/**
+ * NeighborhoodMap.css
+ *
+ * Visual contract:
+ *   idle           — muted fill, thin border (reads as "outline only")
+ *   hover/focus    — coral fill (secondary accent — clearly distinct
+ *                    from the brand amber so hover never gets
+ *                    confused with active)
+ *   active         — brand amber fill, dark stroke, no pointer
+ *                    interaction
+ *
+ * All colors come from the theme token palette so the map adapts to
+ * every theme automatically. Tested against the bright/light/dark
+ * variants — both amber and coral remain visually distinguishable in
+ * each.
+ */
+
+.neighborhood-map {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Loading / error states ─────────────────────────────────────── */
+.neighborhood-map--loading,
+.neighborhood-map--error {
+  min-height: 240px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg-card, var(--bg, #fff));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.neighborhood-map--loading {
+  /* Subtle shimmer cue so the empty state reads as "loading", not
+     "broken". Single keyframe — no blur, no gradient. */
+  animation: neighborhood-map-loading-pulse 1.4s ease-in-out infinite;
+}
+@keyframes neighborhood-map-loading-pulse {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .neighborhood-map--loading { animation: none; }
+}
+
+/* ── SVG frame ──────────────────────────────────────────────────── */
+.neighborhood-map-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--bg-card, var(--bg, #fff));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  /* The active-polygon glow can clip near the SVG edge without padding,
+     which the component handles via its VIEW box. Overflow is still
+     hidden here for any accidental anti-alias fringes. */
+  overflow: hidden;
+}
+
+/* ── Polygon shapes ─────────────────────────────────────────────── */
+
+/* Default (idle) — every non-active polygon. The fill is the page's
+   secondary surface tone so polygons read as cohesive map pieces
+   rather than empty outlines. */
+.neighborhood-map-shape {
+  fill: var(--bg-secondary, var(--border));
+  stroke: var(--border-mid, var(--border));
+  stroke-width: 1;
+  stroke-linejoin: round;
+  /* Smooth color transitions on hover, but kept short so feedback
+     feels responsive. Stroke transitions too so the active outline
+     ramps in instead of popping. */
+  transition: fill 0.12s ease, stroke 0.12s ease, stroke-width 0.12s ease;
+  cursor: pointer;
+  /* Slight outline on focus is handled at the <a> level below — the
+     path itself doesn't need an outline ring. */
+  outline: none;
+}
+
+/* Hover + keyboard focus state. Coral (theme's secondary accent) is
+   visually distinct from amber (brand) so the active polygon stays
+   the clear "selected" signal even when something else is hovered. */
+.neighborhood-map a:hover .neighborhood-map-shape,
+.neighborhood-map a:focus-visible .neighborhood-map-shape {
+  fill: var(--coral-tint-25, var(--coral-tint-15, rgba(188, 79, 40, 0.25)));
+  stroke: var(--coral, currentColor);
+  stroke-width: 1.5;
+}
+
+/* Active polygon — brand amber, fully saturated. No pointer events
+   because it's the current page; nothing should happen on click. */
+.neighborhood-map-shape--active {
+  fill: var(--amber, #96671E);
+  stroke: var(--amber-hover, var(--amber, #7A5416));
+  stroke-width: 2;
+  cursor: default;
+}
+
+/* Subtle keyboard focus ring on the link itself — applies to the
+   whole shape via the outline because the <a> wraps the <path>.
+   focus-visible only so mouse users don't see it. */
+.neighborhood-map a {
+  /* SVG anchors don't pick up the default browser focus ring as
+     cleanly as HTML ones; an explicit outline keeps it crisp. */
+  outline: none;
+}
+.neighborhood-map a:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Caption ───────────────────────────────────────────────────── */
+.neighborhood-map-caption {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display, inherit);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary, var(--text, inherit));
+  min-height: 1.4em;   /* prevents layout jump as the label changes */
+  padding: 0 4px;
+}
+
+.neighborhood-map-caption-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--amber);
+  /* Soft outline matches the SVG's active stroke so the dot reads
+     as a mini-legend for the highlighted polygon. */
+  box-shadow: 0 0 0 2px var(--bg-card, #fff), 0 0 0 3px var(--amber-border, var(--amber, #96671E));
+}

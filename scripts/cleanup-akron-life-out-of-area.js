@@ -13,9 +13,16 @@
  *   already in the database.
  *
  * Drop criteria (any one disqualifies the event):
- *   • No linked venue, OR linked venue has no lat/lng coordinates
- *   • Linked venue lat/lng > 25 miles from downtown Akron
+ *   • No linked venue
+ *   • Linked venue.city is a known non-Summit-County town (Cleveland
+ *     suburbs, Kent, Canton, Medina, Wadsworth, etc. — see
+ *     NOT_SUMMIT_COUNTY_TOWNS below for the full list)
  *   • No ticket_url, OR ticket_url points to akronlife.com (broken page)
+ *
+ * Permissive default: events whose venue has no city OR whose city
+ * isn't on the blocklist are kept. This matches scrape-akron-life.js's
+ * runtime gate and Byron's preference for "1-2 slip-throughs over
+ * losing real Summit County events".
  *
  * Safety:
  *   • Default mode is dry-run — prints what would be deleted, deletes nothing
@@ -32,22 +39,42 @@
 
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
+import { preloadSummitCountyBoundary, pointInSummitCounty } from './lib/summit-county.js'
 
-const AKRON_LAT          = 41.0814
-const AKRON_LNG          = -81.5190
-const MAX_DISTANCE_MILES = 25
+// Mirrors scrape-akron-life.js — blocklist is the coord-less fallback
+// for venues where lat/lng isn't available. When lat/lng exists, we
+// run the authoritative point-in-Summit-County polygon check instead.
+const NOT_SUMMIT_COUNTY_TOWNS = new Set([
+  // Cuyahoga County (Cleveland metro)
+  'cleveland', 'east cleveland', 'cleveland heights', 'shaker heights',
+  'university heights', 'south euclid', 'lyndhurst', 'mayfield',
+  'mayfield heights', 'gates mills', 'pepper pike', 'beachwood',
+  'orange', 'moreland hills', 'hunting valley', 'chagrin falls',
+  'solon', 'bedford', 'bedford heights', 'oakwood village',
+  'walton hills', 'glenwillow', 'maple heights', 'garfield heights',
+  'newburgh heights', 'cuyahoga heights', 'valley view', 'independence',
+  'brecksville', 'broadview heights', 'north royalton', 'seven hills',
+  'parma', 'parma heights', 'strongsville', 'brooklyn', 'brook park',
+  'middleburg heights', 'berea', 'olmsted falls', 'north olmsted',
+  'fairview park', 'rocky river', 'lakewood', 'bay village',
+  'westlake', 'avon', 'avon lake', 'north ridgeville', 'euclid',
+  'richmond heights', 'highland heights', 'willowick',
+  // Portage County
+  'kent', 'aurora', 'streetsboro', 'ravenna', 'mantua', 'garrettsville',
+  'hiram', 'rootstown', 'windham',
+  // Medina County
+  'medina', 'wadsworth', 'brunswick', 'lodi', 'seville',
+  'sharon center', 'rittman', 'spencer',
+  // Stark County
+  'canton', 'north canton', 'massillon', 'alliance', 'louisville',
+  'uniontown', 'east canton', 'minerva', 'hartville', 'magnolia',
+  'navarre', 'brewster',
+  // Lake / Lorain / Wayne
+  'mentor', 'painesville', 'willoughby', 'eastlake', 'wickliffe',
+  'kirtland', 'lorain', 'elyria', 'amherst', 'wooster', 'orrville',
+])
 
 const APPLY = process.argv.includes('--apply')
-
-function haversineMiles(lat1, lon1, lat2, lon2) {
-  const R  = 6_371_000
-  const φ1 = lat1 * Math.PI / 180
-  const φ2 = lat2 * Math.PI / 180
-  const Δφ = (lat2 - lat1) * Math.PI / 180
-  const Δλ = (lon2 - lon1) * Math.PI / 180
-  const a  = Math.sin(Δφ/2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) ** 2
-  return (2 * R * Math.asin(Math.sqrt(a))) / 1609.34
-}
 
 function evaluate(event) {
   const reasons = []
@@ -62,13 +89,18 @@ function evaluate(event) {
   if (!venue) {
     reasons.push('no linked venue')
   } else {
+    // Authoritative: point-in-polygon against Summit County's actual
+    // TIGER/Line boundary. Falls back to the town blocklist only when
+    // lat/lng is missing on the venue row.
     const lat = Number(venue.lat), lng = Number(venue.lng)
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      reasons.push(`venue "${venue.name}" missing coordinates`)
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      if (!pointInSummitCounty(lat, lng)) {
+        reasons.push(`venue "${venue.name}" coords (${lat.toFixed(4)}, ${lng.toFixed(4)}) outside Summit County polygon`)
+      }
     } else {
-      const dist = haversineMiles(lat, lng, AKRON_LAT, AKRON_LNG)
-      if (dist > MAX_DISTANCE_MILES) {
-        reasons.push(`venue "${venue.name}" is ${dist.toFixed(1)} mi from Akron`)
+      const city = String(venue.city ?? '').toLowerCase().trim()
+      if (city && NOT_SUMMIT_COUNTY_TOWNS.has(city)) {
+        reasons.push(`venue "${venue.name}" in "${venue.city}" (no coords) — known non-Summit-County town`)
       }
     }
   }
@@ -83,8 +115,12 @@ function evaluate(event) {
 }
 
 async function main() {
+  // Load the Summit County polygon once before walking events;
+  // pointInSummitCounty() is synchronous after this point.
+  await preloadSummitCountyBoundary()
+
   console.log(`🧹  ${APPLY ? 'APPLYING' : 'DRY RUN —'} cleanup of source='akron_life' events`)
-  console.log(`    Criteria: keep events with linked venue within ${MAX_DISTANCE_MILES} mi of Akron and a non-akronlife ticket_url`)
+  console.log(`    Criteria: keep events whose linked venue passes the Summit County polygon check (or, coord-less venues, the town blocklist) and that have a non-akronlife ticket_url`)
   console.log('')
 
   // Page through events. Supabase caps result size; we don't expect more

@@ -9,6 +9,7 @@
 import { supabaseAdmin } from './supabase-admin.js'
 import { getImageDimensions } from './image-dimensions.js'
 import { normalizeImageUrl } from './image-url-normalizer.js'
+import { resolveNeighborhoodSlug } from './neighborhood-resolver.js'
 
 // ════════════════════════════════════════════════════════════════════════════
 // HTML / TEXT UTILITIES
@@ -561,8 +562,14 @@ export async function ensureVenue(name, details = {}) {
 
   if (_venueNameCache.has(trimmed)) return _venueNameCache.get(trimmed)
 
+  // neighborhood_slug is pulled into the existing-venue query so we
+  // can decide whether to backfill it without overwriting a manual
+  // admin classification. The polygon-based resolver runs at insert
+  // time and on existing-but-unclassified rows whenever new lat/lng
+  // arrive — same behavior as scripts/classify-venues-by-polygon.js
+  // gets us, just spread across the live ingest path.
   const { data: existing } = await supabaseAdmin
-    .from('venues').select('id').eq('name', trimmed).maybeSingle()
+    .from('venues').select('id, neighborhood_slug').eq('name', trimmed).maybeSingle()
 
   if (existing) {
     // Update details on existing venue (e.g. corrected coordinates)
@@ -578,6 +585,17 @@ export async function ensureVenue(name, details = {}) {
     if (details.website)       updates.website       = details.website
     if (details.description)   updates.description   = details.description
     if (details.tags?.length)  updates.tags          = details.tags
+
+    // Resolve the polygon slug only when the venue isn't already
+    // classified AND we have coordinates to feed the resolver. This
+    // protects manual admin classifications — once an admin sets a
+    // slug, scrapers won't change it. New lat/lng on an unclassified
+    // venue means the polygon answer is now reachable.
+    if (!existing.neighborhood_slug && details.lat != null && details.lng != null) {
+      const slug = await resolveNeighborhoodSlug(details.lat, details.lng)
+      if (slug) updates.neighborhood_slug = slug
+    }
+
     if (Object.keys(updates).length) {
       await supabaseAdmin.from('venues').update(updates).eq('id', existing.id)
     }
@@ -599,6 +617,15 @@ export async function ensureVenue(name, details = {}) {
   if (details.website)       row.website       = details.website
   if (details.description)   row.description   = details.description
   if (details.tags?.length)  row.tags          = details.tags
+
+  // Auto-classify by polygon at insert time when coordinates are
+  // present. Resolver returns null for venues outside Akron city
+  // limits (Cuyahoga Falls, Stow, etc.) — those rows leave the
+  // column null, which is the correct state for non-Akron venues.
+  if (details.lat != null && details.lng != null) {
+    const slug = await resolveNeighborhoodSlug(details.lat, details.lng)
+    if (slug) row.neighborhood_slug = slug
+  }
 
   const { data, error } = await supabaseAdmin
     .from('venues').insert(row).select('id').single()
