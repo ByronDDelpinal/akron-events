@@ -232,6 +232,22 @@
 }
 .active-pill-x:hover { opacity: 1; }
 
+/* ── Clear-all pill — same shape but muted/ghost style ── */
+.active-pill--clear {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+.active-pill--clear:hover {
+  border-color: var(--amber-border);
+  color: var(--amber);
+}
+
 /* ════════════════════════════════
    Scroll fade hints
    Right-edge gradient showing more content is scrollable.

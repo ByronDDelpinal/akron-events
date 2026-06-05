@@ -60,34 +60,75 @@ function AppInner() {
     trackPageView(location.pathname + location.search)
   }, [location])
 
-  // Scroll restoration.
+  // ── Scroll persistence ────────────────────────────────────────────────
+  //
+  // We manage scroll position manually (history.scrollRestoration = 'manual'
+  // is set in main.jsx) so that back/forward navigation AND browser reload
+  // restore the user to exactly where they were.
+  //
+  // The position is stored in sessionStorage keyed by location.key — a
+  // per-history-entry identifier that React Router derives from the
+  // browser's history state. This means:
+  //   - Two visits to the same URL (e.g. / visited twice in one session)
+  //     each get their own saved position.
+  //   - The key survives a browser reload because the browser preserves
+  //     its history state object, so the same key is available on remount.
+  //
+  // SAVE — throttled via rAF so rapid scroll events are coalesced.
+  useEffect(() => {
+    let rafId = null
+    const onScroll = () => {
+      if (rafId) return
+      rafId = requestAnimationFrame(() => {
+        try { sessionStorage.setItem(`sp:${location.key}`, String(Math.round(window.scrollY))) } catch {}
+        rafId = null
+      })
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (rafId) cancelAnimationFrame(rafId)
+    }
+  }, [location.key])
+
+  // RESTORE — on POP (back/forward/reload). Two attempts:
+  //   1. Immediate (rAF) — works when content is already in memory.
+  //   2. After 600 ms — covers async Supabase fetches (typically 100–400 ms
+  //      on a good connection). The retry is gated on scrollY < 50 so it
+  //      never fights the user if they've already started scrolling.
+  useEffect(() => {
+    if (navigationType !== 'POP') return
+    const saved = (() => {
+      try { return parseInt(sessionStorage.getItem(`sp:${location.key}`) ?? '0', 10) } catch { return 0 }
+    })()
+    if (!saved) return
+
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: saved, behavior: 'instant' })
+      setTimeout(() => {
+        if (window.scrollY < 50) window.scrollTo({ top: saved, behavior: 'instant' })
+      }, 600)
+    })
+  }, [location.key, navigationType])
+
+  // ── Scroll-to-top on PUSH/REPLACE ────────────────────────────────────
   //
   // React Router v6 does not auto-scroll on navigation. We want:
   //   - PUSH/REPLACE (a fresh link click or programmatic nav) → scroll
-  //     to the top so the new page starts at its hero/header instead
-  //     of inheriting the previous page's scroll offset.
-  //   - POP (browser back/forward button) → leave the position alone
-  //     so the browser's native scroll restoration can return the user
-  //     to where they were. Scrolling to top here would feel wrong on
-  //     a back button.
+  //     to the top so the new page starts at its hero/header.
+  //   - POP (back/forward/reload) → handled by the restore effect above.
   //
-  // We also skip the scroll when there's a hash fragment so anchor
-  // links like /about#faq still jump to the right place. We only
-  // react to pathname changes (not search) so toggling filters on the
-  // homepage (`?categories=music`) doesn't yank the user to the top.
+  // We skip the scroll for hash fragments (anchor links like /about#faq)
+  // and for navigations tagged state: { preserveScroll: true } (used by
+  // the neighborhood map when jumping between hub pages so the map stays
+  // roughly under the user's pointer).
   //
-  // Opt-out: navigations tagged with `state: { preserveScroll: true }`
-  // skip the scroll. The neighborhood map uses this when the user
-  // clicks a polygon to jump between hub pages — every hub shares the
-  // same hero layout, so leaving the scroll alone keeps the map
-  // roughly under their pointer instead of yanking them to the top.
+  // We only react to pathname changes, not search, so filter toggles on
+  // the homepage (?categories=music) don't yank the user to the top.
   useEffect(() => {
     if (navigationType === 'POP') return
     if (location.hash) return
     if (location.state?.preserveScroll) return
-    // Use 'instant' rather than 'smooth' — a smooth scroll on every
-    // page change competes with the new page's first paint and feels
-    // sluggish, especially on event detail pages.
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
   }, [location.pathname, navigationType, location.state])
 

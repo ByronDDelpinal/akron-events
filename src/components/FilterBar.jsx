@@ -34,6 +34,7 @@ export default function FilterBar({
   view,            onView,
   total,
   cardViewMode,    onCardViewMode,
+  onClearAll,
   // Pass-through to FilterTray. Locked dimensions also drop their pills
   // from the active-filter summary strip so a category-hub page can't
   // surface a removable Category pill that would let the user undo the
@@ -54,8 +55,9 @@ export default function FilterBar({
     sort !== 'soonest',
   ].filter(Boolean).length
 
-  // Any filter active at all (for the summary strip)
+  // Any filter or non-default sort active (drives the summary strip + Clear pill)
   const hasAnyFilter = activeIntentId || dateRange || rawCategories.length > 0 || priceFilter || dateFrom || dateTo
+  const hasAnyClearable = hasAnyFilter || sort !== 'soonest'
 
   function removeRawCat(cat) {
     onRawCategories(rawCategories.filter(c => c !== cat))
@@ -111,7 +113,7 @@ export default function FilterBar({
         </div>
 
         {/* ── Active filter summary strip ── */}
-        {hasAnyFilter && (
+        {hasAnyClearable && (
           <div className="filter-active-strip">
             {activeIntent && (
               <ActivePill
@@ -143,6 +145,11 @@ export default function FilterBar({
                 label={priceFilter === 'free' ? 'Free only' : priceFilter === 'under10' ? 'Under $10' : 'Under $25'}
                 onRemove={() => onPriceFilter(null)}
               />
+            )}
+            {onClearAll && (
+              <button className="active-pill active-pill--clear" onClick={onClearAll}>
+                Clear filters
+              </button>
             )}
           </div>
         )}

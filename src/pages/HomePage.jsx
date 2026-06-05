@@ -532,6 +532,7 @@ export default function HomePage() {
         view={view}                      onView={setView}
         total={total}
         cardViewMode={cardViewMode}      onCardViewMode={handleCardViewMode}
+        onClearAll={clearFilters}
       />
 
       {/* ── MAP VIEW ── */}
