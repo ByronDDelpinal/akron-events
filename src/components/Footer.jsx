@@ -16,6 +16,24 @@ const PREF_KEYS = [
 // px of net downward scroll to fully hide the slim bar
 const FADE_DISTANCE = 200
 
+function ChevronIcon() {
+  return (
+    <svg
+      className="footer-hub-chevron"
+      width="12" height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  )
+}
+
 export default function Footer() {
   const { pathname } = useLocation()
   const [theme, setTheme] = useTheme()
@@ -82,8 +100,11 @@ export default function Footer() {
 
           <nav className="footer-hub-nav" aria-label="Browse events by category and neighborhood">
             {ENABLED_CATEGORY_HUBS.length > 0 && (
-              <div className="footer-hub-col">
-                <p className="footer-hub-label">Browse by category</p>
+              <details className="footer-hub-col">
+                <summary className="footer-hub-label">
+                  Browse by category
+                  <ChevronIcon />
+                </summary>
                 <ul>
                   {ENABLED_CATEGORY_HUBS.map((h) => (
                     <li key={h.slug}>
@@ -91,11 +112,14 @@ export default function Footer() {
                     </li>
                   ))}
                 </ul>
-              </div>
+              </details>
             )}
             {ENABLED_NEIGHBORHOOD_HUBS.length > 0 && (
-              <div className="footer-hub-col">
-                <p className="footer-hub-label">Browse by neighborhood</p>
+              <details className="footer-hub-col">
+                <summary className="footer-hub-label">
+                  Browse by neighborhood
+                  <ChevronIcon />
+                </summary>
                 <ul>
                   {ENABLED_NEIGHBORHOOD_HUBS.map((h) => (
                     <li key={h.slug}>
@@ -103,7 +127,7 @@ export default function Footer() {
                     </li>
                   ))}
                 </ul>
-              </div>
+              </details>
             )}
           </nav>
 
