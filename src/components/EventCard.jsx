@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import CategoryBadge from './CategoryBadge'
+import { CategoryBadges } from './CategoryBadge'
 import { eventPath } from '@/lib/slug'
 import {
   formatPrice,
@@ -16,23 +16,6 @@ function AgeRestrictionPill({ value }) {
   return <span className="age-pill">{label}</span>
 }
 
-/**
- * Render an event's content categories as badges — primary first, then the
- * secondary (events now carry up to 2 via the event_categories join table).
- * Falls back to the singular `category` shim for any not-yet-migrated caller.
- */
-function CategoryBadges({ event }) {
-  const cats = (event.categories?.length ? event.categories : [event.category])
-    .filter(Boolean)
-    .slice(0, 2)
-  return cats.map((c, i) => (
-    <CategoryBadge
-      key={c}
-      category={c}
-      className={i > 0 ? 'event-tag--secondary' : ''}
-    />
-  ))
-}
 
 // ── COMFORTABLE MODE (default) ──────────────────────────────────────────────
 

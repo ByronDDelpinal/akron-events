@@ -109,7 +109,12 @@ function conditionalContentSignals(text, tLow) {
 }
 
 const FAMILY_RE = /\b(story ?time|story hour|kids?|children'?s?|family[- ]friendly|toddlers?|preschool|for kids|kid[- ]friendly|children'?s museum|family game night|family day|all[- ]ages family|grade[- ]schoolers|grades? [k0-9]|ages \d+ ?(to|-|–) ?\d+|little (explorers|ones)|baby|babies)\b/
-const FUNDRAISER_RE = /\b(fundraiser|fund[- ]?raising|gala|benefit (dinner|concert|show|night|gala|auction)|silent auction|charity|proceeds (benefit|support|go to|will)|raise (money|funds)|volunteer(s|ing)?|service event|park cleanup|clean[- ]?up|food drive|blood drive|donation drive|nonprofit|non[- ]profit|in support of|golf outing)\b/
+// High-bar: the EVENT itself is a fundraiser/benefit/service event. Excludes the
+// bare word "nonprofit"/"non-profit", which fires on artist/org BIOS rather than
+// the event (e.g. a concert whose performer "supports artists through her
+// nonprofit"). Other give-back signals (charity, volunteers, cleanup) are kept
+// so the Give Back facet stays inclusive.
+const FUNDRAISER_RE = /\b(fundraiser|fund[- ]?raising|gala|benefit (dinner|concert|show|night|gala|auction)|silent auction|charity|proceeds (benefit|support|go to|will)|raise (money|funds)|volunteer(s|ing)?|service event|park cleanup|clean[- ]?up|food drive|blood drive|donation drive|in support of|golf outing)\b/
 
 export function scoreCategories(title = '', description = '') {
   const text = `${title || ''} ${description || ''}`.toLowerCase()

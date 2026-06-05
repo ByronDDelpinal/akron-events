@@ -25,20 +25,20 @@
 
 // ── Axis 1: content categories (the badge) ──────────────────────────
 export const CATEGORIES = Object.freeze([
-  { slug: 'music',      label: 'Music',        short: 'music',     emoji: '🎵', gradient: 'gradient-jazz',    tagClass: 'tag-music',     adminSelectable: true, filterable: true  },
-  { slug: 'theater',    label: 'Theater',      short: 'theater',   emoji: '🎭', gradient: 'gradient-openmic', tagClass: 'tag-theater',   adminSelectable: true, filterable: true  },
-  { slug: 'film',       label: 'Film',         short: 'film',      emoji: '🎬', gradient: 'gradient-art',     tagClass: 'tag-film',      adminSelectable: true, filterable: true  },
-  { slug: 'comedy',     label: 'Comedy',       short: 'comedy',    emoji: '😂', gradient: 'gradient-gala',    tagClass: 'tag-comedy',    adminSelectable: true, filterable: true  },
-  { slug: 'visual-art', label: 'Art',          short: 'art',       emoji: '🎨', gradient: 'gradient-art',     tagClass: 'tag-art',       adminSelectable: true, filterable: true  },
-  { slug: 'food',       label: 'Food & Drink', short: 'food',      emoji: '🍺', gradient: 'gradient-market',  tagClass: 'tag-food',      adminSelectable: true, filterable: true  },
-  { slug: 'sports',     label: 'Sports',       short: 'sports',    emoji: '🏟', gradient: 'gradient-sports',  tagClass: 'tag-sports',    adminSelectable: true, filterable: true  },
-  { slug: 'fitness',    label: 'Fitness',      short: 'fitness',   emoji: '🏃', gradient: 'gradient-run',     tagClass: 'tag-fitness',   adminSelectable: true, filterable: true  },
-  { slug: 'outdoors',   label: 'Outdoors',     short: 'outdoors',  emoji: '🌿', gradient: 'gradient-forest',  tagClass: 'tag-nature',    adminSelectable: true, filterable: true  },
-  { slug: 'learning',   label: 'Learning',     short: 'learning',  emoji: '📚', gradient: 'gradient-openmic', tagClass: 'tag-education', adminSelectable: true, filterable: true  },
-  { slug: 'festival',   label: 'Festivals',    short: 'festival',  emoji: '🎪', gradient: 'gradient-civic',   tagClass: 'tag-festival',  adminSelectable: true, filterable: true  },
-  { slug: 'market',     label: 'Markets',      short: 'market',    emoji: '🛍', gradient: 'gradient-market',  tagClass: 'tag-market',    adminSelectable: true, filterable: true  },
-  { slug: 'civic',      label: 'Civic',        short: 'civic',     emoji: '🏛', gradient: 'gradient-civic',   tagClass: 'tag-community', adminSelectable: true, filterable: true  },
-  { slug: 'other',      label: 'Other',        short: 'other',     emoji: '✨', gradient: 'gradient-default', tagClass: 'tag-other',     adminSelectable: true, filterable: false },
+  { slug: 'music',      label: 'Music',        short: 'music',     emoji: '🎵', gradient: 'gradient-music',      tagClass: 'tag-music',      adminSelectable: true, filterable: true  },
+  { slug: 'theater',    label: 'Theater',      short: 'theater',   emoji: '🎭', gradient: 'gradient-theater',    tagClass: 'tag-theater',    adminSelectable: true, filterable: true  },
+  { slug: 'film',       label: 'Film',         short: 'film',      emoji: '🎬', gradient: 'gradient-film',       tagClass: 'tag-film',       adminSelectable: true, filterable: true  },
+  { slug: 'comedy',     label: 'Comedy',       short: 'comedy',    emoji: '😂', gradient: 'gradient-comedy',     tagClass: 'tag-comedy',     adminSelectable: true, filterable: true  },
+  { slug: 'visual-art', label: 'Art',          short: 'art',       emoji: '🎨', gradient: 'gradient-visual-art', tagClass: 'tag-visual-art', adminSelectable: true, filterable: true  },
+  { slug: 'food',       label: 'Food & Drink', short: 'food',      emoji: '🍎', gradient: 'gradient-food',       tagClass: 'tag-food',       adminSelectable: true, filterable: true  },
+  { slug: 'sports',     label: 'Sports',       short: 'sports',    emoji: '⚾', gradient: 'gradient-sports',     tagClass: 'tag-sports',     adminSelectable: true, filterable: true  },
+  { slug: 'fitness',    label: 'Fitness',      short: 'fitness',   emoji: '🏋', gradient: 'gradient-fitness',    tagClass: 'tag-fitness',    adminSelectable: true, filterable: true  },
+  { slug: 'outdoors',   label: 'Outdoors',     short: 'outdoors',  emoji: '🌿', gradient: 'gradient-outdoors',   tagClass: 'tag-outdoors',   adminSelectable: true, filterable: true  },
+  { slug: 'learning',   label: 'Learning',     short: 'learning',  emoji: '✏️', gradient: 'gradient-learning',   tagClass: 'tag-learning',   adminSelectable: true, filterable: true  },
+  { slug: 'festival',   label: 'Festivals',    short: 'festival',  emoji: '🎪', gradient: 'gradient-festival',   tagClass: 'tag-festival',   adminSelectable: true, filterable: true  },
+  { slug: 'market',     label: 'Markets',      short: 'market',    emoji: '🛍', gradient: 'gradient-market',     tagClass: 'tag-market',     adminSelectable: true, filterable: true  },
+  { slug: 'civic',      label: 'Civic',        short: 'civic',     emoji: '🏛', gradient: 'gradient-civic',      tagClass: 'tag-civic',      adminSelectable: true, filterable: true  },
+  { slug: 'other',      label: 'Other',        short: 'other',     emoji: '✨', gradient: 'gradient-other',      tagClass: 'tag-other',      adminSelectable: true, filterable: false },
 ])
 
 export const CATEGORY_SLUGS = Object.freeze(CATEGORIES.map((c) => c.slug))

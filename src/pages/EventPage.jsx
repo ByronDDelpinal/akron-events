@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { useEvent } from '@/hooks/useEvents'
 import { VenueMap } from '@/components/MapView'
-import CategoryBadge from '@/components/CategoryBadge'
+import { CategoryBadges, FacetBadges } from '@/components/CategoryBadge'
 import RelatedEvents from '@/components/RelatedEvents'
 import ShareButtons from '@/components/ShareButtons'
 import NewsletterCTA from '@/components/NewsletterCTA'
@@ -216,7 +216,8 @@ export default function EventPage() {
               </p>
             ) : null}
             <div className="event-detail-type-row">
-              <CategoryBadge category={event.category} />
+              <CategoryBadges event={event} />
+              <FacetBadges event={event} />
               {event.tags?.map(tag => (
                 <span key={tag} className="user-tag">{tag}</span>
               ))}
@@ -398,7 +399,7 @@ function EventBannerImage({ imageUrl, event, gradient }) {
       <div className="banner-scrim" />
       <div className="banner-tags">
         {event.featured && <span className="featured-tag">Featured</span>}
-        <CategoryBadge category={event.category} />
+        <CategoryBadges event={event} />
       </div>
     </div>
   )
