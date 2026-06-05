@@ -443,7 +443,7 @@ const _orgNameCache = new Map() // name → orgId
  */
 export async function ensureOrganization(name, details = {}) {
   if (!name) return null
-  const trimmed = name.trim()
+  const trimmed = decodeEntities(name.trim())
   if (!trimmed) return null
 
   // Drop malformed website strings before they reach the DB. See
@@ -553,7 +553,7 @@ function sanitizeWebsite(value) {
 
 export async function ensureVenue(name, details = {}) {
   if (!name) return null
-  const trimmed = name.trim()
+  const trimmed = decodeEntities(name.trim())
   if (!trimmed) return null
 
   // Drop malformed website strings before they reach the DB. See

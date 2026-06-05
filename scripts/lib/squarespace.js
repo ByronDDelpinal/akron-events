@@ -16,7 +16,7 @@
  *   }
  */
 
-import { stripHtml } from './normalize.js'
+import { stripHtml, decodeEntities } from './normalize.js'
 
 // ── Fetch ─────────────────────────────────────────────────────────────────
 
@@ -143,7 +143,7 @@ export function normaliseSquarespaceEvent(item, config = {}) {
   const sourceUrl = item.sourceUrl || null
 
   return {
-    title:           item.title?.trim() || null,
+    title:           item.title ? decodeEntities(item.title.trim()) : null,
     description,
     start_at:        startAt,
     end_at:          endAt,
