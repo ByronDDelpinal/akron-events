@@ -38,7 +38,7 @@ export const CATEGORIES = Object.freeze([
   { slug: 'festival',   label: 'Festivals',    short: 'festival',  emoji: '🎪', gradient: 'gradient-festival',   tagClass: 'tag-festival',   adminSelectable: true, filterable: true  },
   { slug: 'market',     label: 'Markets',      short: 'market',    emoji: '🛍', gradient: 'gradient-market',     tagClass: 'tag-market',     adminSelectable: true, filterable: true  },
   { slug: 'civic',      label: 'Civic',        short: 'civic',     emoji: '🏛', gradient: 'gradient-civic',      tagClass: 'tag-civic',      adminSelectable: true, filterable: true  },
-  { slug: 'other',      label: 'Other',        short: 'other',     emoji: '✨', gradient: 'gradient-other',      tagClass: 'tag-other',      adminSelectable: true, filterable: false },
+  { slug: 'other',      label: 'Other',        short: 'other',     emoji: '✨', gradient: 'gradient-default',    tagClass: 'tag-other',      adminSelectable: true, filterable: false },
 ])
 
 export const CATEGORY_SLUGS = Object.freeze(CATEGORIES.map((c) => c.slug))
@@ -92,3 +92,20 @@ export const ADMIN_CATEGORIES = Object.freeze(CATEGORIES.filter((c) => c.adminSe
 export const FILTERABLE_CATEGORIES = Object.freeze(CATEGORIES.filter((c) => c.filterable))
 export function isValidCategory(slug) { return Object.prototype.hasOwnProperty.call(CATEGORY_BY_SLUG, slug) }
 export function gradientFor(category) { return GRADIENT_MAP[category] ?? 'gradient-default' }
+
+/**
+ * The category whose visual TREATMENT (gradient/accent) an event should use.
+ * When an event carries 2 categories and one is 'other', the non-'other' one
+ * wins — so a card tagged "Other / Festival" gets the Festival treatment, never
+ * the bland Other one. Badge order is unaffected; this only drives the accent.
+ * A single 'other' category still uses the Other treatment.
+ */
+export function treatmentCategory(event) {
+  const cats = (event?.categories?.length ? event.categories : [event?.category]).filter(Boolean)
+  return cats.find((c) => c !== 'other') ?? cats[0] ?? 'other'
+}
+
+/** gradientFor(), but resolved through treatmentCategory(event). */
+export function gradientForEvent(event) {
+  return gradientFor(treatmentCategory(event))
+}

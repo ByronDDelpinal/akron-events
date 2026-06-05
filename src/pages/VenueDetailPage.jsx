@@ -13,7 +13,7 @@ import { eventPath } from '@/lib/slug'
 import {
   formatPrice,
   formatEventDate,
-  gradientFor,
+  gradientForEvent,
   PARKING_LABEL,
   imageUrlForEvent,
 } from '@/lib/eventFormatting'
@@ -278,7 +278,7 @@ function VenueEventRow({ event, venueImageUrl }) {
   const price    = formatPrice(event.price_min, event.price_max)
   // Fallback chain: event → venue (provided by parent) → organizer.
   const imageUrl = imageUrlForEvent(event, { venueImageUrl })
-  const gradient = imageUrl ? null : gradientFor(event.category)
+  const gradient = imageUrl ? null : gradientForEvent(event)
 
   return (
     <div

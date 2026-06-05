@@ -74,6 +74,8 @@ export {
   CATEGORY_DISPLAY,
   CATEGORY_SHORT,
   gradientFor,
+  gradientForEvent,
+  treatmentCategory,
 } from './categories.js'
 
 // ──────────────────────────────────────────────────────────────────────

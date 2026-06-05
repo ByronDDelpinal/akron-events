@@ -4,7 +4,7 @@ import { eventPath } from '@/lib/slug'
 import {
   formatPrice,
   formatEventDate,
-  gradientFor,
+  gradientForEvent,
   AGE_LABEL,
   imageUrlForEvent,
 } from '@/lib/eventFormatting'
@@ -22,7 +22,7 @@ function AgeRestrictionPill({ value }) {
 export default function EventCard({ event, featured = false, viewMode = 'comfortable' }) {
   const navigate = useNavigate()
   const price    = formatPrice(event.price_min, event.price_max)
-  const gradient = gradientFor(event.category)
+  const gradient = gradientForEvent(event)
 
   if (viewMode === 'efficient') {
     return (
@@ -47,7 +47,7 @@ export default function EventCard({ event, featured = false, viewMode = 'comfort
 }
 
 function ComfortableCard({ event, featured, price, navigate }) {
-  const gradient  = gradientFor(event.category)
+  const gradient  = gradientForEvent(event)
   // Image fallback chain: event → venue → organizer. Resolved by
   // imageUrlForEvent so every card across the app picks the same
   // candidate in the same order.

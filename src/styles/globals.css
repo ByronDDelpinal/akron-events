@@ -368,33 +368,24 @@ h6 { font-size: var(--text-h6); }
    opacity= attribute on the inline data-URI SVGs.
 ════════════════════════════════ */
 
-/* Shared positioning + tint for icon-mask textures. The actual
-   mask image is supplied per-class below. `pointer-events: none`
-   keeps the overlay from intercepting card clicks. */
-.gradient-jazz,
-.gradient-art,
-.gradient-market,
-.gradient-civic,
-.gradient-openmic,
-.gradient-forest,
-.gradient-sports,
-.gradient-run {
+/* Shared positioning + per-category icon mask over each gradient strip. The
+   mask image is supplied per-class; tint + sizing come from the --gradient-*
+   vars at :root. Each gradient background is derived from that category's
+   identity color (--cat-<slug>) so badges and card accents share one palette. */
+.gradient-music, .gradient-theater, .gradient-film, .gradient-comedy,
+.gradient-visual-art, .gradient-food, .gradient-sports, .gradient-fitness,
+.gradient-outdoors, .gradient-learning, .gradient-festival, .gradient-market,
+.gradient-civic {
   position: relative;
 }
-.gradient-jazz::after,
-.gradient-art::after,
-.gradient-market::after,
-.gradient-civic::after,
-.gradient-openmic::after,
-.gradient-forest::after,
-.gradient-sports::after,
-.gradient-run::after {
+.gradient-music::after, .gradient-theater::after, .gradient-film::after,
+.gradient-comedy::after, .gradient-visual-art::after, .gradient-food::after,
+.gradient-sports::after, .gradient-fitness::after, .gradient-outdoors::after,
+.gradient-learning::after, .gradient-festival::after, .gradient-market::after,
+.gradient-civic::after {
   content: '';
   position: absolute;
   inset: 0;
-  /* Tint color + opacity, mask size + repetition count all pull
-     from CSS vars at :root. Change one var → every category
-     restyles in lockstep. */
   background-color: rgba(255, 255, 255, var(--gradient-tint-opacity));
   pointer-events: none;
   -webkit-mask-repeat: repeat-x;
@@ -407,89 +398,48 @@ h6 { font-size: var(--text-h6); }
           mask-position: center center;
 }
 
-.gradient-jazz {
-  background: var(--gradient-jazz);
-}
-.gradient-jazz::after {
-  /* music — note glyph */
-  -webkit-mask-image: url('/music-note.svg');
-          mask-image: url('/music-note.svg');
-}
+.gradient-music      { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-music) 40%, black) 0%, color-mix(in srgb, var(--cat-music) 82%, black) 100%); }
+.gradient-music::after      { -webkit-mask-image: url('/music-note.svg');   mask-image: url('/music-note.svg'); }
 
-.gradient-art {
-  background: var(--gradient-art);
-}
-.gradient-art::after {
-  /* art — paint brush */
-  -webkit-mask-image: url('/paint-brush-thin-svgrepo-com.svg');
-          mask-image: url('/paint-brush-thin-svgrepo-com.svg');
-}
+.gradient-theater    { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-theater) 40%, black) 0%, color-mix(in srgb, var(--cat-theater) 82%, black) 100%); }
+.gradient-theater::after    { -webkit-mask-image: url('/theater.svg');      mask-image: url('/theater.svg'); }
 
-.gradient-market {
-  background: var(--gradient-market);
-}
-.gradient-market::after {
-  /* food — apple */
-  -webkit-mask-image: url('/apple.svg');
-          mask-image: url('/apple.svg');
-}
+.gradient-film       { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-film) 40%, black) 0%, color-mix(in srgb, var(--cat-film) 82%, black) 100%); }
+.gradient-film::after       { -webkit-mask-image: url('/film.svg');         mask-image: url('/film.svg'); }
 
-.gradient-civic {
-  background: var(--gradient-civic);
-}
-.gradient-civic::after {
-  /* community — group of people */
-  -webkit-mask-image: url('/group.svg');
-          mask-image: url('/group.svg');
-}
+.gradient-comedy     { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-comedy) 40%, black) 0%, color-mix(in srgb, var(--cat-comedy) 82%, black) 100%); }
+.gradient-comedy::after     { -webkit-mask-image: url('/laugh.svg');        mask-image: url('/laugh.svg'); }
 
-.gradient-openmic {
-  background: var(--gradient-openmic);
-}
-.gradient-openmic::after {
-  /* education — pencil */
-  -webkit-mask-image: url('/pencil.svg');
-          mask-image: url('/pencil.svg');
-}
+.gradient-visual-art { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-visual-art) 40%, black) 0%, color-mix(in srgb, var(--cat-visual-art) 82%, black) 100%); }
+.gradient-visual-art::after { -webkit-mask-image: url('/paint-brush.svg');  mask-image: url('/paint-brush.svg'); }
 
-.gradient-forest {
-  background: var(--gradient-forest);
-}
-.gradient-forest::after {
-  /* nature — leaf */
-  -webkit-mask-image: url('/leaf.svg');
-          mask-image: url('/leaf.svg');
-}
+.gradient-food       { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-food) 40%, black) 0%, color-mix(in srgb, var(--cat-food) 82%, black) 100%); }
+.gradient-food::after       { -webkit-mask-image: url('/apple.svg');        mask-image: url('/apple.svg'); }
 
-.gradient-gala    {
-  background: var(--gradient-gala);
-  /* nonprofit — tiny hollow hearts */
-  background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32'><path d='M16 22 L10 16 Q7 13 10 11 Q13 9 16 13 Q19 9 22 11 Q25 13 22 16 Z' fill='none' stroke='white' stroke-width='0.7' opacity='0.45'/></svg>"),
-    var(--gradient-gala);
-}
+.gradient-sports     { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-sports) 40%, black) 0%, color-mix(in srgb, var(--cat-sports) 82%, black) 100%); }
+.gradient-sports::after     { -webkit-mask-image: url('/baseball.svg');     mask-image: url('/baseball.svg'); }
 
-.gradient-sports {
-  background: var(--gradient-sports);
-}
-.gradient-sports::after {
-  /* sports — baseball */
-  -webkit-mask-image: url('/baseball.svg');
-          mask-image: url('/baseball.svg');
-}
+.gradient-fitness    { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-fitness) 40%, black) 0%, color-mix(in srgb, var(--cat-fitness) 82%, black) 100%); }
+.gradient-fitness::after    { -webkit-mask-image: url('/weight.svg');       mask-image: url('/weight.svg'); }
 
-.gradient-run {
-  background: var(--gradient-run);
-}
-.gradient-run::after {
-  /* fitness — weight */
-  -webkit-mask-image: url('/weight.svg');
-          mask-image: url('/weight.svg');
-}
+.gradient-outdoors   { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-outdoors) 40%, black) 0%, color-mix(in srgb, var(--cat-outdoors) 82%, black) 100%); }
+.gradient-outdoors::after   { -webkit-mask-image: url('/leaf.svg');         mask-image: url('/leaf.svg'); }
 
+.gradient-learning   { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-learning) 40%, black) 0%, color-mix(in srgb, var(--cat-learning) 82%, black) 100%); }
+.gradient-learning::after   { -webkit-mask-image: url('/pencil.svg');       mask-image: url('/pencil.svg'); }
+
+.gradient-festival   { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-festival) 40%, black) 0%, color-mix(in srgb, var(--cat-festival) 82%, black) 100%); }
+.gradient-festival::after   { -webkit-mask-image: url('/sportlights.svg');  mask-image: url('/sportlights.svg'); }
+
+.gradient-market     { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-market) 40%, black) 0%, color-mix(in srgb, var(--cat-market) 82%, black) 100%); }
+.gradient-market::after     { -webkit-mask-image: url('/market-store.svg'); mask-image: url('/market-store.svg'); }
+
+.gradient-civic      { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-civic) 40%, black) 0%, color-mix(in srgb, var(--cat-civic) 82%, black) 100%); }
+.gradient-civic::after      { -webkit-mask-image: url('/city-block.svg');   mask-image: url('/city-block.svg'); }
+
+/* other / fallback — grey with the generic quiet two-dot scatter */
 .gradient-default {
   background: var(--gradient-default);
-  /* other — quiet two-dot scatter, intentionally the least visible */
   background-image:
     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><circle cx='6' cy='8' r='0.7' fill='white' opacity='0.45'/><circle cx='18' cy='16' r='0.7' fill='white' opacity='0.45'/></svg>"),
     var(--gradient-default);
@@ -514,6 +464,21 @@ h6 { font-size: var(--text-h6); }
   flex-shrink: 0;
   /* Inherit current color so the glyph picks up each category's text color */
   stroke: currentColor;
+}
+/* Category pill glyph — masks the same /public SVG used by the card gradient,
+   tinted to the badge's text color, so pill and card icons are identical. */
+.cat-glyph {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+          mask-position: center;
+  -webkit-mask-size: contain;
+          mask-size: contain;
 }
 /* ── v2 taxonomy palette ──────────────────────────────────────────────
    One identity color per category/facet. The badge tint + text color AND the
@@ -562,22 +527,6 @@ h6 { font-size: var(--text-h6); }
 .tag-facet--family     { background: color-mix(in srgb, var(--facet-family) 45%, white);     color: color-mix(in srgb, var(--facet-family) 82%, black); }
 .tag-facet--fundraiser { background: color-mix(in srgb, var(--facet-fundraiser) 45%, white); color: color-mix(in srgb, var(--facet-fundraiser) 82%, black); }
 .tag-facet--free       { background: color-mix(in srgb, var(--facet-free) 45%, white);       color: color-mix(in srgb, var(--facet-free) 82%, black); }
-
-/* Card-accent gradients, derived from the same identity color (dark → color → light sheen). */
-.gradient-music      { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-music) 82%, black) 0%,      var(--cat-music) 55%,      color-mix(in srgb, var(--cat-music) 60%, white) 100%); }
-.gradient-theater    { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-theater) 82%, black) 0%,    var(--cat-theater) 55%,    color-mix(in srgb, var(--cat-theater) 60%, white) 100%); }
-.gradient-film       { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-film) 82%, black) 0%,       var(--cat-film) 55%,       color-mix(in srgb, var(--cat-film) 60%, white) 100%); }
-.gradient-comedy     { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-comedy) 82%, black) 0%,     var(--cat-comedy) 55%,     color-mix(in srgb, var(--cat-comedy) 60%, white) 100%); }
-.gradient-visual-art { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-visual-art) 82%, black) 0%, var(--cat-visual-art) 55%, color-mix(in srgb, var(--cat-visual-art) 60%, white) 100%); }
-.gradient-food       { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-food) 82%, black) 0%,       var(--cat-food) 55%,       color-mix(in srgb, var(--cat-food) 60%, white) 100%); }
-.gradient-sports     { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-sports) 82%, black) 0%,     var(--cat-sports) 55%,     color-mix(in srgb, var(--cat-sports) 60%, white) 100%); }
-.gradient-fitness    { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-fitness) 82%, black) 0%,    var(--cat-fitness) 55%,    color-mix(in srgb, var(--cat-fitness) 60%, white) 100%); }
-.gradient-outdoors   { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-outdoors) 82%, black) 0%,   var(--cat-outdoors) 55%,   color-mix(in srgb, var(--cat-outdoors) 60%, white) 100%); }
-.gradient-learning   { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-learning) 82%, black) 0%,   var(--cat-learning) 55%,   color-mix(in srgb, var(--cat-learning) 60%, white) 100%); }
-.gradient-festival   { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-festival) 82%, black) 0%,   var(--cat-festival) 55%,   color-mix(in srgb, var(--cat-festival) 60%, white) 100%); }
-.gradient-market     { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-market) 82%, black) 0%,     var(--cat-market) 55%,     color-mix(in srgb, var(--cat-market) 60%, white) 100%); }
-.gradient-civic      { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-civic) 82%, black) 0%,      var(--cat-civic) 55%,      color-mix(in srgb, var(--cat-civic) 60%, white) 100%); }
-.gradient-other      { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-other) 82%, black) 0%,      var(--cat-other) 55%,      color-mix(in srgb, var(--cat-other) 60%, white) 100%); }
 
 /* ════════════════════════════════
    UTILITY

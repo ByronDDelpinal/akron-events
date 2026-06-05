@@ -18,7 +18,7 @@ import {
 import { makeEventSlug, eventPath } from '@/lib/slug'
 import {
   formatPrice,
-  gradientFor,
+  gradientForEvent,
   AGE_LABEL,
   PARKING_LABEL,
   resolveEventImage,
@@ -124,7 +124,7 @@ export default function EventPage() {
   // only render as float thumbnails — never as full-bleed banners — to
   // avoid a CLS jump from an unknown aspect ratio.
   const { url: rawUrl, source: imageSource } = resolveEventImage(event)
-  const gradient = gradientFor(event.category)
+  const gradient = gradientForEvent(event)
 
   const showBanner = !!rawUrl
     && imageSource === 'event'
