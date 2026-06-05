@@ -13,10 +13,9 @@
  */
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import MapGL, { Marker, Popup, NavigationControl } from 'react-map-gl/mapbox'
 import { format } from 'date-fns'
-import { eventPath } from '@/lib/slug'
+import { useEventNavigator } from '@/hooks/useEventNavigator'
 import { formatPrice } from '@/lib/eventFormatting'
 import Modal from '@/components/Modal'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -41,7 +40,7 @@ const CATEGORY_EMOJI = {
 // ── Main component ────────────────────────────────────────────────────────
 
 export default function MapView({ events, onBackToList }) {
-  const navigate = useNavigate()
+  const goToEvent = useEventNavigator()
   const mapRef = useRef(null)
   const [popupVenueId, setPopupVenueId] = useState(null)
   const [mapActive, setMapActive] = useState(false)
@@ -159,7 +158,7 @@ export default function MapView({ events, onBackToList }) {
               <VenuePopup
                 group={activeGroup}
                 onClose={() => setPopupVenueId(null)}
-                onEventClick={(ev) => navigate(eventPath(ev))}
+                onEventClick={(ev) => goToEvent(ev)}
               />
             </Popup>
           )}

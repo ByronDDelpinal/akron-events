@@ -1,7 +1,9 @@
 import { useState, useCallback, useEffect } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { useEvent } from '@/hooks/useEvents'
+import { useEmbed } from '@/hooks/useEmbed'
+import { embedEventPath } from '@/lib/embedConfig'
 import { VenueMap } from '@/components/MapView'
 import { CategoryBadges, FacetBadges } from '@/components/CategoryBadge'
 import RelatedEvents from '@/components/RelatedEvents'
@@ -73,6 +75,8 @@ function downloadIcs(event) {
 export default function EventPage() {
   const { id, slug } = useParams()
   const navigate     = useNavigate()
+  const location     = useLocation()
+  const embed        = useEmbed()
   const { event, loading, error } = useEvent(id)
 
   // Canonicalize the URL: if the user arrived via the bare /events/:id
@@ -92,9 +96,15 @@ export default function EventPage() {
     if (!event || event.id !== id) return
     const canonicalSlug = makeEventSlug(event)
     if (slug !== canonicalSlug) {
-      navigate(eventPath(event), { replace: true })
+      // In the embed, canonicalize within the /embed tree (carrying the
+      // embed config query string) so we never break the iframe out to the
+      // full site. On the site, canonicalize to the normal /events path.
+      const dest = embed
+        ? embedEventPath(eventPath(event), location.search)
+        : eventPath(event)
+      navigate(dest, { replace: true })
     }
-  }, [event, id, slug, navigate])
+  }, [event, id, slug, navigate, embed, location.search])
 
   if (loading) return <div className="event-loading">Loading event…</div>
   if (error || !event) return (
@@ -205,14 +215,21 @@ export default function EventPage() {
                 {event.organizations.map((org, i) => (
                   <span key={org.id}>
                     {i > 0 && ', '}
-                    <Link to={`/organizations/${org.id}`} className="event-detail-org-link">{org.name}</Link>
+                    {/* Organizer is non-clickable inside the embed so the
+                        white-label surface never funnels visitors into the
+                        full Akron Pulse site. */}
+                    {embed
+                      ? <span className="event-detail-org-link">{org.name}</span>
+                      : <Link to={`/organizations/${org.id}`} className="event-detail-org-link">{org.name}</Link>}
                   </span>
                 ))}
               </p>
             ) : event.organizer ? (
               <p className="event-detail-organizer">
                 Presented by{' '}
-                <Link to={`/organizations/${event.organizer.id}`} className="event-detail-org-link">{event.organizer.name}</Link>
+                {embed
+                  ? <span className="event-detail-org-link">{event.organizer.name}</span>
+                  : <Link to={`/organizations/${event.organizer.id}`} className="event-detail-org-link">{event.organizer.name}</Link>}
               </p>
             ) : null}
             <div className="event-detail-type-row">
@@ -246,7 +263,7 @@ export default function EventPage() {
                     value={`${event.venue.name}\n${event.venue.address ?? ''}, ${event.venue.city}`}
                     link={venueDirectionsUrl}
                     linkLabel="Get directions"
-                    internalLink={`/venues/${event.venue.id}`}
+                    internalLink={embed ? null : `/venues/${event.venue.id}`}
                     internalLinkLabel="View venue"
                   />
                   <VenueMap
@@ -283,7 +300,8 @@ export default function EventPage() {
              * two-column layout. Anchors the bottom of the event-
              * details section and gives share-driven visitors a
              * recurring touchpoint before they decide to leave. */}
-            <NewsletterCTA variant="event" surface="event_detail" />
+            {/* Subscribe CTA is omitted in the embed (white-label rule). */}
+            {!embed && <NewsletterCTA variant="event" surface="event_detail" />}
           </div>
 
           {/* ── SIDEBAR ── */}
@@ -313,7 +331,7 @@ export default function EventPage() {
                     value={`${event.venue.name}\n${event.venue.address ?? ''}, ${event.venue.city}`}
                     link={venueDirectionsUrl}
                     linkLabel="Get directions"
-                    internalLink={`/venues/${event.venue.id}`}
+                    internalLink={embed ? null : `/venues/${event.venue.id}`}
                     internalLinkLabel="View venue"
                   />
                   <VenueMap
@@ -352,7 +370,8 @@ export default function EventPage() {
          * (hidden until data lands, hidden entirely when none exist).
          * Internal-link topology + sibling discovery — see SEO punch
          * list item #3. */}
-        <RelatedEvents currentEvent={event} />
+        {/* "More events" is omitted in the embed (white-label rule). */}
+        {!embed && <RelatedEvents currentEvent={event} />}
       </div>
     </div>
   )

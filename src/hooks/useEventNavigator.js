@@ -1,0 +1,39 @@
+import { useCallback } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { eventPath } from '@/lib/slug'
+import { embedEventPath } from '@/lib/embedConfig'
+import { useEmbed } from '@/hooks/useEmbed'
+
+/**
+ * useEventNavigator — single source of truth for "what happens when a user
+ * clicks an event card / map pin". Shared by EventCard and MapView so the
+ * click behavior is identical everywhere.
+ *
+ *   - Normal site:        client-side navigate to /events/{slug}/{id}.
+ *   - Embed, target=inline: client-side navigate within the iframe to
+ *                           /embed/events/{slug}/{id}, carrying the embed
+ *                           config query string forward.
+ *   - Embed, target=blank:  open the full hosted (chrome + SEO) detail page
+ *                           in a new tab, leaving the partner page intact.
+ */
+export function useEventNavigator() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const embed = useEmbed()
+
+  return useCallback((event) => {
+    const path = eventPath(event)
+    if (!embed) {
+      navigate(path)
+      return
+    }
+    if (embed.target === 'blank') {
+      // Full hosted detail page (real URL, indexable, full chrome).
+      const url = `${window.location.origin}${path}`
+      window.open(url, '_blank', 'noopener,noreferrer')
+      return
+    }
+    // Inline: stay in the iframe, keep the embed config in the URL.
+    navigate(embedEventPath(path, location.search))
+  }, [navigate, location.search, embed])
+}

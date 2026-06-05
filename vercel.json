@@ -2,6 +2,27 @@
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/api/sitemap.xml" },
     { "source": "/feed.xml",    "destination": "/api/feed.xml" },
-    { "source": "/((?!api|robots\\.txt|sitemap\\.xml|feed\\.xml|favicon\\.svg|og-default\\.jpg).*)", "destination": "/index.html" }
+    { "source": "/((?!api|robots\\.txt|sitemap\\.xml|feed\\.xml|favicon\\.svg|og-default\\.jpg|akron-pulse-embed\\.js).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/embed",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "frame-ancestors *" }
+      ]
+    },
+    {
+      "source": "/embed/:path*",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "frame-ancestors *" }
+      ]
+    },
+    {
+      "source": "/admin/:path*",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Content-Security-Policy", "value": "frame-ancestors 'none'" }
+      ]
+    }
   ]
 }

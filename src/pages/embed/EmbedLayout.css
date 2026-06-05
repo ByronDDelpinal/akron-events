@@ -1,0 +1,73 @@
+/* ──────────────────────────────────────────────────────────────────
+   EmbedLayout.css
+   Styles scoped to the white-label embed shell. The embed reuses the
+   site's design tokens (set by the theme class on <html>) but drops all
+   page chrome, so it needs its own light container + a few overrides of
+   site-page spacing that assumed a header/hero above the content.
+   ────────────────────────────────────────────────────────────────── */
+
+.embed-root {
+  /* Transparent so the iframe blends into the partner's page background.
+     Partners who want the themed page background can set it themselves. */
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  /* Generous but self-contained gutter; the host iframe owns outer margin. */
+  padding: 16px clamp(12px, 4vw, 32px) 32px;
+  box-sizing: border-box;
+  min-height: 0;
+}
+
+/* Embed page title — "Upcoming Events". Mirrors the site's section
+   typography without the hero scale. */
+.embed-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0 12px;
+  flex-wrap: wrap;
+}
+
+.embed-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 3.5vw, 1.9rem);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.1;
+}
+
+/* "Powered by" attribution — subtle, links to the full site in a new tab.
+   Keeps the embed honestly white-label while giving the source credit. */
+.embed-attribution {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.embed-attribution a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.embed-attribution a:hover {
+  color: var(--amber);
+  text-decoration: underline;
+}
+
+/* The shared FilterBar is sticky on the site (it sits under a sticky
+   header). Inside the embed there's no header to stick under, and a
+   sticky bar inside a short auto-sized iframe just looks broken — so
+   pin it to static flow here. */
+.embed-root .filter-bar {
+  position: static;
+  top: auto;
+}
+
+/* The site content block reserves min-height for a full viewport; inside
+   the embed we want it to hug its content so the iframe can size to fit. */
+.embed-root .content {
+  min-height: 0;
+}

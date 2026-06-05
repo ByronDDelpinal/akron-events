@@ -68,8 +68,14 @@
           'prime-time':     'https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Archivo:wght@400;500;700&display=swap',
         };
         try {
-          var t = localStorage.getItem('akronpulse.theme')
-               || localStorage.getItem('turnout.theme');
+          // Inside the white-label embed (/embed/*) the theme is fixed by
+          // the ?theme= param, never localStorage, so the partner's choice
+          // paints correctly on cold load with no flash of the default.
+          var isEmbed = location.pathname.indexOf('/embed') === 0;
+          var t = isEmbed
+            ? new URLSearchParams(location.search).get('theme')
+            : (localStorage.getItem('akronpulse.theme')
+               || localStorage.getItem('turnout.theme'));
           if (t && /^[a-z-]+$/.test(t) && t !== 'akron-pulse') {
             document.documentElement.classList.add('theme-' + t);
             var href = FONT_HREFS[t];

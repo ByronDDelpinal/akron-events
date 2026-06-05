@@ -1,6 +1,6 @@
-import { useNavigate } from 'react-router-dom'
 import { CategoryBadges } from './CategoryBadge'
-import { eventPath } from '@/lib/slug'
+import { useEmbed } from '@/hooks/useEmbed'
+import { useEventNavigator } from '@/hooks/useEventNavigator'
 import {
   formatPrice,
   formatEventDate,
@@ -9,6 +9,13 @@ import {
   imageUrlForEvent,
 } from '@/lib/eventFormatting'
 import './EventCard.css'
+
+// Whether a card feature is on. Outside the embed (embed === null) every
+// feature is implicitly enabled; inside the embed the partner can switch
+// price / tags off via the `features` config.
+function featureOn(embed, name) {
+  return !embed || embed.features?.[name] !== false
+}
 
 function AgeRestrictionPill({ value }) {
   if (!value || value === 'not_specified') return null
@@ -20,7 +27,8 @@ function AgeRestrictionPill({ value }) {
 // ── COMFORTABLE MODE (default) ──────────────────────────────────────────────
 
 export default function EventCard({ event, featured = false, viewMode = 'comfortable' }) {
-  const navigate = useNavigate()
+  const goTo     = useEventNavigator()
+  const embed    = useEmbed()
   const price    = formatPrice(event.price_min, event.price_max)
   const gradient = gradientForEvent(event)
 
@@ -30,7 +38,8 @@ export default function EventCard({ event, featured = false, viewMode = 'comfort
         event={event}
         featured={featured}
         price={price}
-        navigate={navigate}
+        goTo={goTo}
+        embed={embed}
         gradient={gradient}
       />
     )
@@ -41,26 +50,29 @@ export default function EventCard({ event, featured = false, viewMode = 'comfort
       event={event}
       featured={featured}
       price={price}
-      navigate={navigate}
+      goTo={goTo}
+      embed={embed}
     />
   )
 }
 
-function ComfortableCard({ event, featured, price, navigate }) {
+function ComfortableCard({ event, featured, price, goTo, embed }) {
   const gradient  = gradientForEvent(event)
   // Image fallback chain: event → venue → organizer. Resolved by
   // imageUrlForEvent so every card across the app picks the same
   // candidate in the same order.
   const imageUrl  = imageUrlForEvent(event)
   const hasImage  = Boolean(imageUrl)
+  const showPrice = featureOn(embed, 'price')
+  const showTags  = featureOn(embed, 'tags')
 
   return (
     <div
       className={`card ${featured ? 'featured' : ''}${hasImage ? ' card--has-image' : ''}`}
-      onClick={() => navigate(eventPath(event))}
+      onClick={() => goTo(event)}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && navigate(eventPath(event))}
+      onKeyDown={(e) => e.key === 'Enter' && goTo(event)}
     >
       {/* Faint background photo — scrim keeps all text at WCAG AA contrast */}
       {hasImage && (
@@ -79,9 +91,11 @@ function ComfortableCard({ event, featured, price, navigate }) {
         <div className="card-top">
           <div className="card-tags">
             {featured && <span className="featured-tag">Featured</span>}
-            <CategoryBadges event={event} />
+            {showTags && <CategoryBadges event={event} />}
           </div>
-          <span className={`card-price ${price.free ? 'free' : ''}`}>{price.label}</span>
+          {showPrice && (
+            <span className={`card-price ${price.free ? 'free' : ''}`}>{price.label}</span>
+          )}
         </div>
 
         <div className="card-title">{event.title}</div>
@@ -121,14 +135,16 @@ function ComfortableCard({ event, featured, price, navigate }) {
 
 // ── EFFICIENT MODE ──────────────────────────────────────────────────────────
 
-function EfficientCard({ event, featured, price, navigate, gradient }) {
+function EfficientCard({ event, featured, price, goTo, embed, gradient }) {
+  const showPrice = featureOn(embed, 'price')
+  const showTags  = featureOn(embed, 'tags')
   return (
     <div
       className={`card-efficient ${featured ? 'card-efficient--featured' : ''}`}
-      onClick={() => navigate(eventPath(event))}
+      onClick={() => goTo(event)}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && navigate(eventPath(event))}
+      onKeyDown={(e) => e.key === 'Enter' && goTo(event)}
     >
       {/* Gradient accent bar — only on non-featured cards; featured uses border-left */}
       {!featured && (
@@ -151,8 +167,10 @@ function EfficientCard({ event, featured, price, navigate, gradient }) {
           </div>
         </div>
         <div className="card-efficient-end">
-          <CategoryBadges event={event} />
-          <span className={`card-efficient-price ${price.free ? 'free' : ''}`}>{price.label}</span>
+          {showTags && <CategoryBadges event={event} />}
+          {showPrice && (
+            <span className={`card-efficient-price ${price.free ? 'free' : ''}`}>{price.label}</span>
+          )}
         </div>
       </div>
     </div>

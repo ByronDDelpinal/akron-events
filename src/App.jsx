@@ -1,7 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigationType, useParams } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useNavigationType, useParams } from 'react-router-dom'
 import { useEffect } from 'react'
 import Header   from '@/components/Header'
 import Footer   from '@/components/Footer'
+import EmbedLayout   from '@/pages/embed/EmbedLayout'
+import EmbedHomePage from '@/pages/embed/EmbedHomePage'
 import HomePage  from '@/pages/HomePage'
 import EventPage from '@/pages/EventPage'
 import CategoryPage from '@/pages/CategoryPage'
@@ -132,19 +134,22 @@ function AppInner() {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
   }, [location.pathname, navigationType, location.state])
 
-  // Site-wide JSON-LD — appears on every page as a default. Individual
-  // pages still render their own <SEO /> for page-specific meta +
-  // page-specific structured data (Event, Place, etc.). react-helmet-async
-  // deep-merges tags so later <Helmet> calls override these safely.
-  const siteGraph = buildGraph(organizationSchema(), webSiteSchema())
-
   return (
-    <>
-      <SEO jsonLd={siteGraph} />
-      <Header />
-      <main>
-        <Routes>
-          <Route path="/"                    element={<HomePage />} />
+    <Routes>
+      {/* ── White-label embed ──
+          A chrome-free route group for partner iframes. Rendered OUTSIDE
+          SiteChrome so it never paints the site Header/Footer. EmbedLayout
+          supplies the embed config context + auto-height messaging. */}
+      <Route path="/embed" element={<EmbedLayout />}>
+        <Route index element={<EmbedHomePage />} />
+        <Route path="events/:slug/:id" element={<EventPage />} />
+      </Route>
+
+      {/* ── Full site ──
+          Everything else renders inside SiteChrome (Header + Footer +
+          site-wide JSON-LD). */}
+      <Route element={<SiteChrome />}>
+        <Route path="/"                    element={<HomePage />} />
           {/* Canonical event URL is /events/:slug/:id. The bare
               /events/:id route remains so legacy links, sitemap-cached
               URLs, and shared links without a slug still resolve —
@@ -193,7 +198,28 @@ function AppInner() {
           </Route>
 
           <Route path="*" element={<NotFound />} />
-        </Routes>
+      </Route>
+    </Routes>
+  )
+}
+
+/**
+ * SiteChrome — the full-site layout: header, footer, and the site-wide
+ * default JSON-LD. Wraps every non-embed route via <Outlet />.
+ *
+ * Site-wide JSON-LD appears on every page as a default; individual pages
+ * still render their own <SEO /> for page-specific meta + structured data.
+ * react-helmet-async deep-merges tags so later <Helmet> calls override
+ * these safely.
+ */
+function SiteChrome() {
+  const siteGraph = buildGraph(organizationSchema(), webSiteSchema())
+  return (
+    <>
+      <SEO jsonLd={siteGraph} />
+      <Header />
+      <main>
+        <Outlet />
       </main>
       <Footer />
     </>

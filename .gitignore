@@ -5,6 +5,7 @@ node_modules
 
 # build output
 dist
+dist-verify
 dist-ssr
 
 # Vite config cache — timestamped .mjs snapshots created during dev server startup

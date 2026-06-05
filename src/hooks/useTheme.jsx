@@ -41,6 +41,27 @@ function applyThemeFonts(themeId) {
  */
 const ThemeContext = createContext(null)
 
+// The embed renders under /embed/*. In that context the theme is fixed by
+// the partner via the ?theme= query param and must NOT be read from or
+// written to localStorage — otherwise a visitor's own saved site theme
+// would override the partner's white-label choice (and vice-versa).
+function isEmbedPath() {
+  return typeof window !== 'undefined' && window.location.pathname.startsWith('/embed')
+}
+
+function readEmbedTheme() {
+  try {
+    const t = new URLSearchParams(window.location.search).get('theme')
+    return t && isValidTheme(t) ? t : DEFAULT_THEME
+  } catch {
+    return DEFAULT_THEME
+  }
+}
+
+function readInitialTheme() {
+  return isEmbedPath() ? readEmbedTheme() : readStoredTheme()
+}
+
 function readStoredTheme() {
   if (typeof window === 'undefined') return DEFAULT_THEME
 
@@ -64,13 +85,14 @@ function readStoredTheme() {
 }
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(readStoredTheme)
+  const [theme, setTheme] = useState(readInitialTheme)
 
   useEffect(() => {
     const root = document.documentElement
     THEMES.forEach((t) => root.classList.remove(`theme-${t.id}`))
     root.classList.add(`theme-${theme}`)
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme)
+    // Don't persist inside the embed — the partner's theme is request-scoped.
+    if (!isEmbedPath()) window.localStorage.setItem(THEME_STORAGE_KEY, theme)
     // Lazy-load the active theme's Google Fonts. The pre-bundle boot
     // script in index.html primes this for cold loads; this effect
     // handles in-app theme switches.

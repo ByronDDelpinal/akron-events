@@ -36,28 +36,46 @@ export default function FilterBar({
   cardViewMode,    onCardViewMode,
   onClearAll,
   // Pass-through to FilterTray. Locked dimensions also drop their pills
-  // from the active-filter summary strip so a category-hub page can't
-  // surface a removable Category pill that would let the user undo the
-  // page's defining constraint.
+  // from the active-filter summary strip so a category-hub page (or a
+  // white-label embed) can't surface a removable pill that would let the
+  // user undo the page's defining constraint.
   lockedDimensions = {},
+  // When false, the "Filter & Sort" entry point is hidden entirely (the
+  // embed uses this to switch filtering off while still showing the
+  // density / map toggles). Defaults to true for the normal site.
+  showFilterButton = true,
 }) {
   const [trayOpen, setTrayOpen] = useState(false)
 
   const activeIntent = INTENTS.find(i => i.id === activeIntentId) ?? null
 
-  // Count tray-specific active filters for the badge — intents now count too
-  // since they live inside the tray after the consolidation.
+  // Locked dimensions are presets the user can't undo (category-hub pages,
+  // embeds), so their pills never appear in the clearable summary strip and
+  // never count toward the tray badge.
+  const showDatePill = (dateRange || dateFrom || dateTo) && !lockedDimensions.dateRange
+  const visibleCategories = lockedDimensions.category ? [] : rawCategories
+  const showPricePill = priceFilter && !lockedDimensions.price
+
+  // Count tray-specific active filters for the badge — intents count too
+  // since they live inside the tray. Locked presets are excluded so a
+  // locked embed doesn't show a phantom "(1)" the user can't act on.
   const trayActiveCount = [
     activeIntentId !== null,
-    rawCategories.length > 0,
-    priceFilter !== null,
-    dateFrom || dateTo,
+    visibleCategories.length > 0,
+    showPricePill,
+    showDatePill && (dateFrom || dateTo),
     sort !== 'soonest',
   ].filter(Boolean).length
 
-  // Any filter or non-default sort active (drives the summary strip + Clear pill)
-  const hasAnyFilter = activeIntentId || dateRange || rawCategories.length > 0 || priceFilter || dateFrom || dateTo
-  const hasAnyClearable = hasAnyFilter || sort !== 'soonest'
+  // Any *user-clearable* filter or non-default sort active (drives the
+  // summary strip + Clear pill). Locked presets are excluded so the strip
+  // doesn't render an empty "Clear filters" row for a fully-locked embed.
+  const hasAnyClearable =
+    activeIntentId ||
+    showDatePill ||
+    visibleCategories.length > 0 ||
+    showPricePill ||
+    sort !== 'soonest'
 
   function removeRawCat(cat) {
     onRawCategories(rawCategories.filter(c => c !== cat))
@@ -70,16 +88,18 @@ export default function FilterBar({
         {/* ── Row 1: Filter & Sort + View mode + List/Map toggle ── */}
         <div className="filter-actions-row">
           <div className="filter-actions">
-            <button
-              className={`chip chip--more ${trayActiveCount > 0 ? 'active' : ''}`}
-              onClick={() => setTrayOpen(true)}
-            >
-              <SlidersIcon />
-              Filter &amp; Sort
-              {trayActiveCount > 0 && (
-                <span className="more-badge">{trayActiveCount}</span>
-              )}
-            </button>
+            {showFilterButton && (
+              <button
+                className={`chip chip--more ${trayActiveCount > 0 ? 'active' : ''}`}
+                onClick={() => setTrayOpen(true)}
+              >
+                <SlidersIcon />
+                Filter &amp; Sort
+                {trayActiveCount > 0 && (
+                  <span className="more-badge">{trayActiveCount}</span>
+                )}
+              </button>
+            )}
           </div>
 
           <div className="filter-actions-right">
@@ -121,26 +141,26 @@ export default function FilterBar({
                 onRemove={() => onIntentId(null)}
               />
             )}
-            {dateRange && (
+            {showDatePill && dateRange && (
               <ActivePill
                 label={DATE_TABS.find(t => t.id === dateRange)?.label ?? dateRange}
                 onRemove={() => onDateRange(null)}
               />
             )}
-            {(dateFrom || dateTo) && (
+            {showDatePill && (dateFrom || dateTo) && (
               <ActivePill
                 label={buildDateRangeLabel(dateFrom, dateTo)}
                 onRemove={() => { onDateFrom(null); onDateTo(null) }}
               />
             )}
-            {rawCategories.map(cat => (
+            {visibleCategories.map(cat => (
               <ActivePill
                 key={cat}
                 label={cat.charAt(0).toUpperCase() + cat.slice(1)}
                 onRemove={() => removeRawCat(cat)}
               />
             ))}
-            {priceFilter && (
+            {showPricePill && (
               <ActivePill
                 label={priceFilter === 'free' ? 'Free only' : priceFilter === 'under10' ? 'Under $10' : 'Under $25'}
                 onRemove={() => onPriceFilter(null)}
