@@ -7,7 +7,7 @@ import './TechnicalPage.css'
 // Each entry describes one ingestion source regardless of whether it has ever
 // logged a scraper_run. The `key` must match the scraper_name used in normalize.js.
 
-const DATA_SOURCES = [
+export const DATA_SOURCES = [
   // ── Public REST APIs ────────────────────────────────────────────────────
   {
     key:         'ticketmaster',

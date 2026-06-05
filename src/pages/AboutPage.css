@@ -31,12 +31,17 @@
   margin: var(--space-3xl) 0;
 }
 .about-section-title {
-  /* h3 within long-form content. The global h3 (1.5rem) would be too
-     loud here — these are intra-article subheads, not section titles —
-     so we override down to body+ scale. */
-  font-size: var(--text-md);
   margin-bottom: var(--space-sm);
   letter-spacing: -0.01em;
+}
+/* H3 subheads sit at body+ scale — intra-section labels, not major headings */
+h3.about-section-title {
+  font-size: var(--text-md);
+}
+/* H2 section titles use the global h2 size (clamp 1.5–2rem) */
+h2.about-section-title {
+  font-size: var(--text-h2);
+  margin-bottom: var(--space-md);
 }
 /* ── Persona cards ─────────────────────────────────────────────────────── */
 .about-personas {
@@ -168,6 +173,120 @@
   background: var(--green-mid);
   color: var(--white);
   text-decoration: none;
+}
+
+/* ── Open-source / transparency section ───────────────────────────────── */
+.about-oss-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  background: var(--bg-nav);
+  color: var(--overlay-light-90);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  transition: background var(--transition-medium), color var(--transition-medium);
+  white-space: nowrap;
+  margin-bottom: var(--space-xs);
+}
+.about-oss-btn:hover {
+  background: var(--green-mid);
+  color: var(--white);
+  text-decoration: none;
+}
+
+/* Source search — container is the positioning anchor for the overlay */
+.about-source-search-wrap {
+  position: relative;
+  max-width: 440px;
+  margin-bottom: var(--space-md);
+}
+.about-source-search {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  background: var(--bg-card);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) var(--space-lg);
+  outline: none;
+  transition: border-color var(--transition-medium);
+  box-sizing: border-box;
+}
+.about-source-search:focus {
+  border-color: var(--amber);
+}
+.about-source-search::placeholder {
+  color: var(--text-muted);
+}
+
+/* Results list — floats over page content, never pushes anything */
+.about-source-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 200;
+  list-style: none;
+  margin: 0;
+  padding: var(--space-xs) 0;
+  background: var(--bg-card);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  max-height: 280px;
+  overflow-y: auto;
+}
+.about-source-result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-sm) var(--space-lg);
+  cursor: default;
+  transition: background var(--transition-fast);
+}
+.about-source-result:hover {
+  background: color-mix(in srgb, var(--amber) 8%, var(--bg-card));
+}
+.about-source-result__label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.about-source-result__meta {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.about-source-result--empty {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-style: italic;
+  cursor: default;
+}
+.about-source-result--empty:hover {
+  background: transparent;
+}
+
+.about-transparency-note {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  line-height: 1.65;
+  margin-top: var(--space-lg);
+}
+.about-transparency-note a {
+  color: var(--amber);
+  font-weight: 600;
+  text-decoration: none;
+}
+.about-transparency-note a:hover {
+  text-decoration: underline;
 }
 
 /* ── FAQ section ──
