@@ -30,7 +30,7 @@ import {
   easternToIso,
 } from './lib/normalize.js'
 
-const SOURCE_URL = 'https://www.akronzoo.org/events'
+const SOURCE_URL = 'https://www.akronzoo.org/events?field_event_categories_target_id=All'
 const BASE_DOMAIN = 'https://www.akronzoo.org'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -174,99 +174,80 @@ function parseEvents(html) {
   const events = []
   const seen   = new Set()
 
-  // Strategy 1: Look for Drupal Views rows / article nodes / Slick slides
-  // Try multiple selector patterns via regex
-  const cardPatterns = [
-    // Drupal views-row pattern
-    /<div[^>]*class="[^"]*views-row[^"]*"[^>]*>([\s\S]*?)(?=<div[^>]*class="[^"]*views-row|<\/div>\s*<\/div>\s*<\/div>)/gi,
-    // Article node
-    /<article[^>]*>([\s\S]*?)<\/article>/gi,
-    // Slick slides
-    /<li[^>]*class="[^"]*slick(?:__slide|-slide)[^"]*"[^>]*>([\s\S]*?)<\/li>/gi,
-    // Generic event items
-    /<(?:div|li)[^>]*class="[^"]*(?:event-item|event-card|node--type-event)[^"]*"[^>]*>([\s\S]*?)<\/(?:div|li)>/gi,
-  ]
+  // The Akron Zoo events page renders cards as:
+  //   <div class="item xxtight">
+  //     <a href="/event-slug">
+  //       <img src="..." alt="...">
+  //       EVENT TITLE
+  //       <div class="date">JUN 13</div>
+  //     </a>
+  //   </div>
+  //
+  // Each card closes with </a></div>, which we use as the boundary.
+  // Each card in the raw HTML:
+  //   <div class="item xxtight"><a class="wrap" href="/slug">
+  //     <div class="text">Title<br><span class="date">Jun 13</span></div>
+  //     <span class="bg bg-replace"><img src="..." /></span>
+  //   </a></div>
+  const cardRegex = /<div[^>]*class="[^"]*\bitem\b[^"]*\bxxtight\b[^"]*"[^>]*>([\s\S]*?<\/a>)\s*<\/div>/gi
+  const matches = [...html.matchAll(cardRegex)]
 
-  let matched = false
+  for (const match of matches) {
+    const cardHtml = match[1]
 
-  for (const pattern of cardPatterns) {
-    const matches = [...html.matchAll(pattern)]
-    if (matches.length === 0) continue
-    matched = true
+    // Extract href
+    const hrefMatch = cardHtml.match(/<a[^>]*href="([^"]+)"/)
+    const href = hrefMatch ? resolveUrl(hrefMatch[1]) : null
 
-    for (const match of matches) {
-      const cardHtml = match[1] ?? match[0]
-
-      // Extract title
-      const titleMatch = cardHtml.match(/<(?:h2|h3|h4)[^>]*>([\s\S]*?)<\/(?:h2|h3|h4)>/i) ??
-                         cardHtml.match(/class="[^"]*title[^"]*"[^>]*>([\s\S]*?)<\//i)
-      const title = titleMatch ? stripHtml(titleMatch[1]) : null
-      if (!title || title.length < 3) continue
-
-      // Extract date — prefer datetime attribute
-      const datetimeAttr = cardHtml.match(/<time[^>]*datetime="([^"]+)"/)
-      const dateTextEl   = cardHtml.match(/class="[^"]*date[^"]*"[^>]*>([\s\S]*?)<\//i)
-      const rawDate      = datetimeAttr ? datetimeAttr[1] : (dateTextEl ? stripHtml(dateTextEl[1]) : null)
-
-      const { dateStr, timeStr } = parseDateText(rawDate ?? '')
-
-      // Extract URL
-      const hrefMatch = cardHtml.match(/<a[^>]*href="([^"]+)"/)
-      const href      = hrefMatch ? resolveUrl(hrefMatch[1]) : null
-
-      // Extract image
-      const imgMatch = cardHtml.match(/<img[^>]*src="([^"]+)"/)
-      let   imageUrl = imgMatch ? imgMatch[1] : null
-      if (imageUrl && !imageUrl.startsWith('http')) imageUrl = BASE_DOMAIN + imageUrl
-
-      // Derive source_id from URL path or title slug
-      let sourceId = null
-      if (href) {
-        const pathMatch = href.match(/\/([^/?#]+)\/?(?:\?.*)?$/)
-        sourceId = pathMatch ? pathMatch[1] : null
-      }
-      if (!sourceId) {
-        sourceId = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-      }
-
-      if (seen.has(sourceId)) continue
-      seen.add(sourceId)
-
-      events.push({ title, dateStr, timeStr, href, imageUrl, sourceId })
+    // Title and date both live inside <div class="text">
+    const textDivMatch = cardHtml.match(/<div[^>]*class="text"[^>]*>([\s\S]*?)<\/div>/i)
+    let title = null, rawDate = null
+    if (textDivMatch) {
+      const inner = textDivMatch[1]
+      // Date is in <span class="date">Jun 13</span>
+      const dateSpanMatch = inner.match(/<span[^>]*class="date"[^>]*>([\s\S]*?)<\/span>/i)
+      rawDate = dateSpanMatch ? stripHtml(dateSpanMatch[1]).trim() : null
+      // Title is the remaining text after removing the date span and <br>
+      title = stripHtml(
+        inner
+          .replace(/<span[^>]*class="date"[^>]*>[\s\S]*?<\/span>/gi, '')
+          .replace(/<br\s*\/?>/gi, ' ')
+      ).replace(/\s+/g, ' ').trim()
     }
+    if (!title || title.length < 3) continue
 
-    if (matched && events.length > 0) break
+    // Extract image from <span class="bg bg-replace"><img src="..."></span>
+    const imgMatch = cardHtml.match(/<img[^>]*src="([^"?]+)/)
+    let imageUrl = imgMatch ? imgMatch[1] : null
+    if (imageUrl && !imageUrl.startsWith('http')) imageUrl = BASE_DOMAIN + imageUrl
+
+    // Parse date — parseDateText handles "JUN 13", "JUL 24 - JUL 26", "SEP 1 - 30", etc.
+    const { dateStr, timeStr } = parseDateText(rawDate ?? '')
+
+    // source_id: slug + date to disambiguate recurring events (e.g. Zoothing Hour)
+    let slug = null
+    if (href) {
+      const pathMatch = href.match(/\/([^/?#]+)\/?(?:\?.*)?$/)
+      slug = pathMatch ? pathMatch[1] : null
+    }
+    if (!slug) {
+      slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    }
+    const sourceId = dateStr ? `${slug}-${dateStr}` : slug
+
+    if (seen.has(sourceId)) continue
+    seen.add(sourceId)
+
+    events.push({ title, dateStr, timeStr, href, imageUrl, sourceId })
   }
 
-  // Strategy 2: If no cards found, parse text lines with date patterns
   if (events.length === 0) {
-    console.warn('  ⚠ No event cards found via CSS patterns — falling back to text parsing')
-
-    const cleanText = stripHtml(html)
-    const lines     = cleanText.split('\n').map(l => l.trim()).filter(Boolean)
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]
-      const { dateStr } = parseDateText(line)
-      if (!dateStr) continue
-
-      const titleLine = lines[i + 1] ?? ''
-      if (!titleLine || titleLine.length < 3) continue
-
-      const sourceId = titleLine.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-      if (seen.has(sourceId)) continue
-      seen.add(sourceId)
-
-      events.push({ title: titleLine, dateStr, timeStr: '09:00:00', href: null, imageUrl: null, sourceId })
-    }
+    console.warn('  ⚠ No event cards matched div.item.xxtight — the page structure may have changed.')
   }
 
   // Filter out past events
-  const now = new Date()
-  return events.filter(ev => {
-    if (!ev.dateStr) return false
-    return new Date(ev.dateStr) >= new Date(now.toISOString().split('T')[0])
-  })
+  const today = new Date().toISOString().split('T')[0]
+  return events.filter(ev => ev.dateStr && ev.dateStr >= today)
 }
 
 // ── Process ────────────────────────────────────────────────────────────────

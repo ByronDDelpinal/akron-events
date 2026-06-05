@@ -295,6 +295,31 @@ export function parseIcs(icsText) {
  *   @param {string}   [config.defaultImageUrl]  — fallback image if feed omits one
  * @returns {object|null}  — Event row ready for upsertEventSafe(); null if invalid
  */
+/**
+ * Resolve an ICS URL field to an absolute http(s) URL.
+ *
+ * Some feeds (notably CivicPlus municipal calendars) emit a root-relative
+ * path like "/common/modules/iCalendar/iCalendar.aspx?..." in the VEVENT
+ * URL. Stored verbatim, that becomes a same-origin link that resolves to
+ * akronpulse.com and 404s (and, inside the white-label embed, breaks the
+ * iframe out to a not-found page). Absolutising against the feed's own
+ * origin fixes it at the source.
+ *
+ * Returns null for an empty value or a relative URL we can't resolve
+ * (no linkBaseUrl) — a broken relative link is worse than no link.
+ */
+export function absolutiseIcsUrl(url, linkBaseUrl) {
+  const raw = (url || '').trim()
+  if (!raw) return null
+  if (/^https?:\/\//i.test(raw)) return raw
+  if (!linkBaseUrl) return null
+  try {
+    return new URL(raw, linkBaseUrl).toString()
+  } catch {
+    return null
+  }
+}
+
 export function normaliseIcsEvent(ev, config = {}) {
   const {
     source,
@@ -304,6 +329,9 @@ export function normaliseIcsEvent(ev, config = {}) {
     defaultPriceMax  = null,
     ageRestriction   = 'not_specified',
     defaultImageUrl  = null,
+    // Origin used to absolutise a root-relative VEVENT URL (e.g. the
+    // feed's own site). Optional; absolute URLs pass through untouched.
+    linkBaseUrl      = null,
   } = config
 
   const title = stripHtml((ev.SUMMARY ?? '').trim())
@@ -340,7 +368,7 @@ export function normaliseIcsEvent(ev, config = {}) {
     price_max:       defaultPriceMax,
     age_restriction: ageRestriction,
     image_url,
-    ticket_url:      ev.URL || null,
+    ticket_url:      absolutiseIcsUrl(ev.URL, linkBaseUrl),
     source,
     source_id:       (ev.UID || '').trim() || null,
     status:          'published',

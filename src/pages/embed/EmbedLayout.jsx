@@ -4,9 +4,11 @@ import { EmbedProvider } from '@/hooks/useEmbed'
 import { parseEmbedConfig } from '@/lib/embedConfig'
 import './EmbedLayout.css'
 
-// postMessage channel the host page's resizer script (akron-pulse-embed.js)
-// listens on. Kept in one place so the script and the app agree on the name.
-const HEIGHT_MESSAGE_TYPE = 'akron-pulse-embed:height'
+// postMessage channels shared with the host page's resizer script
+// (akron-pulse-embed.js). Kept in one place so the script and the app agree.
+const HEIGHT_MESSAGE_TYPE   = 'akron-pulse-embed:height'   // iframe → parent
+const VIEWPORT_MESSAGE_TYPE = 'akron-pulse-embed:viewport' // parent → iframe
+const REQUEST_MESSAGE_TYPE  = 'akron-pulse-embed:request'  // iframe → parent
 
 /**
  * EmbedLayout — the white-label shell.
@@ -61,6 +63,40 @@ export default function EmbedLayout() {
       window.parent?.postMessage({ type: HEIGHT_MESSAGE_TYPE, height: h }, '*')
     } catch { /* ignore */ }
   }, [location.pathname])
+
+  // ── Visible-viewport relay (fixes modals in a tall iframe) ────────────
+  // The host script tells us which slice of the iframe is on-screen; we
+  // publish it as CSS vars so fixed overlays (the filter tray, dialogs) can
+  // sit in the band the visitor is actually looking at instead of pinning to
+  // the iframe's full height. The `embed-mode` class scopes those overrides
+  // and also reaches modals that portal to <body> (outside .embed-root).
+  useEffect(() => {
+    const root = document.documentElement
+    root.classList.add('embed-mode')
+
+    const onMessage = (e) => {
+      const d = e.data
+      if (!d || d.type !== VIEWPORT_MESSAGE_TYPE) return
+      if (typeof d.top === 'number') root.style.setProperty('--embed-vp-top', `${d.top}px`)
+      if (typeof d.height === 'number' && d.height > 0) {
+        root.style.setProperty('--embed-vp-height', `${d.height}px`)
+      }
+    }
+    window.addEventListener('message', onMessage)
+
+    // Ask the host for the current band now (covers opening a modal before
+    // any scroll has happened).
+    try {
+      window.parent?.postMessage({ type: REQUEST_MESSAGE_TYPE }, '*')
+    } catch { /* no listener — fall back to CSS defaults */ }
+
+    return () => {
+      window.removeEventListener('message', onMessage)
+      root.classList.remove('embed-mode')
+      root.style.removeProperty('--embed-vp-top')
+      root.style.removeProperty('--embed-vp-height')
+    }
+  }, [])
 
   return (
     <EmbedProvider config={config}>

@@ -52,7 +52,7 @@ function buildIcsContent(event) {
   return [
     'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Akron Pulse//AkronEvents//EN',
     'BEGIN:VEVENT',
-    `UID:${event.id}@akronpulse.app`,
+    `UID:${event.id}@akronpulse.com`,
     `DTSTART:${fmt(event.start_at)}`,
     `DTEND:${event.end_at ? fmt(event.end_at) : fmt(event.start_at)}`,
     `SUMMARY:${event.title}`,
@@ -78,6 +78,15 @@ export default function EventPage() {
   const location     = useLocation()
   const embed        = useEmbed()
   const { event, loading, error } = useEvent(id)
+
+  // "Back to events" — in the embed, go explicitly to the grid (carrying the
+  // embed config) rather than history.back(): a tall iframe's history can be
+  // entangled with the host page, so an explicit route keeps us inside the
+  // embed reliably. On the site, plain back is the right behavior.
+  const backToList = useCallback(() => {
+    if (embed) navigate(`/embed${location.search}`)
+    else navigate(-1)
+  }, [embed, navigate, location.search])
 
   // Canonicalize the URL: if the user arrived via the bare /events/:id
   // route (slug undefined) or via a stale slug (title or date changed
@@ -110,7 +119,7 @@ export default function EventPage() {
   if (error || !event) return (
     <div className="event-loading">
       <p>Event not found.</p>
-      <button className="event-back-btn" onClick={() => navigate(-1)}>← Back to events</button>
+      <button className="event-back-btn" onClick={backToList}>← Back to events</button>
     </div>
   )
 
@@ -199,7 +208,7 @@ export default function EventPage() {
 
       {/* ── CONTENT ── */}
       <div className="event-detail-content">
-        <button className="event-back-btn" onClick={() => navigate(-1)}>
+        <button className="event-back-btn" onClick={backToList}>
           <BackIcon /> Back to events
         </button>
 
@@ -520,6 +529,18 @@ function MobileInfoGrid({ event, price }) {
   )
 }
 
+// Only http(s) absolute URLs are safe to render as outbound links. A
+// relative / malformed URL would resolve against the current origin
+// (akronpulse.com) and 404 — and inside the embed it would break the
+// iframe out to a not-found page. Guarding here is defense-in-depth on top
+// of the scraper-level URL absolutisation.
+function firstAbsoluteUrl(...urls) {
+  for (const u of urls) {
+    if (u && /^https?:\/\//i.test(u)) return u
+  }
+  return null
+}
+
 function ActionButtons({ event, price }) {
   // Akron Pulse is an aggregator, not a ticketing platform, so every
   // event page MUST surface at least one outbound link the user can
@@ -532,8 +553,8 @@ function ActionButtons({ event, price }) {
   // source_url is populated by every scraper via the upsertEventSafe
   // helper (defaulting to ticket_url) and explicitly by sources where
   // the detail page and ticketing page diverge (e.g. visit_akron_cvb).
-  const primaryUrl   = event.ticket_url || event.source_url || null
-  const isTicketLink = !!event.ticket_url
+  const primaryUrl   = firstAbsoluteUrl(event.ticket_url, event.source_url)
+  const isTicketLink = !!event.ticket_url && primaryUrl === event.ticket_url
   const primaryLabel = isTicketLink
     ? (price.free ? 'Register — Free' : `Get Tickets — ${price.label}`)
     : 'View Event Details →'

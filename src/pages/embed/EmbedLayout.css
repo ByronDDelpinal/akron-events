@@ -71,3 +71,30 @@
 .embed-root .content {
   min-height: 0;
 }
+
+/* ──────────────────────────────────────────────────────────────────
+   Modals inside a tall auto-height iframe.
+
+   A `position: fixed` overlay in an iframe anchors to the iframe's whole
+   box (which equals its full content height when it doesn't scroll), so a
+   bottom-sheet would land far below the slice the visitor is viewing. The
+   host resizer publishes the on-screen band as --embed-vp-top /
+   --embed-vp-height (see EmbedLayout); we re-anchor fixed overlays to that
+   band so the filter tray and dialogs always open in view.
+
+   Scoped to .embed-mode (set on <html> by EmbedLayout) so it also reaches
+   modals that portal to <body>, outside .embed-root. Falls back to the full
+   frame when the optional host script isn't present.
+   ────────────────────────────────────────────────────────────────── */
+.embed-mode .tray-overlay,
+.embed-mode .modal-backdrop {
+  top: var(--embed-vp-top, 0px);
+  bottom: auto;
+  height: var(--embed-vp-height, 100%);
+}
+
+/* Keep the sheet/dialog within the visible band; its own overflow scrolls. */
+.embed-mode .tray-sheet,
+.embed-mode .modal-container {
+  max-height: var(--embed-vp-height, 88vh);
+}

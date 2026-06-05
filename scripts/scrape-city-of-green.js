@@ -214,6 +214,9 @@ async function main() {
           defaultPriceMin: 0,        // City programming is overwhelmingly free
           defaultPriceMax: null,
           ageRestriction:  'all_ages',
+          // CivicPlus VEVENT URLs are root-relative; absolutise against the
+          // feed's origin so ticket_url/source_url are valid links.
+          linkBaseUrl:     new URL(ICS_FEED_URL).origin,
         })
         if (!row || !row.start_at || !row.source_id) { skipped++; continue }
 

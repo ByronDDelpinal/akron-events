@@ -233,6 +233,9 @@ export async function runCivicPlusScraper(config) {
           defaultPriceMin: 0,        // Municipal programming is overwhelmingly free
           defaultPriceMax: null,
           ageRestriction:  'all_ages',
+          // CivicPlus VEVENT URLs are root-relative; absolutise against the
+          // city's own origin so ticket_url/source_url are valid links.
+          linkBaseUrl:     origin,
         })
         if (!row || !row.start_at || !row.source_id) { skipped++; continue }
 
