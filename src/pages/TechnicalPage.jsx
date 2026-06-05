@@ -128,8 +128,8 @@ export const DATA_SOURCES = [
     method:      'REST API',
     methodDetail:'The Events Calendar (Tribe Events) REST',
     venue:       'Various venues across Akron',
-    notes:       'Young professionals leadership org. 51+ events across committee meetings, socials, GMMs, and volunteer projects. Per-event venue caching (events at various restaurants, bars, and community spaces).',
-    status:      'active',
+    notes:       'Young professionals leadership org. PAUSED: the public feed lists too many members-only internal events (committee meetings, board meetings, general membership meetings) as public, which crowd the calendar with items that are not open to the general public. Disabled in scrape:all until the feed can be filtered down to genuinely public-facing events (socials, volunteer projects, open community events).',
+    status:      'paused',
   },
 
   // ── WordPress APIs ─────────────────────────────────────────────────────
@@ -978,6 +978,7 @@ function SourceBadge({ status }) {
     <span className={`tp-badge tp-badge--${status}`}>
       {status === 'active'  ? '● Active'   : null}
       {status === 'degraded'? '◐ Degraded' : null}
+      {status === 'paused'  ? '⏸ Paused'   : null}
       {status === 'planned' ? '○ Planned'  : null}
     </span>
   )

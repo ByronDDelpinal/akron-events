@@ -6,6 +6,14 @@
  *
  * Platform: WordPress + The Events Calendar (Tribe Events) REST API
  *
+ * ⏸ PAUSED (2026-06-05): removed from `scrape:all`. The public Tribe feed
+ * surfaces too many members-only INTERNAL events — committee meetings, board
+ * meetings, and general membership meetings (GMMs) — as public events, which
+ * flood the calendar with items not open to the general public. Re-enable only
+ * after adding a public/internal filter (similar to lib/civicplus.js
+ * isPublicCivicPlusEvent) so internal org business is excluded. The script
+ * still runs standalone via `npm run scrape:torchbearers` for testing.
+ *
  * Usage:
  *   node scripts/scrape-torchbearers.js
  *
