@@ -202,7 +202,7 @@ runIcsScraper({
   },
   mapCategory,
   mapTags,
-  defaultPriceMin: 0,
+  defaultPriceMin: null,
   defaultPriceMax: null,
   ageRestriction:  'all_ages',
 })

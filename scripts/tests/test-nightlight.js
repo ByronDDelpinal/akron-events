@@ -299,7 +299,7 @@ describe('Nightlight: buildEventRow', () => {
     assert.equal(row.age_restriction, 'not_specified')   // PG-13 has no exact bucket
     assert.equal(row.ticket_url, 'https://nightlightcinema.com/movie/exit-8/')
     assert.equal(row.image_url, 'https://indy-systems.imgix.net/exit8')
-    assert.equal(row.price_min, 0)
+    assert.equal(row.price_min, null)
     assert.equal(row.price_max, null)
   })
 

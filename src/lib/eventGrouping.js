@@ -23,6 +23,16 @@ import { format } from 'date-fns'
 export const SOURCE_CAP = 3
 
 /**
+ * Sources subject to the per-day cap. The "+N more from …" overflow
+ * affordance only exists to keep the Akron-Summit County Public
+ * Library's ~400-program calendar from drowning out everything else;
+ * no other source is high-volume enough to warrant hiding events.
+ * Anything not listed here renders every event uncapped (e.g. Akron
+ * Life can surface as many events as it has).
+ */
+export const CAPPED_SOURCES = new Set(['akron_library'])
+
+/**
  * applySourceCap(dayEvents, expandedSources, dateKey)
  *
  * Takes a flat, time-sorted array of events for one day and returns a
@@ -67,7 +77,12 @@ export function applySourceCap(dayEvents, expandedSources, dateKey) {
     const isExpanded = expandedSources.has(`${dateKey}-${src}`)
     const total      = sourceTotal[src]
 
-    if (count < SOURCE_CAP) {
+    if (!CAPPED_SOURCES.has(src)) {
+      // Uncapped source — always show every event, never inject an
+      // overflow card.
+      items.push({ type: 'event', event: ev, isRevealed: false })
+      sourceCounts[src] = count + 1
+    } else if (count < SOURCE_CAP) {
       // Always show events within the cap.
       items.push({ type: 'event', event: ev, isRevealed: false })
       sourceCounts[src] = count + 1

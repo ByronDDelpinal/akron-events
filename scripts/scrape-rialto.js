@@ -108,7 +108,7 @@ async function processEvents(rawEvents, organizerId, venueId) {
         source:          SOURCE_KEY,
         mapCategory,
         mapTags,
-        defaultPriceMin: 0,
+        defaultPriceMin: null,
         defaultPriceMax: null,
         ageRestriction:  'all_ages',
       })

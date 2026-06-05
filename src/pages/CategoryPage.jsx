@@ -335,6 +335,7 @@ export default function CategoryPage() {
     search,
     sort,
     neighborhoodSlug: isAkronNeighborhood ? hub.slug : null,
+    venueCities:      isCity ? (hub.cityMatch || []) : [],
     limit:    PAGE_SIZE,
     offset,
   })
@@ -358,14 +359,9 @@ export default function CategoryPage() {
     }
   }, [page, loading, offset])
 
-  // For city hubs (Akron city + every other Summit County city),
-  // apply the client-side cityMatch filter. We don't push city
-  // filtering down to Supabase yet — the neighborhoodSlug inner-join
-  // trick that the Akron-neighborhood hubs use doesn't have a direct
-  // city analog wired up. Hubs still benefit from pagination + the
-  // infinite-scroll grid; counts on those pages are approximate per
-  // page rather than exact. Akron-neighborhood and category hubs
-  // pass straight through (they're already exact server-side).
+  // City hubs now filter server-side via venueCities (inner-join on
+  // venue.city). The client-side pass is kept as a safety net only —
+  // e.g. for events that slipped through with a mis-cased city name.
   const events = useMemo(() => {
     if (isCity) {
       return allEvents.filter((e) => eventMatchesNeighborhood(e, hub))
@@ -405,11 +401,13 @@ export default function CategoryPage() {
           }
         }
       },
-      { rootMargin: '0px 0px 1500px 0px' },
+      { rootMargin: '0px 0px 400px 0px' },
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [hasMore, allEvents.length])
+  // Intentionally omit allEvents.length — see HomePage.jsx for explanation.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasMore])
 
   // ── Breadcrumb trail ──
   // Akron neighborhoods nest under the Akron city hub so the

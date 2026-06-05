@@ -130,7 +130,7 @@ describe('ICS: normaliseIcsEvent', () => {
     assert.ok(row)
     assert.equal(row.category, 'community')
     assert.deepEqual(row.tags, [])
-    assert.equal(row.price_min, 0)
+    assert.equal(row.price_min, null)
     assert.equal(row.price_max, null)
     assert.equal(row.age_restriction, 'not_specified')
   })

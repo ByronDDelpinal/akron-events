@@ -121,7 +121,7 @@ export function normaliseSquarespaceEvent(item, config = {}) {
     source            = 'squarespace',
     mapCategory       = () => 'community',
     mapTags           = () => [],
-    defaultPriceMin   = 0,
+    defaultPriceMin   = null,
     defaultPriceMax   = null,
     ageRestriction    = 'not_specified',
   } = config

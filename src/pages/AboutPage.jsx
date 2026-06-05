@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { SEO, buildGraph, faqPageSchema, breadcrumbSchema } from '@/lib/seo'
+import { INTENTS } from '@/lib/intents'
 import './AboutPage.css'
 
 // FAQ content pulled into structured data. Each question/answer is also
@@ -54,32 +55,17 @@ const FAQS = [
   },
 ]
 
-const PERSONAS = [
-  {
-    label:       'Plan a Date Night',
-    description: 'Evening events, live music, and good food — curated for two.',
-    href:        '/?categories=music,food&dateRange=this_week&sort=date',
-    icon:        '🎷',
-  },
-  {
-    label:       'Family Weekend',
-    description: 'Daytime events and free admission — something for everyone.',
-    href:        '/?categories=community,education&freeOnly=true',
-    icon:        '🎨',
-  },
-  {
-    label:       'Catch Live Music',
-    description: 'Local and touring acts across every venue we track.',
-    href:        '/?categories=music',
-    icon:        '🎸',
-  },
-  {
-    label:       'Last-Minute Plans',
-    description: "What's happening this weekend, right now.",
-    href:        '/?dateRange=this_weekend',
-    icon:        '⚡',
-  },
-]
+// Discovery "vibes" are derived straight from the canonical intent
+// registry (src/lib/categories.js) so they never drift from the
+// homepage Filter & Sort presets again. Each card links to the
+// homepage with that intent pre-applied via ?intent=<id> (see
+// HomePage.jsx, which reads the param on load).
+const PERSONAS = INTENTS.map((intent) => ({
+  label:       intent.label,
+  description: intent.tagline,
+  href:        `/?intent=${intent.id}`,
+  icon:        intent.emoji,
+}))
 
 export default function AboutPage() {
   const seoGraph = buildGraph(

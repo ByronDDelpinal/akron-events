@@ -533,6 +533,9 @@ h6 { font-size: var(--text-h6); }
 .tag-comedy    { background: var(--tag-nonprofit-bg); color: var(--tag-nonprofit-txt); }
 .tag-festival  { background: var(--tag-community-bg); color: var(--tag-community-txt); }
 .tag-market    { background: var(--tag-food-bg);      color: var(--tag-food-txt); }
+/* Secondary content category on cards — slightly de-emphasized so the primary
+   still reads first. Applied by CategoryBadges in EventCard. */
+.event-tag--secondary { opacity: 0.72; }
 
 /* ════════════════════════════════
    UTILITY

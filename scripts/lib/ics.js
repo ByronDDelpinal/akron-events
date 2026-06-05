@@ -300,7 +300,7 @@ export function normaliseIcsEvent(ev, config = {}) {
     source,
     mapCategory      = () => 'community',
     mapTags          = () => [],
-    defaultPriceMin  = 0,
+    defaultPriceMin  = null,
     defaultPriceMax  = null,
     ageRestriction   = 'not_specified',
     defaultImageUrl  = null,

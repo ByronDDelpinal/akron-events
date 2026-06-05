@@ -16,6 +16,24 @@ function AgeRestrictionPill({ value }) {
   return <span className="age-pill">{label}</span>
 }
 
+/**
+ * Render an event's content categories as badges — primary first, then the
+ * secondary (events now carry up to 2 via the event_categories join table).
+ * Falls back to the singular `category` shim for any not-yet-migrated caller.
+ */
+function CategoryBadges({ event }) {
+  const cats = (event.categories?.length ? event.categories : [event.category])
+    .filter(Boolean)
+    .slice(0, 2)
+  return cats.map((c, i) => (
+    <CategoryBadge
+      key={c}
+      category={c}
+      className={i > 0 ? 'event-tag--secondary' : ''}
+    />
+  ))
+}
+
 // ── COMFORTABLE MODE (default) ──────────────────────────────────────────────
 
 export default function EventCard({ event, featured = false, viewMode = 'comfortable' }) {
@@ -78,7 +96,7 @@ function ComfortableCard({ event, featured, price, navigate }) {
         <div className="card-top">
           <div className="card-tags">
             {featured && <span className="featured-tag">Featured</span>}
-            <CategoryBadge category={event.category} />
+            <CategoryBadges event={event} />
           </div>
           <span className={`card-price ${price.free ? 'free' : ''}`}>{price.label}</span>
         </div>
@@ -150,7 +168,7 @@ function EfficientCard({ event, featured, price, navigate, gradient }) {
           </div>
         </div>
         <div className="card-efficient-end">
-          <CategoryBadge category={event.category} />
+          <CategoryBadges event={event} />
           <span className={`card-efficient-price ${price.free ? 'free' : ''}`}>{price.label}</span>
         </div>
       </div>

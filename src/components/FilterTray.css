@@ -35,12 +35,31 @@
 }
 
 /* ── Drag handle ── */
+/* The zone is a generous, finger-sized touch target; the bar inside is the
+   visible affordance. Pointer drag on the zone pulls the sheet down to close. */
+.tray-handle-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-md) 0 var(--space-sm);
+  cursor: grab;
+  touch-action: none;
+}
+.tray-handle-zone:active {
+  cursor: grabbing;
+}
+
 .tray-handle {
   width: 38px;
   height: 4px;
   background: var(--border-mid);
   border-radius: var(--radius-xxs);
-  margin: var(--space-lg) auto 0;
+  transition: background var(--transition-medium), width var(--transition-medium);
+}
+.tray-handle-zone:hover .tray-handle,
+.tray-handle-zone:active .tray-handle {
+  background: var(--text-muted);
+  width: 46px;
 }
 
 /* ── Header ── */

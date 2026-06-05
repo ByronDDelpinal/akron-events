@@ -73,6 +73,11 @@ export function useEvents({
   // have to fetch 100 events and filter client-side — which silently
   // misses events when other neighborhoods crowd the first page.
   neighborhoodSlug = null,
+  // When non-empty, restrict to events whose venue.city is one of these
+  // values. Used by Summit County city hub pages (Hudson, Stow, etc.) to
+  // push city filtering server-side rather than fetching all 2,500+ events
+  // and discarding most of them on the client.
+  venueCities      = [],
   sort             = 'soonest',
   limit            = PAGE_SIZE,
   offset           = 0,
@@ -98,8 +103,9 @@ export function useEvents({
         // back, just with venue=null, which would silently lie to the
         // matcher. The empty-string trick keeps the syntax stable
         // whether or not we're filtering.
-        const venueJoin = neighborhoodSlug ? 'event_venues!inner' : 'event_venues'
-        const venueTbl  = neighborhoodSlug ? 'venues!inner'      : 'venues'
+        const useInnerVenue = !!neighborhoodSlug || venueCities.length > 0
+        const venueJoin = useInnerVenue ? 'event_venues!inner' : 'event_venues'
+        const venueTbl  = useInnerVenue ? 'venues!inner'      : 'venues'
 
         let query = supabase
           .from('events')
@@ -119,6 +125,9 @@ export function useEvents({
           // propagate the filter up so the events query returns only
           // rows where at least one joined venue matches.
           query = query.eq('event_venues.venues.neighborhood_slug', neighborhoodSlug)
+        }
+        if (venueCities.length > 0) {
+          query = query.in('event_venues.venues.city', venueCities)
         }
 
         // Content axis: any-match against the event_categories join table.
@@ -213,7 +222,7 @@ export function useEvents({
 
     fetchEvents()
     return () => { cancelled = true }
-  }, [categories.join(','), family, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSources.join(','), neighborhoodSlug, sort, limit, offset])
+  }, [categories.join(','), family, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSources.join(','), neighborhoodSlug, venueCities.join(','), sort, limit, offset])
 
   const hasMore = offset + limit < total
 

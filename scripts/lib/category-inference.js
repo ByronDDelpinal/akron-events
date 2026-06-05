@@ -38,7 +38,7 @@ const SIGNALS = [
   { cat: 'music', w: DECISIVE, re: /\b(concert|symphony|orchestra|recital|live music|live bands?|open mic|karaoke|sing[- ]along|songwriter night|jazz night|blues night|dj set|album release|ep release|single release|musical guest|tribute (band|act|show|to)|on spotify)\b/ },
   { cat: 'music', w: DECISIVE, re: /\btribute\b/ },
   { cat: 'music', w: WEAK,     re: /\bmusic\b/, scope: 'title' },
-  { cat: 'music', w: STRONG,   re: /\b(singer[- ]songwriter|guitarist|drummer|bassist|saxophonist|pianist|trumpeter|cellist|violinist|multi[- ]?instrumentalist|frontman|frontwoman)\b/ },
+  { cat: 'music', w: STRONG,   re: /\b(singer[-/ ]songwriter|guitarist|drummer|bassist|saxophonist|pianist|trumpeter|cellist|violinist|multi[- ]?instrumentalist|frontman|frontwoman)\b/ },
   { cat: 'music', w: STRONG,   re: /\b(two|three|four|five|six|seven|eight)[- ]piece band\b/ },
   { cat: 'music', w: STRONG,   re: /\b(music scene|debut (album|record|ep|single)|touring (band|artist|musician)|nationally touring|on tour\b)\b/ },
   { cat: 'music', w: STRONG,   re: _MUSIC_VENUES, scope: 'title' },

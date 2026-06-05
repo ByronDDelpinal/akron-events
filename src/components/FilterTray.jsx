@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { CATEGORY_OPTIONS, SORT_OPTIONS, PRICE_OPTIONS } from '@/lib/filterOptions'
 import './FilterTray.css'
@@ -47,7 +47,58 @@ export default function FilterTray({
     return () => { document.body.style.overflow = '' }
   }, [open])
 
+  // ── Drag-to-close ──
+  // The handle at the top of the sheet can be pulled down to dismiss the tray.
+  // We track the downward drag distance and either close (past the threshold)
+  // or spring back to rest on release.
+  const CLOSE_THRESHOLD = 110 // px pulled down before a release dismisses
+  const sheetRef = useRef(null)
+  const dragStartY = useRef(null)
+  const [dragOffset, setDragOffset] = useState(0)
+  const [dragging, setDragging] = useState(false)
+
+  // Reset drag state whenever the tray is (re)opened.
+  useEffect(() => {
+    if (open) {
+      setDragOffset(0)
+      setDragging(false)
+      dragStartY.current = null
+    }
+  }, [open])
+
+  function handleDragStart(e) {
+    dragStartY.current = e.clientY
+    setDragging(true)
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+  }
+
+  function handleDragMove(e) {
+    if (dragStartY.current === null) return
+    // Only allow downward movement.
+    const delta = Math.max(0, e.clientY - dragStartY.current)
+    setDragOffset(delta)
+  }
+
+  function handleDragEnd() {
+    if (dragStartY.current === null) return
+    dragStartY.current = null
+    setDragging(false)
+    if (dragOffset > CLOSE_THRESHOLD) {
+      onClose()
+    } else {
+      setDragOffset(0)
+    }
+  }
+
   if (!open) return null
+
+  const sheetStyle = dragOffset
+    ? {
+        transform: `translateY(${dragOffset}px)`,
+        transition: dragging ? 'none' : 'transform 0.22s cubic-bezier(0.22, 1, 0.36, 1)',
+        animation: 'none',
+      }
+    : undefined
 
   // Dispatch chip clicks to the right state bucket — intents are single-select,
   // raw categories are multi-select, both can coexist (intent stays "selected"
@@ -81,10 +132,29 @@ export default function FilterTray({
 
   return (
     <div className="tray-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="tray-sheet" role="dialog" aria-modal="true" aria-label="Filter and sort">
+      <div
+        ref={sheetRef}
+        className="tray-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Filter and sort"
+        style={sheetStyle}
+      >
 
         {/* Drag handle */}
-        <div className="tray-handle" />
+        <div
+          className="tray-handle-zone"
+          onPointerDown={handleDragStart}
+          onPointerMove={handleDragMove}
+          onPointerUp={handleDragEnd}
+          onPointerCancel={handleDragEnd}
+          role="button"
+          tabIndex={0}
+          aria-label="Drag down to close"
+          onKeyDown={e => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') onClose() }}
+        >
+          <div className="tray-handle" />
+        </div>
 
         {/* Header */}
         <div className="tray-header">

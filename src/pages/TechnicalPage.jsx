@@ -424,6 +424,109 @@ const DATA_SOURCES = [
     notes:       "Akron immersive-theatre company (murder-mystery parties, acting/audition workshops). Final scraper in the 2026-06 Akron Life dwindle plan. Their marketing site is a Weebly page, but every ticketed event lives on a 330tix.com organisation listing — that page emits clean Schema.org Event JSON-LD with name, description, location, start/end with TZ offset, offers, and ticket URL. We hit the org page directly rather than scraping 330tix at large (which would mostly duplicate Hale Farm). About 5–6 events per month: a mix of immersive theatre runs and acting/audition workshops, categorised art vs. education based on title keywords.",
     status:      'active',
   },
+  {
+    key:         'city_of_green',
+    label:       'City of Green Parks & Recreation',
+    method:      'ICS feed',
+    methodDetail:'CivicPlus iCalendar — /common/modules/iCalendar/iCalendar.aspx?catID=14&feed=calendar',
+    venue:       'Boettler Park (default) + Central Park / other Green Parks & Rec venues — Green, OH',
+    notes:       "Summit County's City of Green runs an active year-round Parks & Recreation programming calendar — FreedomFest (Boettler Park, July), the Summer Concert Series, Movie in the Park, art-A-palooza, Trick-or-Treat Trail, Christmas at Central Park, Twisted WilderFest, Memorial Day and Veterans Day ceremonies, Senior Expo, plus seasonal community events. cityofgreen.org runs on CivicPlus (CivicEngage), which exposes the master calendar as a standards-compliant RFC 5545 iCalendar feed (catID=14 == \"City of Green Main Calendar\"). The 213-entry feed mixes public events with City Council and Committee meetings plus federal holiday observances; an EXCLUDE filter drops the administrative summaries (\"Committee Meeting\", \"City Council Meeting\", \"Christmas Day\", \"Veterans Day\" the holiday vs \"Veterans Day Ceremony\" the public event) and \"...Canceled for Summer Recess\" markers, leaving the public-facing events to flow through. The filter is exclude-based rather than allowlist so new specials added by the city next year flow in without a code change.",
+    status:      'active',
+  },
+
+  // ── CivicPlus Summit County cities ─────────────────────────────────────
+  {
+    key:         'city_of_stow',
+    label:       'City of Stow',
+    method:      'ICS feed',
+    methodDetail:'CivicPlus iCalendar — Main Calendar (catID=14)',
+    venue:       'Stow City Hall (default) + The AMP, Silver Springs Park, citywide — Stow, OH',
+    notes:       'Stow keeps its public programming on the Main Calendar alongside board and commission meetings, so we ingest catID=14 and let the shared CivicPlus admin/meeting filter drop the governance rows. Surfaces the Fourth of July Parade, Firecracker Run, Joshua Stow Festival, The AMP pop-up series, City-Wide Trick-or-Treat, and seasonal Parks & Rec events. Per-event venue from the VEVENT LOCATION field.',
+    status:      'active',
+  },
+  {
+    key:         'city_of_hudson',
+    label:       'City of Hudson',
+    method:      'ICS feed',
+    methodDetail:'CivicPlus iCalendar — Community Events Calendar (catID=14)',
+    venue:       'Hudson Green (default) + First & Main, Barlow Center — Hudson, OH',
+    notes:       "Hudson's Community Events Calendar is rich and public-facing: the Hudson Farmers Market, Hudson Bandstand and Summer Music Nights concert series, Screen on the Green movie nights, Art on the Green, the Landsberg Biergarten, and seasonal festivals. A few city meetings on the same calendar are dropped by the shared CivicPlus filter.",
+    status:      'active',
+  },
+  {
+    key:         'city_of_tallmadge',
+    label:       'City of Tallmadge',
+    method:      'ICS feed',
+    methodDetail:'CivicPlus iCalendar — Recreation Department Programs (23) + Recreation Events (25) + Main Calendar (14)',
+    venue:       'Tallmadge Circle Park (default) + Recreation Center — Tallmadge, OH',
+    notes:       'Tallmadge splits content across many category calendars; the public events live on Recreation Department Programs (catID=23) and Recreation Events (catID=25), with the Main Calendar (catID=14) carrying the occasional citywide special. We ingest all three and dedupe by UID. Surfaces the Music on the Circle concert series at Tallmadge Circle Park, Touch a Truck, the Bocce Ball Tournament, and Recreation camps/lessons. The catID map is documented in /iCalendar.aspx; board and commission meetings are dropped by the shared filter.',
+    status:      'active',
+  },
+  {
+    key:         'city_of_new_franklin',
+    label:       'City of New Franklin',
+    method:      'ICS feed',
+    methodDetail:'CivicPlus iCalendar — Community Events/Sports (23) + Main Calendar (14)',
+    venue:       'Tudor House Civic Center — New Franklin, OH',
+    notes:       'New Franklin clusters its public programming around the Tudor House Civic Center on Nimisila Reservoir: the Music by the Lake summer concert series, Movies by the Lake, the Old Fashioned 4th of July, Lakeside Oktoberfest, and the Tudor House Christmas Open House. We ingest catID 23 (Community Events/Sports) and 14 (Main Calendar) and dedupe by UID; City Council and board meetings are dropped by the shared filter.',
+    status:      'active',
+  },
+  {
+    key:         'city_of_fairlawn',
+    label:       'City of Fairlawn',
+    method:      'ICS feed',
+    methodDetail:'CivicPlus iCalendar — Parks and Recreation Calendar (15) + Main Calendar (14)',
+    venue:       'Fairlawn Kiwanis Community Center — Fairlawn, OH',
+    notes:       "Fairlawn's Main Calendar (catID=14) is almost entirely Council and Civil Service meetings, so the public programming comes from the Parks and Recreation Calendar (catID=15) — the Fairlawn Fest, community bingo at the Kiwanis Community Center, and seasonal Parks & Rec events. We ingest both and the shared filter drops the governance rows. This is a thinner source than the other Summit County cities; zero-event runs between active programming windows are normal.",
+    status:      'active',
+  },
+  {
+    key:         'city_of_cuyahoga_falls',
+    label:       'City of Cuyahoga Falls',
+    method:      'HTML scrape',
+    methodDetail:'Drupal 10 calendar grid (/calendar/YYYYMM) + per-event detail pages',
+    venue:       'Downtown Cuyahoga Falls (default) + Falls River Square, Quirk Center — Cuyahoga Falls, OH',
+    notes:       'Cuyahoga Falls (Summit County\'s second-largest city) runs Drupal 10 with no iCalendar feed. The monthly calendar grid is the reliable date source because Drupal materialises each occurrence of a recurring series into its own dated day cell. We walk the grid for the current month + 2 ahead, attach every /events/{slug} link to its day, restrict to the page\'s own month to avoid adjacent-month double-counting, drop "Government Event" rows (City Council, Planning Commission, Board of Zoning Appeal, …) with a meeting filter, then fetch each unique event node once for its title, og:description, og:image, and a best-effort start time parsed from the detail prose. Surfaces Falls Downtown Fridays, Front Street Live, the Riverfront Cruise In, Picnic In The Park, the Community Band and Keyser concert series, and Flix on the Falls.',
+    status:      'active',
+  },
+  {
+    key:         'akron_community_foundation',
+    label:       'Akron Community Foundation',
+    method:      'HTML scrape',
+    methodDetail:'Custom WordPress (acf-custom-theme) — /news-and-events/acf-events/ event blocks',
+    venue:       'Various — House Three Thirty, Crown Point Ecology Center, ACF (345 W Cedar St), etc.',
+    notes:       "Greater Akron's community foundation. The events page is a custom WordPress theme that renders each event as a server-side HTML block (h2.event-title + .event-start-date / .event-start-time / .event-location / .event-fund-affiliation / .event-website / .event-description) — no Tribe REST API and no ICS feed, so we parse the markup directly off those stable class names. Events: the ACF Annual Meeting, the Polsky Award, fund-anniversary celebrations, and affiliate-fund annual meetings (Bath Community Fund, Black Giving Collective, Gay Community Endowment Fund, Women's Endowment Fund, …). Most carry an Eventbrite registration link, used as the stable source id; organizer is attributed to Akron Community Foundation with the specific fund carried as a tag.",
+    status:      'active',
+  },
+
+  // ── Neighborhood CDCs / associations ───────────────────────────────────
+  {
+    key:         'the_well_cdc',
+    label:       'The Well CDC (Middlebury)',
+    method:      'HTML scrape',
+    methodDetail:'Divi page builder (WordPress) — /events/ blurb modules',
+    venue:       'The East End, Mason Park CLC, 647 E Market St — Middlebury, Akron',
+    notes:       "Akron's place-based community development corporation for the Middlebury neighborhood. The events page is built with Divi; each event is an et_pb_blurb module with an h4 title and a description block whose first two <strong> runs are the date/time line (\"JUNE 4, 2026 | 5:30PM\") and the venue/address (\"THE EAST END – 1200 E MARKET ST\"). We parse those off the stable Divi classes and infer category from the title. Surfaces the Taste of Middlebury fundraiser, Akron Hope's Juneteenth celebration and Wrapping Night, Middlebury Fall Fest, and Coffee & Career Development sessions. Venues sit in Middlebury, so the neighborhood resolver tags them automatically.",
+    status:      'active',
+  },
+  {
+    key:         'better_kenmore',
+    label:       'Better Kenmore CDC',
+    method:      'HTML scrape',
+    methodDetail:'WordPress Events Manager plugin — /upcoming-events/ .em-event list',
+    venue:       'Kenmore Boulevard district + Kenmore Senior Community Center — Kenmore, Akron',
+    notes:       "Community development corporation for Akron's Kenmore neighborhood and the historic Kenmore Boulevard business district. The site runs the Events Manager plugin, which renders a structured upcoming-events list: each .em-event.em-item carries .em-event-date (\"Friday June 5, 2026\"), .em-event-time (\"9:30 am - 10:30 am\"), .em-event-location, and a /events/{slug} permalink. We split on those items and parse the meta lines directly. Surfaces the BLVD Block Party, Kenmore First Friday Festival, the Rialto Living Room concert series, and recurring Kenmore Senior Community Center programming (Chair Yoga, Popcorn & Movie Fridays). source_id is slug(title)+date so recurring occurrences stay distinct.",
+    status:      'active',
+  },
+  {
+    key:         'highland_square',
+    label:       'Highland Square (PorchROKR)',
+    method:      'HTML scrape',
+    methodDetail:'Wix (server-rendered date/meta) — homepage festival promo',
+    venue:       'Highland Square neighborhood district — West Akron',
+    notes:       "The Highland Square Neighborhood Association runs essentially one marquee public event a year: PorchROKR, the porch-music-and-arts festival on the third Saturday of August. The site is Wix, which is normally client-rendered, but it server-side renders the festival date heading (\"AUGUST 15, 2026\") plus og:description and og:image into the initial HTML, so a plain fetch sees them. We extract that single dated festival (porch sets ~11 a.m.–7 p.m., headliner to ~9 p.m.) rather than a recurring list, so we hold the canonical PorchROKR date from HSNA rather than depending on Eventbrite. The Highland Square Film Festival lives on a separate page when active and isn't yet ingested.",
+    status:      'active',
+  },
 
   // ── Aggregators ────────────────────────────────────────────────────────
   {
@@ -593,6 +696,11 @@ const SOURCE_GROUPS = [
     description: "When a venue publishes an .ics calendar subscription (RFC 5545), we fetch and parse it directly via the shared scripts/lib/ics.js module — line unfolding, TZID conversion, and TEXT escape handling included. Each per-source scraper is a thin config wrapper around runIcsScraper.",
   },
   {
+    id:    'civicplus',
+    title: 'CivicPlus iCalendar (Summit County cities)',
+    description: "Most Summit County municipalities run their official websites on CivicPlus (CivicEngage), which exposes every public calendar as an RFC 5545 iCalendar feed at /common/modules/iCalendar/iCalendar.aspx?catID={id}&feed=calendar. Unlike a single master feed, CivicPlus splits content across category calendars (Main Calendar, Recreation Events, City Council, Board of Zoning Appeals, …), each with its own catID and no working aggregate (catID=0 is empty). The shared scripts/lib/civicplus.js fetches the public-event categories per city, merges and dedupes by UID, and runs an admin/meeting filter so council and board entries drop while festivals, concert series, markets, and Parks & Rec programming flow through. Each city scraper is a thin config wrapper supplying its origin, catIDs, and default venue.",
+  },
+  {
     id:    'squarespace',
     title: 'Squarespace Events Collection',
     description: 'Squarespace sites with a native Events collection expose structured JSON at ?format=json&view=upcoming. The shared lib/squarespace.js fetches it and normalises the response (epoch-ms timestamps, location object, body HTML) into our common event shape.',
@@ -671,6 +779,14 @@ const SOURCE_GROUP_BY_KEY = {
   akron_public_schools:'ics',
   life_gurukula:       'ics',
 
+  // CivicPlus iCalendar (Summit County municipalities)
+  city_of_green:        'civicplus',
+  city_of_stow:         'civicplus',
+  city_of_hudson:       'civicplus',
+  city_of_tallmadge:    'civicplus',
+  city_of_new_franklin: 'civicplus',
+  city_of_fairlawn:     'civicplus',
+
   // Evvnt (Akron Life) — its own group; ICS isn't accurate
   akron_life:          'evvnt',
 
@@ -701,6 +817,11 @@ const SOURCE_GROUP_BY_KEY = {
   // Custom HTML scrapers
   akron_art_museum:       'html',
   akron_zoo:              'html',
+  city_of_cuyahoga_falls: 'html',
+  akron_community_foundation: 'html',
+  the_well_cdc:           'html',
+  better_kenmore:         'html',
+  highland_square:        'html',
   downtown_akron:         'html',
   weathervane:            'html',
   ohio_shakespeare:       'html',
@@ -775,6 +896,17 @@ const SCRAPER_LABELS = {
   cascade_locks:      'Cascade Locks',
   akron_marathon:     'Akron Marathon',
   get_away_with_murder: 'Get Away With Murder',
+  city_of_green:      'City of Green',
+  city_of_stow:       'City of Stow',
+  city_of_hudson:     'City of Hudson',
+  city_of_tallmadge:  'City of Tallmadge',
+  city_of_new_franklin:'City of New Franklin',
+  city_of_fairlawn:   'City of Fairlawn',
+  city_of_cuyahoga_falls: 'City of Cuyahoga Falls',
+  akron_community_foundation: 'Akron Community Foundation',
+  the_well_cdc:       'The Well CDC',
+  better_kenmore:     'Better Kenmore CDC',
+  highland_square:    'Highland Square (PorchROKR)',
   akron_urban_league: 'Akron Urban League',
   rialto:             'The Rialto Theatre',
   life_gurukula:      'Life Gurukula',
@@ -790,6 +922,11 @@ const SCRAPER_LABELS = {
 
 const EVALUATED_SOURCES = [
   {
+    name:   'City of Barberton',
+    url:    'https://www.cityofbarberton.com/Calendar.aspx',
+    reason: 'Barberton runs CivicPlus like the other Summit County cities, but its iCalendar module returns an empty body for every category ID we probed (catID=14, 0, and the no-catID default), and the Calendar.aspx page itself renders client-side with no server HTML to parse — so neither the shared civicplus.js iCal path nor an HTML scrape works as-is. Public Barberton programming (First Friday, the BLVD events) is better covered by Mainstreet Barberton (WordPress) and Better Kenmore; revisit with a direct Mainstreet Barberton scraper, or recheck the CivicPlus feed if the city re-enables it. This is the only Summit County hub city without a working city-government scraper.',
+  },
+  {
     name:   'Greystone Hall',
     url:    'https://www.visitakron-summit.org/greystone-hall/',
     reason: 'No public events page — bookings are private (weddings, banquets, meetings). The one recurring public tenant is Ohio Shakespeare Festival, which is already covered by the ohio_shakespeare scraper.',
@@ -800,9 +937,9 @@ const EVALUATED_SOURCES = [
     reason: 'Client-rendered React app on the Gannett/Evvnt national network. Evvnt syndicates from Eventbrite and Ticketmaster, so most distinctly-Akron entries would already be duplicates. Skip until Evvnt exposes a public JSON endpoint or until Gannett ships a server-rendered variant.',
   },
   {
-    name:   'Neighborhood association sites',
-    url:    'highlandsquareakron.org, betterkenmore.org, whno.org, goodyearheights.org',
-    reason: "Mixed CMS stack (Wix, WordPress, Weebly, Squarespace) but operationally Facebook-driven. Combined volume is <10 events/year that aren't already promoted on partner Eventbrite pages or the Downtown Akron Partnership feed.",
+    name:   'Remaining neighborhood association sites',
+    url:    'whno.org (West Hill), goodyearheights.org, eandc.org (East Akron), progressakron.org (Sherbondy Hill / West Akron)',
+    reason: "Highland Square, Better Kenmore, The Well (Middlebury), and North Hill CDC now have direct scrapers. The remaining neighborhood orgs are a mixed CMS stack (Wix, WordPress, Weebly, Squarespace) but operationally Facebook-driven: EANDC and Progressive Alliance publish what little they ticket through Eventbrite (caught by the citywide geo-feed), and the others run <10 public events/year. Revisit any individually if its public-event volume grows.",
   },
 ]
 

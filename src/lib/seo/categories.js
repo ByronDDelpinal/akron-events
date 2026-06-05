@@ -136,17 +136,23 @@ export const CATEGORY_HUBS = [
 // slug (see CategoryPage's eventMatchesNeighborhood).
 //
 // Status today (June 2026):
-//   Every Akron neighborhood hub is `disabled: true, preview: true`.
-//   - `disabled: true` keeps the hub out of the sitemap, footer,
-//     related-hub strips, and homepage chips — i.e. unlisted.
-//   - `preview: true` makes CategoryPage skip the redirect, so the
-//     URL itself resolves and the page renders. Anyone with the URL
-//     can browse it; nobody else finds it.
+//   All 24 Akron neighborhood hubs and the 9 Summit County city hubs
+//   are ENABLED — they appear in the sitemap, footer, related-hub
+//   strips, and the homepage "Choose a city or neighborhood" dropdown
+//   (see HomePage.jsx). They were flipped on when that dropdown
+//   shipped to give the hubs a real discovery surface.
 //
-//   This is the audit mode the project sits in while we backfill
-//   venue.neighborhood_slug coverage. Once a neighborhood has enough
-//   classified venues to fill a real event list, flip its hub by
-//   dropping the `preview` and `disabled` flags in lockstep.
+//   The only hubs that remain `disabled: true, preview: true` are the
+//   three regional rollups at the very bottom of CITY_HUBS
+//   (Northwest / Northeast / Southeast Summit County). Their URLs
+//   resolve for anyone with the link, but they stay out of the
+//   sitemap/footer/strips/dropdown until they earn a dedicated entry.
+//
+//   NOTE: venue.neighborhood_slug backfill is still in progress, so a
+//   handful of the quieter neighborhood hubs may show thin or empty
+//   event lists. If that becomes an SEO concern, re-add
+//   `disabled: true, preview: true` to the specific low-coverage hubs
+//   to pull them from the sitemap while keeping their URLs live.
 //
 // Matching:
 //   For Akron-neighborhood hubs, CategoryPage matches events whose
@@ -160,7 +166,6 @@ export const CATEGORY_HUBS = [
 export const NEIGHBORHOOD_HUBS = [
   // ── Downtown ─────────────────────────────────────────────────────
   {
-    disabled: true, preview: true,
     slug: 'downtown-akron',
     label: 'Downtown Akron',
     title: 'Downtown Akron Events',
@@ -175,7 +180,6 @@ export const NEIGHBORHOOD_HUBS = [
 
   // ── Central-west cluster (Highland Square + neighbors) ───────────
   {
-    disabled: true, preview: true,
     slug: 'highland-square',
     label: 'Highland Square',
     title: 'Highland Square Events & Things To Do',
@@ -188,7 +192,6 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Akron'],
   },
   {
-    disabled: true, preview: true,
     slug: 'wallhaven',
     label: 'Wallhaven',
     title: 'Wallhaven Events',
@@ -201,7 +204,6 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Akron'],
   },
   {
-    disabled: true, preview: true,
     slug: 'west-hill',
     label: 'West Hill',
     title: 'West Hill Events',
@@ -214,7 +216,6 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Akron'],
   },
   {
-    disabled: true, preview: true,
     slug: 'west-akron',
     label: 'West Akron',
     title: 'West Akron Events',
@@ -229,7 +230,6 @@ export const NEIGHBORHOOD_HUBS = [
 
   // ── Northern arc ─────────────────────────────────────────────────
   {
-    disabled: true, preview: true,
     slug: 'north-hill',
     label: 'North Hill',
     title: 'North Hill Community Events',
@@ -242,7 +242,6 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Akron'],
   },
   {
-    disabled: true, preview: true,
     slug: 'chapel-hill',
     label: 'Chapel Hill',
     title: 'Chapel Hill Events',
@@ -255,7 +254,6 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Akron'],
   },
   {
-    disabled: true, preview: true,
     slug: 'cascade-valley',
     label: 'Cascade Valley',
     title: 'Cascade Valley Events',
@@ -268,7 +266,6 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Akron'],
   },
   {
-    disabled: true, preview: true,
     slug: 'merriman-hills',
     label: 'Merriman Hills',
     title: 'Merriman Hills Events',
@@ -281,7 +278,6 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Akron'],
   },
   {
-    disabled: true, preview: true,
     slug: 'merriman-valley',
     label: 'Merriman Valley',
     title: 'Merriman Valley Events',
@@ -294,7 +290,6 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Akron'],
   },
   {
-    disabled: true, preview: true,
     slug: 'high-hampton',
     label: 'High Hampton',
     title: 'High Hampton Events',
@@ -309,7 +304,6 @@ export const NEIGHBORHOOD_HUBS = [
 
   // ── Northwest ───────────────────────────────────────────────────
   {
-    disabled: true, preview: true,
     slug: 'northwest-akron',
     label: 'Northwest Akron',
     title: 'Northwest Akron Events',
@@ -322,7 +316,6 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Akron'],
   },
   {
-    disabled: true, preview: true,
     slug: 'fairlawn-heights',
     label: 'Fairlawn Heights',
     title: 'Fairlawn Heights Events',
@@ -337,7 +330,6 @@ export const NEIGHBORHOOD_HUBS = [
 
   // ── Eastern arc ─────────────────────────────────────────────────
   {
-    disabled: true, preview: true,
     slug: 'goodyear-heights',
     label: 'Goodyear Heights',
     title: 'Goodyear Heights Events',
@@ -350,7 +342,6 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Akron'],
   },
   {
-    disabled: true, preview: true,
     slug: 'east-akron',
     label: 'East Akron',
     title: 'East Akron Events',
@@ -363,7 +354,6 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Akron'],
   },
   {
-    disabled: true, preview: true,
     slug: 'middlebury',
     label: 'Middlebury',
     title: 'Middlebury Events',
@@ -376,7 +366,6 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Akron'],
   },
   {
-    disabled: true, preview: true,
     slug: 'ellet',
     label: 'Ellet',
     title: 'Ellet Events',
@@ -391,7 +380,6 @@ export const NEIGHBORHOOD_HUBS = [
 
   // ── University / center-south ───────────────────────────────────
   {
-    disabled: true, preview: true,
     slug: 'university-park',
     label: 'University Park',
     title: 'University Park Events',
@@ -406,7 +394,6 @@ export const NEIGHBORHOOD_HUBS = [
 
   // ── Southern arc ────────────────────────────────────────────────
   {
-    disabled: true, preview: true,
     slug: 'south-akron',
     label: 'South Akron',
     title: 'South Akron Events',
@@ -419,7 +406,6 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Akron'],
   },
   {
-    disabled: true, preview: true,
     slug: 'firestone-park',
     label: 'Firestone Park',
     title: 'Firestone Park Events',
@@ -432,7 +418,6 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Akron'],
   },
   {
-    disabled: true, preview: true,
     slug: 'kenmore',
     label: 'Kenmore',
     title: 'Kenmore Events',
@@ -445,7 +430,6 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Akron'],
   },
   {
-    disabled: true, preview: true,
     slug: 'sherbondy-hill',
     label: 'Sherbondy Hill',
     title: 'Sherbondy Hill Events',
@@ -458,7 +442,6 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Akron'],
   },
   {
-    disabled: true, preview: true,
     slug: 'summit-lake',
     label: 'Summit Lake',
     title: 'Summit Lake Events',
@@ -471,7 +454,6 @@ export const NEIGHBORHOOD_HUBS = [
     cityMatch: ['Akron'],
   },
   {
-    disabled: true, preview: true,
     slug: 'coventry-crossing',
     label: 'Coventry Crossing',
     title: 'Coventry Crossing Events',
@@ -501,7 +483,6 @@ export const NEIGHBORHOOD_HUBS = [
 export const CITY_HUBS = [
   // ── Akron (city-level — has neighborhood drill-down) ──────────────
   {
-    disabled: true, preview: true,
     slug: 'akron',
     label: 'Akron',
     title: 'Akron, OH Events',
@@ -516,7 +497,6 @@ export const CITY_HUBS = [
 
   // ── Cuyahoga Falls (Falls) ────────────────────────────────────────
   {
-    disabled: true, preview: true,
     slug: 'cuyahoga-falls',
     label: 'Cuyahoga Falls',
     title: 'Cuyahoga Falls, OH Events',
@@ -539,7 +519,6 @@ export const CITY_HUBS = [
   // MERGE_INTO_SLUG), and events filed under venue.city = "Silver Lake"
   // surface here via cityMatch.
   {
-    disabled: true, preview: true,
     slug: 'stow',
     label: 'Stow',
     title: 'Stow, OH Events',
@@ -554,7 +533,6 @@ export const CITY_HUBS = [
 
   // ── Hudson ───────────────────────────────────────────────────────
   {
-    disabled: true, preview: true,
     slug: 'hudson',
     label: 'Hudson',
     title: 'Hudson, OH Events',
@@ -569,7 +547,6 @@ export const CITY_HUBS = [
 
   // ── Green ────────────────────────────────────────────────────────
   {
-    disabled: true, preview: true,
     slug: 'green',
     label: 'Green',
     title: 'Green, OH Events',
@@ -592,7 +569,6 @@ export const CITY_HUBS = [
   // COUSUB polygon absorbs (see MERGE_INTO_SLUG in the converter),
   // and events with venue.city = "Copley" surface here via cityMatch.
   {
-    disabled: true, preview: true,
     slug: 'fairlawn',
     label: 'Fairlawn',
     title: 'Fairlawn & Copley, OH Events',
@@ -615,7 +591,6 @@ export const CITY_HUBS = [
   // events filed under venue.city = "Munroe Falls" surface here via
   // cityMatch.
   {
-    disabled: true, preview: true,
     slug: 'tallmadge',
     label: 'Tallmadge',
     title: 'Tallmadge & Munroe Falls, OH Events',
@@ -637,7 +612,6 @@ export const CITY_HUBS = [
   // MERGE_INTO_SLUG in the converter), and events with venue.city =
   // "Norton" surface here via cityMatch.
   {
-    disabled: true, preview: true,
     slug: 'barberton',
     label: 'Barberton',
     title: 'Barberton & Norton, OH Events',
@@ -652,7 +626,6 @@ export const CITY_HUBS = [
 
   // ── New Franklin ─────────────────────────────────────────────────
   {
-    disabled: true, preview: true,
     slug: 'new-franklin',
     label: 'New Franklin',
     title: 'New Franklin, OH Events',

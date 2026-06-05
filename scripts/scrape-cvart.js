@@ -296,8 +296,8 @@ async function processEvents(detailPages, venueId, organizerId) {
         end_at:          end,
         category:        mapCategory(),
         tags:            mapTags(title),
-        price_min:       0,
-        price_max:       0,
+        price_min:       null,
+        price_max:       null,
         age_restriction: 'all_ages',
         image_url:       null,    // detail pages reuse the org logo; not useful
         ticket_url:      url,

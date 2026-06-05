@@ -253,7 +253,7 @@ function parseEvents(html) {
 
           // Parse price
           const priceMatch = block.match(/\$[\d.]+-?\$?[\d.]*/)
-          const { price_min, price_max } = priceMatch ? parsePrice(priceMatch[0]) : { price_min: 0, price_max: null }
+          const { price_min, price_max } = priceMatch ? parsePrice(priceMatch[0]) : { price_min: null, price_max: null }
 
           // Find title — non-price, non-date, non-logistics line
           const titleLine = block.split('\n').map(l => l.trim()).find(l =>

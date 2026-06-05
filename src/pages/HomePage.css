@@ -262,6 +262,62 @@
 }
 .stat-pill strong { color: var(--amber); font-weight: 700; }
 
+/* ── Location jump menu ──
+ * Pill-styled <select> that sits next to the "Updated" pill and jumps
+ * to a city / neighborhood hub page. A leading pin icon and a custom
+ * caret sit on top of the native control; the select itself is made
+ * transparent (appearance: none) so it inherits the pill styling. */
+.location-jump {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.location-jump-icon {
+  position: absolute;
+  left: var(--space-md);
+  color: var(--amber);
+  pointer-events: none;
+}
+.location-jump-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background: var(--bg-card);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-pill);
+  /* room for the pin icon on the left and the caret on the right */
+  padding: var(--space-xs) calc(var(--space-md) + 14px) var(--space-xs) calc(var(--space-md) + 20px);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color var(--transition-medium), color var(--transition-medium);
+}
+.location-jump-select:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+.location-jump-select:focus-visible {
+  outline: none;
+  border-color: var(--amber);
+}
+/* Custom caret drawn via background so it lines up with the pill. */
+.location-jump::after {
+  content: '';
+  position: absolute;
+  right: var(--space-md);
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  transform: rotate(45deg);
+  margin-top: -3px;
+  pointer-events: none;
+}
+
 /* ── HOME HUB STRIP ──
  * Compact rail of links to category and neighborhood hub pages.
  * Sits above the filter bar to maximize internal-link surface

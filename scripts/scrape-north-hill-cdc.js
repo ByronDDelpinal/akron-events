@@ -52,7 +52,7 @@ runIcsScraper({
   defaultVenueDetails: { city: 'Akron', state: 'OH' },
   mapCategory,
   mapTags,
-  defaultPriceMin: 0,
+  defaultPriceMin: null,
   defaultPriceMax: null,
   ageRestriction:  'all_ages',
 })

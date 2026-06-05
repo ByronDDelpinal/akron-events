@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback, Fragment } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useEvents, useMapEvents, PAGE_SIZE } from '@/hooks/useEvents'
 import { supabase } from '@/lib/supabase'
 
@@ -11,6 +11,8 @@ import SourceOverflowCard from '@/components/SourceOverflowCard'
 import DateHeading from '@/components/DateHeading'
 import { groupEventsByDate, applySourceCap } from '@/lib/eventGrouping'
 import { INTENTS, SEARCH_SUGGESTIONS } from '@/lib/intents'
+import { CITIES } from '@/lib/cities'
+import { NEIGHBORHOODS } from '@/lib/neighborhoods'
 import {
   SEO,
   homeTitle,
@@ -42,7 +44,16 @@ function getStoredViewMode() {
 
 export default function HomePage() {
   // ── Filter state ──────────────────────────────────────────────────────
-  const [activeIntentId, setActiveIntentId] = useState(null)  // 'date-night' | 'give-back' | etc.
+  // Seed the active intent from the ?intent= URL param so deep links land
+  // pre-filtered (e.g. the About-page "vibe" cards → /?intent=date-night).
+  // The value is validated against the canonical INTENTS registry so a
+  // stale or hand-edited param can never set a phantom intent.
+  const [activeIntentId, setActiveIntentId] = useState(() => {
+    const id = new URLSearchParams(
+      typeof window !== 'undefined' ? window.location.search : '',
+    ).get('intent')
+    return INTENTS.some((i) => i.id === id) ? id : null
+  })  // 'date-night' | 'give-back' | etc.
   const [dateRange,      setDateRange]      = useState(null)  // 'today' | 'this_weekend' | 'this_week' | 'this_month' | null
   const [dateFrom,       setDateFrom]       = useState(null)  // custom 'YYYY-MM-DD'
   const [dateTo,         setDateTo]         = useState(null)  // custom 'YYYY-MM-DD'
@@ -53,6 +64,16 @@ export default function HomePage() {
   // source of truth — setRawCategories rewrites the query string and
   // the next render re-derives the array.
   const [searchParams, setSearchParams] = useSearchParams()
+
+  // Location dropdown → navigate to the city / neighborhood hub page.
+  // Reuses the existing CategoryPage hubs (/events/{slug}); the <select>
+  // is purely an action menu, so it never holds a value of its own.
+  const navigate = useNavigate()
+  const handleLocationChange = (e) => {
+    const slug = e.target.value
+    if (slug) navigate(`/events/${slug}`)
+  }
+
   const rawCategories = useMemo(() => {
     const raw = searchParams.get('categories') || ''
     return raw.split(',').map((c) => c.trim()).filter(Boolean)
@@ -282,16 +303,18 @@ export default function HomePage() {
           }
         }
       },
-      // Prefetch zone: 1500px below the viewport. Tuned so that on a
-      // typical screen the first page's sentinel is already inside the
-      // zone after paint, kicking off page 2 without user scroll, and
-      // subsequent pages load while there's still ~a screenful of
-      // unread content above the sentinel.
-      { rootMargin: '0px 0px 1500px 0px' },
+      // Prefetch zone: start loading the next page when the sentinel is
+      // 400px below the viewport — enough runway to feel seamless without
+      // cascading through every page on initial paint.
+      { rootMargin: '0px 0px 400px 0px' },
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [hasMore, allEvents.length])
+  // Intentionally omit allEvents.length — including it caused the observer
+  // to reconnect after every page load, re-check intersection, and
+  // immediately trigger the next page in a runaway cascade.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasMore])
 
   const isEfficient = cardViewMode === 'efficient'
 
@@ -403,13 +426,39 @@ export default function HomePage() {
       </div>
 
       {/* ── STAT BAR ── */}
-      {lastUpdated && (
-        <div className="stat-bar">
-          <div className="stat-bar-inner">
+      <div className="stat-bar">
+        <div className="stat-bar-inner">
+          {lastUpdated && (
             <div className="stat-pill">Updated <strong>{lastUpdated}</strong></div>
+          )}
+
+          {/* Location jump menu — pick a city or Akron neighborhood to
+              land on its hub page. Cities first; the 24 Akron
+              neighborhoods are grouped at the end so they don't crowd
+              the middle of the list. */}
+          <div className="location-jump">
+            <LocationIcon />
+            <select
+              className="location-jump-select"
+              value=""
+              onChange={handleLocationChange}
+              aria-label="Choose a city or neighborhood"
+            >
+              <option value="" disabled>Choose a city or neighborhood</option>
+              <optgroup label="Cities">
+                {CITIES.map((c) => (
+                  <option key={c.slug} value={c.slug}>{c.label}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Akron Neighborhoods">
+                {NEIGHBORHOODS.map((n) => (
+                  <option key={n.slug} value={n.slug}>{n.label}</option>
+                ))}
+              </optgroup>
+            </select>
           </div>
         </div>
-      )}
+      </div>
 
       {/* ── HUB STRIP ──
        * Compact strip of links into each category and neighborhood
@@ -671,6 +720,15 @@ function SearchIcon() {
     <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="11" cy="11" r="8"/>
       <path d="m21 21-4.35-4.35"/>
+    </svg>
+  )
+}
+
+function LocationIcon() {
+  return (
+    <svg className="location-jump-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+      <circle cx="12" cy="10" r="3"/>
     </svg>
   )
 }

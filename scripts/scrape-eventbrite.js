@@ -666,7 +666,7 @@ function normaliseEvent(ev) {
 
   if (!start_at) return null
 
-  let price_min = 0, price_max = null
+  let price_min = null, price_max = null
   const ta = ev.ticket_availability
   // Only assert definitively free (price_max=0) when we have confirming data.
   // Search results sometimes set is_free=true incorrectly; the detail-fetch pass
@@ -678,7 +678,7 @@ function normaliseEvent(ev) {
     price_min = 0; price_max = 0
   } else if (ev.is_free && !hasPricingData) {
     // is_free flag without backing data — treat as unknown rather than asserting free
-    price_min = 0; price_max = null
+    price_min = null; price_max = null
   } else if (ta?.minimum_ticket_price?.major_value != null) {
     // ticket_availability is the most reliable pricing source in search results
     price_min = parseFloat(ta.minimum_ticket_price.major_value) || 0

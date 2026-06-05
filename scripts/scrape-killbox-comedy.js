@@ -275,9 +275,7 @@ function showtimeToIso({ month, day, hour, minute, meridiem }) {
 // ── Category & tags ───────────────────────────────────────────────────────
 
 function mapCategory() {
-  // Stand-up is a performing art; we bucket it under 'art' so it surfaces
-  // in the same hubs as other live performance (theatre, gallery openings).
-  return 'art'
+  return 'comedy'
 }
 
 function mapTags(title = '') {
