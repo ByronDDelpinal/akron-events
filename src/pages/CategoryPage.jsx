@@ -500,14 +500,25 @@ export default function CategoryPage() {
          *
          * The grid collapses to single column on narrow viewports —
          * see CategoryPage.css. */}
-        {isNeighborhood ? (
-          <div className="hub-hero-grid">
-            <p className="hub-intro hub-intro--with-map">{hub.intro}</p>
+        {/* Hero region.
+         *
+         * Map hubs (neighborhood / Akron city / other city) render a
+         * two-column grid: the intro, share row, and search input
+         * stack in the left column while the map sits in the right
+         * column spanning all three rows. This keeps the left-column
+         * controls tucked under the paragraph instead of stranding
+         * them in a full-width block below the map, which left a band
+         * of dead whitespace beside the tall map on desktop.
+         *
+         * Category hubs (no map) render the same three blocks in a
+         * single full-width column. The grid collapses to one column
+         * below the tablet breakpoint, where the map drops back under
+         * the intro — see CategoryPage.css. */}
+        {(() => {
+          const hasMap = isNeighborhood || isAkronCity || isCity
+          const mapAside = isNeighborhood ? (
             <NeighborhoodMap activeSlug={hub.slug} />
-          </div>
-        ) : isAkronCity ? (
-          <div className="hub-hero-grid">
-            <p className="hub-intro hub-intro--with-map">{hub.intro}</p>
+          ) : isAkronCity ? (
             <div className="akron-map-stack">
               {/* Map swap — default is the neighborhood drill-down;
                   toggle below switches to the county-level zoom-out
@@ -537,32 +548,37 @@ export default function CategoryPage() {
                 </select>
               </div>
             </div>
-          </div>
-        ) : isCity ? (
-          <div className="hub-hero-grid">
-            <p className="hub-intro hub-intro--with-map">{hub.intro}</p>
+          ) : isCity ? (
             <SummitCountyMap activeSlug={hub.slug} />
-          </div>
-        ) : (
-          <p className="hub-intro">{hub.intro}</p>
-        )}
+          ) : null
 
-        {/* Share / copy-link row — UTM campaign differs between
-            category and neighborhood hubs so analytics can tell them
-            apart. */}
-        <div className="hub-share">
-          <ShareButtons
-            url={canonicalPath}
-            title={hub.h1}
-            text={hub.metaDescription}
-            campaign={isCategory ? 'category_hub' : isCity ? 'city_hub' : 'neighborhood_hub'}
-          />
-        </div>
+          return (
+            <div className={hasMap ? 'hub-hero-grid' : 'hub-hero-stack'}>
+              <p className={`hub-intro${hasMap ? ' hub-intro--with-map' : ''}`}>
+                {hub.intro}
+              </p>
+
+              {/* Share / copy-link row — UTM campaign differs between
+                  category and neighborhood hubs so analytics can tell
+                  them apart. */}
+              <div className="hub-share">
+                <ShareButtons
+                  url={canonicalPath}
+                  title={hub.h1}
+                  text={hub.metaDescription}
+                  campaign={isCategory ? 'category_hub' : isCity ? 'city_hub' : 'neighborhood_hub'}
+                />
+              </div>
+
+              {hasMap && <div className="hub-hero-aside">{mapAside}</div>}
+            </div>
+          )
+        })()}
 
         {/* Search input — plain text only, no intent suggestion
-            dropdown. Same max-width as the intro paragraph so the
-            header reads as one tidy column. URL-backed (?q=) for
-            shareable links. */}
+            dropdown. Spans the full content width below the hero so it
+            reads as the lead-in to the filter panel and event grid.
+            URL-backed (?q=) for shareable links. */}
         <div className="hub-search">
           <HubSearchIcon />
           <input

@@ -91,7 +91,7 @@ const SIGNALS = [
 
   // Festival
   { cat: 'festival', w: DECISIVE, re: /\b(festival|fireworks|carnival|parade|block party)\b/ },
-  { cat: 'festival', w: STRONG,   re: /\b(fair|holiday celebration|street fair|fest\b|community day|family fun day|fun day|field day|celebration\b)\b/ },
+  { cat: 'festival', w: STRONG,   re: /\b(fair|holiday celebration|street fair|fest\b|community day|family fun day|fun day|field day)\b/ },
 
   // Market
   { cat: 'market', w: DECISIVE, re: /\b(farmers? market|makers? market|street market|night market|flea market|holiday market|artisan market|craft (market|show|fair)|vendor (market|fair)|pop[- ]?up market)\b/ },
