@@ -90,3 +90,21 @@
 .btn-submit-outline:hover {
   background: var(--amber-tint-10);
 }
+
+/* Category multi-select chips (max 2) — replaces the old single <select>. */
+.submit-chip-group { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+.submit-chip {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  padding: var(--space-sm) var(--space-md);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.submit-chip:hover:not(:disabled) { border-color: var(--amber); color: var(--text-primary); }
+.submit-chip.active { background: var(--amber); border-color: var(--amber); color: #fff; }
+.submit-chip:disabled { opacity: 0.4; cursor: not-allowed; }

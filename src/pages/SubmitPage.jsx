@@ -7,7 +7,7 @@ import './SubmitPage.css'
 export default function SubmitPage() {
   const [form,    setForm]    = useState({
     title: '', description: '', start_at: '', end_at: '',
-    venue_name: '', venue_address: '', category: '', ticket_url: '',
+    venue_name: '', venue_address: '', categories: [], ticket_url: '',
     price_min: '', price_max: '', age_restriction: 'not_specified',
     organizer_name: '', organizer_email: '', tags: '',
   })
@@ -18,6 +18,15 @@ export default function SubmitPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+
+    // Categories are a chip group, not a native <select required>, so validate
+    // here: at least one is required.
+    if (!form.categories || form.categories.length === 0) {
+      setStatus('error')
+      setError('Please pick at least one category.')
+      return
+    }
+
     setStatus('submitting')
     setError(null)
 
@@ -52,11 +61,12 @@ export default function SubmitPage() {
         .single()
       if (insertError) throw insertError
 
-      // Content category now lives in the event_categories join table.
-      if (form.category) {
+      // Content categories now live in the event_categories join table (up to 2).
+      const cats = [...new Set(form.categories ?? [])].slice(0, 2)
+      if (cats.length) {
         const { error: catError } = await supabase
           .from('event_categories')
-          .insert({ event_id: inserted.id, category: form.category })
+          .insert(cats.map(category => ({ event_id: inserted.id, category })))
         if (catError) console.warn('[submit] event_categories insert failed', catError)
       }
 
@@ -126,11 +136,27 @@ export default function SubmitPage() {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Category <span className="req">*</span></label>
-          <select className="form-select" required value={form.category} onChange={e => set('category', e.target.value)}>
-            <option value="">Select a category…</option>
-            {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-          </select>
+          <label className="form-label">Category <span className="req">*</span> <span className="form-hint">(pick up to 2)</span></label>
+          <div className="submit-chip-group">
+            {CATEGORIES.map(c => {
+              const selected = form.categories.includes(c.value)
+              const atMax = form.categories.length >= 2
+              return (
+                <button
+                  type="button"
+                  key={c.value}
+                  className={`submit-chip ${selected ? 'active' : ''}`}
+                  onClick={() => set('categories', selected
+                    ? form.categories.filter(x => x !== c.value)
+                    : (atMax ? form.categories : [...form.categories, c.value]))}
+                  disabled={!selected && atMax}
+                  aria-pressed={selected}
+                >
+                  {c.label}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         <div className="form-row">

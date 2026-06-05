@@ -763,6 +763,14 @@
   color: var(--text-primary); text-decoration: none; font-weight: 500;
 }
 .admin-table-link:hover { color: var(--amber); }
+.admin-table-ext-link {
+  margin-left: 0.4em;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-decoration: none;
+  opacity: 0.6;
+}
+.admin-table-ext-link:hover { color: var(--amber); opacity: 1; }
 .admin-cell-mono {
   font-family: var(--font-mono, monospace);
   font-size: var(--text-xs); color: var(--text-muted);

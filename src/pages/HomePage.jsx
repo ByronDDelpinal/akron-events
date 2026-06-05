@@ -11,7 +11,7 @@ import SourceOverflowCard from '@/components/SourceOverflowCard'
 import DateHeading from '@/components/DateHeading'
 import { groupEventsByDate, applySourceCap } from '@/lib/eventGrouping'
 import { INTENTS, SEARCH_SUGGESTIONS } from '@/lib/intents'
-import { CITIES } from '@/lib/cities'
+import { CITIES, REGIONS } from '@/lib/cities'
 import { NEIGHBORHOODS } from '@/lib/neighborhoods'
 import {
   SEO,
@@ -43,27 +43,60 @@ function getStoredViewMode() {
 }
 
 export default function HomePage() {
-  // ── Filter state ──────────────────────────────────────────────────────
-  // Seed the active intent from the ?intent= URL param so deep links land
-  // pre-filtered (e.g. the About-page "vibe" cards → /?intent=date-night).
-  // The value is validated against the canonical INTENTS registry so a
-  // stale or hand-edited param can never set a phantom intent.
-  const [activeIntentId, setActiveIntentId] = useState(() => {
-    const id = new URLSearchParams(
-      typeof window !== 'undefined' ? window.location.search : '',
-    ).get('intent')
-    return INTENTS.some((i) => i.id === id) ? id : null
-  })  // 'date-night' | 'give-back' | etc.
-  const [dateRange,      setDateRange]      = useState(null)  // 'today' | 'this_weekend' | 'this_week' | 'this_month' | null
-  const [dateFrom,       setDateFrom]       = useState(null)  // custom 'YYYY-MM-DD'
-  const [dateTo,         setDateTo]         = useState(null)  // custom 'YYYY-MM-DD'
-  // ── Category filter is URL-backed ─────────────────────────────────────
-  // Drives the FilterTray category chips AND lets external links land
-  // pre-filtered (e.g. "/?categories=music" from the related-events
-  // block, or the About-page persona links). The URL is the single
-  // source of truth — setRawCategories rewrites the query string and
-  // the next render re-derives the array.
+  // ── All filter state is URL-backed ───────────────────────────────────
+  // Every filter param lives in the URL so that navigating to an event
+  // detail page and pressing Back (or the "← Back to events" button)
+  // restores the exact filter state the user had set. `replace: true`
+  // on every setter means toggling a filter never pollutes back-history
+  // with intermediate states — only the navigation away from the home
+  // page (PUSH) creates a new history entry.
   const [searchParams, setSearchParams] = useSearchParams()
+
+  // Single helper that writes one param key → value into the URL.
+  // Passing null/empty removes the key so the URL stays clean.
+  const updateParam = useCallback((key, value) => {
+    const params = new URLSearchParams(searchParams)
+    if (value == null || value === '' || (Array.isArray(value) && value.length === 0)) {
+      params.delete(key)
+    } else {
+      params.set(key, Array.isArray(value) ? value.join(',') : String(value))
+    }
+    setSearchParams(params, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  // intent — 'date-night' | 'give-back' | 'outdoors-active' | etc.
+  // Validated against the canonical INTENTS registry so a stale or
+  // hand-edited param can never set a phantom intent.
+  const activeIntentId = useMemo(() => {
+    const id = searchParams.get('intent')
+    return INTENTS.some((i) => i.id === id) ? id : null
+  }, [searchParams])
+  const setActiveIntentId = useCallback((v) => updateParam('intent', v), [updateParam])
+
+  // date — predefined date-range preset ('today' | 'this_weekend' | etc.)
+  const dateRange = useMemo(() => searchParams.get('date') || null, [searchParams])
+  const setDateRange = useCallback((v) => updateParam('date', v), [updateParam])
+
+  // from / to — custom 'YYYY-MM-DD' date range (FilterTray date picker)
+  const dateFrom = useMemo(() => searchParams.get('from') || null, [searchParams])
+  const setDateFrom = useCallback((v) => updateParam('from', v), [updateParam])
+  const dateTo = useMemo(() => searchParams.get('to') || null, [searchParams])
+  const setDateTo = useCallback((v) => updateParam('to', v), [updateParam])
+
+  // categories — comma-separated list (e.g. "music,outdoors")
+  const rawCategories = useMemo(() => {
+    const raw = searchParams.get('categories') || ''
+    return raw.split(',').map((c) => c.trim()).filter(Boolean)
+  }, [searchParams])
+  const setRawCategories = useCallback((v) => updateParam('categories', v), [updateParam])
+
+  // price — null | 'free' | 'under10' | 'under25'
+  const priceFilter = useMemo(() => searchParams.get('price') || null, [searchParams])
+  const setPriceFilter = useCallback((v) => updateParam('price', v), [updateParam])
+
+  // sort — 'soonest' (default, omitted from URL) | 'latest'
+  const sort = useMemo(() => searchParams.get('sort') || 'soonest', [searchParams])
+  const setSort = useCallback((v) => updateParam('sort', v === 'soonest' ? null : v), [updateParam])
 
   // Location dropdown → navigate to the city / neighborhood hub page.
   // Reuses the existing CategoryPage hubs (/events/{slug}); the <select>
@@ -74,22 +107,23 @@ export default function HomePage() {
     if (slug) navigate(`/events/${slug}`)
   }
 
-  const rawCategories = useMemo(() => {
-    const raw = searchParams.get('categories') || ''
-    return raw.split(',').map((c) => c.trim()).filter(Boolean)
-  }, [searchParams])
+  // ── Hub slug resolver ─────────────────────────────────────────────────
+  // Normalises a freeform query (any casing, spaces, hyphens, underscores)
+  // and checks whether it matches a known neighborhood, city, or region.
+  // Returns the matching slug, or null if no match.
+  const ALL_HUB_ENTRIES = useMemo(() => [
+    ...NEIGHBORHOODS,
+    ...CITIES,
+    ...REGIONS,
+  ], [])
 
-  const setRawCategories = useCallback((next) => {
-    const arr = Array.isArray(next) ? next : []
-    const params = new URLSearchParams(searchParams)
-    if (arr.length > 0) params.set('categories', arr.join(','))
-    else params.delete('categories')
-    // replace, not push — filter toggles shouldn't clutter back-history.
-    setSearchParams(params, { replace: true })
-  }, [searchParams, setSearchParams])
-
-  const [priceFilter,    setPriceFilter]    = useState(null) // null | 'free' | 'under10' | 'under25'
-  const [sort,           setSort]           = useState('soonest')
+  const resolveHubSlug = useCallback((query) => {
+    // Strip everything that isn't a letter or digit, then lowercase.
+    const normalise = (s) => s.replace(/[\s\-_]+/g, '').toLowerCase()
+    const needle = normalise(query)
+    if (!needle) return null
+    return ALL_HUB_ENTRIES.find((h) => normalise(h.label) === needle || normalise(h.slug) === needle)?.slug ?? null
+  }, [ALL_HUB_ENTRIES])
 
   // ── Search is URL-backed so it survives back-navigation and can be shared ─
   // `search` is the committed query (derived from ?q=); `searchInput` is the
@@ -97,14 +131,9 @@ export default function HomePage() {
   const search = useMemo(() => searchParams.get('q') || '', [searchParams])
   const [searchInput, setSearchInput] = useState(() => searchParams.get('q') || '')
 
-  // Commits the search draft to the URL (?q=). Preserves other params (e.g.
-  // categories). Uses replace so rapid typing doesn't pollute back-history.
-  const setSearch = useCallback((value) => {
-    const params = new URLSearchParams(searchParams)
-    if (value) params.set('q', value)
-    else params.delete('q')
-    setSearchParams(params, { replace: true })
-  }, [searchParams, setSearchParams])
+  // Commits the search draft to the URL (?q=). Uses replace so rapid
+  // typing doesn't pollute back-history.
+  const setSearch = useCallback((value) => updateParam('q', value || null), [updateParam])
 
   // Keep the search <input> in sync when the URL's ?q= changes externally —
   // most importantly when the user presses the browser back button after
@@ -253,19 +282,20 @@ export default function HomePage() {
   const grouped = useMemo(() => groupEventsByDate(allEvents), [allEvents])
 
   const clearFilters = () => {
-    setActiveIntentId(null)
-    setDateRange(null)
-    setDateFrom(null)
-    setDateTo(null)
-    setPriceFilter(null)
-    setSort('soonest')
     setSearchInput('')
-    // Wipe all URL params (clears both ?q= and ?categories= in one replace).
+    // Wipe all URL params in one replace — clears every filter at once.
     setSearchParams({}, { replace: true })
   }
 
   const handleSearchKeyDown = (e) => {
-    if (e.key === 'Enter') setSearch(searchInput)
+    if (e.key !== 'Enter') return
+    const hubSlug = resolveHubSlug(searchInput)
+    if (hubSlug) {
+      setSearchInput('')
+      navigate(`/events/${hubSlug}`)
+    } else {
+      setSearch(searchInput)
+    }
   }
 
   // ── Infinite scroll ──────────────────────────────────────────────────

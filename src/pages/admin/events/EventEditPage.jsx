@@ -10,7 +10,7 @@ import {
 } from '@/components/admin'
 
 const DEFAULT_EVENT = {
-  title: '', description: '', status: 'published', category: '',
+  title: '', description: '', status: 'published', categories: [],
   start_at: '', end_at: '', price_min: 0, price_max: null,
   age_restriction: 'not_specified', ticket_url: '', source_url: '', image_url: '',
   featured: false, manual_overrides: {},
@@ -51,6 +51,7 @@ export default function EventEditPage() {
           .from('events')
           .select(`
             *,
+            event_categories ( category ),
             event_venues ( venue_id, venue:venues ( id, name ) ),
             event_organizations ( organization_id, organization:organizations ( id, name ) ),
             event_areas ( area_id, area:areas ( id, name ) )
@@ -58,7 +59,7 @@ export default function EventEditPage() {
           .eq('id', id)
           .single()
         if (data) {
-          setSeed(data)
+          setSeed({ ...data, categories: (data.event_categories ?? []).map(ec => ec.category) })
           setLinkedVenueIds((data.event_venues ?? []).map(ev => ev.venue_id ?? ev.venue?.id).filter(Boolean))
           setLinkedOrgIds((data.event_organizations ?? []).map(eo => eo.organization_id ?? eo.organization?.id).filter(Boolean))
           setLinkedAreaIds((data.event_areas ?? []).map(ea => ea.area_id ?? ea.area?.id).filter(Boolean))
@@ -129,15 +130,16 @@ function EventForm({
       if (error) { alert('Save failed: ' + error.message); return }
     }
 
-    // Content category now lives in the event_categories join table. Replace
-    // the event's categories with the single admin-selected one. (The
+    // Content categories now live in the event_categories join table (up to 2).
+    // Replace the event's categories with the admin-selected set. (The
     // manual_overrides entry for 'category' keeps scrapers from re-inferring
     // over this choice — syncEventCategories in normalize.js honors it.)
     await supabase.from('event_categories').delete().eq('event_id', id)
-    if (form.category) {
+    const cats = [...new Set(form.categories ?? [])].slice(0, 2)
+    if (cats.length) {
       const { error: catErr } = await supabase
         .from('event_categories')
-        .insert({ event_id: id, category: form.category })
+        .insert(cats.map(category => ({ event_id: id, category })))
       if (catErr) { alert('Category save failed: ' + catErr.message); return }
     }
 
@@ -176,8 +178,13 @@ function EventForm({
           <FormField label="Status">
             <FormSelect value={form.status} onChange={e => setField('status', e.target.value)} options={STATUSES} />
           </FormField>
-          <FormField label="Category" field="category" overrides={overrides} onToggleOverride={toggleOverride}>
-            <FormSelect value={form.category} onChange={e => setField('category', e.target.value)} options={CATEGORIES} placeholder="—" />
+          <FormField label="Categories" field="category" overrides={overrides} onToggleOverride={toggleOverride}>
+            <ChipSelector
+              items={CATEGORIES.map(c => ({ id: c.value, name: c.label }))}
+              selectedIds={form.categories ?? []}
+              onChange={ids => setField('categories', ids)}
+              max={2}
+            />
           </FormField>
         </FormFieldRow>
 

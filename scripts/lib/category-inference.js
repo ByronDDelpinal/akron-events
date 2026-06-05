@@ -26,7 +26,12 @@ const PRIORITY = [
   'food', 'learning', 'outdoors', 'festival', 'market', 'civic', 'other',
 ]
 
-const SECONDARY_MIN_SCORE = 70
+// A secondary category is kept when it's at least SECONDARY_MIN_SCORE on its own
+// AND at least SECONDARY_MIN_RATIO of the primary's score. The ratio guard is
+// what prevents over-tagging: a soft (40) secondary only rides along when the
+// primary is itself modest (e.g. a "Learn Soccer" clinic → sports 70 + learning
+// 40), never when the primary is a decisive 100 (e.g. jazz brunch stays food).
+const SECONDARY_MIN_SCORE = 40
 const SECONDARY_MIN_RATIO = 0.5
 
 const _MUSIC_VENUES = /(@|\bat)\s+(the\s+)?(?:\w+\s+){0,2}(old 97|vorte[xz]|matinee|musica|jilly'?s|barmacy|blu jazz|empire concert|goodyear theat(er|re)|akron civic|knight stage|tangier|stage door|lock 4|kent stage|civic theatre)\b/i
@@ -70,6 +75,10 @@ const SIGNALS = [
 
   // Sports
   { cat: 'sports', w: DECISIVE, re: /\b(rubberducks|cleveland cavaliers|cleveland browns|cleveland guardians|cleveland indians|cavs|browns|guardians|hockey game|baseball game|basketball game|tournament championship|home game|home court|matchday|playoff|stadium)\b/ },
+  // Common sport names + game vocabulary (youth leagues, rec sports, clinics).
+  // Deliberately excludes bare "league" (collides with "Urban League") and bare
+  // "golf" (collides with charity golf outings — those get the fundraiser flag).
+  { cat: 'sports', w: STRONG,   re: /\b(soccer|football|basketball|baseball|softball|ice hockey|hockey|volleyball|lacrosse|wrestling|gymnastics|pickleball|tennis|badminton|rugby|cricket|track and field|cross[- ]country|scrimmage|little league|youth league|dribbl)\b/ },
   { cat: 'sports', w: STRONG,   re: /\b[a-z][a-z .'&]+ vs\.? [a-z][a-z .'&]+\b/, scope: 'title' },
 
   // Fitness
@@ -104,7 +113,11 @@ function conditionalContentSignals(text, tLow) {
   const out = []
   if (/\bopen mic\b/.test(text) && /\bcomedy|comedians?\b/.test(text)) out.push({ cat: 'comedy', w: 110 })
   if (/\btour\b/.test(tLow) && !_GENERIC_TOUR_EXCLUSION.test(text)) out.push({ cat: 'music', w: STRONG })
-  if (/\blearn\s+\w/i.test(tLow) && !_LEARN_NOT_EDUCATIONAL.test(tLow)) out.push({ cat: 'learning', w: SOFT })
+  // "Learn X" anywhere in title OR description signals an instructional event.
+  // The negative lookahead skips marketing CTAs ("learn more/about/why…") at the
+  // match site, so "learn soccer basics" still scores even if the blurb also
+  // says "learn more at our site".
+  if (/\blearn\s+(?!(?:more|why|all|about|everything|here|now|first|today|tomorrow)\b)\w/i.test(text)) out.push({ cat: 'learning', w: SOFT })
   return out
 }
 

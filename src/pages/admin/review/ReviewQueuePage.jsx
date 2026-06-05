@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { supabase } from '@/lib/supabase'
 import { CATEGORIES } from '@/lib/admin/constants'
+import { ChipSelector } from '@/components/admin'
+import { eventPath } from '@/lib/slug'
 
 const PAGE_SIZE = 50
 
@@ -39,15 +41,17 @@ export default function ReviewQueuePage() {
 
   useEffect(() => { fetchQueue() }, [fetchQueue])
 
-  // Seed per-row selections with the event's current category so the
-  // dropdown is pre-populated to something useful on first render.
+  // Seed per-row selections (arrays — up to 2 categories) with the event's
+  // current non-'other' categories so the chips start somewhere useful.
   useEffect(() => {
     setSelections(prev => {
       const next = { ...prev }
       events.forEach(ev => {
         if (!(ev.id in next)) {
-          const primary = ev.event_categories?.[0]?.category
-          next[ev.id] = (!primary || primary === 'other') ? '' : primary
+          next[ev.id] = (ev.event_categories ?? [])
+            .map(ec => ec.category)
+            .filter(c => c && c !== 'other')
+            .slice(0, 2)
         }
       })
       return next
@@ -55,8 +59,8 @@ export default function ReviewQueuePage() {
   }, [events])
 
   async function handleApprove(ev) {
-    const newCategory = selections[ev.id]
-    if (!newCategory) return
+    const cats = [...new Set(selections[ev.id] ?? [])].slice(0, 2)
+    if (cats.length === 0) return
 
     setSaving(s => ({ ...s, [ev.id]: true }))
 
@@ -66,12 +70,12 @@ export default function ReviewQueuePage() {
     const existingOverrides = ev.manual_overrides ?? {}
     const updatedOverrides  = { ...existingOverrides, category: true }
 
-    // Replace the event's content categories in the join table with the
-    // single chosen category, then clear the review flag + lock it.
+    // Replace the event's content categories with the chosen set (up to 2),
+    // then clear the review flag + lock it.
     await supabase.from('event_categories').delete().eq('event_id', ev.id)
     const { error: catErr } = await supabase
       .from('event_categories')
-      .insert({ event_id: ev.id, category: newCategory })
+      .insert(cats.map(category => ({ event_id: ev.id, category })))
 
     const { error } = catErr ? { error: catErr } : await supabase
       .from('events')
@@ -136,7 +140,7 @@ export default function ReviewQueuePage() {
               <tbody>
                 {events.map(ev => {
                   const isSaving = saving[ev.id]
-                  const selected = selections[ev.id] ?? ''
+                  const selected = selections[ev.id] ?? []
                   return (
                     <tr key={ev.id} className={isSaving ? 'admin-row--saving' : ''}>
                       <td>
@@ -146,6 +150,15 @@ export default function ReviewQueuePage() {
                         >
                           {ev.title}
                         </Link>
+                        <a
+                          href={eventPath(ev)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="admin-table-ext-link"
+                          title="View public event page"
+                        >
+                          ↗
+                        </a>
                       </td>
                       <td className="admin-cell-mono">
                         {ev.start_at
@@ -154,25 +167,18 @@ export default function ReviewQueuePage() {
                       </td>
                       <td className="admin-cell-mono">{ev.source}</td>
                       <td>
-                        <select
-                          className="admin-select admin-select--inline"
-                          value={selected}
-                          onChange={e =>
-                            setSelections(s => ({ ...s, [ev.id]: e.target.value }))
-                          }
-                          disabled={isSaving}
-                        >
-                          <option value="" disabled>Pick a category…</option>
-                          {REMAP_OPTIONS.map(c => (
-                            <option key={c.value} value={c.value}>{c.label}</option>
-                          ))}
-                        </select>
+                        <ChipSelector
+                          items={REMAP_OPTIONS.map(c => ({ id: c.value, name: c.label }))}
+                          selectedIds={selected}
+                          onChange={ids => setSelections(s => ({ ...s, [ev.id]: ids }))}
+                          max={2}
+                        />
                       </td>
                       <td className="admin-review-actions">
                         <button
                           className="btn-admin-primary btn-admin-sm"
                           onClick={() => handleApprove(ev)}
-                          disabled={isSaving || !selected}
+                          disabled={isSaving || selected.length === 0}
                           title="Save this category and lock it against future scraper overwrites"
                         >
                           {isSaving ? 'Saving…' : 'Approve'}
