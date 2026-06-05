@@ -372,15 +372,16 @@ export default function CategoryPage() {
   const grouped = useMemo(() => groupEventsByDate(events), [events])
 
   // ── Infinite scroll ──
-  // Same IntersectionObserver pattern HomePage uses. A zero-height
-  // sentinel sits below the grid; when it enters a 1500px-tall
-  // prefetch zone above the viewport bottom we fetch the next page.
-  // The observer is recreated on hasMore / count flips so a freshly-
-  // painted page can immediately trigger the next if the sentinel
-  // is still inside the zone.
+  // Same two-part pattern HomePage uses: a zero-height sentinel below the
+  // grid drives an IntersectionObserver for scroll events, plus a geometry
+  // continuation check that re-fills the viewport after each page settles.
+  // See HomePage.jsx for the full rationale.
+  const PREFETCH_PX = 400
   const sentinelRef = useRef(null)
+  // Sync the loading flag during render so the callbacks never read a
+  // stale value and double-fire mid-fetch.
   const loadingRef  = useRef(loading)
-  useEffect(() => { loadingRef.current = loading }, [loading])
+  loadingRef.current = loading
 
   const loadMoreRef = useRef()
   loadMoreRef.current = () => {
@@ -388,10 +389,21 @@ export default function CategoryPage() {
     setOffset((prev) => prev + PAGE_SIZE)
   }
 
-  useEffect(() => {
-    if (!hasMore) return
-    const el = sentinelRef.current
-    if (!el) return
+  // Scroll-driven trigger, wired via a CALLBACK REF (not an effect). The
+  // sentinel mounts only once allEvents has committed, which is a *later*
+  // render than the one where `hasMore` first flips true (when `total`
+  // arrives). An effect keyed on [hasMore] therefore ran while the sentinel
+  // was still null and never re-ran, leaving the observer unattached and
+  // infinite scroll dead after page 1. A callback ref binds the observer
+  // exactly when the node mounts, eliminating the race. See HomePage.jsx.
+  const observerRef = useRef(null)
+  const attachSentinel = useCallback((node) => {
+    if (observerRef.current) {
+      observerRef.current.disconnect()
+      observerRef.current = null
+    }
+    sentinelRef.current = node
+    if (!node) return
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -401,13 +413,23 @@ export default function CategoryPage() {
           }
         }
       },
-      { rootMargin: '0px 0px 400px 0px' },
+      { rootMargin: `0px 0px ${PREFETCH_PX}px 0px` },
     )
-    observer.observe(el)
-    return () => observer.disconnect()
-  // Intentionally omit allEvents.length — see HomePage.jsx for explanation.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasMore])
+    observer.observe(node)
+    observerRef.current = observer
+  }, [])
+
+  // Continuation check: after each page settles, keep loading while the
+  // sentinel is still inside the prefetch zone. Truthful geometry read, so
+  // it fills the viewport without cascading. Fixes the bottom-of-grid stall.
+  useEffect(() => {
+    if (loading || !hasMore) return
+    const el = sentinelRef.current
+    if (!el) return
+    if (el.getBoundingClientRect().top < window.innerHeight + PREFETCH_PX) {
+      loadMoreRef.current?.()
+    }
+  }, [allEvents.length, loading, hasMore]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Breadcrumb trail ──
   // Akron neighborhoods nest under the Akron city hub so the
@@ -721,7 +743,7 @@ export default function CategoryPage() {
           <div className="load-more">
             {hasMore ? (
               <>
-                <div ref={sentinelRef} aria-hidden="true" className="load-more-sentinel" />
+                <div ref={attachSentinel} aria-hidden="true" className="load-more-sentinel" />
                 <p className="load-more-loading" aria-live="polite">
                   <span className="load-more-spinner" aria-hidden="true" />
                   <span className="sr-only">Loading more events…</span>

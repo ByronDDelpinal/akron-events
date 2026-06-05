@@ -308,9 +308,13 @@ export default function HomePage() {
   // the prefetch zone — triggers the next page immediately. The result is
   // that page 2 is fetched as soon as page 1 paints, and subsequent pages
   // are queued before the user scrolls anywhere near the bottom.
+  const PREFETCH_PX = 400
   const sentinelRef = useRef(null)
+  // Sync the loading flag during render (not in a trailing effect) so the
+  // observer/geometry callbacks never read a stale value and fire a second
+  // fetch while one is already in flight.
   const loadingRef  = useRef(loading)
-  useEffect(() => { loadingRef.current = loading }, [loading])
+  loadingRef.current = loading
 
   // Latest-loadMore in a ref so the observer effect doesn't churn each
   // render just because the closure captured a new activePageSize.
@@ -320,10 +324,25 @@ export default function HomePage() {
     setOffset(prev => prev + activePageSize)
   }
 
-  useEffect(() => {
-    if (!hasMore) return
-    const el = sentinelRef.current
-    if (!el) return
+  // Scroll-driven trigger, wired via a CALLBACK REF rather than an effect.
+  //
+  // Why a callback ref: the sentinel is rendered conditionally
+  // (allEvents.length > 0 && hasMore). `hasMore` flips true the instant
+  // `total` arrives from the fetch — which is an *earlier* render than the
+  // one where the first page's cards commit to allEvents and the sentinel
+  // actually mounts. An effect keyed on [hasMore] therefore ran while the
+  // sentinel was still null and never re-ran, so the observer was never
+  // attached and infinite scroll silently died after page 1. A callback
+  // ref fires exactly when the DOM node attaches/detaches, so the observer
+  // is guaranteed to bind the moment the sentinel exists — no timing race.
+  const observerRef = useRef(null)
+  const attachSentinel = useCallback((node) => {
+    if (observerRef.current) {
+      observerRef.current.disconnect()
+      observerRef.current = null
+    }
+    sentinelRef.current = node
+    if (!node) return
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -333,18 +352,28 @@ export default function HomePage() {
           }
         }
       },
-      // Prefetch zone: start loading the next page when the sentinel is
-      // 400px below the viewport — enough runway to feel seamless without
-      // cascading through every page on initial paint.
-      { rootMargin: '0px 0px 400px 0px' },
+      { rootMargin: `0px 0px ${PREFETCH_PX}px 0px` },
     )
-    observer.observe(el)
-    return () => observer.disconnect()
-  // Intentionally omit allEvents.length — including it caused the observer
-  // to reconnect after every page load, re-check intersection, and
-  // immediately trigger the next page in a runaway cascade.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasMore])
+    observer.observe(node)
+    observerRef.current = observer
+  }, [])
+
+  // Continuation check: after every page settles, test the sentinel's
+  // real geometry. If it's still inside the prefetch zone, keep loading
+  // until the viewport is filled, then hand off to the observer for
+  // genuine scroll events. Because this reads the actual position, a
+  // full-height first page leaves the sentinel below the zone and nothing
+  // cascades; a short page keeps loading until the gap is closed. Fixes
+  // the stall where the sentinel never un-intersects so the observer
+  // never re-fires.
+  useEffect(() => {
+    if (loading || !hasMore) return
+    const el = sentinelRef.current
+    if (!el) return
+    if (el.getBoundingClientRect().top < window.innerHeight + PREFETCH_PX) {
+      loadMoreRef.current?.()
+    }
+  }, [allEvents.length, loading, hasMore]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const isEfficient = cardViewMode === 'efficient'
 
@@ -655,7 +684,7 @@ export default function HomePage() {
             <div className="load-more">
               {hasMore ? (
                 <>
-                  <div ref={sentinelRef} aria-hidden="true" className="load-more-sentinel" />
+                  <div ref={attachSentinel} aria-hidden="true" className="load-more-sentinel" />
                   <p className="load-more-loading" aria-live="polite">
                     <span className="load-more-spinner" aria-hidden="true" />
                     <span className="sr-only">Loading more events…</span>

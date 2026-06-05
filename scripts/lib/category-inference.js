@@ -106,7 +106,11 @@ const SIGNALS = [
   { cat: 'market', w: DECISIVE, re: /\b(farmers? market|makers? market|street market|night market|flea market|holiday market|artisan market|craft (market|show|fair)|vendor (market|fair)|pop[- ]?up market)\b/ },
 
   // Civic
-  { cat: 'civic', w: STRONG, re: /\b(town hall|city council|civic|ward meeting|neighborhood meeting|community meeting|public hearing|community gathering|senior expo|(committee|board|membership|annual|business) meeting|board of directors)\b/ },
+  // NOTE: do NOT use a bare "civic" token here — it matches venue/building
+  // names like "Akron Civic Theatre" and "Civic Center", false-tagging every
+  // show at those rooms as a civic event. Match genuine civic-ACTIVITY phrasing
+  // instead (civic engagement/association/etc.), plus the explicit meeting words.
+  { cat: 'civic', w: STRONG, re: /\b(town hall|city council|civic (engagement|association|league|forum|duty|action|commission|club)|ward meeting|neighborhood meeting|community meeting|public hearing|community gathering|senior expo|(committee|board|membership|annual|business) meeting|board of directors)\b/ },
 ]
 
 function conditionalContentSignals(text, tLow) {
