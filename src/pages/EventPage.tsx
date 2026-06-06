@@ -27,6 +27,7 @@ import {
   type PriceDisplay,
 } from '@/lib/eventFormatting'
 import './EventPage.css'
+import { BackIcon, CalIcon, ParkingIcon, PinIcon } from '@/components/icons'
 
 // Banner needs to span the page content area; sub-1120 images become thumbnails.
 const BANNER_MIN_WIDTH = 1120
@@ -272,7 +273,7 @@ export default function EventPage() {
                 <p className="info-card-age">Age info not specified</p>
               )}
 
-              <InfoRow icon={<CalIcon />} label="Date & Time"
+              <InfoRow icon={<CalIcon size={16} />} label="Date & Time"
                 value={format(new Date(event.start_at), 'EEEE, MMMM d, yyyy') +
                   '\n' + format(new Date(event.start_at), 'h:mm a') +
                   (event.end_at ? ' – ' + format(new Date(event.end_at), 'h:mm a') : '')}
@@ -509,18 +510,10 @@ function ActionButtons({ event, price }: { event: AppEvent; price: PriceDisplay 
 }
 
 /* ── Icons ────────────────────────────────────────── */
-function BackIcon() {
-  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
-}
-function CalIcon() {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-}
-function PinIcon() {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-}
-function ParkingIcon() {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/></svg>
-}
+
+
+
+
 function AreaIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="3" x2="21" y1="9" y2="9"/><line x1="9" x2="9" y1="21" y2="9"/></svg>
 }

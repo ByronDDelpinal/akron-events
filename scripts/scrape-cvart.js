@@ -238,7 +238,6 @@ function decodeHtmlEntities(s) {
 // ── Category / tag mapping ───────────────────────────────────────────────
 
 // Category is always 'visual-art' — CVAC is a gallery venue.
-}
 
 function mapTags(title = '') {
   const t = title.toLowerCase()

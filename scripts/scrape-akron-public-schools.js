@@ -23,17 +23,18 @@
  */
 
 import 'dotenv/config'
-import { fetchIcsFeed, parseIcs, normaliseIcsEvent, discoverIcsFeed } from './lib/ics.js'
 import {
+  enrichWithImageDimensions,
   ensureOrganization,
   ensureVenue,
-  logUpsertResult,
-  logScraperError,
-  enrichWithImageDimensions,
-  upsertEventSafe,
-  linkEventVenue,
+  inferCategory,
   linkEventOrganization,
+  linkEventVenue,
+  logScraperError,
+  logUpsertResult,
+  upsertEventSafe,
 } from './lib/normalize.js'
+import { fetchIcsFeed, parseIcs, normaliseIcsEvent, discoverIcsFeed } from './lib/ics.js'
 
 const SOURCE_KEY = 'akron_public_schools'
 const CALENDAR_PAGE = 'https://www.akronschools.com/district/district-information/calendar'

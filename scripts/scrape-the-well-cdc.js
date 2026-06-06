@@ -31,20 +31,21 @@
  */
 
 import 'dotenv/config'
-import { pathToFileURL } from 'node:url'
 import {
-  logUpsertResult,
-  logScraperError,
-  stripHtml,
-  enrichWithImageDimensions,
-  upsertEventSafe,
-  linkEventVenue,
-  linkEventOrganization,
-  ensureVenue,
-  ensureOrganization,
-  linkOrganizationVenue,
   easternToIso,
+  enrichWithImageDimensions,
+  ensureOrganization,
+  ensureVenue,
+  inferCategory,
+  linkEventOrganization,
+  linkEventVenue,
+  linkOrganizationVenue,
+  logScraperError,
+  logUpsertResult,
+  stripHtml,
+  upsertEventSafe,
 } from './lib/normalize.js'
+import { pathToFileURL } from 'node:url'
 
 const SOURCE_KEY = 'the_well_cdc'
 const EVENTS_URL = 'https://thewellakron.com/events/'

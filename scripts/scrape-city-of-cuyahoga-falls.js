@@ -34,20 +34,21 @@
  */
 
 import 'dotenv/config'
-import { pathToFileURL } from 'node:url'
 import {
-  logUpsertResult,
-  logScraperError,
-  stripHtml,
-  enrichWithImageDimensions,
-  upsertEventSafe,
-  linkEventVenue,
-  linkEventOrganization,
-  ensureVenue,
-  ensureOrganization,
-  linkOrganizationVenue,
   easternToIso,
+  enrichWithImageDimensions,
+  ensureOrganization,
+  ensureVenue,
+  inferCategory,
+  linkEventOrganization,
+  linkEventVenue,
+  linkOrganizationVenue,
+  logScraperError,
+  logUpsertResult,
+  stripHtml,
+  upsertEventSafe,
 } from './lib/normalize.js'
+import { pathToFileURL } from 'node:url'
 
 const SOURCE_KEY = 'city_of_cuyahoga_falls'
 const BASE_URL = 'https://www.cityofcf.com'

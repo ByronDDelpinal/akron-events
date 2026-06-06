@@ -84,7 +84,7 @@ const SIGNALS = [
   { cat: 'sports', w: STRONG,   re: /\b[a-z][a-z .'&]+ vs\.? [a-z][a-z .'&]+\b/, scope: 'title' },
 
   // Fitness
-  { cat: 'fitness', w: DECISIVE, re: /\b(5k|10k|half[- ]?marathon|marathon|fun run|trail run|color run|yoga|pilates|crossfit|spin class|hiit|cardio|paddleboard(ing)?|kayak(ing)?|canoe|stand[- ]up paddle|cycle class|cycling class|barre class)\b/ },
+  { cat: 'fitness', w: DECISIVE, re: /\b(\d+\.?\d*\s*k(?:m)?\b|half[- ]?marathon|marathon|fun run|trail run|color run|yoga|pilates|crossfit|spin class|hiit|cardio|paddleboard(ing)?|kayak(ing)?|canoe|stand[- ]up paddle|cycle class|cycling class|barre class)\b/i },
 
   // Outdoors
   { cat: 'outdoors', w: STRONG, re: /\b(park|trail|nature walk|nature center|naturalist|garden|arboretum|zoo|wildlife|botanical|bird (walk|nerd)|birding|hike|hiking|conservation|outdoor adventure|metro park|towpath|fishing|camping|archery|kayak)\b/ },

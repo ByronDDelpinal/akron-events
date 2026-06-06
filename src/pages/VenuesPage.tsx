@@ -4,6 +4,7 @@ import { useVenues } from '@/hooks/useEvents'
 import { SEO, buildGraph, itemListSchema, breadcrumbSchema } from '@/lib/seo'
 import { PARKING_LABEL } from '@/lib/eventFormatting'
 import './VenuesPage.css'
+import { GlobeIcon, ParkingIcon, SearchIcon } from '@/components/icons'
 
 type Row = Record<string, any>
 
@@ -133,7 +134,7 @@ function VenueCard({ venue }: { venue: Row }) {
         <div className="venue-card-meta">
           {parking && (
             <span className="venue-meta-chip">
-              <ParkingIcon /> {parking}
+              <ParkingIcon size={12} /> {parking}
             </span>
           )}
           {venue.website && (
@@ -141,7 +142,7 @@ function VenueCard({ venue }: { venue: Row }) {
               className="venue-meta-chip venue-meta-web"
               onClick={(e) => { e.preventDefault(); window.open(venue.website, '_blank', 'noopener') }}
             >
-              <GlobeIcon /> Website
+              <GlobeIcon size={12} /> Website
             </span>
           )}
         </div>
@@ -152,26 +153,6 @@ function VenueCard({ venue }: { venue: Row }) {
 }
 
 /* ── Icons ── */
-function SearchIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-    </svg>
-  )
-}
-function ParkingIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect width="18" height="18" x="3" y="3" rx="2"/>
-      <path d="M9 17V7h4a3 3 0 0 1 0 6H9"/>
-    </svg>
-  )
-}
-function GlobeIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"/>
-      <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-    </svg>
-  )
-}
+
+
+

@@ -34,21 +34,22 @@
  */
 
 import 'dotenv/config'
-import { pathToFileURL } from 'node:url'
 import {
-  logUpsertResult,
-  logScraperError,
-  stripHtml,
   decodeEntities,
-  enrichWithImageDimensions,
-  upsertEventSafe,
-  linkEventVenue,
-  linkEventOrganization,
-  ensureVenue,
-  ensureOrganization,
-  linkOrganizationVenue,
   easternToIso,
+  enrichWithImageDimensions,
+  ensureOrganization,
+  ensureVenue,
+  inferCategory,
+  linkEventOrganization,
+  linkEventVenue,
+  linkOrganizationVenue,
+  logScraperError,
+  logUpsertResult,
+  stripHtml,
+  upsertEventSafe,
 } from './lib/normalize.js'
+import { pathToFileURL } from 'node:url'
 
 const SOURCE_KEY = 'better_kenmore'
 const EVENTS_URL = 'https://www.betterkenmore.org/upcoming-events/'

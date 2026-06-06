@@ -39,17 +39,18 @@
 
 import 'dotenv/config'
 import {
-  logUpsertResult,
-  logScraperError,
-  stripHtml,
-  enrichWithImageDimensions,
-  upsertEventSafe,
-  linkEventVenue,
-  linkEventOrganization,
-  ensureVenue,
-  ensureOrganization,
-  linkOrganizationVenue,
   easternToIso,
+  enrichWithImageDimensions,
+  ensureOrganization,
+  ensureVenue,
+  inferCategory,
+  linkEventOrganization,
+  linkEventVenue,
+  linkOrganizationVenue,
+  logScraperError,
+  logUpsertResult,
+  stripHtml,
+  upsertEventSafe,
 } from './lib/normalize.js'
 
 // ── Constants ──────────────────────────────────────────────────────────────

@@ -16,6 +16,7 @@ import { formatPrice } from '@/lib/eventFormatting'
 import Modal from '@/components/Modal'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import './MapView.css'
+import { BackIcon } from '@/components/icons'
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
 const AKRON_CENTER = { longitude: -81.519, latitude: 41.081 }
@@ -176,7 +177,7 @@ export default function MapView({ events, onBackToList }: MapViewProps) {
         <div className="map-top-bar">
           {onBackToList && (
             <button className="map-back-btn" onClick={onBackToList} aria-label="Back to list view">
-              <BackIcon /> List
+              <BackIcon size={13} /> List
             </button>
           )}
           <div className="map-count-badge">
@@ -486,11 +487,4 @@ function ExpandIcon() {
   )
 }
 
-function BackIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M19 12H5" />
-      <path d="m12 5-7 7 7 7" />
-    </svg>
-  )
-}
+

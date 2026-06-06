@@ -38,18 +38,19 @@
  */
 
 import 'dotenv/config'
-import { fetchIcsFeed, parseIcs, normaliseIcsEvent } from './lib/ics.js'
 import {
+  enrichWithImageDimensions,
   ensureOrganization,
   ensureVenue,
-  linkOrganizationVenue,
-  logUpsertResult,
-  logScraperError,
-  enrichWithImageDimensions,
-  upsertEventSafe,
-  linkEventVenue,
+  inferCategory,
   linkEventOrganization,
+  linkEventVenue,
+  linkOrganizationVenue,
+  logScraperError,
+  logUpsertResult,
+  upsertEventSafe,
 } from './lib/normalize.js'
+import { fetchIcsFeed, parseIcs, normaliseIcsEvent } from './lib/ics.js'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 

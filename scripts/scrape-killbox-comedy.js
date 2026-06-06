@@ -275,7 +275,6 @@ function showtimeToIso({ month, day, hour, minute, meridiem }) {
 // ── Category & tags ───────────────────────────────────────────────────────
 
 // Category is always 'comedy' — Killbox is a comedy-only venue.
-}
 
 function mapTags(title = '') {
   const tags = ['comedy', 'stand-up', 'akron', '21-and-over']

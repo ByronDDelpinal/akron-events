@@ -30,15 +30,16 @@
 
 import 'dotenv/config'
 import {
-  logUpsertResult,
-  logScraperError,
   enrichWithImageDimensions,
-  upsertEventSafe,
-  linkEventVenue,
-  linkEventOrganization,
-  ensureVenue,
   ensureOrganization,
+  ensureVenue,
+  inferCategory,
+  linkEventOrganization,
+  linkEventVenue,
   linkOrganizationVenue,
+  logScraperError,
+  logUpsertResult,
+  upsertEventSafe,
 } from './lib/normalize.js'
 import {
   fetchSquarespaceEvents,

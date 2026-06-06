@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useAsync } from './useAsync'
 
 /**
  * A raw PostgREST row with embedded join arrays. The conditional selects in
@@ -261,38 +262,20 @@ function dateRangeBounds(dateRange: string): { start: Date; end: Date } {
  * Fetch all venues, ordered by name. Includes organization join and areas.
  */
 export function useVenues() {
-  const [venues,  setVenues]  = useState<RawRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function fetchVenues() {
-      setLoading(true)
-      setError(null)
-
-      const { data, error: fetchError } = await supabase
-        .from('venues')
-        .select(`
-          id, name, address, city, state, zip, website,
-          parking_type, parking_notes, lat, lng,
-          description, tags, status, image_url,
-          organization:organizations ( id, name ),
-          areas ( id, name, description, capacity )
-        `)
-        .order('name', { ascending: true })
-
-      if (!cancelled) {
-        if (fetchError) setError(fetchError.message)
-        else setVenues((data ?? []) as RawRow[])
-        setLoading(false)
-      }
-    }
-
-    fetchVenues()
-    return () => { cancelled = true }
-  }, [])
+  const { data: venues, loading, error } = useAsync(async () => {
+    const { data, error: fetchError } = await supabase
+      .from('venues')
+      .select(`
+        id, name, address, city, state, zip, website,
+        parking_type, parking_notes, lat, lng,
+        description, tags, status, image_url,
+        organization:organizations ( id, name ),
+        areas ( id, name, description, capacity )
+      `)
+      .order('name', { ascending: true })
+    if (fetchError) throw fetchError
+    return (data ?? []) as RawRow[]
+  }, [], [] as RawRow[])
 
   return { venues, loading, error }
 }
@@ -301,39 +284,21 @@ export function useVenues() {
  * Fetch a single venue by ID. Includes organization, areas.
  */
 export function useVenue(id: string | null | undefined) {
-  const [venue,   setVenue]   = useState<RawRow | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!id) return
-    let cancelled = false
-
-    async function fetchVenue() {
-      setLoading(true)
-      setError(null)
-
-      const { data, error: fetchError } = await supabase
-        .from('venues')
-        .select(`
-          id, name, address, city, state, zip, website,
-          parking_type, parking_notes, lat, lng,
-          description, tags, status, image_url,
-          organization:organizations ( id, name, website ),
-          areas ( id, name, description, capacity )
-        `)
-        .eq('id', id!)
-        .single()
-
-      if (!cancelled) {
-        if (fetchError) setError(fetchError.message)
-        else setVenue(data as RawRow)
-        setLoading(false)
-      }
-    }
-
-    fetchVenue()
-    return () => { cancelled = true }
+  const { data: venue, loading, error } = useAsync(async () => {
+    if (!id) return null
+    const { data, error: fetchError } = await supabase
+      .from('venues')
+      .select(`
+        id, name, address, city, state, zip, website,
+        parking_type, parking_notes, lat, lng,
+        description, tags, status, image_url,
+        organization:organizations ( id, name, website ),
+        areas ( id, name, description, capacity )
+      `)
+      .eq('id', id)
+      .single()
+    if (fetchError) throw fetchError
+    return data as RawRow
   }, [id])
 
   return { venue, loading, error }
@@ -343,61 +308,39 @@ export function useVenue(id: string | null | undefined) {
  * Fetch all upcoming published events at a given venue.
  */
 export function useVenueEvents(venueId: string | null | undefined) {
-  const [events,  setEvents]  = useState<RawRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!venueId) return
-    let cancelled = false
-
-    async function fetchVenueEvents() {
-      setLoading(true)
-      setError(null)
-
-      const { data, error: fetchError } = await supabase
-        .from('event_venues')
-        .select(`
-          event:events (
-            id, title, start_at, end_at, is_family, is_fundraiser,
-            price_min, price_max, image_url, image_width, image_height,
-            ticket_url, age_restriction, status, featured,
-            event_categories ( category ),
-            event_organizations ( organization:organizations ( id, name ) )
-          )
-        `)
-        .eq('venue_id', venueId!)
-        .not('event', 'is', null)
-
-      if (!cancelled) {
-        if (fetchError) {
-          setError(fetchError.message)
-        } else {
-          const unwrapped = ((data ?? []) as RawRow[])
-            .map((row) => row.event as RawRow)
-            .filter((e) => e && e.status === 'published')
-            .filter((e) => new Date(e.start_at).getTime() > Date.now() - 3 * 3600_000)
-            .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
-
-          setEvents(unwrapped.map((e) => {
-            const cats = ((e.event_categories ?? []) as RawRow[]).map((ec) => ec.category).filter(Boolean)
-            return {
-              ...e,
-              categories: cats,
-              category: cats[0] ?? 'other',
-              organizer: e.event_organizations?.[0]?.organization ?? null,
-              organizations: ((e.event_organizations ?? []) as RawRow[]).map((eo) => eo.organization).filter(Boolean),
-              event_categories: undefined,
-            }
-          }))
+  const { data: events, loading, error } = useAsync(async () => {
+    if (!venueId) return []
+    const { data, error: fetchError } = await supabase
+      .from('event_venues')
+      .select(`
+        event:events (
+          id, title, start_at, end_at, is_family, is_fundraiser,
+          price_min, price_max, image_url, image_width, image_height,
+          ticket_url, age_restriction, status, featured,
+          event_categories ( category ),
+          event_organizations ( organization:organizations ( id, name ) )
+        )
+      `)
+      .eq('venue_id', venueId)
+      .not('event', 'is', null)
+    if (fetchError) throw fetchError
+    return ((data ?? []) as RawRow[])
+      .map((row) => row.event as RawRow)
+      .filter((e) => e && e.status === 'published')
+      .filter((e) => new Date(e.start_at).getTime() > Date.now() - 3 * 3600_000)
+      .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
+      .map((e) => {
+        const cats = ((e.event_categories ?? []) as RawRow[]).map((ec) => ec.category).filter(Boolean)
+        return {
+          ...e,
+          categories: cats,
+          category: cats[0] ?? 'other',
+          organizer: e.event_organizations?.[0]?.organization ?? null,
+          organizations: ((e.event_organizations ?? []) as RawRow[]).map((eo) => eo.organization).filter(Boolean),
+          event_categories: undefined,
         }
-        setLoading(false)
-      }
-    }
-
-    fetchVenueEvents()
-    return () => { cancelled = true }
-  }, [venueId])
+      })
+  }, [venueId], [] as RawRow[])
 
   return { events, loading, error }
 }
@@ -406,48 +349,30 @@ export function useVenueEvents(venueId: string | null | undefined) {
  * Fetch a single published event by ID, with venues + organizations joined.
  */
 export function useEvent(id: string | null | undefined) {
-  const [event,   setEvent]   = useState<AppEvent | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!id) return
-    let cancelled = false
-
-    async function fetchEvent() {
-      setLoading(true)
-      setError(null)
-
-      const { data, error: fetchError } = await supabase
-        .from('events')
-        .select(`
-          *,
-          event_categories ( category ),
-          event_venues ( venue:venues (
-            id, name, address, city, state, zip,
-            parking_type, parking_notes, lat, lng, website, image_url
-          )),
-          event_organizations ( organization:organizations (
-            id, name, website, description, image_url
-          )),
-          event_areas ( area:areas (
-            id, name, description, capacity,
-            venue:venues ( id, name )
-          ))
-        `)
-        .eq('id', id!)
-        .eq('status', 'published')
-        .single()
-
-      if (!cancelled) {
-        if (fetchError) setError(fetchError.message)
-        else setEvent(normalizeEventJoins(data as RawRow))
-        setLoading(false)
-      }
-    }
-
-    fetchEvent()
-    return () => { cancelled = true }
+  const { data: event, loading, error } = useAsync(async () => {
+    if (!id) return null
+    const { data, error: fetchError } = await supabase
+      .from('events')
+      .select(`
+        *,
+        event_categories ( category ),
+        event_venues ( venue:venues (
+          id, name, address, city, state, zip,
+          parking_type, parking_notes, lat, lng, website, image_url
+        )),
+        event_organizations ( organization:organizations (
+          id, name, website, description, image_url
+        )),
+        event_areas ( area:areas (
+          id, name, description, capacity,
+          venue:venues ( id, name )
+        ))
+      `)
+      .eq('id', id)
+      .eq('status', 'published')
+      .single()
+    if (fetchError) throw fetchError
+    return normalizeEventJoins(data as RawRow)
   }, [id])
 
   return { event, loading, error }
@@ -470,55 +395,28 @@ export function useRelatedEvents(
     ? categories.filter(Boolean)
     : (categories ? [categories] : [])
 
-  const [events,  setEvents]  = useState<AppEvent[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!eventId || catList.length === 0) {
-      setEvents([])
-      setLoading(false)
-      return
-    }
-    let cancelled = false
-
-    async function fetchRelated() {
-      setLoading(true)
-      setError(null)
-
-      try {
-        const { data, error: fetchError } = await supabase
-          .from('events')
-          .select(`
-            id, title, start_at, end_at, is_family, is_fundraiser,
-            price_min, price_max, image_url, image_width, image_height,
-            ticket_url, age_restriction, status, featured, tags,
-            _catfilter:event_categories!inner ( category ),
-            event_categories ( category ),
-            event_venues ( venue:venues ( id, name, city, image_url ) ),
-            event_organizations ( organization:organizations ( id, name, image_url ) )
-          `)
-          .eq('status', 'published')
-          .in('_catfilter.category', catList)
-          .neq('id', eventId!)
-          .gte('start_at', new Date(Date.now() - 3 * 3600_000).toISOString())
-          .order('start_at', { ascending: true })
-          .limit(limit)
-
-        if (!cancelled) {
-          if (fetchError) setError(fetchError.message)
-          else setEvents(((data ?? []) as RawRow[]).map((r) => normalizeEventJoins(r) as AppEvent))
-        }
-      } catch (err) {
-        if (!cancelled) setError(errorMessage(err, 'Failed to load related events.'))
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-
-    fetchRelated()
-    return () => { cancelled = true }
-  }, [eventId, catList.join(','), limit])
+  const { data: events, loading, error } = useAsync(async () => {
+    if (!eventId || catList.length === 0) return []
+    const { data, error: fetchError } = await supabase
+      .from('events')
+      .select(`
+        id, title, start_at, end_at, is_family, is_fundraiser,
+        price_min, price_max, image_url, image_width, image_height,
+        ticket_url, age_restriction, status, featured, tags,
+        _catfilter:event_categories!inner ( category ),
+        event_categories ( category ),
+        event_venues ( venue:venues ( id, name, city, image_url ) ),
+        event_organizations ( organization:organizations ( id, name, image_url ) )
+      `)
+      .eq('status', 'published')
+      .in('_catfilter.category', catList)
+      .neq('id', eventId)
+      .gte('start_at', new Date(Date.now() - 3 * 3600_000).toISOString())
+      .order('start_at', { ascending: true })
+      .limit(limit)
+    if (fetchError) throw fetchError
+    return ((data ?? []) as RawRow[]).map((r) => normalizeEventJoins(r) as AppEvent)
+  }, [eventId, catList.join(','), limit], [] as AppEvent[])
 
   return { events, loading, error }
 }
@@ -649,45 +547,24 @@ export function useMapEvents({
  * Fetch all organizations, ordered by name. Includes upcoming-event counts.
  */
 export function useOrganizations() {
-  const [organizations, setOrganizations] = useState<RawRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function fetchOrganizations() {
-      setLoading(true)
-      setError(null)
-
-      const { data, error: fetchError } = await supabase
-        .from('organizations')
-        .select(`
-          id, name, website, description, image_url,
-          address, city, state, zip, status, photos,
-          venues ( id, name ),
-          event_organizations ( event_id )
-        `)
-        .eq('status', 'published')
-        .order('name', { ascending: true })
-
-      if (!cancelled) {
-        if (fetchError) {
-          setError(fetchError.message)
-        } else {
-          setOrganizations(((data ?? []) as RawRow[]).map((org) => ({
-            ...org,
-            venueCount: org.venues?.length ?? 0,
-            eventCount: org.event_organizations?.length ?? 0,
-          })))
-        }
-        setLoading(false)
-      }
-    }
-
-    fetchOrganizations()
-    return () => { cancelled = true }
-  }, [])
+  const { data: organizations, loading, error } = useAsync(async () => {
+    const { data, error: fetchError } = await supabase
+      .from('organizations')
+      .select(`
+        id, name, website, description, image_url,
+        address, city, state, zip, status, photos,
+        venues ( id, name ),
+        event_organizations ( event_id )
+      `)
+      .eq('status', 'published')
+      .order('name', { ascending: true })
+    if (fetchError) throw fetchError
+    return ((data ?? []) as RawRow[]).map((org) => ({
+      ...org,
+      venueCount: org.venues?.length ?? 0,
+      eventCount: org.event_organizations?.length ?? 0,
+    }))
+  }, [], [] as RawRow[])
 
   return { organizations, loading, error }
 }
@@ -696,67 +573,46 @@ export function useOrganizations() {
  * Fetch a single organization by ID with venues and events.
  */
 export function useOrganization(id: string | null | undefined) {
-  const [organization, setOrganization] = useState<RawRow | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!id) return
-    let cancelled = false
-
-    async function fetchOrganization() {
-      setLoading(true)
-      setError(null)
-
-      const { data, error: fetchError } = await supabase
-        .from('organizations')
-        .select(`
-          *,
-          venues ( id, name, address, city, state, zip, lat, lng, website, tags, status ),
-          event_organizations (
-            event:events (
-              id, title, start_at, end_at, is_family, is_fundraiser,
-              price_min, price_max, image_url, image_width, image_height,
-              ticket_url, age_restriction, status, featured,
-              event_categories ( category ),
-              event_venues ( venue:venues ( id, name, city ) )
-            )
+  const { data: organization, loading, error } = useAsync<RawRow | null>(async () => {
+    if (!id) return null
+    const { data, error: fetchError } = await supabase
+      .from('organizations')
+      .select(`
+        *,
+        venues ( id, name, address, city, state, zip, lat, lng, website, tags, status ),
+        event_organizations (
+          event:events (
+            id, title, start_at, end_at, is_family, is_fundraiser,
+            price_min, price_max, image_url, image_width, image_height,
+            ticket_url, age_restriction, status, featured,
+            event_categories ( category ),
+            event_venues ( venue:venues ( id, name, city ) )
           )
-        `)
-        .eq('id', id!)
-        .eq('status', 'published')
-        .single()
-
-      if (!cancelled) {
-        if (fetchError) {
-          setError(fetchError.message)
-        } else if (data) {
-          const row = data as RawRow
-          const events = ((row.event_organizations ?? []) as RawRow[])
-            .map((eo) => eo.event as RawRow)
-            .filter((e) => e && e.status === 'published')
-            .filter((e) => new Date(e.start_at).getTime() > Date.now() - 3 * 3600_000)
-            .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
-            .map((e) => {
-              const cats = ((e.event_categories ?? []) as RawRow[]).map((ec) => ec.category).filter(Boolean)
-              return {
-                ...e,
-                categories: cats,
-                category: cats[0] ?? 'other',
-                venue: e.event_venues?.[0]?.venue ?? null,
-                venues: ((e.event_venues ?? []) as RawRow[]).map((ev) => ev.venue).filter(Boolean),
-                event_categories: undefined,
-              }
-            })
-
-          setOrganization({ ...row, events })
+        )
+      `)
+      .eq('id', id)
+      .eq('status', 'published')
+      .single()
+    if (fetchError) throw fetchError
+    if (!data) return null
+    const row = data as RawRow
+    const events = ((row.event_organizations ?? []) as RawRow[])
+      .map((eo) => eo.event as RawRow)
+      .filter((e) => e && e.status === 'published')
+      .filter((e) => new Date(e.start_at).getTime() > Date.now() - 3 * 3600_000)
+      .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
+      .map((e) => {
+        const cats = ((e.event_categories ?? []) as RawRow[]).map((ec) => ec.category).filter(Boolean)
+        return {
+          ...e,
+          categories: cats,
+          category: cats[0] ?? 'other',
+          venue: e.event_venues?.[0]?.venue ?? null,
+          venues: ((e.event_venues ?? []) as RawRow[]).map((ev) => ev.venue).filter(Boolean),
+          event_categories: undefined,
         }
-        setLoading(false)
-      }
-    }
-
-    fetchOrganization()
-    return () => { cancelled = true }
+      })
+    return { ...row, events } as RawRow
   }, [id])
 
   return { organization, loading, error }

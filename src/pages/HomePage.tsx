@@ -18,6 +18,7 @@ import {
 } from '@/lib/seo'
 import { eventPath } from '@/lib/slug'
 import './HomePage.css'
+import { SearchIcon } from '@/components/icons'
 
 // ── localStorage key for persisting card view mode (density) ──
 const VIEW_MODE_KEY = 'akronpulse_card_view_mode'
@@ -169,7 +170,7 @@ export default function HomePage() {
         <h1>What's happening<br />in <span>Akron?</span></h1>
         <p className="hero-sub">Concerts, galas, art shows, markets, and more — happening right now in Akron.</p>
         <div className="search-wrap" ref={searchWrapRef}>
-          <SearchIcon />
+          <SearchIcon className="search-icon" />
           <input
             className={`search-input${searchFocused && !searchInput ? ' search-input--open' : ''}`}
             type="text"
@@ -333,14 +334,7 @@ function GridPromo() {
   )
 }
 
-function SearchIcon() {
-  return (
-    <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="8"/>
-      <path d="m21 21-4.35-4.35"/>
-    </svg>
-  )
-}
+
 
 function LocationIcon() {
   return (
