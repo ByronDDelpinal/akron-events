@@ -66,15 +66,9 @@ function isPublicEvent(title) {
   return true
 }
 
+// Category: infer from title + description.
 function mapCategory(title = '', desc = '') {
-  const t = `${title} ${desc}`.toLowerCase()
-  if (/concert|music|band|live music|keyser|front street live/.test(t)) return 'music'
-  if (/flix|movie|film|screen/.test(t))                                 return 'art'
-  if (/cruise|car show/.test(t))                                        return 'community'
-  if (/picnic|food truck|market|taste/.test(t))                         return 'food'
-  if (/run|race|5k|walk|fitness/.test(t))                               return 'fitness'
-  if (/craft|art|quirk|paint/.test(t))                                  return 'art'
-  return 'community'
+  return inferCategory(title, desc)
 }
 
 function mapTags(title = '') {

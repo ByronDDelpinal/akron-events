@@ -123,15 +123,9 @@ export function deSlugTitle(slug) {
   return cleaned || 'Better Kenmore Event'
 }
 
-function mapCategory(title = '', loc = '') {
-  const t = `${title} ${loc}`.toLowerCase()
-  if (/yoga|fitness|zumba|walk|exercise|wellness/.test(t))               return 'fitness'
-  if (/movie|film|popcorn/.test(t))                                      return 'art'
-  if (/music|band|concert|living room|open mic|jam|rialto|jazz/.test(t)) return 'music'
-  if (/market|vendor|block party|first friday|festival/.test(t))         return 'community'
-  if (/food|dinner|lunch|breakfast|brunch|pancake/.test(t))              return 'food'
-  if (/class|workshop|craft|art|paint/.test(t))                          return 'education'
-  return 'community'
+// Category: infer from title (location text adds noise, not signal).
+function mapCategory(title = '') {
+  return inferCategory(title, '')
 }
 
 // ── List parse ────────────────────────────────────────────────────────────────
@@ -295,7 +289,7 @@ async function main() {
           description,
           start_at:        startAt,
           end_at:          null,
-          category:        mapCategory(title, ev.location || ''),
+          category:        mapCategory(title),
           tags:            ['better-kenmore', 'kenmore', 'akron'],
           price_min:       null,
           price_max:       null,

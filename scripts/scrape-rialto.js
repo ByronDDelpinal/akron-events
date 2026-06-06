@@ -71,15 +71,10 @@ function cleanTitle(raw) {
  * Infer category from event title.
  * The Rialto is primarily a music venue but also hosts poetry, improv, and trivia.
  */
+// Category: infer from title; Rialto is a music venue so falls back to 'music'.
 function mapCategory(item) {
-  const t = (item.title ?? '').toLowerCase()
-
-  if (/poetry|spoken word|angry cow/i.test(t))          return 'art'
-  if (/improv|comedy|stand[- ]?up|trivia/i.test(t))     return 'community'
-  if (/irish session|jam session/i.test(t))              return 'music'
-
-  // Default — this is a music venue
-  return 'music'
+  const cat = inferCategory(item.title || '', item.excerpt || '')
+  return (cat === 'other' || cat === 'civic') ? 'music' : cat
 }
 
 function mapTags(item) {

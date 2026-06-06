@@ -140,15 +140,9 @@ function extractTime(text) {
 
 // ── Category / tag mapping ─────────────────────────────────────────────────
 
+// Category: infer from title + description.
 function mapCategory(title = '', desc = '') {
-  const t = (title + ' ' + desc).toLowerCase()
-  if (/concert|music|jazz|band|symphony|choir|gospel/.test(t))                  return 'music'
-  if (/art|exhibit|gallery|film|movie|theatre|dance|performance/.test(t))       return 'art'
-  if (/food|meal|dinner|lunch|breakfast|gala|banquet/.test(t))                  return 'food'
-  if (/run|race|walk|5k|marathon|fitness/.test(t))                              return 'fitness'
-  if (/job|career|workforce|employment|training|tech|business|entrepreneur|workshop|summit/.test(t)) return 'education'
-  if (/fundrais|donate|charity|benefit/.test(t))                                return 'nonprofit'
-  return 'community'
+  return inferCategory(title, desc)
 }
 
 function mapTags(title = '', desc = '') {

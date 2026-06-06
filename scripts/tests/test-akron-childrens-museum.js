@@ -193,23 +193,23 @@ describe('ACM — parseCost', () => {
 // ════════════════════════════════════════════════════════════════════════════
 
 describe('ACM — mapCategory', () => {
-  // ── Default to community ──────────────────────────────────────
+  // ── Default to other ──────────────────────────────────────
   // The museum is a kids/family destination; "education" is the
   // exception, not the rule.
-  it('defaults bare "Programs" to community (was education)', () => {
-    assert.equal(mapCategory('Programs'), 'community')
+  it('defaults bare "Programs" to other (was education)', () => {
+    assert.equal(mapCategory('Programs'), 'other')
   })
 
-  it('maps "Special Events" to community', () => {
-    assert.equal(mapCategory('Special Events'), 'community')
+  it('maps "Special Events" to other', () => {
+    assert.equal(mapCategory('Special Events'), 'other')
   })
 
-  it('defaults null category to community', () => {
-    assert.equal(mapCategory(null), 'community')
+  it('defaults null category to other', () => {
+    assert.equal(mapCategory(null), 'other')
   })
 
-  it('defaults empty string to community', () => {
-    assert.equal(mapCategory(''), 'community')
+  it('defaults empty string to other', () => {
+    assert.equal(mapCategory(''), 'other')
   })
 
   // ── Regression: the bug that triggered this fix ───────────────
@@ -217,36 +217,36 @@ describe('ACM — mapCategory', () => {
   // surfaced as "education" on /events/delight-nights-…/<id>. It
   // must stay community even though the ACM source category is
   // "Programs".
-  it('keeps recurring play nights in community (Delight Nights)', () => {
-    assert.equal(mapCategory('Programs', 'Delight Nights - Every Thursday'), 'community')
+  it('keeps recurring play nights in other (Delight Nights)', () => {
+    assert.equal(mapCategory('Programs', 'Delight Nights - Every Thursday'), 'other')
   })
 
   // ── Escalation: explicit instructional signals ────────────────
   it('escalates Story Time to education', () => {
-    assert.equal(mapCategory('Programs', 'Story Time with Ms. Pam'), 'education')
+    assert.equal(mapCategory('Programs', 'Story Time with Ms. Pam'), 'learning')
   })
 
   it('escalates an Art Class to education', () => {
-    assert.equal(mapCategory('Programs', 'Art Class for Toddlers'), 'education')
+    assert.equal(mapCategory('Programs', 'Art Class for Toddlers'), 'learning')
   })
 
   it('escalates Workshops to education', () => {
-    assert.equal(mapCategory('Programs', 'LEGO Workshop'), 'education')
+    assert.equal(mapCategory('Programs', 'LEGO Workshop'), 'learning')
   })
 
   it('escalates Summer Camp signups to education', () => {
-    assert.equal(mapCategory('Special Events', 'Summer Camp Sign-up'), 'education')
+    assert.equal(mapCategory('Special Events', 'Summer Camp Sign-up'), 'learning')
   })
 
-  // ── Fundraisers always go to community ────────────────────────
-  it('keeps fundraisers in community even when titled like a class', () => {
-    assert.equal(mapCategory('Special Events', 'Fundraiser & Family Class Day'), 'community')
+  // ── Fundraisers always go to other ────────────────────────
+  it('keeps fundraisers in other even when titled like a class', () => {
+    assert.equal(mapCategory('Special Events', 'Fundraiser & Family Class Day'), 'other')
   })
 
   // ── Word-boundary safety ──────────────────────────────────────
   // "Classical" must not false-match "class".
   it('does not false-match "classical" as a class', () => {
-    assert.equal(mapCategory('Programs', 'A Classical Music Family Night'), 'community')
+    assert.equal(mapCategory('Programs', 'A Classical Music Family Night'), 'other')
   })
 })
 
@@ -309,7 +309,7 @@ describe('ACM — full normalization', () => {
     assert.equal(row.ticket_url, 'https://akronkids.org/calendar/special-events/allaboardakronexpress2026')
   })
 
-  it('maps the Delight Nights play night to community', () => {
+  it('maps the Delight Nights play night to other', () => {
     // RECURRING_EVENT is the actual Delight Nights fixture — the
     // event the user reported as being mis-tagged "education" in
     // production. Source category from ACM is "Programs", title is
@@ -317,12 +317,12 @@ describe('ACM — full normalization', () => {
     // night of interactive play and fun". This is unambiguously
     // community, not education.
     const row = normaliseEvent(RECURRING_EVENT)
-    assert.equal(row.category, 'community')
+    assert.equal(row.category, 'other')
   })
 
-  it('maps Special Events category to community', () => {
+  it('maps Special Events category to other', () => {
     const row = normaliseEvent(SPECIAL_EVENT)
-    assert.equal(row.category, 'community')
+    assert.equal(row.category, 'other')
   })
 
   it('parses mixed cost correctly', () => {

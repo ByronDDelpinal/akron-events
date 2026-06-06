@@ -41,7 +41,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname  = dirname(__filename)
 const SNAPSHOT_PATH = join(__dirname, 'data', 'akron-symphony-snapshot.json')
 
-function mapCategory() { return 'music' }
+// Category is always 'music' — Akron Symphony is a music-only venue.
 
 function mapTags(ev) {
   const summary = (ev.SUMMARY || '').toLowerCase()
@@ -200,7 +200,7 @@ runIcsScraper({
     parking_type: 'garage',
     parking_notes: 'Parking garages available on campus.',
   },
-  mapCategory,
+  mapCategory: () => 'music',
   mapTags,
   defaultPriceMin: null,
   defaultPriceMax: null,

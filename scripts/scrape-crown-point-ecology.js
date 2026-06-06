@@ -63,15 +63,10 @@ const DEFAULT_VENUE = {
 
 // ── Category / tag mapping ────────────────────────────────────────────────
 
+// Category: infer from title + excerpt; ecology-center events default to 'outdoors'.
 function mapCategory(item) {
-  const text = `${item.title ?? ''} ${item.excerpt ?? ''}`.toLowerCase()
-  if (/\b(concert|music|band|meadow music)\b/.test(text))      return 'music'
-  if (/\b(walk|hike|trail|nature|wildlife)\b/.test(text))      return 'nature'
-  if (/\b(fundraiser|taste of earth|gala|benefit)\b/.test(text)) return 'community'
-  if (/\b(workshop|class|education|speaker|conversation|series|rise and shine)\b/.test(text)) return 'education'
-  if (/\b(market|sale|plant sale|farmstand)\b/.test(text))     return 'community'
-  if (/\b(murder mystery|theater|performance|prohibition)\b/.test(text)) return 'art'
-  return 'nature'
+  const cat = inferCategory(item.title || '', item.excerpt || '')
+  return cat === 'other' ? 'outdoors' : cat
 }
 
 function mapTags(item) {

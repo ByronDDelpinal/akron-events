@@ -274,8 +274,7 @@ function showtimeToIso({ month, day, hour, minute, meridiem }) {
 
 // ── Category & tags ───────────────────────────────────────────────────────
 
-function mapCategory() {
-  return 'comedy'
+// Category is always 'comedy' — Killbox is a comedy-only venue.
 }
 
 function mapTags(title = '') {
@@ -320,7 +319,7 @@ async function processEvents(detailRows, venueId, organizerId) {
           description:     description || null,
           start_at:        startAt,
           end_at:          null,
-          category:        mapCategory(),
+          category:        'comedy',
           tags:            mapTags(title),
           price_min:       priceMin,
           price_max:       priceMax ?? priceMin,

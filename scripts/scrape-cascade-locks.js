@@ -78,16 +78,10 @@ const DEFAULT_VENUE = {
 
 // ── Category / tag mapping ────────────────────────────────────────────────
 
+// Category: infer from title + excerpt; canal/park events default to 'outdoors'.
 function mapCategory(item) {
-  const text = `${item.title ?? ''} ${item.excerpt ?? ''}`.toLowerCase()
-  if (/\b(walk|hike|trail|nature|wildlife|canal|towpath)\b/.test(text))     return 'nature'
-  if (/\b(music|concert|band|jazz|folk|blues)\b/.test(text))                return 'music'
-  if (/\b(lunch|dinner|brunch|food truck|tasting|picnic)\b/.test(text))     return 'food'
-  if (/\b(festival|fair|family|kids|children|block party)\b/.test(text))    return 'community'
-  if (/\b(lecture|tour|history|workshop|class)\b/.test(text))               return 'education'
-  if (/\b(fundraiser|benefit|gala)\b/.test(text))                           return 'nonprofit'
-  // CLPA programming is community-stewardship by nature — fall back here.
-  return 'community'
+  const cat = inferCategory(item.title || '', item.excerpt || '')
+  return cat === 'other' ? 'outdoors' : cat
 }
 
 function mapTags(item) {

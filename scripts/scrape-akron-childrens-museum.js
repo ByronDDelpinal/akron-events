@@ -262,15 +262,15 @@ export function mapCategory(categoryStr, title = '') {
   const text = `${categoryStr || ''} ${title || ''}`.toLowerCase()
 
   // Fundraisers always slot to community regardless of other signals.
-  if (text.includes('fundrais')) return 'community'
+  if (text.includes('fundrais')) return 'other'
 
   // Instructional keywords — kept tight on purpose. \b boundaries
   // stop "classical" / "encampment" / etc. from false-matching, and
   // "story time" is allowed with or without the space.
   const EDUCATIONAL = /\b(class(es)?|workshop|lesson|course|camp|school|story\s*time|tutorial)\b/
-  if (EDUCATIONAL.test(text)) return 'education'
+  if (EDUCATIONAL.test(text)) return 'learning'
 
-  return 'community'
+  return 'other'
 }
 
 // ── Normalise ─────────────────────────────────────────────────────────────

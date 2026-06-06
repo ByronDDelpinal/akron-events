@@ -237,9 +237,7 @@ function decodeHtmlEntities(s) {
 
 // ── Category / tag mapping ───────────────────────────────────────────────
 
-function mapCategory() {
-  // Every event here is a gallery artist reception → art.
-  return 'art'
+// Category is always 'visual-art' — CVAC is a gallery venue.
 }
 
 function mapTags(title = '') {
@@ -294,7 +292,7 @@ async function processEvents(detailPages, venueId, organizerId) {
         description,
         start_at:        start,
         end_at:          end,
-        category:        mapCategory(),
+        category:        'visual-art',
         tags:            mapTags(title),
         price_min:       null,
         price_max:       null,

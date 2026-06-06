@@ -18,19 +18,15 @@
  */
 
 import 'dotenv/config'
+import { inferCategory } from './lib/category-inference.js'
 import { runIcsScraper } from './lib/ics.js'
 
 const SOURCE_KEY = 'north_hill_cdc'
 
+// Category: infer from event text.
 function mapCategory(ev) {
-  const text = [(ev.SUMMARY || ''), (ev.DESCRIPTION || ''), (ev.CATEGORIES || '')]
-    .join(' ').toLowerCase()
-  if (/\b(maker|craft|workshop|class)\b/.test(text))    return 'education'
-  if (/\b(market|vendor|shop)\b/.test(text))            return 'community'
-  if (/\b(food|meal|dinner|lunch)\b/.test(text))        return 'food'
-  if (/\b(music|concert|band)\b/.test(text))            return 'music'
-  if (/\b(art|gallery|exhibit)\b/.test(text))           return 'art'
-  return 'community'
+  const text = `${ev.SUMMARY || ''} ${ev.DESCRIPTION || ''} ${ev.CATEGORIES || ''}`
+  return inferCategory(text, '')
 }
 
 function mapTags(ev) {

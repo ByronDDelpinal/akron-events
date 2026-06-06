@@ -246,14 +246,9 @@ function parsePrice(html) {
 
 // ── Category / tag mapping ───────────────────────────────────────────────
 
+// Category: infer from title + description.
 function mapCategory(title = '', description = '') {
-  const text = `${title} ${description}`.toLowerCase()
-  if (/\b(craft|glassblow|dyeing|pottery|weaving|blacksmith|art fair|art & craft|art and craft)\b/.test(text)) return 'art'
-  if (/\b(workshop|class|lesson|lecture|education|school)\b/.test(text)) return 'education'
-  if (/\b(festival|fair|family|kids|children|fun on the farm|picnic|holiday)\b/.test(text)) return 'community'
-  if (/\b(murder mystery|theatre|theater|performance)\b/.test(text)) return 'art'
-  if (/\b(concert|music|band|jazz|orchestra)\b/.test(text)) return 'music'
-  return 'community'
+  return inferCategory(title, description)
 }
 
 function mapTags(title = '') {

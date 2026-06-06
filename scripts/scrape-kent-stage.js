@@ -184,13 +184,10 @@ function parsePriceFromBody(html) {
 
 // ── Category / tag mapping ───────────────────────────────────────────────
 
+// Category: infer from title + description; Kent Stage defaults to 'music'.
 function mapCategory(title = '', description = '') {
-  // Kent Stage is a music venue first. The shared inferCategory handles
-  // edge cases (comedy nights, poetry, lecture series); anything that
-  // doesn't return a more specific match defaults back to 'music'.
-  const inferred = inferCategory(title, description)
-  if (inferred === 'other' || inferred === 'community') return 'music'
-  return inferred
+  const cat = inferCategory(title, description)
+  return (cat === 'other' || cat === 'civic') ? 'music' : cat
 }
 
 function mapTags(title = '') {

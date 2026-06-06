@@ -30,6 +30,7 @@
  */
 
 import 'dotenv/config'
+import { inferCategory } from './lib/category-inference.js'
 import { runIcsScraper } from './lib/ics.js'
 import { withBrowser, newConfiguredPage } from './lib/puppeteer.js'
 
@@ -51,17 +52,10 @@ const BROWSER_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
 
+// Category: infer from event text; retreats default to 'other'.
 function mapCategory(ev) {
-  const text = [(ev.SUMMARY || ''), (ev.DESCRIPTION || ''), (ev.CATEGORIES || '')]
-    .join(' ').toLowerCase()
-  if (/\b(yoga|meditat|pranayama|asana|chant|kirtan)\b/.test(text))      return 'fitness'
-  if (/\b(class|workshop|discourse|lecture|study|course)\b/.test(text))  return 'education'
-  if (/\b(festival|celebration|puja|prayer)\b/.test(text))                return 'community'
-  if (/\b(food|meal|dinner|lunch|brunch)\b/.test(text))                   return 'food'
-  // Retreats — the most common event type — sit at the intersection of
-  // education, community, and wellness; bucket them under 'community' so they
-  // surface broadly rather than being hidden under a single specialty.
-  return 'community'
+  const text = `${ev.SUMMARY || ''} ${ev.DESCRIPTION || ''} ${ev.CATEGORIES || ''}`
+  return inferCategory(text, '')
 }
 
 function mapTags(ev) {

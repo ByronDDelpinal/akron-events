@@ -41,6 +41,7 @@ const _LEARN_NOT_EDUCATIONAL = /\blearn\s+(more|why|all|about|everything|here|no
 const SIGNALS = [
   // Music
   { cat: 'music', w: DECISIVE, re: /\b(concert|symphony|orchestra|recital|live music|live bands?|open mic|karaoke|sing[- ]along|songwriter night|jazz night|blues night|dj set|album release|ep release|single release|musical guest|tribute (band|act|show|to)|on spotify)\b/ },
+  { cat: 'music', w: STRONG,   re: /\bdj\b/, scope: 'title' },
   { cat: 'music', w: DECISIVE, re: /\btribute\b/ },
   { cat: 'music', w: WEAK,     re: /\bmusic\b/, scope: 'title' },
   { cat: 'music', w: STRONG,   re: /\b(singer[-/ ]songwriter|guitarist|drummer|bassist|saxophonist|pianist|trumpeter|cellist|violinist|multi[- ]?instrumentalist|frontman|frontwoman)\b/ },
@@ -52,6 +53,7 @@ const SIGNALS = [
 
   // Theater
   { cat: 'theater', w: DECISIVE, re: /\b(theat(re|er)|playwright|broadway|stage production|musical (theatre|theater|production)s?|opera|ballet|dance company|one[- ]act|black box|shakespeare)\b/ },
+  { cat: 'theater', w: STRONG,   re: /\b(murder mystery|immersive (theatre|theater|show|experience)|drama club|drama class)\b/ },
 
   // Film
   { cat: 'film', w: DECISIVE, re: /\b(film screening|screening|cinema|movie night|documentary|short films?|feature film|silent film|film festival|matinee showing|the nightlight)\b/ },
@@ -68,7 +70,7 @@ const SIGNALS = [
   { cat: 'visual-art', w: 90,       re: /\b(paint (and|&|n)\s*sip|puff (and|&|n)\s*paint|paint(ing)? class|art class|art workshop|pottery|ceramics|sketching workshop|drawing class)\b/ },
   // Crafts / maker programs (library + community staples). These rarely carry
   // a real description, so the title has to do the work.
-  { cat: 'visual-art', w: STRONG,   re: /\b(knit|knitting|crochet|needle ?(point|craft|work)|cross[- ]stitch|quilt(ing)?|yarn|crafternoon|crafters?\b|coloring|canvas|collage|scrapbook|water ?color|calligraphy|origami|macrame|weaving|felt(ed|ing)|embroider|sewing|diy\b|make[- ]and[- ]take|open studio)\b/ },
+  { cat: 'visual-art', w: STRONG,   re: /\b(knit|knitting|crochet|needle ?(point|craft|work)|cross[- ]stitch|quilt(ing)?|yarn|crafternoon|crafters?\b|coloring|canvas|collage|scrapbook|water ?color|calligraphy|origami|macrame|weaving|felt(ed|ing)|embroider|sewing|diy\b|make[- ]and[- ]take|open studio|glassblow(ing)?|glassblowing demonstration|natural dyeing|indigo dyeing|blacksmith(ing)?)\b/ },
 
   // Food
   { cat: 'food', w: DECISIVE, re: /\b(brewery|winery|wine tasting|beer tasting|cooking class|culinary|food truck|food festival|restaurant week|tap takeover|chef'?s table|tasting menu|wine dinner|whiskey tasting|cocktail (class|essentials|workshop)|brunch|luncheon|dinner show|drag brunch|sake|sushi tasting|cheese tasting|bourbon tasting|coffee tasting|chocolate tasting)\b/ },
@@ -103,7 +105,7 @@ const SIGNALS = [
   { cat: 'festival', w: STRONG,   re: /\b(fair|holiday celebration|street fair|fest\b|community day|family fun day|fun day|field day)\b/ },
 
   // Market
-  { cat: 'market', w: DECISIVE, re: /\b(farmers? market|makers? market|street market|night market|flea market|holiday market|artisan market|craft (market|show|fair)|vendor (market|fair)|pop[- ]?up market)\b/ },
+  { cat: 'market', w: DECISIVE, re: /\b(farmers? market|makers? market|street market|night market|flea market|holiday market|artisan market|craft (market|show|fair)|vendor (market|fair)|pop[- ]?up market|plant sale|farmstand)\b/ },
 
   // Civic
   // NOTE: do NOT use a bare "civic" token here — it matches venue/building

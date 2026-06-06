@@ -64,14 +64,10 @@ function isPublicFacing(ev) {
   return PUBLIC_KEYWORDS.some(k => hay.includes(k))
 }
 
+// Category: infer from event text; school events default to 'learning'.
 function mapCategory(ev) {
-  const text = `${ev.SUMMARY || ''} ${ev.DESCRIPTION || ''}`.toLowerCase()
-  if (/\b(concert|recital|musical|band|choir|orchestra)\b/.test(text)) return 'music'
-  if (/\b(game|match|tournament|meet|scrimmage)\b/.test(text))         return 'sports'
-  if (/\b(play|show|performance|drama|theater|theatre)\b/.test(text))  return 'art'
-  if (/\b(graduation|commencement|ceremony)\b/.test(text))             return 'community'
-  if (/\b(fair|festival|open house|family night)\b/.test(text))        return 'community'
-  return 'education'
+  const cat = inferCategory(ev.SUMMARY || '', ev.DESCRIPTION || '')
+  return cat === 'other' ? 'learning' : cat
 }
 
 function mapTags(ev) {

@@ -129,17 +129,9 @@ function isPublicSpecialEvent(ev) {
 
 // ── Category mapping ─────────────────────────────────────────────────────
 
+// Category: infer from event text; Green special events default to 'other'.
 function mapCategory(ev) {
-  const text = `${ev.SUMMARY || ''} ${ev.DESCRIPTION || ''}`.toLowerCase()
-  if (/\b(summer concert|concert|band|music|jazz)\b/.test(text))                 return 'music'
-  if (/\b(movie in the park|art-?a-?palooza|art a palooza)\b/.test(text))        return 'art'
-  if (/\b(5k|10k|race series|trail challenge|run|race)\b/.test(text))            return 'fitness'
-  if (/\b(fishing derby)\b/.test(text))                                          return 'sports'
-  if (/\b(electronics recycling|garlic mustard|arbor day|earth day)\b/.test(text)) return 'nature'
-  // Everything else from the special-events calendar is community
-  // programming (FreedomFest, festivals, ceremonies, expos, holiday
-  // events, egg scrambles, trick-or-treat).
-  return 'community'
+  return inferCategory(ev.SUMMARY || '', ev.DESCRIPTION || '')
 }
 
 function mapTags(ev) {

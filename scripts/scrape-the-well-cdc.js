@@ -112,15 +112,9 @@ function slugify(str) {
   return String(str).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80)
 }
 
+// Category: infer from title + description.
 function mapCategory(title = '', desc = '') {
-  const t = `${title} ${desc}`.toLowerCase()
-  if (/concert|music|dj|band|jazz/.test(t))                      return 'music'
-  if (/juneteenth|festival|fall fest|celebration|block/.test(t)) return 'community'
-  if (/career|workshop|class|training|coffee &/.test(t))         return 'education'
-  if (/fundraiser|gala|taste of/.test(t))                        return 'nonprofit'
-  if (/wrapping|holiday|christmas|gift/.test(t))                 return 'community'
-  if (/food|brunch|breakfast|dinner/.test(t))                    return 'food'
-  return 'community'
+  return inferCategory(title, desc)
 }
 
 // ── Parse ────────────────────────────────────────────────────────────────────
