@@ -5,20 +5,26 @@
  * neighborhood and the historic Kenmore Boulevard business district.
  *   https://www.betterkenmore.org/upcoming-events/
  *
- * The site is WordPress running the Events Manager plugin, which renders an
- * upcoming-events list of structured items:
+ * The site is WordPress running the Events Manager plugin. The
+ * /upcoming-events/ list renders one structured item per event:
  *
  *   <div class="em-event em-item">
- *     <… class="em-event-title"><a href="/events/{slug}/">TITLE</a></…>
+ *     … a /events/{slug}/ permalink (the title link AND a "More Info" link) …
  *     <div class="em-item-meta-line em-event-date">Friday June 5, 2026</div>
- *     <div class="em-item-meta-line em-event-time">9:30 am - 10:30 am</div>
- *     <div class="em-item-meta-line em-event-location">Kenmore Senior Community Center</div>
+ *     <div class="em-item-meta-line em-event-time">7:00 pm - 10:00 pm</div>
+ *     <div class="em-item-meta-line em-event-location">…</div>
  *   </div>
  *
- * Events: the BLVD Block Party, Kenmore First Friday Festival, Rialto Living
- * Room concert series, open-mic jams, and recurring Kenmore Senior Community
- * Center programming (Chair Yoga, Popcorn & Movie Fridays, etc.). All within
- * the Kenmore neighborhood, so the neighborhood resolver tags them.
+ * IMPORTANT: the list markup is unreliable for the *title* — the only link
+ * text Events Manager exposes per item can be the literal "More Info" button,
+ * and the list carries no event description at all. So we use the list only to
+ * harvest each event's permalink + date/time/location, then fetch the event's
+ * own detail page and read its Open Graph tags (og:title / og:description /
+ * og:image) for the real title, the full description, and the hero image.
+ *
+ * `source_id` is the permalink's final path segment, which Events Manager keeps
+ * stable and unique (recurring occurrences carry the date in the slug), so
+ * re-runs update in place rather than duplicating.
  *
  * Usage:   node scripts/scrape-better-kenmore.js
  *
@@ -33,6 +39,7 @@ import {
   logUpsertResult,
   logScraperError,
   stripHtml,
+  decodeEntities,
   enrichWithImageDimensions,
   upsertEventSafe,
   linkEventVenue,
@@ -88,8 +95,32 @@ function metaLine(chunk, cls) {
   ) || null
 }
 
-function slugify(str) {
-  return String(str).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90)
+/** Last path segment of an /events/{slug}/ permalink — our stable source_id. */
+export function permalinkSlug(href) {
+  try {
+    const segs = new URL(href, ORIGIN).pathname.split('/').filter(Boolean)
+    return segs.length ? segs[segs.length - 1] : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Human-readable title derived from a permalink slug. Fallback only — used when
+ * the detail page can't be fetched. Strips trailing recurrence date chains
+ * (…-2026-06-07) and a trailing numeric occurrence suffix (…-2) before
+ * title-casing.
+ */
+export function deSlugTitle(slug) {
+  if (!slug) return 'Better Kenmore Event'
+  const cleaned = String(slug)
+    .replace(/(?:-\d{4}-\d{2}-\d{2})+$/i, '')
+    .replace(/-\d+$/i, '')
+    .split('-')
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+  return cleaned || 'Better Kenmore Event'
 }
 
 function mapCategory(title = '', loc = '') {
@@ -103,7 +134,7 @@ function mapCategory(title = '', loc = '') {
   return 'community'
 }
 
-// ── Parse ────────────────────────────────────────────────────────────────────
+// ── List parse ────────────────────────────────────────────────────────────────
 
 export function parseEvents(html) {
   const events = []
@@ -112,13 +143,16 @@ export function parseEvents(html) {
   for (let i = 1; i < chunks.length; i++) {
     const chunk = chunks[i]
 
-    // Title + permalink: first /events/ link in the item.
+    // Permalink: first /events/ link in the item. Both the title link and the
+    // "More Info" button point at the same permalink, so the href is reliable
+    // even though the link *text* is not.
     const linkMatch = chunk.match(/<a[^>]+href="([^"]*\/events\/[^"#?]+)[^"]*"[^>]*>([\s\S]*?)<\/a>/i)
     if (!linkMatch) continue
     let href = linkMatch[1]
     if (href.startsWith('/')) href = ORIGIN + href
-    const title = stripHtml(linkMatch[2])
-    if (!title) continue
+
+    const sourceId = permalinkSlug(href)
+    if (!sourceId || sourceId === 'events') continue
 
     const dateStr = parseDate(metaLine(chunk, 'em-event-date'))
     if (!dateStr) continue
@@ -126,12 +160,50 @@ export function parseEvents(html) {
     const location = metaLine(chunk, 'em-event-location')
     const imageUrl = firstMatch(chunk, /<img[^>]+(?:data-src|src)="([^"]+\.(?:jpe?g|png|webp)[^"]*)"/i)
 
-    events.push({
-      title, dateStr, timeStr, location, ticketUrl: href, imageUrl,
-      sourceId: slugify(`${title}-${dateStr}`),
-    })
+    // Tentative title from the list — usually unreliable ("More Info"); the
+    // detail-page Open Graph title overrides it in main().
+    const listTitle = stripHtml(linkMatch[2])
+
+    events.push({ listTitle, dateStr, timeStr, location, ticketUrl: href, imageUrl, sourceId })
   }
   return events
+}
+
+// ── Detail-page parse (Open Graph) ─────────────────────────────────────────────
+
+/** Read a <meta property="og:*"> content value, tolerant of attribute order. */
+function metaContent(html, prop) {
+  const escaped = prop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const a = html.match(new RegExp(`<meta[^>]+property=["']${escaped}["'][^>]+content=["']([\\s\\S]*?)["']`, 'i'))
+  if (a) return a[1]
+  const b = html.match(new RegExp(`<meta[^>]+content=["']([\\s\\S]*?)["'][^>]+property=["']${escaped}["']`, 'i'))
+  return b ? b[1] : null
+}
+
+/**
+ * Extract { title, description, image } from an event detail page. Prefers the
+ * Open Graph tags Events Manager (Yoast) emits; falls back to the <h1> for the
+ * title. The og:description is prefixed with a "Friday June 5, 2026 @ 7:00 pm -
+ * 10:00 pm - " date/time string and sometimes ends with a bare share URL — both
+ * are stripped so we store clean copy.
+ */
+export function extractDetail(html) {
+  const rawTitle = metaContent(html, 'og:title') || firstMatch(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) || ''
+  const title = decodeEntities(stripHtml(rawTitle))
+    .replace(/\s*[|–\-]\s*Better Kenmore\s*$/i, '')
+    .trim()
+
+  let description = decodeEntities(metaContent(html, 'og:description') || '')
+  description = description
+    // Leading "Weekday Month D, YYYY @ H:MM am - H:MM pm - " date/time prefix.
+    .replace(/^[A-Za-z]+\s+[A-Za-z]+\s+\d{1,2},\s*\d{4}\s*@\s*[\d:]+\s*[ap]m\s*(?:-\s*[\d:]+\s*[ap]m\s*)?-\s*/i, '')
+    // Trailing bare share URL (Facebook event link, etc.).
+    .replace(/\s*https?:\/\/\S+\s*$/i, '')
+    .trim()
+
+  const image = metaContent(html, 'og:image')
+
+  return { title: title || null, description: description || null, image: image || null }
 }
 
 // ── HTTP ─────────────────────────────────────────────────────────────────────
@@ -148,10 +220,12 @@ async function fetchHtml(url) {
   return res.text()
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('🎸  Starting Better Kenmore ingestion (Events Manager HTML)…')
+  console.log('🎸  Starting Better Kenmore ingestion (Events Manager list + OG detail)…')
   const start = Date.now()
 
   try {
@@ -167,7 +241,7 @@ async function main() {
       await logUpsertResult(SOURCE_KEY, 0, 0, 0, {
         status: parsed.length === 0 ? 'error' : 'ok',
         errorMessage: parsed.length === 0
-          ? 'Page fetched but 0 events parsed — the Events Manager markup may have changed (expected .em-event.em-item with .em-event-date).'
+          ? 'Page fetched but 0 events parsed — the Events Manager markup may have changed (expected .em-event.em-item with .em-event-date and a /events/ permalink).'
           : undefined,
         durationMs:  Date.now() - start,
         eventsFound: parsed.length,
@@ -189,6 +263,23 @@ async function main() {
         const startAt = easternToIso(`${ev.dateStr} ${ev.timeStr}`)
         if (!startAt) { skipped++; continue }
 
+        // Fetch the detail page for the real title, description, and image.
+        // Failures fall back to a slug-derived title so we never store the
+        // "More Info" button text or a blank record.
+        let detail = { title: null, description: null, image: null }
+        try {
+          detail = extractDetail(await fetchHtml(ev.ticketUrl))
+        } catch (e) {
+          console.warn(`  ⚠ Detail fetch failed for ${ev.ticketUrl}: ${e.message}`)
+        }
+        await sleep(250) // be polite between detail-page requests
+
+        const title =
+          detail.title ||
+          (ev.listTitle && !/^more\s*info$/i.test(ev.listTitle) ? ev.listTitle : deSlugTitle(ev.sourceId))
+        const description = detail.description || null
+        const imageUrl = ev.imageUrl || detail.image || null
+
         let venueId = null
         const venueName = ev.location || 'Kenmore Boulevard'
         if (venueCache.has(venueName)) {
@@ -200,16 +291,16 @@ async function main() {
         if (organizerId && venueId) await linkOrganizationVenue(organizerId, venueId)
 
         const row = {
-          title:           ev.title,
-          description:     null,
+          title,
+          description,
           start_at:        startAt,
           end_at:          null,
-          category:        mapCategory(ev.title, ev.location || ''),
+          category:        mapCategory(title, ev.location || ''),
           tags:            ['better-kenmore', 'kenmore', 'akron'],
           price_min:       null,
           price_max:       null,
           age_restriction: 'all_ages',
-          image_url:       ev.imageUrl || null,
+          image_url:       imageUrl,
           ticket_url:      ev.ticketUrl,
           source:          SOURCE_KEY,
           source_id:       ev.sourceId,
@@ -228,7 +319,7 @@ async function main() {
         if (organizerId) await linkEventOrganization(upserted.id, organizerId)
         inserted++
       } catch (err) {
-        console.warn(`  ⚠ Error processing "${ev.title}":`, err.message)
+        console.warn(`  ⚠ Error processing "${ev.sourceId}":`, err.message)
         skipped++
       }
     }

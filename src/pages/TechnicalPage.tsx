@@ -540,9 +540,9 @@ export const DATA_SOURCES: DataSource[] = [
     key:         'better_kenmore',
     label:       'Better Kenmore CDC',
     method:      'HTML scrape',
-    methodDetail:'WordPress Events Manager plugin — /upcoming-events/ .em-event list',
+    methodDetail:'WordPress Events Manager — /upcoming-events/ list for permalinks + dates, then per-event detail-page Open Graph tags',
     venue:       'Kenmore Boulevard district + Kenmore Senior Community Center — Kenmore, Akron',
-    notes:       "Community development corporation for Akron's Kenmore neighborhood and the historic Kenmore Boulevard business district. The site runs the Events Manager plugin, which renders a structured upcoming-events list: each .em-event.em-item carries .em-event-date (\"Friday June 5, 2026\"), .em-event-time (\"9:30 am - 10:30 am\"), .em-event-location, and a /events/{slug} permalink. We split on those items and parse the meta lines directly. Surfaces the BLVD Block Party, Kenmore First Friday Festival, the Rialto Living Room concert series, and recurring Kenmore Senior Community Center programming (Chair Yoga, Popcorn & Movie Fridays). source_id is slug(title)+date so recurring occurrences stay distinct.",
+    notes:       "Community development corporation for Akron's Kenmore neighborhood and the historic Kenmore Boulevard business district. The site runs the Events Manager plugin. Its /upcoming-events/ list carries each event's .em-event-date, .em-event-time, .em-event-location, and a /events/{slug} permalink — but the only per-item link text it exposes is a \"More Info\" button, and the list has no description. So we use the list purely to harvest the permalink + date/time, then fetch each event's detail page and read its og:title / og:description / og:image for the real title, full copy, and hero image. source_id is the permalink's final path segment (stable + unique; recurring occurrences carry the date in the slug). Surfaces the BLVD Block Party, Kenmore First Friday Festival, the Rialto Living Room concert series, and recurring Kenmore Senior Community Center programming (Chair Yoga, Popcorn & Movie Fridays).",
     status:      'active',
   },
   {
