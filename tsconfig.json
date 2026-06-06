@@ -1,0 +1,44 @@
+{
+  "compilerOptions": {
+    /* Environment */
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "useDefineForClassFields": true,
+
+    /* Incremental adoption — JS and TS coexist while we migrate. Existing
+       .js/.jsx files still compile and run unchanged; only .ts/.tsx files
+       (and any .js opted in with `// @ts-check`) are type-checked, so the
+       migration can proceed file by file without a big-bang rewrite. */
+    "allowJs": true,
+    "checkJs": false,
+
+    /* Strictness — the whole point of adopting TS. New typed files must hold
+       this bar; the JS still in flight is exempt until converted. */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+
+    /* We only type-check here (tsc --noEmit); Vite/esbuild do the actual
+       transpilation for the bundle. */
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+
+    /* Path alias — mirrors the `@ -> /src` alias in vite.config.js so editor
+       and compiler resolve imports the same way the bundler does. */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "dist-*", "dist-verify"]
+}

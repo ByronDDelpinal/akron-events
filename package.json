@@ -3,11 +3,13 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "typecheck": "tsc --noEmit",
     "postinstall": "puppeteer browsers install chrome",
     "scrape:eventbrite": "node scripts/scrape-eventbrite.js",
     "scrape:eventbrite:force": "node scripts/scrape-eventbrite.js --force",
@@ -98,6 +100,7 @@
     "supabase": "^2.84.7"
   },
   "devDependencies": {
+    "@types/node": "^22.10.0",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
@@ -107,6 +110,7 @@
     "eslint-plugin-react-refresh": "^0.4.6",
     "proj4": "^2.11.0",
     "shapefile": "^0.6.6",
+    "typescript": "^5.7.2",
     "vite": "^5.2.11"
   }
 }

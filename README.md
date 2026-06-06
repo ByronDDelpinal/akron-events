@@ -131,8 +131,32 @@ The full file-by-file checklist — with the exact files, variables, and Akron v
 ## Stack
 
 - **Frontend:** React 18 + Vite, React Router v6
+- **Language:** TypeScript (see below) — the React frontend is fully TypeScript
 - **Database / Auth / API:** Supabase (PostgreSQL with RLS)
 - **Maps:** Mapbox GL + react-map-gl; boundaries from US Census TIGER/Line and city GIS shapefiles
 - **Dates:** date-fns (event times are normalized in US Eastern — see ADAPTING.md if your city is in another timezone)
 - **Email:** Resend (via Supabase edge functions)
 - **Hosting (production):** Vercel (frontend + `/api` edge functions) + Supabase cloud
+
+### TypeScript
+
+The React frontend (`src/`) is entirely TypeScript, type-checked under `strict`.
+Four modules in `src/lib/` stay `.js` on purpose — `categories.js`, `cities.js`,
+`slug.js`, and `seo/categories.js` are imported directly by the Node scrapers
+and the `/api` edge routes (with explicit `.js` extensions), so they remain
+plain JS (typed via JSDoc) to keep both runtimes working. `tsconfig.json` keeps
+`allowJs` on so those four coexist with the typed frontend. Type-check with:
+
+```bash
+npm run typecheck   # tsc --noEmit
+```
+
+Database types are generated from the live schema into
+`src/lib/database.types.ts` and wired into the Supabase client, so every query
+is typed against the real tables. **Regenerate them after any migration:**
+
+```bash
+npx supabase gen types typescript --project-id <ref> > src/lib/database.types.ts
+```
+
+App-facing aliases (`Event`, `Venue`, `Organization`, …) live in `src/types/`.

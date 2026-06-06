@@ -19,8 +19,13 @@
  *   - Two events with literally identical title + date still share a
  *     slug but resolve to different URLs via their distinct UUIDs.
  *
- * Keep this file dependency-light: it's imported by sitemap generation
- * (Node), schema.org JSON-LD (browser), and every event link in the UI.
+ * Keep this file dependency-light AND in plain JS: it is imported by the
+ * Node `/api` routes (og image + preview) with an explicit `.js` extension
+ * and by sitemap generation, as well as by the browser bundle. Converting it
+ * to `.ts` breaks those Node-runtime imports, so it stays `.js` and is typed
+ * via the JSDoc below (checked when a consumer opts into `// @ts-check`).
+ *
+ * @typedef {{ id?: string|null, title?: string|null, start_at?: string|null }} SluggableEvent
  */
 
 import { format } from 'date-fns'
@@ -37,7 +42,7 @@ const RESERVED_SLUGS = new Set(['submit', 'new', 'edit', 'featured'])
  * Format: `{kebab-title}-{mmm}-{d}` — e.g. `cardboard-garden-may-28`.
  * Falls back to `event` if the title is missing or fully strips out.
  *
- * @param {object} event - must have `title`; `start_at` optional but
+ * @param {SluggableEvent} event - must have `title`; `start_at` optional but
  *   recommended (the date suffix is what disambiguates recurrences).
  * @returns {string}
  */
@@ -78,7 +83,7 @@ export function makeEventSlug(event) {
  * site root if the event has no ID (defensive — shouldn't happen in
  * normal flows).
  *
- * @param {object} event - needs `id`, `title`, and `start_at`.
+ * @param {SluggableEvent} event - needs `id`, `title`, and `start_at`.
  * @returns {string}
  */
 export function eventPath(event) {

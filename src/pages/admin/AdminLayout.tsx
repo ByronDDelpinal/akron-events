@@ -1,0 +1,147 @@
+import { useState, useEffect, type FormEvent } from 'react'
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { supabase } from '@/lib/supabase'
+import { SEO } from '@/lib/seo'
+import './AdminLayout.css'
+
+// ── Auth ──────────────────────────────────────────────────────────────────
+const ADMIN_PW = 'turnoutforwhat?'
+
+function useAdminAuth() {
+  const [authed, setAuthed] = useState(() => sessionStorage.getItem('admin_auth') === '1')
+  const login = (pw: string): boolean => {
+    if (pw === ADMIN_PW) {
+      sessionStorage.setItem('admin_auth', '1')
+      setAuthed(true)
+      return true
+    }
+    return false
+  }
+  const logout = () => { sessionStorage.removeItem('admin_auth'); setAuthed(false) }
+  return { authed, login, logout }
+}
+
+function LoginGate({ onLogin }: { onLogin: (pw: string) => boolean }) {
+  const [pw, setPw] = useState('')
+  const [err, setErr] = useState(false)
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    if (!onLogin(pw)) setErr(true)
+  }
+  return (
+    <div className="admin-login-wrap">
+      <form className="admin-login-card" onSubmit={submit}>
+        <div className="admin-login-icon">🔒</div>
+        <h2 className="admin-login-title">Admin Dashboard</h2>
+        <p className="admin-login-sub">Enter the admin password to continue.</p>
+        {err && <p className="admin-login-err">Incorrect password</p>}
+        <input
+          className="form-input"
+          type="password"
+          value={pw}
+          onChange={(e) => { setPw(e.target.value); setErr(false) }}
+          placeholder="Password"
+          autoFocus
+        />
+        <button className="btn-admin-primary" type="submit">Sign In</button>
+      </form>
+    </div>
+  )
+}
+
+// ── Review queue count badge ──────────────────────────────────────────────
+function useReviewCount() {
+  const [count, setCount] = useState<number | null>(null)
+  useEffect(() => {
+    supabase
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .eq('needs_review', true)
+      .then(({ count: c, error }) => {
+        if (!error) setCount(c ?? 0)
+      })
+  }, [])
+  return count
+}
+
+// ── Sidebar nav items ─────────────────────────────────────────────────────
+interface NavItem {
+  to: string
+  label: string
+  icon: string
+  badge?: boolean
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { to: 'events',        label: 'Events',        icon: '📅' },
+  { to: 'venues',        label: 'Venues',        icon: '📍' },
+  { to: 'organizations', label: 'Organizations', icon: '🏢' },
+  { to: 'areas',         label: 'Areas',         icon: '🏟️' },
+  { to: 'scraper-runs',  label: 'Scraper Runs',  icon: '🤖' },
+  { to: 'email',         label: 'Email',         icon: '✉️' },
+  { to: 'feedback',      label: 'Feedback',      icon: '📣' },
+  { to: 'review',        label: 'Review Queue',  icon: '🔍', badge: true },
+]
+
+const ADMIN_SECTION_LABELS: Record<string, string> = {
+  events:         'Events',
+  venues:         'Venues',
+  organizations:  'Organizations',
+  areas:          'Areas',
+  'scraper-runs': 'Scraper Runs',
+  email:          'Email',
+  feedback:       'Feedback',
+  review:         'Review Queue',
+}
+
+function adminSectionTitle(pathname: string): string {
+  const seg = pathname.replace(/^\/admin\/?/, '').split('/')[0] || 'events'
+  const label = ADMIN_SECTION_LABELS[seg] || seg
+  return `Admin: ${label}`
+}
+
+export default function AdminLayout() {
+  const { authed, login, logout } = useAdminAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const reviewCount = useReviewCount()
+
+  if (!authed) return <LoginGate onLogin={login} />
+
+  const handleLogout = () => { logout(); navigate('/') }
+
+  return (
+    <div className="admin-page">
+      <SEO title={adminSectionTitle(location.pathname)} noindex />
+      <div className="admin-topbar">
+        <h1 className="admin-topbar-title">Akron Pulse Admin</h1>
+        <button className="btn-admin-ghost" onClick={handleLogout}>Log out</button>
+      </div>
+      <div className="admin-layout">
+        <nav className="admin-sidebar">
+          <a href="/" className="admin-nav-btn admin-nav-back">
+            <span className="admin-nav-icon">←</span>
+            Back to Site
+          </a>
+          {NAV_ITEMS.map((item) => (
+            <NavLink
+              key={item.to}
+              to={`/admin/${item.to}`}
+              className={({ isActive }) => `admin-nav-btn ${isActive ? 'active' : ''}`}
+              end={false}
+            >
+              <span className="admin-nav-icon">{item.icon}</span>
+              {item.label}
+              {item.badge && reviewCount != null && reviewCount > 0 && (
+                <span className="admin-nav-badge">{reviewCount}</span>
+              )}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="admin-main">
+          <Outlet />
+        </div>
+      </div>
+    </div>
+  )
+}
