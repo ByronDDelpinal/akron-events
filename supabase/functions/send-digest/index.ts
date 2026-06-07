@@ -240,24 +240,29 @@ function filterEventsForSubscriber(allEvents: Event[], sub: Subscriber, now: Dat
 // fall back to the first color as a solid. Lock these in sync with
 // src/styles/globals.css if the brand palette shifts.
 const CATEGORY_GRADIENT: Record<string, [string, string]> = {
-  music:     ['#162806', '#2A5C18'],
-  art:       ['#180A26', '#481870'],
-  community: ['#082010', '#186030'],
-  nonprofit: ['#180808', '#501828'],
-  food:      ['#082010', '#186030'],
-  sports:    ['#081828', '#1040A0'],
-  fitness:   ['#0A2818', '#18784A'],
-  education: ['#100828', '#2E1060'],
-  nature:    ['#1A2A0E', '#4A6818'],
-  other:     ['#1D2B1F', '#3A6B4A'],
+  music:        ['#162806', '#2A5C18'],
+  theater:      ['#1A0A26', '#4A1870'],
+  film:         ['#0A0A1A', '#1A2860'],
+  comedy:       ['#1A1A08', '#585820'],
+  'visual-art': ['#180A26', '#481870'],
+  food:         ['#082010', '#186030'],
+  sports:       ['#081828', '#1040A0'],
+  fitness:      ['#0A2818', '#18784A'],
+  outdoors:     ['#1A2A0E', '#4A6818'],
+  learning:     ['#100828', '#2E1060'],
+  festival:     ['#1A0808', '#602018'],
+  market:       ['#0A1818', '#186060'],
+  civic:        ['#082010', '#186030'],
+  other:        ['#1D2B1F', '#3A6B4A'],
 }
 
 // Display labels for the no-image placeholder. Single word per
 // category, short enough to render at any thumb size.
 const CATEGORY_LABEL: Record<string, string> = {
-  music: 'Music', art: 'Art', community: 'Community', nonprofit: 'Nonprofit',
-  food: 'Food', sports: 'Sports', fitness: 'Fitness', education: 'Education',
-  nature: 'Nature', other: 'Event',
+  music: 'Music', theater: 'Theater', film: 'Film', comedy: 'Comedy',
+  'visual-art': 'Art', food: 'Food', sports: 'Sports', fitness: 'Fitness',
+  outdoors: 'Outdoors', learning: 'Learning', festival: 'Festival',
+  market: 'Market', civic: 'Civic', other: 'Event',
 }
 
 /**

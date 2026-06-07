@@ -25,9 +25,7 @@ export default function SubscribePage() {
   const [lookahead, setLookahead]   = useState(7)
   const [status, setStatus]         = useState<string | null>(null) // null | 'submitting' | 'success' | 'error'
   const [error, setError]           = useState<string | null>(null)
-  const [magicLinkMode, setMagicLinkMode] = useState(false)
-  const [magicEmail, setMagicEmail] = useState('')
-  const [magicStatus, setMagicStatus] = useState<string | null>(null)
+  const [manageStatus, setManageStatus] = useState<'idle' | 'checking' | 'sent' | 'not_found'>('idle')
 
   /* ── Intent selection ── */
   const toggleIntent = (id: string) => {
@@ -90,23 +88,23 @@ export default function SubscribePage() {
     }
   }
 
-  /* ── Magic link request ── */
-  const handleMagicLink = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!magicEmail.trim() || !magicEmail.includes('@')) return
-    setMagicStatus('sending')
+  /* ── Manage existing subscription ── */
+  const isEmailValid = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())
+
+  const handleManageSubscription = async () => {
+    if (!isEmailValid(email)) return
+    setManageStatus('checking')
+    setError(null)
 
     try {
-      await supabase.functions.invoke('subscribe', {
-        body: {
-          email: magicEmail.trim(),
-          resend_confirmation: true,
-        },
+      const { data, error: fnErr } = await supabase.functions.invoke('subscribe', {
+        body: { email: email.trim(), resend_confirmation: true },
       })
-      // Always show sent — don't reveal whether email exists
-      setMagicStatus('sent')
+      if (fnErr) throw fnErr
+      setManageStatus(data?.found === false ? 'not_found' : 'sent')
     } catch {
-      setMagicStatus('sent') // fail silently for privacy
+      setManageStatus('idle')
+      setError('Something went wrong. Please try again.')
     }
   }
 
@@ -161,10 +159,31 @@ export default function SubscribePage() {
             type="email"
             placeholder="you@example.com"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => { setEmail(e.target.value); setManageStatus('idle') }}
             autoComplete="email"
             required
           />
+          {/* ── Manage existing subscription ── */}
+          <div className="manage-sub-wrap">
+            <button
+              type="button"
+              className={`btn-manage-sub${isEmailValid(email) ? ' btn-manage-sub-active' : ''}`}
+              onClick={handleManageSubscription}
+              disabled={!isEmailValid(email) || manageStatus === 'checking'}
+            >
+              {manageStatus === 'checking' ? 'Checking…' : 'Manage My Subscription'}
+            </button>
+            {manageStatus === 'sent' && (
+              <p className="manage-sub-msg manage-sub-sent">
+                Check your inbox! We sent a preferences link to <strong>{email}</strong>.
+              </p>
+            )}
+            {manageStatus === 'not_found' && (
+              <p className="manage-sub-msg manage-sub-not-found">
+                No subscription found for that email — fill out the form below to get started.
+              </p>
+            )}
+          </div>
         </div>
 
         {/* ── Intents ── */}
@@ -241,45 +260,6 @@ export default function SubscribePage() {
         </p>
       </form>
 
-      {/* ── Already subscribed? ── */}
-      <div className="subscribe-existing">
-        {!magicLinkMode ? (
-          <p className="subscribe-existing-text">
-            Already subscribed?{' '}
-            <button className="link-btn" onClick={() => setMagicLinkMode(true)}>
-              Get a link to your preference center
-            </button>
-          </p>
-        ) : (
-          <form onSubmit={handleMagicLink} className="magic-link-form">
-            <p className="magic-link-label">
-              Enter your email and we'll send a link to your preference center.
-            </p>
-            <div className="magic-link-row">
-              <input
-                className="form-input magic-link-input"
-                type="email"
-                placeholder="you@example.com"
-                value={magicEmail}
-                onChange={(e) => setMagicEmail(e.target.value)}
-                required
-              />
-              <button
-                type="submit"
-                className="btn-submit-form magic-link-btn"
-                disabled={magicStatus === 'sending'}
-              >
-                {magicStatus === 'sending' ? 'Sending…' : 'Send link'}
-              </button>
-            </div>
-            {magicStatus === 'sent' && (
-              <p className="magic-link-sent">
-                If that email is subscribed, a link is on its way. Check your inbox!
-              </p>
-            )}
-          </form>
-        )}
-      </div>
     </div>
   )
 }

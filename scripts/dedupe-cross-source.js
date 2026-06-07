@@ -81,6 +81,67 @@ function hasManualOverrides(ev) {
          Object.keys(ev.manual_overrides).length > 0
 }
 
+// ── Fuzzy-time matching (second pass) ────────────────────────────────────────
+
+/**
+ * Same-day time window for the fuzzy-time pass.
+ * Covers the "doors open vs. show start" pattern (30–90 min typical gap)
+ * and allows for aggregator feeds that round times differently.
+ */
+const FUZZY_TIME_WINDOW_MS = 2 * 60 * 60 * 1000  // 2 hours
+
+/**
+ * Words that carry no event-identity signal. Excluded from fuzzy token
+ * matching so "Jazz Brunch: Doors Open" and "Sunday Jazz Brunch" share
+ * the same meaningful tokens: [jazz, brunch].
+ */
+const STOPWORDS = new Set([
+  'a','an','the','and','or','of','in','at','to','for','with','by','on','is',
+  'are','be','was','were','has','have','had','from','as','its','it','this',
+  'that','their','our','your','his','her','we','they','you','i','my','no',
+  'not','so','if','but','do','get','all','more','up','out',
+  // Event calendar noise words — appear in many unrelated titles
+  'music','live','presents','featuring','ft','feat','event','events',
+  'show','shows','night','evening','morning','afternoon','day','sunday','monday',
+  'tuesday','wednesday','thursday','friday','saturday','am','pm','annual',
+  'first','second','third','special',
+  // Venue-logistics words that don't identify the act
+  'doors','open','free','admission','tickets','register','rsvp',
+])
+
+function tokenizeTitle(title) {
+  return (title || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 1 && !STOPWORDS.has(w))
+}
+
+const FUZZY_THRESHOLD       = 0.75
+const MIN_MEANINGFUL_TOKENS = 2
+
+function tokenOverlap(tokensA, tokensB) {
+  if (!tokensA.length || !tokensB.length) return 0
+  const [shorter, longer] =
+    tokensA.length <= tokensB.length ? [tokensA, tokensB] : [tokensB, tokensA]
+  const longerSet = new Set(longer)
+  return shorter.filter(t => longerSet.has(t)).length / shorter.length
+}
+
+/**
+ * Fuzzy title match: significant token overlap between two event titles.
+ * Only fires when both titles carry at least MIN_MEANINGFUL_TOKENS keywords,
+ * preventing single-word titles ("Jazz") from over-matching.
+ */
+function fuzzyTitlesMatch(a, b) {
+  const ta = tokenizeTitle(a)
+  const tb = tokenizeTitle(b)
+  if (ta.length < MIN_MEANINGFUL_TOKENS || tb.length < MIN_MEANINGFUL_TOKENS) return false
+  return tokenOverlap(ta, tb) >= FUZZY_THRESHOLD
+}
+
+// ── Existing exact-match helpers ──────────────────────────────────────────────
+
 /**
  * Normalize a title so cosmetic differences don't break the dedup match:
  *   "Martell School of Dance: Afternoon of Dance" and
@@ -182,44 +243,95 @@ async function main() {
   }
   console.log(`Loaded ${unique.length} unique events`)
 
-  // Group by (venue_id, start_at, title). Events without a venue link are
-  // excluded from the matching pool — we can't reliably dedup without a venue
-  // anchor.
+  // Bucket events by venue.  Events without a linked venue are excluded —
+  // we can't reliably dedup without a physical-location anchor.
   //
-  // Two-pass strategy:
-  //   Pass 1 — bucket by (venue_id, start_at).  This is fast and exact.
-  //   Pass 2 — within each bucket, further group by title using titlesMatch(),
-  //             which tolerates leading city/org prefixes (e.g. "Akron
-  //             RubberDucks vs. X" from Ticketmaster matching "RubberDucks vs. X"
-  //             from the dedicated scraper).
-  const byVenueTime = new Map()
+  // Matching strategy — three passes, coarsest to finest:
+  //
+  //   Pass 1 (exact-time)  — same venue + exact start_at second, fuzzy title.
+  //                          Catches the common case of the same event scraped
+  //                          by two sources that both record show-start time.
+  //
+  //   Pass 2 (fuzzy-time)  — same venue + start_at within FUZZY_TIME_WINDOW_MS,
+  //                          high token overlap in meaningful title keywords.
+  //                          Catches "BRUNCH with COLIN JOHN" (Jilly's, doors
+  //                          at 11 AM) matching "Colin John Music: Sunday Brunch
+  //                          Music" (Akron Life, show at 12 PM).
+  //
+  // Both passes produce the same Group shape fed into the canonical-selection
+  // and delete logic below.
+
+  const byVenue = new Map()   // venueId → event[]
   let withoutVenue = 0
   for (const e of unique) {
     const venueId = e.event_venues?.[0]?.venue_id
     if (!venueId) { withoutVenue++; continue }
-    const titleKey = normalizeTitle(e.title)
-    if (!titleKey) continue
-    const bucket = `${venueId}|${e.start_at}`
-    if (!byVenueTime.has(bucket)) byVenueTime.set(bucket, [])
-    byVenueTime.get(bucket).push({ ...e, _titleKey: titleKey })
+    if (!e.title) continue
+    if (!byVenue.has(venueId)) byVenue.set(venueId, [])
+    byVenue.get(venueId).push({ ...e, _titleKey: normalizeTitle(e.title) })
   }
   console.log(`Excluded ${withoutVenue} events with no linked venue`)
   console.log('')
 
-  // Pass 2: within each venue+time bucket, group by fuzzy title match.
   const groups = []
+  const matchedIds = new Set()   // prevent an event appearing in two groups
+
+  // ── Pass 1: exact start_at ─────────────────────────────────────────────────
+  const byVenueTime = new Map()
+  for (const [venueId, events] of byVenue) {
+    for (const e of events) {
+      const bucket = `${venueId}|${e.start_at}`
+      if (!byVenueTime.has(bucket)) byVenueTime.set(bucket, [])
+      byVenueTime.get(bucket).push(e)
+    }
+  }
   for (const bucket of byVenueTime.values()) {
-    // cluster: each item is an array of events with matching titles
     const clusters = []
     for (const e of bucket) {
       const existing = clusters.find(c => titlesMatch(c[0]._titleKey, e._titleKey))
       if (existing) existing.push(e)
       else clusters.push([e])
     }
-    for (const cluster of clusters) groups.push(cluster)
+    for (const cluster of clusters) {
+      if (cluster.length > 1) {
+        groups.push(cluster)
+        cluster.forEach(e => matchedIds.add(e.id))
+      }
+    }
   }
 
-  // Keep only multi-event groups
+  // ── Pass 2: fuzzy time window (doors vs. show start, aggregator lag) ────────
+  for (const events of byVenue.values()) {
+    // Only consider events not already matched in pass 1
+    const unmatched = events.filter(e => !matchedIds.has(e.id))
+    // Sort by start_at so the sliding-window comparison is O(n log n) not O(n²)
+    unmatched.sort((a, b) => new Date(a.start_at) - new Date(b.start_at))
+
+    for (let i = 0; i < unmatched.length; i++) {
+      const a = unmatched[i]
+      if (matchedIds.has(a.id)) continue
+
+      const cluster = [a]
+      for (let j = i + 1; j < unmatched.length; j++) {
+        const b = unmatched[j]
+        if (matchedIds.has(b.id)) continue
+
+        const timeDiff = Math.abs(new Date(a.start_at) - new Date(b.start_at))
+        if (timeDiff > FUZZY_TIME_WINDOW_MS) break   // sorted, so no point checking further
+
+        if (fuzzyTitlesMatch(a.title, b.title)) {
+          cluster.push(b)
+        }
+      }
+
+      if (cluster.length > 1) {
+        groups.push(cluster)
+        cluster.forEach(e => matchedIds.add(e.id))
+      }
+    }
+  }
+
+  // Keep only multi-event groups (pass 1 already filters, but be explicit)
   const dupeGroups = groups.filter(g => g.length > 1)
   console.log(`Found ${dupeGroups.length} duplicate group(s)`)
   console.log('')

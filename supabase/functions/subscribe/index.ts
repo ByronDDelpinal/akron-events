@@ -79,8 +79,9 @@ Deno.serve(async (req) => {
         .single()
 
       if (!existing) {
-        // Don't reveal whether email exists — just say "check your inbox"
-        return json({ ok: true, message: 'If that email is subscribed, a link has been sent.' })
+        // Caller asked to manage — tell them they're not subscribed so the
+        // UI can prompt them to fill out the signup form instead.
+        return json({ ok: true, found: false })
       }
 
       if (existing.confirmed) {
@@ -90,7 +91,7 @@ Deno.serve(async (req) => {
         await sendConfirmationEmail(email, existing.token)
       }
 
-      return json({ ok: true, message: 'If that email is subscribed, a link has been sent.' })
+      return json({ ok: true, found: true })
     }
 
     // ── New signup flow ──
