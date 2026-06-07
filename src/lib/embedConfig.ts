@@ -34,7 +34,7 @@ export type EmbedPrice = 'free' | 'under10' | 'under25'
 export type EmbedDate = 'today' | 'this_weekend' | 'this_week' | 'this_month'
 export type EmbedView = 'list' | 'map'
 export type EmbedDensity = 'comfortable' | 'efficient'
-export type EmbedTarget = 'inline' | 'blank'
+export type EmbedTarget = 'inline' | 'blank' | 'external'
 
 export interface EmbedConfig {
   embed: true
@@ -56,7 +56,7 @@ const VALID_PRICE = new Set<EmbedPrice>(['free', 'under10', 'under25'])
 const VALID_DATE = new Set<EmbedDate>(['today', 'this_weekend', 'this_week', 'this_month'])
 const VALID_VIEW = new Set<EmbedView>(['list', 'map'])
 const VALID_DENSITY = new Set<EmbedDensity>(['comfortable', 'efficient'])
-const VALID_TARGET = new Set<EmbedTarget>(['inline', 'blank'])
+const VALID_TARGET = new Set<EmbedTarget>(['inline', 'blank', 'external'])
 
 function csv(value: string | null | undefined): string[] {
   return (value || '').split(',').map((s) => s.trim()).filter(Boolean)

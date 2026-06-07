@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react'
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { SEO } from '@/lib/seo'
 import { THEMES } from '@/lib/themes'
 import { FILTERABLE_CATEGORIES } from '@/lib/categories.js'
@@ -19,6 +19,9 @@ interface BuilderState {
   density: EmbedDensity
   target: EmbedTarget
 }
+
+// Minimum preview width — narrower than this the embed layout breaks down.
+const MIN_PREVIEW_WIDTH = 320
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -110,8 +113,45 @@ export default function EmbedBuilderPage() {
   const [previewKey, setPreviewKey] = useState(0)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
+  // ── Preview resize ────────────────────────────────────────────────
+  // null = fill the column; number = fixed px width (clamped to MIN_PREVIEW_WIDTH).
+  const [previewWidth, setPreviewWidth] = useState<number | null>(null)
+  // Blocks iframe pointer events while dragging so mousemove isn't swallowed.
+  const [isDragging, setIsDragging] = useState(false)
+  const previewFrameRef = useRef<HTMLDivElement>(null)
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startWidth = previewFrameRef.current?.offsetWidth ?? 600
+    setIsDragging(true)
+
+    const onMove = (mv: MouseEvent) => {
+      const delta = mv.clientX - startX
+      setPreviewWidth(Math.max(MIN_PREVIEW_WIDTH, startWidth + delta))
+    }
+    const onUp = () => {
+      setIsDragging(false)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [])
+
+  const resetPreviewWidth = useCallback(() => setPreviewWidth(null), [])
+
+  // Live src — recomputed on every state change (drives the snippet textarea).
   const embedSrc = useMemo(() => buildEmbedSrc(state), [state])
   const snippet = useMemo(() => buildIframeSnippet(state), [state])
+
+  // Debounced src — the iframe only reloads after the user pauses for 600 ms.
+  // Without this, every keypress in the title field triggers a full iframe reload.
+  const [iframeSrc, setIframeSrc] = useState(embedSrc)
+  useEffect(() => {
+    const id = setTimeout(() => setIframeSrc(embedSrc), 600)
+    return () => clearTimeout(id)
+  }, [embedSrc])
 
   const set = useCallback(<K extends keyof BuilderState>(key: K, value: BuilderState[K]) => {
     setState((prev) => ({ ...prev, [key]: value }))
@@ -347,7 +387,17 @@ export default function EmbedBuilderPage() {
                     checked={state.target === 'blank'}
                     onChange={() => set('target', 'blank')}
                   />
-                  <span>Open in new tab <span className="builder-feature-desc">full Akron Pulse site</span></span>
+                  <span>Open in new tab <span className="builder-feature-desc">full Akron Pulse detail page</span></span>
+                </label>
+                <label className="builder-radio">
+                  <input
+                    type="radio"
+                    name="eb-target"
+                    value="external"
+                    checked={state.target === 'external'}
+                    onChange={() => set('target', 'external')}
+                  />
+                  <span>Go direct to event site <span className="builder-feature-desc">skips detail page — best for sidebars</span></span>
                 </label>
               </div>
             </div>
@@ -360,20 +410,48 @@ export default function EmbedBuilderPage() {
 
           <div className="builder-preview-header">
             <span className="builder-preview-label">Live preview</span>
-            <button type="button" className="builder-refresh-btn" onClick={handleRefresh} title="Reload preview">
-              ↺ Reload
-            </button>
+            <div className="builder-preview-header-right">
+              {previewWidth !== null && (
+                <button
+                  type="button"
+                  className="builder-width-reset"
+                  onClick={resetPreviewWidth}
+                  title="Reset to full width"
+                >
+                  ✕ {previewWidth}px
+                </button>
+              )}
+              <button type="button" className="builder-refresh-btn" onClick={handleRefresh} title="Reload preview">
+                ↺ Reload
+              </button>
+            </div>
           </div>
 
-          <div className="builder-preview-frame">
-            <iframe
-              key={previewKey}
-              ref={iframeRef}
-              src={embedSrc}
-              title="Embed preview"
-              className="builder-iframe"
-              loading="lazy"
-            />
+          {/* Resizable preview — flex row so the handle hugs the frame's right edge */}
+          <div className={`builder-preview-wrapper${isDragging ? ' builder-preview-wrapper--dragging' : ''}`}>
+            <div
+              ref={previewFrameRef}
+              className="builder-preview-frame"
+              style={previewWidth !== null ? { width: previewWidth, flex: 'none' } : undefined}
+            >
+              <iframe
+                key={previewKey}
+                ref={iframeRef}
+                src={iframeSrc}
+                title="Embed preview"
+                className="builder-iframe"
+                style={isDragging ? { pointerEvents: 'none' } : undefined}
+                loading="lazy"
+              />
+            </div>
+            <div
+              className="builder-resize-handle"
+              onMouseDown={handleResizeStart}
+              onDoubleClick={resetPreviewWidth}
+              title={`Drag to resize · double-click to reset\nMinimum: ${MIN_PREVIEW_WIDTH}px`}
+            >
+              <div className="builder-resize-grip" />
+            </div>
           </div>
 
           <div className="builder-code-block">
