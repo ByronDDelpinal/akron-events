@@ -1,0 +1,311 @@
+/* ──────────────────────────────────────────────────────────────────
+   EmbedBuilderPage.css
+   Visual configurator for the white-label embed. Two-column layout
+   on wide screens (controls left, preview right); stacks on mobile.
+   All sizing uses the site's design tokens.
+   ────────────────────────────────────────────────────────────────── */
+
+/* ── Hero ────────────────────────────────────────────────────────── */
+.builder-hero {
+  background: var(--bg-nav);
+  padding: var(--space-3xl) var(--space-xl);
+}
+.builder-hero-inner {
+  max-width: var(--width-full);
+  margin: 0 auto;
+}
+.builder-hero h1 {
+  color: var(--white);
+  margin: 0 0 var(--space-sm);
+}
+.builder-hero p {
+  color: var(--overlay-light-50);
+  font-size: var(--text-base);
+  margin: 0;
+  max-width: 520px;
+  line-height: 1.6;
+}
+
+/* ── Two-column layout ───────────────────────────────────────────── */
+.builder-layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: var(--space-3xl);
+  max-width: var(--width-full);
+  margin: var(--space-3xl) auto;
+  padding: 0 var(--space-xl) var(--space-5xl);
+  align-items: start;
+}
+@media (max-width: 820px) {
+  .builder-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Controls sidebar ────────────────────────────────────────────── */
+.builder-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.builder-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+}
+.builder-section-title {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 var(--space-md);
+}
+.builder-section-desc {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin: calc(-1 * var(--space-xs)) 0 var(--space-lg);
+  line-height: 1.5;
+}
+
+/* ── Field primitives ────────────────────────────────────────────── */
+.builder-field {
+  margin-bottom: var(--space-lg);
+}
+.builder-field:last-child {
+  margin-bottom: 0;
+}
+.builder-row {
+  display: flex;
+  gap: var(--space-md);
+}
+.builder-field-half {
+  flex: 1;
+  min-width: 0;
+}
+
+.builder-label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xs);
+  letter-spacing: 0.01em;
+}
+.builder-hint {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: var(--space-xs);
+  line-height: 1.4;
+}
+
+.builder-input,
+.builder-select {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-input, var(--bg-surface));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  padding: var(--space-sm) var(--space-md);
+  transition: border-color 0.15s;
+  appearance: auto;
+}
+.builder-input:focus,
+.builder-select:focus {
+  outline: none;
+  border-color: var(--amber);
+}
+.builder-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* ── Category chips ──────────────────────────────────────────────── */
+.builder-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+.builder-chip {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full, 999px);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  padding: 3px var(--space-sm);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+.builder-chip:hover {
+  border-color: var(--amber);
+  color: var(--text-primary);
+}
+.builder-chip--on {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: var(--white);
+  font-weight: 600;
+}
+
+/* ── Toggle (checkbox) ───────────────────────────────────────────── */
+.builder-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+.builder-toggle input[type="checkbox"] {
+  flex-shrink: 0;
+  margin-top: 2px;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--amber);
+  cursor: pointer;
+}
+
+.builder-feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+.builder-feature-desc {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* ── Radio group ─────────────────────────────────────────────────── */
+.builder-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.builder-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+.builder-radio input[type="radio"] {
+  flex-shrink: 0;
+  margin-top: 2px;
+  accent-color: var(--amber);
+  cursor: pointer;
+}
+
+/* ── Preview column ──────────────────────────────────────────────── */
+.builder-preview-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  /* Stick to top as the controls scroll */
+  position: sticky;
+  top: var(--space-xl);
+}
+
+.builder-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.builder-preview-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.builder-refresh-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  padding: var(--space-xs) var(--space-sm);
+  transition: border-color 0.15s, color 0.15s;
+}
+.builder-refresh-btn:hover {
+  border-color: var(--amber);
+  color: var(--text-primary);
+}
+
+.builder-preview-frame {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-surface);
+  /* Fixed height so the preview doesn't eat the full page. */
+  height: 600px;
+}
+.builder-iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+/* ── Code block ──────────────────────────────────────────────────── */
+.builder-code-block {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.builder-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-nav);
+  padding: var(--space-sm) var(--space-lg);
+}
+.builder-code-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--overlay-light-50);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.builder-copy-btn {
+  background: var(--amber);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--white);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  padding: var(--space-xs) var(--space-md);
+  transition: opacity 0.15s;
+}
+.builder-copy-btn:hover { opacity: 0.88; }
+
+.builder-code-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-card);
+  border: 0;
+  color: var(--text-secondary);
+  display: block;
+  font-family: ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  padding: var(--space-lg);
+  resize: none;
+  white-space: pre;
+  overflow-x: auto;
+}

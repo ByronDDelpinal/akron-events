@@ -20,6 +20,7 @@ import SubscribePage     from '@/pages/SubscribePage'
 import PreferencesPage   from '@/pages/PreferencesPage'
 import UnsubscribePage   from '@/pages/UnsubscribePage'
 import FeedbackPage      from '@/pages/FeedbackPage'
+import EmbedBuilderPage  from '@/pages/EmbedBuilderPage'
 
 // Admin pages
 import AdminLayout from '@/pages/admin/AdminLayout'
@@ -137,6 +138,7 @@ function AppInner() {
           <Route path="/subscribe/preferences"   element={<PreferencesPage />} />
           <Route path="/unsubscribe"             element={<UnsubscribePage />} />
           <Route path="/feedback"                element={<FeedbackPage />} />
+          <Route path="/embed-builder"           element={<EmbedBuilderPage />} />
 
           {/* Admin — nested routing with shared layout */}
           <Route path="/admin" element={<AdminLayout />}>

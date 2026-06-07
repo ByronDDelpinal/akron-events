@@ -15,6 +15,7 @@
  *   family=1                   locked family-friendly facet
  *   features=filter,map,density,price,tags
  *                              allowlist of enabled features; OMITTED = all on
+ *   title=<string>             custom embed heading (default: "Upcoming Events")
  *   view=list|map              initial view (default: list)
  *   density=comfortable|efficient  initial card density (default: comfortable)
  *   target=inline|blank        event click-through (default: inline)
@@ -38,6 +39,7 @@ export type EmbedTarget = 'inline' | 'blank'
 export interface EmbedConfig {
   embed: true
   theme: string
+  title: string | null
   categories: string[]
   price: EmbedPrice | null
   date: EmbedDate | null
@@ -81,6 +83,9 @@ export function parseEmbedConfig(
     : (search ?? new URLSearchParams())
 
   const theme = params.get('theme')
+  // title: free-form string; trim and clamp to 120 chars to prevent abuse.
+  const rawTitle = params.get('title')
+  const title = rawTitle ? rawTitle.trim().slice(0, 120) || null : null
   const categories = csv(params.get('categories'))
   const price = oneOf(params.get('price'), VALID_PRICE, null)
   const date = oneOf(params.get('date'), VALID_DATE, null)
@@ -119,6 +124,7 @@ export function parseEmbedConfig(
   return {
     embed: true,
     theme: theme && isValidTheme(theme) ? theme : DEFAULT_THEME,
+    title,
     categories,
     price,
     date,

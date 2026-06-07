@@ -26,7 +26,7 @@ export default function EmbedHomePage() {
   return (
     <>
       <div className="embed-header">
-        <h2 className="embed-title">Upcoming Events</h2>
+        <h2 className="embed-title">{config.title ?? 'Upcoming Events'}</h2>
         <span className="embed-attribution">
           Powered by{' '}
           <a href={window.location.origin} target="_blank" rel="noopener noreferrer">
