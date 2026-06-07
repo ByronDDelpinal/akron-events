@@ -8,6 +8,9 @@
   margin-bottom: var(--space-md);
   margin-top: 0;
 }
+.prefs-hint-inline {
+  margin-top: var(--space-sm);
+}
 
 .prefs-no-token {
   text-align: center;

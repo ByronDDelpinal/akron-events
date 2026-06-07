@@ -111,10 +111,13 @@ interface Subscriber {
     event_days: number[]
     location: {
       mode: string
-      lat: number
-      lng: number
+      // New format: multiple areas
+      areas?: { lat: number; lng: number; label: string }[]
+      // Legacy format: single area (kept for backward compat)
+      lat?: number
+      lng?: number
       radius_miles: number
-      label: string
+      label?: string
     } | null
     keywords: string[]
     keywords_title_only: boolean
@@ -179,8 +182,17 @@ function filterEventsForSubscriber(allEvents: Event[], sub: Subscriber, now: Dat
     if (prefs.location) {
       const venue = event.venues[0]
       if (venue?.lat && venue?.lng) {
-        const dist = haversine(prefs.location.lat, prefs.location.lng, venue.lat, venue.lng)
-        if (dist > prefs.location.radius_miles) return false
+        const r = prefs.location.radius_miles
+        // New format: include if within radius of ANY selected area
+        if (prefs.location.areas && prefs.location.areas.length > 0) {
+          const nearAny = prefs.location.areas.some(
+            (a) => haversine(a.lat, a.lng, venue.lat, venue.lng) <= r
+          )
+          if (!nearAny) return false
+        } else if (prefs.location.lat != null && prefs.location.lng != null) {
+          // Legacy single-area format
+          if (haversine(prefs.location.lat, prefs.location.lng, venue.lat, venue.lng) > r) return false
+        }
       }
       // If venue has no coords, include it (don't penalize missing data)
     }

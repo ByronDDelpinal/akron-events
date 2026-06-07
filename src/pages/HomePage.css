@@ -133,6 +133,12 @@
   border-bottom-color: var(--overlay-light-05);
   box-shadow: none;
 }
+/* When a search is committed and the input is unfocused, stay visually active */
+.search-input--active {
+  background: var(--overlay-light-12);
+  border-color: var(--amber);
+  padding-right: var(--space-4xl);
+}
 .search-icon {
   position: absolute;
   left: var(--space-lg); top: 50%;
@@ -140,6 +146,24 @@
   color: var(--overlay-light-30);
   pointer-events: none;
 }
+/* Clear (×) button that appears when a search is active */
+.search-clear {
+  position: absolute;
+  right: var(--space-lg); top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--overlay-light-50);
+  font-size: var(--text-xl);
+  line-height: 1;
+  cursor: pointer;
+  padding: var(--space-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition-fast);
+}
+.search-clear:hover { color: var(--white); }
 
 /* ── Search suggestion dropdown ── */
 .search-suggestions {

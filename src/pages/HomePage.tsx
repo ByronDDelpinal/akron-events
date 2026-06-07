@@ -172,7 +172,11 @@ export default function HomePage() {
         <div className="search-wrap" ref={searchWrapRef}>
           <SearchIcon className="search-icon" />
           <input
-            className={`search-input${searchFocused && !searchInput ? ' search-input--open' : ''}`}
+            className={[
+              'search-input',
+              searchFocused && !searchInput ? 'search-input--open' : '',
+              !searchFocused && filters.search ? 'search-input--active' : '',
+            ].filter(Boolean).join(' ')}
             type="text"
             placeholder="Search events, venues, organizers…"
             value={searchInput}
@@ -181,6 +185,20 @@ export default function HomePage() {
             onFocus={() => setSearchFocused(true)}
             onBlur={() => { if (!searchInput) filters.setSearch('') }}
           />
+          {filters.search && (
+            <button
+              className="search-clear"
+              aria-label="Clear search"
+              onMouseDown={(e) => {
+                e.preventDefault()
+                setSearchInput('')
+                filters.setSearch('')
+                setSearchFocused(false)
+              }}
+            >
+              ×
+            </button>
+          )}
 
           {searchFocused && !searchInput && (
             <div className="search-suggestions">

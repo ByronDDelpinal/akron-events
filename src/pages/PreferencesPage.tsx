@@ -123,7 +123,7 @@ export default function PreferencesPage() {
   const [sendDay, setSendDay]         = useState(4) // Thursday
   const [eventDays, setEventDays]     = useState<number[]>([0,1,2,3,4,5,6]) // all days
   const [locationMode, setLocationMode] = useState('anywhere') // 'anywhere' | 'area' | 'zipcode'
-  const [selectedArea, setSelectedArea] = useState<AreaPreset | null>(null)
+  const [selectedAreas, setSelectedAreas] = useState<AreaPreset[]>([])
   const [zipcode, setZipcode]         = useState('')
   const [radius, setRadius]           = useState<number | null>(10)
   const [status, setStatus]           = useState<string | null>(null) // null | 'saving' | 'saved' | 'error'
@@ -175,10 +175,23 @@ export default function PreferencesPage() {
           if (p.location) {
             if (p.location.mode === 'area') {
               setLocationMode('area')
-              const match = AREA_PRESETS.find((a) =>
-                Math.abs(a.lat - p.location.lat) < 0.01 && Math.abs(a.lng - p.location.lng) < 0.01
-              )
-              if (match) setSelectedArea(match)
+              // New format: areas array
+              if (Array.isArray(p.location.areas) && p.location.areas.length > 0) {
+                const matched = p.location.areas
+                  .map((a: { lat: number; lng: number }) =>
+                    AREA_PRESETS.find((preset) =>
+                      Math.abs(preset.lat - a.lat) < 0.01 && Math.abs(preset.lng - a.lng) < 0.01
+                    )
+                  )
+                  .filter(Boolean) as AreaPreset[]
+                if (matched.length > 0) setSelectedAreas(matched)
+              } else if (p.location.lat != null) {
+                // Legacy single-area format — migrate on next save
+                const match = AREA_PRESETS.find((a) =>
+                  Math.abs(a.lat - p.location.lat) < 0.01 && Math.abs(a.lng - p.location.lng) < 0.01
+                )
+                if (match) setSelectedAreas([match])
+              }
             } else if (p.location.mode === 'zipcode') {
               setLocationMode('zipcode')
               setZipcode(p.location.label || '')
@@ -266,15 +279,19 @@ export default function PreferencesPage() {
   }
 
   /* ── Location helpers ── */
-  const selectArea = (area: AreaPreset) => {
-    setSelectedArea(area)
+  const toggleArea = (area: AreaPreset) => {
     setLocationMode('area')
     setZipcode('')
+    setSelectedAreas((prev) =>
+      prev.some((a) => a.id === area.id)
+        ? prev.filter((a) => a.id !== area.id)
+        : [...prev, area]
+    )
   }
 
   const clearLocation = () => {
     setLocationMode('anywhere')
-    setSelectedArea(null)
+    setSelectedAreas([])
     setZipcode('')
   }
 
@@ -284,13 +301,13 @@ export default function PreferencesPage() {
 
     // Build location object
     let location: Row | null = null
-    if (locationMode === 'area' && selectedArea) {
+    if (locationMode === 'area' && selectedAreas.length > 0) {
       location = {
         mode: 'area',
-        lat: selectedArea.lat,
-        lng: selectedArea.lng,
+        areas: selectedAreas.map((a) => ({ lat: a.lat, lng: a.lng, label: a.label })),
         radius_miles: radius,
-        label: selectedArea.label,
+        // Keep a top-level label for display convenience (first selected area)
+        label: selectedAreas.map((a) => a.label).join(', '),
       }
     } else if (locationMode === 'zipcode' && zipcode.length === 5) {
       location = {
@@ -553,18 +570,23 @@ export default function PreferencesPage() {
         </div>
 
         {locationMode === 'area' && (
-          <div className="area-grid">
-            {AREA_PRESETS.map((area) => (
-              <button
-                key={area.id}
-                type="button"
-                className={`area-chip ${selectedArea?.id === area.id ? 'area-active' : ''}`}
-                onClick={() => selectArea(area)}
-              >
-                {area.label}
-              </button>
-            ))}
-          </div>
+          <>
+            <p className="form-hint prefs-hint prefs-hint-inline">
+              Select one or more neighborhoods. Events near any selected area will be included.
+            </p>
+            <div className="area-grid">
+              {AREA_PRESETS.map((area) => (
+                <button
+                  key={area.id}
+                  type="button"
+                  className={`area-chip ${selectedAreas.some((a) => a.id === area.id) ? 'area-active' : ''}`}
+                  onClick={() => toggleArea(area)}
+                >
+                  {area.label}
+                </button>
+              ))}
+            </div>
+          </>
         )}
 
         {locationMode === 'zipcode' && (
@@ -581,7 +603,7 @@ export default function PreferencesPage() {
           </div>
         )}
 
-        {locationMode !== 'anywhere' && (
+        {(locationMode === 'zipcode' || (locationMode === 'area' && selectedAreas.length > 0)) && (
           <div className="form-group radius-group">
             <label className="form-label">Within</label>
             <div className="pill-group pill-group-sm">
