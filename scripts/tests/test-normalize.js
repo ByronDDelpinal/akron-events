@@ -168,6 +168,64 @@ describe('easternToIso', () => {
     assert.ok(result)
     assert.ok(result.startsWith('2026-06-15'))
   })
+
+  // ── Two-argument form ──────────────────────────────────────────────────
+  // Historically easternToIso(date, time) silently dropped the time argument,
+  // landing every such event at midnight (the Akron Zoo "12am" bug). The
+  // two-arg form is now a first-class, supported API. These tests lock it in.
+
+  it('honors a separate time argument (does NOT drop it to midnight)', () => {
+    // July = EDT (UTC-4): 14:00 EDT → 18:00 UTC
+    const result = easternToIso('2026-07-15', '14:00:00')
+    assert.equal(result, '2026-07-15T18:00:00.000Z')
+  })
+
+  it('two-arg and combined forms are equivalent', () => {
+    assert.equal(
+      easternToIso('2026-07-15', '14:00:00'),
+      easternToIso('2026-07-15 14:00:00'),
+    )
+  })
+
+  it('a 7:30 PM show is never stored at midnight (Weathervane regression)', () => {
+    const result = easternToIso('2026-07-15', '19:30:00')
+    assert.equal(result, '2026-07-15T23:30:00.000Z') // 19:30 EDT → 23:30 UTC
+    assert.ok(!result.includes('T04:00:00'), 'must not be midnight Eastern')
+  })
+
+  // ── 12-hour (am/pm) parsing ────────────────────────────────────────────
+  // Several scrapers pass am/pm times (art museum "1:00 pm", akronym "8:00 pm",
+  // blu-jazz "12:00pm"). The old splitter produced NaN/midnight for these.
+
+  it('parses 12-hour pm time with a space (art museum "1:00 pm")', () => {
+    // 13:00 EDT → 17:00 UTC
+    assert.equal(easternToIso('2026-07-15', '1:00 pm'), '2026-07-15T17:00:00.000Z')
+  })
+
+  it('parses 12-hour pm time without a space (blu-jazz "8:00pm")', () => {
+    // 20:00 EDT → 00:00 UTC next day
+    assert.equal(easternToIso('2026-07-15', '8:00pm'), '2026-07-16T00:00:00.000Z')
+  })
+
+  it('parses "a.m." / "p.m." with dots (zoo "10 a.m.")', () => {
+    // 10:00 EDT → 14:00 UTC
+    assert.equal(easternToIso('2026-07-15', '10 a.m.'), '2026-07-15T14:00:00.000Z')
+  })
+
+  it('handles the 12 am / 12 pm boundary correctly', () => {
+    // 12:00 am = 00:00 EDT → 04:00 UTC ; 12:00 pm = 12:00 EDT → 16:00 UTC
+    assert.equal(easternToIso('2026-07-15', '12:00 am'), '2026-07-15T04:00:00.000Z')
+    assert.equal(easternToIso('2026-07-15', '12:00 pm'), '2026-07-15T16:00:00.000Z')
+  })
+
+  it('parses am/pm in the combined-string form too', () => {
+    assert.equal(easternToIso('2026-07-15 1:00 pm'), '2026-07-15T17:00:00.000Z')
+  })
+
+  it('blank/whitespace time argument falls back to midnight', () => {
+    const result = easternToIso('2026-06-01', '   ')
+    assert.ok(result.startsWith('2026-06-01'))
+  })
 })
 
 // ════════════════════════════════════════════════════════════════════════════

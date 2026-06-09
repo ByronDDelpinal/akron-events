@@ -112,6 +112,72 @@ function resolveUrl(href) {
   return BASE_DOMAIN + (href.startsWith('/') ? '' : '/') + href
 }
 
+/**
+ * Read a <meta name|property="prop" content="..."> value, attribute-order-agnostic.
+ */
+export function metaContent(html, prop) {
+  const esc = prop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(
+    `<meta[^>]+(?:name|property)=["']${esc}["'][^>]*content=["']([^"']*)["']`,
+    'i',
+  )
+  const m = html.match(re)
+  if (m) return m[1]
+  const re2 = new RegExp(
+    `<meta[^>]+content=["']([^"']*)["'][^>]*(?:name|property)=["']${esc}["']`,
+    'i',
+  )
+  const m2 = html.match(re2)
+  return m2 ? m2[1] : null
+}
+
+/**
+ * Normalize a "10 a.m." / "4:30pm" token to "HH:MM:00".
+ */
+function toClock(raw) {
+  const m = raw.match(/(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)/i)
+  if (!m) return null
+  let hr = parseInt(m[1], 10)
+  const min = m[2] ?? '00'
+  const isPm = /p/i.test(m[3])
+  if (isPm && hr !== 12) hr += 12
+  if (!isPm && hr === 12) hr = 0
+  return `${String(hr).padStart(2, '0')}:${min}:00`
+}
+
+/**
+ * Parse a start (and optional end) time from detail-page text such as
+ * "10 a.m. - 4 p.m." or "Doors at 6:30 pm". Returns { startStr, endStr }.
+ * startStr falls back to the zoo's 10 a.m. open time when no time is present;
+ * endStr is null unless an explicit range is given.
+ */
+export function parseTimeRangeFromText(text) {
+  if (!text) return { startStr: '10:00:00', endStr: null }
+  const rangeRe = /(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))\s*(?:[-–—]|to)\s*(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))/i
+  const range = text.match(rangeRe)
+  if (range) {
+    const startStr = toClock(range[1])
+    const endStr   = toClock(range[2])
+    if (startStr) return { startStr, endStr: endStr ?? null }
+  }
+  const single = text.match(/\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)/i)
+  const startStr = single ? toClock(single[0]) : null
+  return { startStr: startStr ?? '10:00:00', endStr: null }
+}
+
+/**
+ * Strip a leading time / time-range token off a description so the prose
+ * doesn't start with "10 a.m. - 4 p.m." (which lives in start_at/end_at).
+ */
+function stripLeadingTime(text = '') {
+  return text
+    .replace(
+      /^\s*\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)(?:\s*(?:[-–—]|to)\s*\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))?\.?\s*/i,
+      '',
+    )
+    .trim()
+}
+
 function parseCategory(title = '') {
   const lower = title.toLowerCase()
   const has = (kw) => lower.includes(kw)
@@ -250,27 +316,63 @@ function parseEvents(html) {
   return events.filter(ev => ev.dateStr && ev.dateStr >= today)
 }
 
+// ── Detail page enrichment ──────────────────────────────────────────────────
+
+/**
+ * Fetch an event's detail page to recover the real start/end time and the
+ * description — neither of which exists on the listing cards. Results are
+ * cached by href so recurring events that share a slug (e.g. Zoothing Hour)
+ * only hit the network once.
+ */
+async function fetchDetail(href, cache) {
+  if (!href) return { startStr: null, endStr: null, description: null, imageUrl: null }
+  if (cache.has(href)) return cache.get(href)
+
+  let detail = { startStr: null, endStr: null, description: null, imageUrl: null }
+  try {
+    const html = await fetchHtml(href)
+    const rawDesc = metaContent(html, 'og:description') || metaContent(html, 'description') || ''
+    const cleanDesc = stripHtml(rawDesc)
+    const { startStr, endStr } = parseTimeRangeFromText(cleanDesc)
+    detail = {
+      startStr,
+      endStr,
+      description: stripLeadingTime(cleanDesc).slice(0, 5000) || null,
+      imageUrl:    metaContent(html, 'og:image') || null,
+    }
+  } catch (err) {
+    console.warn(`  ⚠ detail fetch failed for ${href}: ${err.message}`)
+  }
+  cache.set(href, detail)
+  return detail
+}
+
 // ── Process ────────────────────────────────────────────────────────────────
 
 async function processEvents(events, venueId, organizerId) {
   let inserted = 0, skipped = 0
+  const detailCache = new Map()
 
   for (const ev of events) {
     try {
-      const startAt = easternToIso(ev.dateStr, ev.timeStr)
+      const detail = await fetchDetail(ev.href, detailCache)
+      // Prefer the detail-page time; fall back to the listing default.
+      const startTime = detail.startStr ?? ev.timeStr
+      const startAt   = easternToIso(`${ev.dateStr} ${startTime}`)
       if (!startAt) { skipped++; continue }
+      const endAt = detail.endStr ? easternToIso(`${ev.dateStr} ${detail.endStr}`) : null
 
       const row = {
         title:           ev.title,
-        description:     null,
+        description:     detail.description,
         start_at:        startAt,
-        end_at:          null,
+        end_at:          endAt,
         category:        parseCategory(ev.title),
         tags:            parseTags(ev.title),
         price_min:       null,
         price_max:       null,
         age_restriction: 'all_ages',
-        image_url:       ev.imageUrl,
+        image_url:       ev.imageUrl ?? detail.imageUrl,
         ticket_url:      ev.href ?? 'https://www.akronzoo.org/tickets',
         source:          'akron_zoo',
         source_id:       ev.sourceId,
@@ -293,6 +395,8 @@ async function processEvents(events, venueId, organizerId) {
       console.warn(`  ⚠ Error processing "${ev.title}":`, err.message)
       skipped++
     }
+    // Be polite to the zoo's server between detail-page fetches.
+    await new Promise(r => setTimeout(r, 400))
   }
 
   return { inserted, skipped }

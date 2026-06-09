@@ -29,6 +29,11 @@ import {
   ALL_FIXTURES,
 } from './fixtures/akronym-events.js'
 
+/** The America/New_York calendar date (YYYY-MM-DD) for an ISO UTC instant. */
+function easternDate(iso) {
+  return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+}
+
 // Re-implement parsing logic
 function extractDateFromMeta(meta = {}) {
   const candidates = [
@@ -248,7 +253,9 @@ describe('Akronym: Event Normalization', () => {
     assert.equal(row.source, 'akronym_brewing')
     assert.equal(row.source_id, '1')
     assert.equal(row.category, 'music')
-    assert.ok(row.start_at.includes('2026-05-15'))
+    // 8:00 pm EDT on 2026-05-15 → 2026-05-16T00:00:00Z. Assert the Eastern-local
+    // date so an evening event crossing into the next UTC day doesn't false-fail.
+    assert.equal(easternDate(row.start_at), '2026-05-15')
     assert.ok(row.tags.includes('music'))
     assert.ok(row.tags.includes('brewery'))
   })
@@ -256,7 +263,7 @@ describe('Akronym: Event Normalization', () => {
   it('handles meta date fallback keys', () => {
     const row = normalizePost(META_DATE_FALLBACKS)
     assert.ok(row)
-    assert.ok(row.start_at.includes('2026-06-10'))
+    assert.equal(easternDate(row.start_at), '2026-06-10')
   })
 
   it('creates 3-hour end time when only start provided', () => {
@@ -271,7 +278,7 @@ describe('Akronym: Event Normalization', () => {
   it('falls back to post date when no meta fields', () => {
     const row = normalizePost(NO_META_FIELDS)
     assert.ok(row)
-    assert.ok(row.start_at.includes('2026-08-15'))
+    assert.equal(easternDate(row.start_at), '2026-08-15')
   })
 
   it('skips post without title', () => {

@@ -372,16 +372,67 @@ function isEasternDST(utcDate) {
 }
 
 /**
- * Convert an Eastern-local time string ("YYYY-MM-DD HH:MM:SS") to ISO 8601 UTC.
- * Correctly handles EST (UTC-5) vs EDT (UTC-4) transitions.
+ * Parse a clock token into { hour, minute, second }, or null if no time is found.
+ * Accepts 24-hour ("19:30:00", "19:30") and 12-hour ("7:30 pm", "7:30pm",
+ * "7 pm", "10 a.m.") formats. Returns null for empty/timeless input so callers
+ * can default deliberately rather than silently landing on midnight.
  */
-export function easternToIso(localDateStr) {
-  if (!localDateStr) return null
-  const [datePart, timePart = '00:00:00'] = localDateStr.split(' ')
-  const [year, month, day]        = datePart.split('-').map(Number)
-  const [hour, minute, second = 0] = timePart.split(':').map(Number)
+function parseClockToken(raw) {
+  if (raw == null) return null
+  const s = String(raw).trim()
+  if (!s) return null
+  const nums = s.match(/(\d{1,2})(?::(\d{2}))?(?::(\d{2}))?/)
+  if (!nums) return null
+  let hour = parseInt(nums[1], 10)
+  const minute = nums[2] != null ? parseInt(nums[2], 10) : 0
+  const second = nums[3] != null ? parseInt(nums[3], 10) : 0
+  if (Number.isNaN(hour)) return null
+  const ampm = s.match(/(a\.?m\.?|p\.?m\.?)/i)
+  if (ampm) {
+    const isPm = /^p/i.test(ampm[1])
+    if (isPm && hour !== 12) hour += 12
+    if (!isPm && hour === 12) hour = 0
+  }
+  return { hour, minute, second }
+}
+
+/**
+ * Convert an Eastern-local datetime to ISO 8601 UTC, correctly handling
+ * EST (UTC-5) vs EDT (UTC-4) transitions.
+ *
+ * Two equivalent call forms are supported:
+ *   easternToIso('2026-06-13 10:00:00')   // combined "YYYY-MM-DD HH:MM[:SS]"
+ *   easternToIso('2026-06-13', '10:00:00') // separate date + time args
+ *
+ * The time portion accepts 24-hour or 12-hour (am/pm) formats. A second
+ * argument is REQUIRED to be honored — historically passing a 2nd arg was
+ * silently ignored, which dropped the time and produced midnight timestamps.
+ * Missing/blank time defaults to midnight (date-only behavior).
+ */
+export function easternToIso(dateInput, timeInput) {
+  if (!dateInput) return null
+
+  let datePart, timeToken
+  if (timeInput != null && String(timeInput).trim() !== '') {
+    // Two-arg form: take the date portion of arg1, time from arg2.
+    datePart  = String(dateInput).trim().split(/[ T]/)[0]
+    timeToken = String(timeInput).trim()
+  } else {
+    // Combined form: split date from an optional trailing time.
+    const combined = String(dateInput).trim()
+    const sep = combined.search(/[ T]/)
+    datePart  = sep === -1 ? combined : combined.slice(0, sep)
+    timeToken = sep === -1 ? '' : combined.slice(sep + 1).trim()
+  }
+
+  const [year, month, day] = datePart.split('-').map(Number)
   if (!year || !month || !day) return null
+
+  const clock = parseClockToken(timeToken) ?? { hour: 0, minute: 0, second: 0 }
+  const { hour, minute, second } = clock
+
   const localUtcMs = Date.UTC(year, month - 1, day, hour, minute, second)
+  if (Number.isNaN(localUtcMs)) return null
   const approxUtc = new Date(localUtcMs + 5 * 3600_000)
   const offsetHours = isEasternDST(approxUtc) ? 4 : 5
   return new Date(localUtcMs + offsetHours * 3600_000).toISOString()

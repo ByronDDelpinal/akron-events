@@ -32,6 +32,11 @@ import {
   ALL_FIXTURES,
 } from './fixtures/blu-jazz-events.js'
 
+/** The America/New_York calendar date (YYYY-MM-DD) for an ISO UTC instant. */
+function easternDate(iso) {
+  return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+}
+
 // Re-implement parsing logic from scraper
 function parseCard(cardHtml) {
   const idMatch = cardHtml.match(/id="show-(\d+)-(\d{4}-\d{2}-\d{2})"/)
@@ -255,7 +260,9 @@ describe('BLU Jazz: Event Normalization', () => {
     assert.equal(row.category, 'music')
     assert.equal(row.price_min, 20)
     assert.equal(row.price_max, 25)
-    assert.ok(row.start_at.includes('2026-05-15'))
+    // 8:00 pm EDT on 2026-05-15 → 2026-05-16T00:00:00Z. Assert the Eastern-local
+    // date so an evening event crossing into the next UTC day doesn't false-fail.
+    assert.equal(easternDate(row.start_at), '2026-05-15')
     assert.ok(row.tags.includes('jazz'))
     assert.ok(row.tags.includes('live music'))
     assert.ok(row.tags.includes('blu jazz+'))

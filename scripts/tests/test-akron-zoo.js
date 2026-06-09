@@ -2,7 +2,10 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { DATE_FIXTURES, CARD_HTML, FIXTURE_1, FIXTURE_2, ALL_FIXTURES } from './fixtures/zoo-events.js'
+import {
+  DATE_FIXTURES, CARD_HTML, FIXTURE_1, FIXTURE_2, ALL_FIXTURES,
+  DETAIL_HTML, DETAIL_HTML_NO_TIME,
+} from './fixtures/zoo-events.js'
 
 // ── Helpers (inlined to avoid importing the scraper which requires .env) ───
 
@@ -100,7 +103,112 @@ function parseEvents(html) {
   return events
 }
 
+// ── Detail-page helpers (inlined, mirror scrape-akron-zoo.js) ──────────────
+
+function decodeEntities(s) {
+  return s
+    .replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+}
+
+function stripHtmlEnt(s) {
+  return decodeEntities(s.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim()
+}
+
+function metaContent(html, prop) {
+  const esc = prop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(`<meta[^>]+(?:name|property)=["']${esc}["'][^>]*content=["']([^"']*)["']`, 'i')
+  const m = html.match(re)
+  if (m) return m[1]
+  const re2 = new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]*(?:name|property)=["']${esc}["']`, 'i')
+  const m2 = html.match(re2)
+  return m2 ? m2[1] : null
+}
+
+function toClock(raw) {
+  const m = raw.match(/(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)/i)
+  if (!m) return null
+  let hr = parseInt(m[1], 10)
+  const min = m[2] ?? '00'
+  const isPm = /p/i.test(m[3])
+  if (isPm && hr !== 12) hr += 12
+  if (!isPm && hr === 12) hr = 0
+  return `${String(hr).padStart(2, '0')}:${min}:00`
+}
+
+function parseTimeRangeFromText(text) {
+  if (!text) return { startStr: '10:00:00', endStr: null }
+  const rangeRe = /(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))\s*(?:[-–—]|to)\s*(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))/i
+  const range = text.match(rangeRe)
+  if (range) {
+    const startStr = toClock(range[1])
+    const endStr   = toClock(range[2])
+    if (startStr) return { startStr, endStr: endStr ?? null }
+  }
+  const single = text.match(/\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)/i)
+  const startStr = single ? toClock(single[0]) : null
+  return { startStr: startStr ?? '10:00:00', endStr: null }
+}
+
+function stripLeadingTime(text = '') {
+  return text.replace(
+    /^\s*\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)(?:\s*(?:[-–—]|to)\s*\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))?\.?\s*/i,
+    '',
+  ).trim()
+}
+
 // ── Tests ──────────────────────────────────────────────────────────────────
+
+describe('Zoo: Detail-page time parsing', () => {
+  it('extracts start AND end time from "10 a.m. - 4 p.m." range', () => {
+    const desc = stripHtmlEnt(metaContent(DETAIL_HTML, 'description'))
+    const { startStr, endStr } = parseTimeRangeFromText(desc)
+    assert.equal(startStr, '10:00:00')
+    assert.equal(endStr, '16:00:00')
+  })
+
+  it('does NOT default to midnight (the reported bug)', () => {
+    const desc = stripHtmlEnt(metaContent(DETAIL_HTML, 'description'))
+    const { startStr } = parseTimeRangeFromText(desc)
+    assert.notEqual(startStr, '00:00:00')
+  })
+
+  it('falls back to 10 a.m. when no time is in the copy', () => {
+    const desc = stripHtmlEnt(metaContent(DETAIL_HTML_NO_TIME, 'description'))
+    const { startStr, endStr } = parseTimeRangeFromText(desc)
+    assert.equal(startStr, '10:00:00')
+    assert.equal(endStr, null)
+  })
+
+  it('handles "to" and minute precision (e.g. "9:30 am to 12 pm")', () => {
+    const { startStr, endStr } = parseTimeRangeFromText('Doors 9:30 am to 12 pm, rain or shine')
+    assert.equal(startStr, '09:30:00')
+    assert.equal(endStr, '12:00:00')
+  })
+})
+
+describe('Zoo: Detail-page description parsing', () => {
+  it('recovers the description from meta tags (was hardcoded null)', () => {
+    const desc = stripLeadingTime(stripHtmlEnt(metaContent(DETAIL_HTML, 'description')))
+    assert.ok(desc.startsWith('Follow the Yellow Brick Road'), `got: ${desc}`)
+    assert.ok(desc.includes('FREE for Akron Zoo members'))
+  })
+
+  it('strips the leading time range out of the prose', () => {
+    const desc = stripLeadingTime(stripHtmlEnt(metaContent(DETAIL_HTML, 'description')))
+    assert.ok(!/^\d/.test(desc), 'description should not start with a time digit')
+  })
+
+  it('reads og:image from the detail page', () => {
+    assert.equal(
+      metaContent(DETAIL_HTML, 'og:image'),
+      'https://www.akronzoo.org/sites/default/files/2025-12/LTB.png',
+    )
+  })
+})
+
+// ── Original tests ─────────────────────────────────────────────────────────
 
 describe('Zoo: Date Parsing — zoo abbreviated formats', () => {
   for (const { raw, expectedDate } of DATE_FIXTURES) {
