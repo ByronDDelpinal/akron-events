@@ -55,6 +55,15 @@ export const DATA_SOURCES: DataSource[] = [
     status:      'active',
   },
   {
+    key:         'akron_zips',
+    label:       'University of Akron Athletics (Zips)',
+    method:      'iCalendar Feed',
+    methodDetail:'Sidearm Sports composite calendar (gozips.com/calendar.ashx/calendar.ics)',
+    venue:       'On-campus venues — InfoCision Stadium, Skeeles Field, Firestone Stadium, James A. Rhodes Arena',
+    notes:       'Parses the gozips.com composite .ics feed (all sports, sport_id=0). Home games only — filtered to "vs" matchups at Akron venues; away games and BYE weeks are skipped. Titles normalized to "Akron Zips <Sport> vs <Opponent>". Covers football, basketball, baseball, softball, soccer, volleyball, and more.',
+    status:      'active',
+  },
+  {
     key:         'uakron_calendar',
     label:       'University of Akron',
     method:      'REST API',
@@ -753,6 +762,11 @@ const SOURCE_GROUPS: SourceGroup[] = [
     description: 'The MLB official stats endpoint (statsapi.mlb.com), filtered by teamId 402 for the RubberDucks. Returns the full home-game schedule with promotion details (Fireworks Night, Bark in the Park, etc.) carried through into event descriptions.',
   },
   {
+    id:    'sidearm',
+    title: 'Sidearm Sports (University of Akron Athletics)',
+    description: "gozips.com runs on Sidearm Sports, which publishes a composite RFC 5545 iCalendar feed (calendar.ashx/calendar.ics?sport_id=0) covering every Zips sport. We parse it via scripts/lib/ics.js, then filter to upcoming home games at Akron venues — away games and BYE weeks drop out — and normalize titles to \"Akron Zips <Sport> vs <Opponent>\".",
+  },
+  {
     id:    'revize',
     title: 'Revize (City of Akron)',
     description: 'The City of Akron runs on Revize CMS. Its events feed is the same JSON endpoint the on-page FullCalendar widget consumes (/_assets_/plugins/revizeCalendar/calendar_data_handler.php). We ingest four city-managed calendars — Events, Parks & Rec, Lock 3, and Great Streets Akron — and explicitly skip the meetings/HR/oversight calendars.',
@@ -833,6 +847,7 @@ const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   visit_akron_cvb:     'simpleview',
   akron_library:       'communico',
   rubberducks:         'mlb',
+  akron_zips:          'sidearm',
   city_of_akron_lock3: 'revize',
   killbox_comedy:      'seatengine',
   akron_marathon:      'html',
@@ -885,6 +900,7 @@ const SOURCE_GROUP_BY_KEY: Record<string, string> = {
 const SCRAPER_LABELS: Record<string, string> = {
   ticketmaster:       'Ticketmaster',
   rubberducks:        'Akron RubberDucks',
+  akron_zips:         'University of Akron Athletics (Zips)',
   uakron_calendar:    'University of Akron',
   ejthomas_hall:      'E.J. Thomas Hall',
   uakron_myers_art:   'Myers School of Art',

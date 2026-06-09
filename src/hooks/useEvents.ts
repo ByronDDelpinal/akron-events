@@ -188,7 +188,7 @@ export function useEvents({
         if (search && search.trim().length > 0) {
           const term = normalizeSearch(search.trim())
           query = query.or(
-            `title_normalized.ilike.*${term}*,description_normalized.ilike.*${term}*`
+            `title_normalized.ilike.*${term}*,description_normalized.ilike.*${term}*,tags.cs.{${term}}`
           )
         }
 
@@ -501,7 +501,7 @@ export function useMapEvents({
         if (search && search.trim().length > 0) {
           const term = normalizeSearch(search.trim())
           query = query.or(
-            `title_normalized.ilike.*${term}*,description_normalized.ilike.*${term}*`
+            `title_normalized.ilike.*${term}*,description_normalized.ilike.*${term}*,tags.cs.{${term}}`
           )
         }
 

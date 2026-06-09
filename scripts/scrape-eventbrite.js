@@ -60,7 +60,18 @@ const NO_DETAILS = process.argv.includes('--no-details')
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const SEARCH_PAGE    = 'https://www.eventbrite.com/d/oh--akron/events/'
+// All Eventbrite feed URLs to scrape. The general /events/ feed is first and
+// doubles as the session bootstrap URL. The category-specific feeds surface
+// community events that Eventbrite's ranking algorithm buries in the general
+// feed — each has its own page-1 HTML pass; pages 2+ fall back to the POST API.
+const SEARCH_PAGES = [
+  'https://www.eventbrite.com/d/oh--akron/events/',
+  'https://www.eventbrite.com/d/oh--akron/food-and-drink/',
+  'https://www.eventbrite.com/d/oh--akron/music/',
+  'https://www.eventbrite.com/d/oh--akron/community/',
+  'https://www.eventbrite.com/d/oh--akron/family-entertainment/',
+]
+const SEARCH_PAGE    = SEARCH_PAGES[0]   // session bootstrap + Referer header
 const INTERNAL_API   = 'https://www.eventbrite.com/api/v3/destination/search/'
 
 const MAX_PAGES      = 15     // ~20 events/page → up to 300 events
@@ -760,7 +771,6 @@ async function isOnCooldown() {
 async function fetchAllEvents() {
   const allEvents = []
   const seenIds   = new Set()
-  let totalPages  = 1
 
   let session
   try {
@@ -770,84 +780,117 @@ async function fetchAllEvents() {
     throw new Error(`Could not establish Eventbrite session: ${err.message}`)
   }
 
-  console.log(`\n🔍  Fetching Eventbrite events for Akron, OH…`)
+  console.log(`\n🔍  Fetching Eventbrite events for Akron, OH (${SEARCH_PAGES.length} feeds)…`)
 
-  // ── Page 1: Extract everything from the server-rendered HTML ──────────────
-  const p1Result = extractFromHtml(session.html, 'page 1')
-  if (p1Result) {
-    for (const ev of p1Result.events) {
-      const id = String(ev.id)
-      if (!seenIds.has(id)) { seenIds.add(id); allEvents.push(ev) }
-    }
-    // Determine how many more pages exist
-    if (p1Result.data) {
-      totalPages = extractPageCount(p1Result.data)
-      if (totalPages > 1) console.log(`  Total pages reported: ${totalPages} (cap: ${MAX_PAGES})`)
-    }
-  }
+  for (let feedIdx = 0; feedIdx < SEARCH_PAGES.length; feedIdx++) {
+    const feedUrl   = SEARCH_PAGES[feedIdx]
+    const feedLabel = feedUrl.replace('https://www.eventbrite.com/d/oh--akron/', '').replace(/\/$/, '') || 'events'
+    let totalPages  = 1
+    let feedNew     = 0
 
-  // If HTML gave us nothing, try the POST API for page 1 too
-  if (allEvents.length === 0) {
-    const r = await tryInternalPostApi(1, session.cookie, session.csrfToken)
-    if (r) {
-      for (const ev of r.events) {
-        const id = String(ev.id)
-        if (!seenIds.has(id)) { seenIds.add(id); allEvents.push(ev) }
-      }
-      totalPages = extractPageCount(r.data)
-    }
-  }
+    console.log(`\n  📋  Feed ${feedIdx + 1}/${SEARCH_PAGES.length}: /${feedLabel}/`)
 
-  if (allEvents.length === 0) {
-    console.warn('  ⚠ All extraction strategies returned 0 events on page 1.')
-    if (!DEBUG) console.warn('  ℹ️  Run with --debug for detailed output to help diagnose the issue.')
-    return allEvents
-  }
-
-  console.log(`  Page 1: ${allEvents.length} events`)
-
-  // ── Pages 2+: Use POST API (more reliable than re-parsing HTML) ────────────
-  for (let page = 2; page <= Math.min(totalPages, MAX_PAGES); page++) {
-    await jitter()
-
-    let pageEvents = []
-
-    // Try POST API first
-    const r = await tryInternalPostApi(page, session.cookie, session.csrfToken)
-    if (r) pageEvents = r.events
-
-    // If POST didn't work, try fetching the HTML page (slower but may work)
-    if (pageEvents.length === 0) {
+    // ── Page 1: Extract from server-rendered HTML ────────────────────────────
+    //
+    // Feed 0 reuses the HTML already fetched during session establishment
+    // (saves a round-trip). Category feeds require a separate page-1 fetch.
+    let feedHtml = null
+    if (feedIdx === 0) {
+      feedHtml = session.html
+    } else {
       try {
-        const url = `${SEARCH_PAGE}?page=${page}`
-        const res = await fetch(url, { headers: htmlHeaders(SEARCH_PAGE), redirect: 'follow' })
-        if (res.ok) {
-          const html = await res.text()
-          const result = extractFromHtml(html, `page ${page}`)
-          if (result) pageEvents = result.events
-        }
+        await jitter()
+        const res = await fetch(feedUrl, { headers: htmlHeaders(feedUrl), redirect: 'follow' })
+        if (res.ok) feedHtml = await res.text()
       } catch (e) {
-        console.warn(`  ⚠ HTML fetch failed for page ${page}: ${e.message}`)
+        console.warn(`  ⚠ Could not fetch page 1 HTML for /${feedLabel}/: ${e.message}`)
       }
     }
 
-    if (pageEvents.length === 0) {
-      console.log(`  Page ${page}: 0 events — end of results`)
-      break
+    let p1Added = 0
+    if (feedHtml) {
+      const p1Result = extractFromHtml(feedHtml, `${feedLabel} page 1`)
+      if (p1Result) {
+        for (const ev of p1Result.events) {
+          const id = String(ev.id)
+          if (!seenIds.has(id)) { seenIds.add(id); allEvents.push(ev); p1Added++ }
+        }
+        if (p1Result.data) {
+          totalPages = extractPageCount(p1Result.data)
+          if (totalPages > 1) console.log(`    Total pages: ${totalPages} (cap: ${MAX_PAGES})`)
+        }
+      }
     }
 
-    let added = 0
-    for (const ev of pageEvents) {
-      const id = String(ev.id)
-      if (!seenIds.has(id)) { seenIds.add(id); allEvents.push(ev); added++ }
+    // HTML fallback: if page 1 HTML yielded nothing, try the POST API
+    if (p1Added === 0) {
+      const r = await tryInternalPostApi(1, session.cookie, session.csrfToken)
+      if (r) {
+        for (const ev of r.events) {
+          const id = String(ev.id)
+          if (!seenIds.has(id)) { seenIds.add(id); allEvents.push(ev); p1Added++ }
+        }
+        totalPages = extractPageCount(r.data)
+      }
     }
-    console.log(`  Page ${page}: ${added} new events (${pageEvents.length - added} dupes skipped, total: ${allEvents.length})`)
 
-    if (added === 0) {
-      // All events on this page were already seen — we've cycled through everything
-      console.log('  All events on this page were already collected — stopping.')
-      break
+    // If the general feed (feed 0) has zero events, something is broken — bail early
+    if (p1Added === 0 && feedIdx === 0) {
+      console.warn('  ⚠ All extraction strategies returned 0 events on page 1.')
+      if (!DEBUG) console.warn('  ℹ️  Run with --debug for detailed output to help diagnose the issue.')
+      return allEvents
     }
+
+    feedNew += p1Added
+    console.log(`    Page 1: ${p1Added} new events`)
+
+    // ── Pages 2+: POST API (more reliable than re-parsing HTML) ─────────────
+    //
+    // The POST API uses the general oh--akron place_id regardless of which
+    // category feed we're on, so results may overlap with earlier feeds.
+    // seenIds deduplication ensures each event is only collected once.
+    for (let page = 2; page <= Math.min(totalPages, MAX_PAGES); page++) {
+      await jitter()
+
+      let pageEvents = []
+
+      const r = await tryInternalPostApi(page, session.cookie, session.csrfToken)
+      if (r) pageEvents = r.events
+
+      if (pageEvents.length === 0) {
+        try {
+          const url = `${feedUrl}?page=${page}`
+          const res = await fetch(url, { headers: htmlHeaders(feedUrl), redirect: 'follow' })
+          if (res.ok) {
+            const html = await res.text()
+            const result = extractFromHtml(html, `${feedLabel} page ${page}`)
+            if (result) pageEvents = result.events
+          }
+        } catch (e) {
+          console.warn(`  ⚠ HTML fetch failed for /${feedLabel}/ page ${page}: ${e.message}`)
+        }
+      }
+
+      if (pageEvents.length === 0) {
+        console.log(`    Page ${page}: 0 events — end of results`)
+        break
+      }
+
+      let added = 0
+      for (const ev of pageEvents) {
+        const id = String(ev.id)
+        if (!seenIds.has(id)) { seenIds.add(id); allEvents.push(ev); added++ }
+      }
+      feedNew += added
+      console.log(`    Page ${page}: ${added} new (${pageEvents.length - added} cross-feed dupes, total: ${allEvents.length})`)
+
+      if (added === 0) {
+        console.log('    All events on this page already collected — stopping.')
+        break
+      }
+    }
+
+    console.log(`    Feed total: ${feedNew} net-new events`)
   }
 
   return allEvents
@@ -1195,14 +1238,15 @@ async function processEvents(rawEvents) {
       const venueId     = await upsertVenue(ev)
       const organizerId = await upsertOrganizer(ev)
       const enrichedRow = await enrichWithImageDimensions(row)
-      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
+      const { data: upserted, error, isNew } = await upsertEventSafe(enrichedRow)
       if (error) {
         console.warn(`  ⚠ Upsert failed "${ev.name?.text ?? ev.name}":`, error.message)
         skipped++
       } else {
         await linkEventVenue(upserted.id, venueId)
         await linkEventOrganization(upserted.id, organizerId)
-        inserted++
+        if (isNew) inserted++
+        else updated++
       }
     } catch (err) {
       console.warn(`  ⚠ Error processing event ${ev.id}:`, err.message)
