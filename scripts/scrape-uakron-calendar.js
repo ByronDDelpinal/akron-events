@@ -37,7 +37,7 @@ import {
   ensureOrganization,
 } from './lib/normalize.js'
 
-const API_URL = 'https://calendar.uakron.edu/live/json/events?days=90&user_tz=America/New_York'
+const API_URL = 'https://calendar.uakron.edu/live/json/events?days=365&user_tz=America/New_York'
 
 // ── Sub-calendar classification ────────────────────────────────────────────
 //
