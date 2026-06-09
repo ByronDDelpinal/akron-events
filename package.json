@@ -77,6 +77,8 @@
     "test:digest": "node --test scripts/tests/test-send-digest-schema.js",
     "test:normalize": "node --test scripts/tests/test-normalize.js",
     "test:library": "node --test scripts/tests/test-akron-library.js",
+    "moderation:encode": "node scripts/encode-moderation-terms.js",
+    "moderation:load": "node scripts/load-moderation-terms.js",
     "health": "node scripts/check-scraper-health.js",
     "check:venues": "node scripts/check-venue-duplicates.js",
     "check:venues:strict": "node scripts/check-venue-duplicates.js --min-similarity=0.80",

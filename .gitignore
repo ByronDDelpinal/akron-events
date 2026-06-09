@@ -56,3 +56,8 @@ design-proposals/
 data/gis/us_county_boundaries/
 data/gis/ohio_places/
 data/gis/ohio_county_subs/
+
+# content-moderation blocklist — NEVER commit. The list lives only in the
+# MODERATION_TERMS_B64 environment variable (see scripts/encode-moderation-terms.js).
+# A local copy under data/moderation/ exists only for editing and re-encoding.
+data/moderation/

@@ -7,6 +7,7 @@
  */
 
 import { supabaseAdmin } from './supabase-admin.js'
+import { screenEvent } from './content-moderation.js'
 import { getImageDimensions } from './image-dimensions.js'
 import { normalizeImageUrl } from './image-url-normalizer.js'
 import { resolveNeighborhoodSlug } from './neighborhood-resolver.js'
@@ -799,6 +800,29 @@ export async function upsertEventSafe(row) {
   delete sanitized.categories
   sanitized.is_family = isFamily
   sanitized.is_fundraiser = isFundraiser
+
+  // ── Content moderation ────────────────────────────────────────────────────
+  // Screen offensive/hateful content and route it out of the public feed before
+  // it is written. Matches set status to 'pending_review' (or 'cancelled' for the
+  // extreme tier) — both hidden from the front end by RLS. Wrapped so a fault in
+  // moderation can never take down ingestion: on error we log and proceed.
+  // _stripOverriddenFields runs next, so an admin who locks `status` (via
+  // manual_overrides) keeps their decision on re-scrape.
+  try {
+    const screen = screenEvent(sanitized)
+    if (screen.flagged) {
+      sanitized.status = screen.status
+      sanitized.needs_review = true
+      const terms = screen.matches.map((m) => m.term).join(', ')
+      if (screen.severity === 'extreme') {
+        console.error(`  🚨 ESCALATE — extreme content in "${sanitized.title}" → ${screen.status} (matched: ${terms})`)
+      } else {
+        console.warn(`  🚩 Flagged for review — "${sanitized.title}" → ${screen.status} (${screen.severity}: ${terms})`)
+      }
+    }
+  } catch (err) {
+    console.warn(`  ⚠ content moderation skipped (non-fatal): ${err.message}`)
+  }
 
   const safeRow = await _stripOverriddenFields('events', sanitized)
   const { data, error } = await supabaseAdmin
