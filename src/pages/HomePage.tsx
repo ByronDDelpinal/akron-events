@@ -343,7 +343,10 @@ function GridPromo() {
           <span className="grid-promo-icon">📣</span>
           <div className="grid-promo-text">
             <strong>Got an event?</strong>
-            <p>Submit it and we'll add it to the grid.</p>
+            <p>
+              Submit it manually, or just email it to{' '}
+              <a href="mailto:intake@akronpulse.com">intake@akronpulse.com</a>
+            </p>
           </div>
           <Link to="/submit" className="grid-promo-btn">Submit an event →</Link>
         </div>

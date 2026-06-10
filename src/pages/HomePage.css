@@ -626,6 +626,12 @@
   margin: 0;
   line-height: 1.45;
 }
+.grid-promo-text p a {
+  color: var(--amber);
+  font-weight: 600;
+  text-decoration: none;
+}
+.grid-promo-text p a:hover { color: var(--amber-hover); }
 
 .grid-promo-btn {
   margin-top: var(--space-md);

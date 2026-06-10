@@ -161,12 +161,29 @@ export default function Footer() {
           <div className="footer-logo">
             <img src={getThemeLogo(theme)} alt="" aria-hidden="true" className="footer-logo-img" />
           </div>
-          <div className="footer-links">
-            <Link to="/about">About</Link>
-            <Link to="/">Browse Events</Link>
-            <Link to="/subscribe">Get the Newsletter</Link>
-            <Link to="/submit">Submit an Event</Link>
-          </div>
+          <nav className="footer-cols" aria-label="Site">
+            <div className="footer-col">
+              <p className="footer-col-title">Discover</p>
+              <Link to="/">Browse Events</Link>
+              <Link to="/venues">Venues</Link>
+              <Link to="/organizations">Organizations</Link>
+              <Link to="/subscribe">Get the Newsletter</Link>
+            </div>
+            <div className="footer-col">
+              <p className="footer-col-title">Contribute</p>
+              <Link to="/submit">Submit an Event</Link>
+              <a href="mailto:intake@akronpulse.com">Email Your Event</a>
+              <Link to="/embed-builder">Embed the Calendar</Link>
+              <Link to="/organizers">For Organizers &amp; Partners</Link>
+            </div>
+            <div className="footer-col">
+              <p className="footer-col-title">Behind the Scenes</p>
+              <Link to="/about">About</Link>
+              <Link to="/technical">Technical Details</Link>
+              <Link to="/feedback">Feedback</Link>
+              <a href="https://github.com/byronddelpinal/akron-events" target="_blank" rel="noopener noreferrer">GitHub</a>
+            </div>
+          </nav>
           <p className="footer-copy">
             © {new Date().getFullYear()} Akron Pulse
             <span className="footer-copy-sep" aria-hidden="true"> · </span>

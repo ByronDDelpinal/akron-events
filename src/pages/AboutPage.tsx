@@ -29,13 +29,16 @@ const FAQS: Faq[] = [
   {
     question: 'How do I submit an event to Akron Pulse?',
     answer:
-      'Anyone can submit an event through the Submit page. Submissions are reviewed before being published. We also aggregate events from venue websites and partner organizations – so please check to make sure yours isn\'t already listed.',
+      'Anyone can submit an event through the Submit page, or simply email it to intake@akronpulse.com and it will be processed and live within 24 hours. Submissions are reviewed before being published. We also aggregate events from venue websites and partner organizations – so please check to make sure yours isn\'t already listed.',
     answerNode: (
       <>
         Anyone can submit an event through the{' '}
-        <Link to="/submit">Submit page</Link>. Submissions are reviewed before
-        being published. We also aggregate events from venue websites and partner
-        organizations – so please check to make sure yours isn&apos;t already listed.
+        <Link to="/submit">Submit page</Link>, or simply email it to{' '}
+        <a href="mailto:intake@akronpulse.com">intake@akronpulse.com</a> and it
+        will be processed and live within 24 hours. Submissions are reviewed
+        before being published. We also aggregate events from venue websites and
+        partner organizations – so please check to make sure yours isn&apos;t
+        already listed.
       </>
     ),
   },
@@ -101,6 +104,26 @@ export default function AboutPage() {
       <div className="about-body-wrap">
         <div className="about-bar" />
 
+        <div className="about-mission">
+          <div className="about-mission-block">
+            <p className="about-mission-label">Our Mission</p>
+            <p className="about-mission-text">
+              Every event in Summit County, in one place, free forever and
+              available to all, so nobody finds out about the good stuff after
+              it happened.
+            </p>
+          </div>
+          <div className="about-mission-block">
+            <p className="about-mission-label">Our Vision</p>
+            <p className="about-mission-text">
+              A city where showing up is easy: fuller venues, louder blocks,
+              neighbors who actually know each other.
+            </p>
+          </div>
+        </div>
+
+        <div className="about-divider" />
+
         <p className="about-p">
           Akron Pulse will make sure you learn about an event a week early, not a day late.
           We pull data from local websites, venue calendars, ticketing platforms, community
@@ -136,10 +159,11 @@ export default function AboutPage() {
             <h3 className="about-submit-banner__title">Have an Event to Share?</h3>
             <p className="about-submit-banner__desc">
               If you're an organizer, venue, or community member with something
-              happening in Akron, we'd love to feature it.
+              happening in Akron, we'd love to feature it. Submit a form, email
+              it in, or put our whole calendar on your website.
             </p>
           </div>
-          <Link to="/submit" className="about-submit-banner__btn">Submit your event →</Link>
+          <Link to="/organizers" className="about-submit-banner__btn">See all the ways →</Link>
         </div>
 
         <div className="about-divider" />

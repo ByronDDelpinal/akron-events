@@ -173,20 +173,40 @@ footer {
 /* ── Tagline, hub nav, links, theme picker ───────────────────────── */
 .footer-tagline { font-size: var(--text-xs); color: var(--overlay-light-30); margin-bottom: var(--space-lg); }
 
-.footer-links {
-  display: flex;
-  gap: var(--space-2xl);
+/* Three-column sitemap: Discover / Contribute / Behind the Scenes.
+   Replaces the old flat .footer-links row as part of the audience-split
+   IA — organizer/partner paths get their own column. */
+.footer-cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, max-content));
+  gap: var(--space-2xl) var(--space-3xl);
   justify-content: center;
-  flex-wrap: wrap;
+  text-align: left;
   margin-bottom: var(--space-xl);
 }
-.footer-links a {
+@media (max-width: 560px) {
+  .footer-cols { grid-template-columns: 1fr; text-align: center; }
+}
+.footer-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.footer-col-title {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--overlay-light-30);
+  margin: 0 0 var(--space-xs);
+}
+.footer-col a {
   font-size: var(--text-sm);
   color: var(--overlay-light-50);
   text-decoration: none;
   transition: color var(--transition-medium);
 }
-.footer-links a:hover { color: var(--amber-on-dark); }
+.footer-col a:hover { color: var(--amber-on-dark); }
 
 /* ── Hub navigation ─────────────────────────────────────────────────
  * Two-column grid of collapsible category / neighborhood link lists.
