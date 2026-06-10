@@ -24,6 +24,10 @@ export default defineConfig({
      */
     VitePWA({
       registerType: 'autoUpdate',
+      // Deferred script: the default injection was render-blocking
+      // (flagged by Lighthouse). SW registration never needs to beat
+      // first paint.
+      injectRegister: 'script-defer',
       includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Akron Pulse',

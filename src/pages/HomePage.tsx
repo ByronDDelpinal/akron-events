@@ -52,8 +52,21 @@ export default function HomePage() {
   }
 
   // ── Hero video: deferred until the first page of events has loaded ─────
+  // Desktop-only: the mp4 (~1.7 MB) was the single largest payload on
+  // mobile Lighthouse runs and the poster underneath it looks identical
+  // on a phone-sized hero. Also skipped for users on data-saver or with
+  // reduced-motion enabled. Eligibility is checked at unlock time, not
+  // mount, so an SSR/hydration mismatch is impossible.
   const [videoUnlocked, setVideoUnlocked] = useState(false)
-  const handleFirstPageLoad = useCallback(() => setVideoUnlocked(true), [])
+  const handleFirstPageLoad = useCallback(() => {
+    type NetInfo = { saveData?: boolean }
+    const conn = (navigator as Navigator & { connection?: NetInfo }).connection
+    const eligible =
+      window.matchMedia('(min-width: 768px)').matches &&
+      !window.matchMedia('(prefers-reduced-motion: reduce)').matches &&
+      !conn?.saveData
+    if (eligible) setVideoUnlocked(true)
+  }, [])
 
   // ── First page of events (reported up from EventsBrowser) for JSON-LD ──
   const [seoEvents, setSeoEvents] = useState<AppEvent[]>([])

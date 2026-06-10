@@ -184,6 +184,38 @@ export function imageUrlForEvent(
 }
 
 /**
+ * Allowed render widths for the Vercel Image Optimization endpoint.
+ * MUST stay in sync with `images.sizes` in vercel.json — the optimizer
+ * rejects any width not in that list.
+ */
+export type OptimizedImageWidth = 240 | 480 | 960
+
+/**
+ * Wrap an absolute image URL in Vercel Image Optimization
+ * (`/_vercel/image`), which resizes, recompresses, and serves
+ * AVIF/WebP with long-lived caching. Scraped event images arrive at
+ * origin resolution (multi-MB) with no cache headers; this is the
+ * single choke point that fixes both.
+ *
+ * Pick the smallest width that covers the rendered size:
+ *   240 — list-row thumbnails
+ *   480 — event cards
+ *   960 — detail-page heroes
+ *
+ * Pass-throughs: non-http(s) URLs (data:/relative) and local dev,
+ * where the /_vercel/image endpoint doesn't exist.
+ */
+export function optimizedImageUrl(
+  url: string | null,
+  width: OptimizedImageWidth = 480,
+): string | null {
+  if (!url) return null
+  if (!/^https?:\/\//i.test(url)) return url
+  if (import.meta.env.DEV) return url
+  return `/_vercel/image?url=${encodeURIComponent(url)}&w=${width}&q=70`
+}
+
+/**
  * Same chain as `imageUrlForEvent`, but reports which source the
  * resolved URL came from. Useful when downstream code needs to know
  * whether to render with native event-image dimensions (only safe

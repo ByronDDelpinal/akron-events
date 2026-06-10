@@ -34,11 +34,26 @@
       correct families — the inline boot script (below) rewrites this
       href before React mounts if a non-default theme is stored.
     -->
+    <!-- media="print" + onload swap makes the stylesheet non-render-
+         blocking: first paint uses fallback system fonts (every theme
+         URL has display=swap) and the web fonts swap in when ready.
+         Lighthouse flagged the blocking css2 request + its woff2 chain
+         as the largest render-blocking cost on mobile. The onload
+         attribute survives href rewrites by the theme switcher, so
+         later theme loads stay non-blocking too. -->
     <link
       id="theme-fonts"
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Sora:wght@500;700&family=Inter:wght@400;500;700&display=swap"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Sora:wght@500;700&family=Inter:wght@400;500;700&display=swap"
+      />
+    </noscript>
     <script>
       // Apply the user's theme class AND swap the font stylesheet
       // before React mounts, to avoid a flash of the default palette

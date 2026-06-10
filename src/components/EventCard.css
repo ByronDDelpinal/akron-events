@@ -32,8 +32,12 @@
 .card-bg-image {
   position: absolute;
   inset: 0;
-  background-size: cover;
-  background-position: center top;
+  /* <img> element (lazy-loadable), replicating the old CSS-background
+   * cover/center-top crop with object-fit. */
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
   z-index: 0;
 }
 

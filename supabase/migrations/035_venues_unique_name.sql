@@ -1,0 +1,23 @@
+-- ============================================================
+-- Unique index on venues(name)
+--
+-- Problem: ensureVenue (scripts/lib/normalize.js) treats venue name as
+-- the identity key — it looks up by exact name and inserts on miss. The
+-- lookup used maybeSingle(), which errors once two rows share a name;
+-- that error was silently discarded and read as "no match", so every
+-- scraper run inserted another copy. "Canton Civic Center" reached 72
+-- duplicate rows before the 2026-06-09 cleanup (originals preserved in
+-- venues_dedup_backup_20260609).
+--
+-- Fix: enforce at the database what the application already assumes.
+-- With this index, a racing or buggy insert path gets a loud 23505
+-- error instead of silently forking the venue graph.
+--
+-- Note: legitimately distinct venues that share a name (e.g. a chain)
+-- already could not coexist under ensureVenue's name-keyed lookup, so
+-- this index does not constrain anything the app supported. If
+-- per-city venue identity is ever needed, relax this to
+-- UNIQUE (name, city) together with an ensureVenue change.
+-- ============================================================
+
+CREATE UNIQUE INDEX IF NOT EXISTS venues_name_unique_idx ON venues (name);

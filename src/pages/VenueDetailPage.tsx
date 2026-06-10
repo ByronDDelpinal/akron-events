@@ -16,6 +16,7 @@ import {
   gradientForEvent,
   PARKING_LABEL,
   imageUrlForEvent,
+  optimizedImageUrl,
 } from '@/lib/eventFormatting'
 import './VenueDetailPage.css'
 import { BackIcon, CalIcon, GlobeIcon, OrgIcon, PinIcon } from '@/components/icons'
@@ -287,7 +288,7 @@ function VenueEventRow({ event, venueImageUrl }: { event: Row; venueImageUrl?: s
       {/* Thumbnail */}
       <div className="venue-event-thumb">
         {imageUrl
-          ? <img src={imageUrl} alt={event.title} className="venue-event-img" referrerPolicy="no-referrer" loading="lazy" decoding="async" />
+          ? <img src={optimizedImageUrl(imageUrl, 240) ?? imageUrl} alt={event.title} className="venue-event-img" referrerPolicy="no-referrer" loading="lazy" decoding="async" />
           : <div className={`thumb-fill ${gradient}`} />
         }
       </div>

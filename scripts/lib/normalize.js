@@ -622,8 +622,28 @@ export async function ensureVenue(name, details = {}) {
   // time and on existing-but-unclassified rows whenever new lat/lng
   // arrive — same behavior as scripts/classify-venues-by-polygon.js
   // gets us, just spread across the live ingest path.
-  const { data: existing } = await supabaseAdmin
-    .from('venues').select('id, neighborhood_slug').eq('name', trimmed).maybeSingle()
+  //
+  // Lookup uses order+limit(1) rather than maybeSingle(): maybeSingle()
+  // ERRORS when more than one row matches, and a silently-discarded
+  // error here used to read as "no existing venue" → insert another
+  // copy. That runaway produced 72 duplicate "Canton Civic Center"
+  // rows (deduped 2026-06-09; see venues_dedup_backup_20260609 and
+  // migration 035's unique index). On any lookup error we now skip
+  // venue creation entirely — a missing venue link for one run is
+  // recoverable; a duplicate venue row is not.
+  const { data: existingRows, error: lookupError } = await supabaseAdmin
+    .from('venues')
+    .select('id, neighborhood_slug')
+    .eq('name', trimmed)
+    .order('created_at', { ascending: true })
+    .limit(1)
+
+  if (lookupError) {
+    console.warn(`  ⚠ Venue lookup failed for "${trimmed}":`, lookupError.message)
+    _venueNameCache.set(trimmed, null)
+    return null
+  }
+  const existing = existingRows?.[0] ?? null
 
   if (existing) {
     // Update details on existing venue (e.g. corrected coordinates)

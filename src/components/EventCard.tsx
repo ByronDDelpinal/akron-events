@@ -10,6 +10,7 @@ import {
   gradientForEvent,
   AGE_LABEL,
   imageUrlForEvent,
+  optimizedImageUrl,
   type PriceDisplay,
 } from '@/lib/eventFormatting'
 import './EventCard.css'
@@ -92,13 +93,21 @@ function ComfortableCard({ event, featured, price, goTo, embed }: CardProps) {
       tabIndex={0}
       onKeyDown={(e: KeyboardEvent) => e.key === 'Enter' && goTo(event)}
     >
-      {/* Faint background photo — scrim keeps all text at WCAG AA contrast */}
+      {/* Faint background photo — scrim keeps all text at WCAG AA contrast.
+          A real <img> (not a CSS background) so the browser can lazy-load
+          offscreen cards and pick the AVIF/WebP rendition. On load failure
+          the img hides itself; the scrim + card background still render. */}
       {hasImage && (
         <>
-          <div
+          <img
             className="card-bg-image"
+            src={optimizedImageUrl(imageUrl, 480) ?? undefined}
+            alt=""
             aria-hidden="true"
-            style={{ backgroundImage: `url(${imageUrl})` }}
+            loading="lazy"
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={(e) => { e.currentTarget.style.display = 'none' }}
           />
           <div className="card-bg-scrim" aria-hidden="true" />
         </>

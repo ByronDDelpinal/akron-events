@@ -24,6 +24,7 @@ import {
   AGE_LABEL,
   PARKING_LABEL,
   resolveEventImage,
+  optimizedImageUrl,
   type PriceDisplay,
 } from '@/lib/eventFormatting'
 import './EventPage.css'
@@ -345,7 +346,7 @@ function EventBannerImage({ imageUrl, event, gradient }: BannerProps) {
   return (
     <div className="event-detail-banner event-detail-banner--native">
       <img
-        src={imageUrl}
+        src={optimizedImageUrl(imageUrl, 960) ?? imageUrl}
         alt={event.title}
         className="event-banner-img event-banner-img--native"
         referrerPolicy="no-referrer"
@@ -373,7 +374,7 @@ function EventFloatImage({ imageUrl, event }: { imageUrl: string; event: AppEven
 
   return (
     <img
-      src={imageUrl}
+      src={optimizedImageUrl(imageUrl, 960) ?? imageUrl}
       alt={event.title}
       className="event-float-img"
       referrerPolicy="no-referrer"

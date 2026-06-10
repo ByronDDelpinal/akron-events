@@ -1,4 +1,10 @@
 {
+  "images": {
+    "sizes": [240, 480, 960],
+    "formats": ["image/avif", "image/webp"],
+    "minimumCacheTTL": 2678400,
+    "remotePatterns": [{ "protocol": "https", "hostname": "**" }]
+  },
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/api/sitemap.xml" },
     { "source": "/feed.xml",    "destination": "/api/feed.xml" },
