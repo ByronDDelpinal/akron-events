@@ -292,7 +292,7 @@ function mapCategory(evvntCategoryName, title, description) {
 }
 
 function buildTags(category, evvntCategoryName) {
-  const tags = ['akron-life', 'akron']
+  const tags = ['akron']
   if (category !== 'community') tags.push(category)
   if (evvntCategoryName) {
     const slug = evvntCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')

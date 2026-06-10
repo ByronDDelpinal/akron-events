@@ -138,7 +138,7 @@ function mapCategory(ev) {
 
 function mapTags(ev) {
   const text = (ev.SUMMARY || '').toLowerCase()
-  const tags = ['city-of-green', 'green-ohio', 'summit-county', 'parks-recreation']
+  const tags = ['green-ohio', 'summit-county', 'parks-recreation']
   if (/freedomfest|4th of july|fourth of july|independence/.test(text))   tags.push('fourth-of-july')
   if (/christmas|holiday/.test(text))                                     tags.push('seasonal', 'holiday')
   if (/trick-or-treat|halloween|wilderfest/.test(text))                   tags.push('halloween', 'family')

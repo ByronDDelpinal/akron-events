@@ -81,7 +81,7 @@ function mapCategory(item) {
 
 function mapTags(item) {
   const t = (item.title ?? '').toLowerCase()
-  const tags = ['rialto', 'kenmore', 'live-music', 'akron']
+  const tags = ['kenmore', 'live-music', 'akron']
 
   if (/living room/i.test(t))                            tags.push('acoustic', 'intimate')
   if (/emerging sounds/i.test(t))                        tags.push('emerging-sounds', 'local-artists')

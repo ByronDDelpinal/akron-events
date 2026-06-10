@@ -325,7 +325,7 @@ async function ensureStanHywetOrganizer() {
 
 function parseTags(title = '', alert = '') {
   const text = `${title} ${alert}`.toLowerCase()
-  const tags = ['stan-hywet', 'historic-estate']
+  const tags = ['historic-estate']
   if (/garden|plant|bloom|flower/.test(text)) tags.push('gardens')
   if (/family|kids|children|junior/.test(text))  tags.push('family')
   if (/holiday|christmas|halloween|murder mystery/.test(text)) tags.push('seasonal')

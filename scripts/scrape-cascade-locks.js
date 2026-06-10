@@ -88,7 +88,7 @@ function mapCategory(item) {
 
 function mapTags(item) {
   const text = `${item.title ?? ''} ${item.excerpt ?? ''}`.toLowerCase()
-  const tags = ['cascade-locks', 'canal', 'akron', 'ohio-erie-canal']
+  const tags = ['canal', 'akron', 'ohio-erie-canal']
   if (/\bfree lunch friday\b/.test(text))         tags.push('free-lunch-friday', 'free')
   if (/\b(lock 10|beech street)\b/.test(text))    tags.push('beech-trailhead', 'lock-10')
   if (/\bferndale\b/.test(text))                  tags.push('ferndale-trailhead')

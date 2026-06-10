@@ -109,7 +109,7 @@ export function parseZipsGame(ev, now = new Date()) {
 
   const venueName = parseVenueName(location)
   const slug = sportSlug(sport)
-  const tags = ['sports', 'akron-zips', 'zips', 'college', 'university-of-akron', 'family']
+  const tags = ['sports', 'zips', 'college', 'university-of-akron', 'family']
   if (slug) tags.push(slug)
 
   const rawDesc = stripHtml(ev.DESCRIPTION || '').trim()

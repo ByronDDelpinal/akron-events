@@ -45,7 +45,7 @@ const byKeyBlock = section('export const SOURCE_GROUP_BY_KEY', '\n}\n')
 
 // Each DATA_SOURCES entry: capture its key, whether it has subOf and/or label
 const dsEntries = []
-for (const entry of dsBlock.split(/\n  \{\n/).slice(1)) {
+for (const entry of dsBlock.split(/\n {2}\{\n/).slice(1)) {
   const key = entry.match(/key:\s*'([^']+)'/)?.[1]
   if (!key) continue
   dsEntries.push({

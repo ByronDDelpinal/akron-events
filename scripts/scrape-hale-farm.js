@@ -255,7 +255,7 @@ function mapCategory(title = '', description = '') {
 
 function mapTags(title = '') {
   const t = title.toLowerCase()
-  const tags = ['hale-farm', 'historical', 'wrhs', 'bath-township']
+  const tags = ['historical', 'bath-township']
   if (/glassblow/i.test(t))      tags.push('glassblowing', 'craft')
   if (/dyeing|indigo/i.test(t))  tags.push('natural-dyeing', 'craft')
   if (/blacksmith/i.test(t))     tags.push('blacksmithing', 'craft')

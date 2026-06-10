@@ -31,7 +31,7 @@ function mapCategory(ev) {
 
 function mapTags(ev) {
   const summary = (ev.SUMMARY || '').toLowerCase()
-  const tags = ['north-hill', 'community', 'akron']
+  const tags = ['community', 'akron']
   if (summary.includes('maker monday')) tags.push('maker-monday')
   return [...new Set(tags)]
 }

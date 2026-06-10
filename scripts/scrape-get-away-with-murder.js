@@ -116,7 +116,7 @@ function mapCategory(title = '', description = '') {
 
 function mapTags(title = '') {
   const t = title.toLowerCase()
-  const tags = ['gawm', 'immersive-theatre', 'murder-mystery', 'akron']
+  const tags = ['immersive-theatre', 'murder-mystery', 'akron']
   if (/audition/i.test(t))                    tags.push('audition', 'acting')
   if (/workshop|class\b/i.test(t))            tags.push('workshop')
   if (/dinner|party/i.test(t))                tags.push('dinner-theatre')

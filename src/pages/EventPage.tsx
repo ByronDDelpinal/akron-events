@@ -391,9 +391,27 @@ function EventFloatImage({ imageUrl, event }: { imageUrl: string; event: AppEven
 /**
  * Renders a plain-text description (produced by htmlToText). Splits on double
  * newlines into paragraphs; bullet paragraphs become <ul> lists.
+ *
+ * Also handles the Ticketmaster/plain-text convention of ALL-CAPS section
+ * headers embedded inline (e.g. "…sentence. SECTION TITLE Next sentence…").
+ * These are detected and converted to paragraph breaks so the text doesn't
+ * render as a single wall of text.
  */
 function EventDescription({ text }: { text: string }) {
-  const blocks = text.split(/\n\n+/).filter(Boolean)
+  // Normalize ALL-CAPS section headers to paragraph boundaries.
+  // Pattern: a sentence-ending char (or start-of-string) followed by an
+  // ALL-CAPS phrase (1–4 words of 2+ uppercase letters each) followed by
+  // the start of a new mixed-case sentence. We insert \n\n before the header
+  // and \n\n after so the header becomes its own short paragraph.
+  const normalized = text
+    .replace(
+      /(^|[.!?"])\s+([A-Z]{2}[A-Z ]{0,40}[A-Z])\s+(?=[A-Z][a-z])/g,
+      (_, punct, header) => `${punct}\n\n${header}\n\n`,
+    )
+    // Also handle a header at the very start of the string with no prior punct
+    .replace(/^([A-Z]{2}[A-Z ]{0,40}[A-Z])\s+(?=[A-Z][a-z])/, '$1\n\n')
+
+  const blocks = normalized.split(/\n\n+/).filter(Boolean)
   return (
     <div className="event-detail-desc">
       {blocks.map((block, i) => {

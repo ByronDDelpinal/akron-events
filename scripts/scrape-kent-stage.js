@@ -193,7 +193,7 @@ function mapCategory(title = '', description = '') {
 
 function mapTags(title = '') {
   const t = title.toLowerCase()
-  const tags = ['kent-stage', 'kent', 'live-music', 'concert-venue']
+  const tags = ['kent', 'live-music', 'concert-venue']
   if (/comedy|comedian|stand[- ]?up/i.test(t))           tags.push('comedy')
   if (/tribute/i.test(t))                                tags.push('tribute')
   if (/blues/i.test(t))                                  tags.push('blues')

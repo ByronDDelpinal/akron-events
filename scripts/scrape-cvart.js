@@ -242,7 +242,7 @@ function decodeHtmlEntities(s) {
 
 function mapTags(title = '') {
   const t = title.toLowerCase()
-  const tags = ['cvart', 'cvac', 'art-gallery', 'artist-reception', 'cuyahoga-falls']
+  const tags = ['art-gallery', 'artist-reception', 'cuyahoga-falls']
   if (/floral|landscape/i.test(t)) tags.push('floral', 'landscape')
   if (/juried/i.test(t))           tags.push('juried-exhibition')
   if (/wpa\b/i.test(t))            tags.push('works-on-paper')

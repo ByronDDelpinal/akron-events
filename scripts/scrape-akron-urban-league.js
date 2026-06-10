@@ -149,7 +149,7 @@ function mapCategory(title = '', desc = '') {
 
 function mapTags(title = '', desc = '') {
   const t    = (title + ' ' + desc).toLowerCase()
-  const tags = ['akron-urban-league', 'akron', 'community']
+  const tags = ['akron', 'community']
   if (/mlk|martin luther king|breakfast/.test(t))   tags.push('mlk', 'annual-breakfast')
   if (/juneteenth/.test(t))                          tags.push('juneteenth')
   if (/gala|champions of change/.test(t))            tags.push('gala', 'fundraiser')

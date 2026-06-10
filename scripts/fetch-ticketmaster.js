@@ -45,6 +45,24 @@ const TM_SEGMENT_MAP = {
 
 // ── Helpers ───────────────────────────────────────────────────────
 
+/**
+ * Ticketmaster's `ev.info` field is plain text that uses ALL-CAPS phrases as
+ * section headers (e.g. "BIOGRAPHY", "THE EARLY YEARS", "MYSTIC OF TODAY").
+ * Insert double newlines around these headers so descriptions store with real
+ * paragraph structure rather than as a single wall of text.
+ */
+function normalizeTmDescription(raw) {
+  if (!raw) return null
+  return raw
+    .replace(
+      /(^|[.!?"])\s+([A-Z]{2}[A-Z ]{0,40}[A-Z])\s+(?=[A-Z][a-z])/g,
+      (_, punct, header) => `${punct}\n\n${header}\n\n`,
+    )
+    .replace(/^([A-Z]{2}[A-Z ]{0,40}[A-Z])\s+(?=[A-Z][a-z])/, '$1\n\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 async function tm(path, params = {}) {
   const url = new URL(`${BASE_URL}${path}`)
   url.searchParams.set('apikey', TM_KEY)
@@ -241,7 +259,7 @@ async function processEvents(rawEvents) {
 
       const row = {
         title:           ev.name,
-        description:     ev.info ?? ev.pleaseNote ?? null,
+        description:     normalizeTmDescription(ev.info ?? ev.pleaseNote ?? null),
         start_at:        ev.dates?.start?.dateTime ?? null,
         end_at:          null,   // TM rarely provides end times
         category,

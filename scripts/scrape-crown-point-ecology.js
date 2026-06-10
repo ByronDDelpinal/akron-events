@@ -73,7 +73,7 @@ function mapCategory(item) {
 
 function mapTags(item) {
   const text = `${item.title ?? ''} ${item.excerpt ?? ''}`.toLowerCase()
-  const tags = ['crown-point', 'ecology', 'farm', 'akron']
+  const tags = ['ecology', 'farm', 'akron']
   if (/\bmeadow music\b/.test(text))                  tags.push('meadow-music', 'concert', 'outdoors')
   if (/\brooted conversations\b/.test(text))          tags.push('speaker-series')
   if (/\brise and shine\b/.test(text))                tags.push('youth', 'family')

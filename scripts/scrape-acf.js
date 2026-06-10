@@ -216,7 +216,7 @@ async function main() {
           if (organizerId && venueId) await linkOrganizationVenue(organizerId, venueId)
         }
 
-        const tags = ['akron-community-foundation', 'akron', 'nonprofit']
+        const tags = ['akron', 'nonprofit']
         if (ev.fund) tags.push(slugify(ev.fund))
 
         const row = {

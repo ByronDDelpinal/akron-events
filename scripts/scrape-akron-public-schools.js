@@ -73,7 +73,7 @@ function mapCategory(ev) {
 }
 
 function mapTags(ev) {
-  const tags = ['schools', 'akron-public-schools', 'education']
+  const tags = ['schools', 'education']
   const text = (ev.SUMMARY || '').toLowerCase()
   if (/\b(game|match|tournament)\b/.test(text)) tags.push('athletics')
   if (/\b(concert|recital|band|choir|orchestra)\b/.test(text)) tags.push('music')

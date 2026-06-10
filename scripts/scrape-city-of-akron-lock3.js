@@ -212,7 +212,7 @@ function extractImageUrl(rawImage) {
 }
 
 function buildTags(ev, calendarName) {
-  const tags = ['city-of-akron']
+  const tags = ['akron']
   if (calendarName) tags.push(calendarName.toLowerCase().replace(/[^a-z0-9]+/g, '-'))
   if (ev.rrule)     tags.push('recurring')
   return [...new Set(tags)]
