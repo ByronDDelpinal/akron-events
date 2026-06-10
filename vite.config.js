@@ -47,9 +47,20 @@ export default defineConfig({
         icons: [
           { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
           { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+          // 1024px: Android's install splash shows the largest icon at
+          // ~192dp, which is >512 physical px on 3x screens. Providing
+          // 1024 means the splash downscales (sharp) instead of
+          // upscaling (pixelated).
+          { src: '/pwa-1024x1024.png', sizes: '1024x1024', type: 'image/png' },
           {
             src: '/maskable-icon-512x512.png',
             sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+          {
+            src: '/maskable-icon-1024x1024.png',
+            sizes: '1024x1024',
             type: 'image/png',
             purpose: 'maskable',
           },

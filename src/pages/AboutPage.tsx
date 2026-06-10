@@ -108,9 +108,9 @@ export default function AboutPage() {
           <div className="about-mission-block">
             <p className="about-mission-label">Our Mission</p>
             <p className="about-mission-text">
-              Every event in Summit County, in one place, free forever and
-              available to all, so nobody finds out about the good stuff after
-              it happened.
+              To create the region's ultimate discovery platform where every
+              event, opportunity, and experience is easy to find, so people can
+              always see what's going on before it happens.
             </p>
           </div>
           <div className="about-mission-block">
