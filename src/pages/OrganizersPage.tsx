@@ -24,7 +24,7 @@ export default function OrganizersPage() {
   const seoGraph = buildGraph(
     breadcrumbSchema([
       { name: 'Home', url: '/' },
-      { name: 'For Organizers & Partners', url: '/organizers' },
+      { name: 'Organizers & Partners', url: '/organizers' },
     ]),
   )
 

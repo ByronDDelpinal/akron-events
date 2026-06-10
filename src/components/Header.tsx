@@ -62,7 +62,7 @@ export default function Header() {
 
         <nav className="nav-links">
           <Link to="/about" className={`nav-link ${isActive('/about') ? 'active' : ''}`}>About</Link>
-          <Link to="/organizers" className={`nav-link ${isActive('/organizers') ? 'active' : ''}`}>For Organizers</Link>
+          <Link to="/organizers" className={`nav-link ${isActive('/organizers') ? 'active' : ''}`}>Organizers &amp; Partners</Link>
         </nav>
 
         <div className="nav-cta-group">
@@ -83,7 +83,7 @@ export default function Header() {
       {menuOpen && (
         <div className="mobile-menu open">
           <button className={`mobile-nav-link ${isActive('/about') ? 'active' : ''}`} onClick={() => navTo('/about')}>About</button>
-          <button className={`mobile-nav-link ${isActive('/organizers') ? 'active' : ''}`} onClick={() => navTo('/organizers')}>For Organizers</button>
+          <button className={`mobile-nav-link ${isActive('/organizers') ? 'active' : ''}`} onClick={() => navTo('/organizers')}>Organizers &amp; Partners</button>
           <button className="mobile-menu-cta mobile-menu-cta-outline" onClick={() => navTo('/submit')}>+ Submit Event</button>
           <button className="mobile-menu-cta" onClick={() => navTo('/subscribe')}>Subscribe</button>
         </div>

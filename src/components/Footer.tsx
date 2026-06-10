@@ -174,7 +174,7 @@ export default function Footer() {
               <Link to="/submit">Submit an Event</Link>
               <a href="mailto:intake@akronpulse.com">Email Your Event</a>
               <Link to="/embed-builder">Embed the Calendar</Link>
-              <Link to="/organizers">For Organizers &amp; Partners</Link>
+              <Link to="/organizers">Organizers &amp; Partners</Link>
             </div>
             <div className="footer-col">
               <p className="footer-col-title">Behind the Scenes</p>
