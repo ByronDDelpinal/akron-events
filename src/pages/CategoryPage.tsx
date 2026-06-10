@@ -319,6 +319,106 @@ export default function CategoryPage() {
     .map((s: string) => getHub(s))
     .filter((h: Hub | null) => h && !h.disabled)
 
+  // ── Hero layout pieces ────────────────────────────────────────────
+  // Map-bearing hubs (neighborhood / city) arrange the controls — share,
+  // search, filter & sort, event count — in a column to the left of the
+  // map, with the grid below and the SEO intro copy after the grid.
+  // Category hubs (no map) keep the stacked intro-first layout.
+  const hasMap = isNeighborhood || isAkronCity || isCity
+
+  const shownCount = isAkronNeighborhood || isCategory ? total : events.length
+  const countLabel = shownCount > 0
+    ? `${shownCount.toLocaleString()} upcoming ${shownCount === 1 ? 'event' : 'events'}`
+    : 'Upcoming events'
+
+  const mapAside: ReactNode = isNeighborhood ? (
+    <NeighborhoodMap activeSlug={hub.slug} />
+  ) : isAkronCity ? (
+    <div className="akron-map-stack">
+      {akronMapView === 'neighborhoods'
+        ? <NeighborhoodMap activeSlug={null} activeLabelOverride="all of Akron" />
+        : <SummitCountyMap activeSlug={AKRON_SLUG} />}
+
+      <div className="akron-map-toggle">
+        <label htmlFor="akron-map-toggle-select" className="akron-map-toggle-label">
+          View
+        </label>
+        <select
+          id="akron-map-toggle-select"
+          className="akron-map-toggle-select"
+          value={akronMapView}
+          onChange={(e) => setAkronMapView(e.target.value)}
+        >
+          <option value="neighborhoods">Akron Neighborhoods</option>
+          <option value="summit-county">Summit County</option>
+        </select>
+      </div>
+    </div>
+  ) : isCity ? (
+    <SummitCountyMap activeSlug={hub.slug} />
+  ) : null
+
+  const shareRow = (
+    <div className="hub-share">
+      <ShareButtons
+        url={canonicalPath}
+        title={hub.h1}
+        text={hub.metaDescription}
+        campaign={isCategory ? 'category_hub' : isCity ? 'city_hub' : 'neighborhood_hub'}
+      />
+    </div>
+  )
+
+  const searchBox = (
+    <div className="hub-search">
+      <HubSearchIcon />
+      <input
+        className="hub-search-input"
+        type="text"
+        placeholder={`Search ${hub.label.toLowerCase()}…`}
+        value={searchInput}
+        onChange={(e) => setSearchInput(e.target.value)}
+        onKeyDown={onSearchKeyDown}
+        onBlur={onSearchBlur}
+        aria-label={`Search ${hub.label}`}
+      />
+      {searchInput && (
+        <button
+          type="button"
+          className="hub-search-clear"
+          onClick={() => { setSearchInput(''); setSearch('') }}
+          aria-label="Clear search"
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  )
+
+  const filtersPanel = (
+    <HubFilters
+      lockedDimensions={lockedDimensions}
+      sort={sort}                      onSort={setSort}
+      activeIntentId={activeIntentId}  onIntentId={setActiveIntentId}
+      rawCategories={rawCategories}    onRawCategories={setRawCategories}
+      priceFilter={priceFilter}        onPriceFilter={setPriceFilter}
+      dateFrom={dateFrom}              onDateFrom={setDateFrom}
+      dateTo={dateTo}                  onDateTo={setDateTo}
+      hasAnyUserFilter={
+        !!activeIntentId
+        || rawCategories.length > 0
+        || priceFilter !== null
+        || dateFrom !== null
+        || dateTo !== null
+        || sort !== 'soonest'
+      }
+      onClearAll={() => {
+        setSearchInput('')
+        setSearchParams({}, { replace: true })
+      }}
+    />
+  )
+
   return (
     <div className="hub-page">
       <SEO
@@ -346,116 +446,35 @@ export default function CategoryPage() {
         </nav>
         <h1 className="hub-h1">{hub.h1}</h1>
 
-        {(() => {
-          const hasMap = isNeighborhood || isAkronCity || isCity
-          const mapAside: ReactNode = isNeighborhood ? (
-            <NeighborhoodMap activeSlug={hub.slug} />
-          ) : isAkronCity ? (
-            <div className="akron-map-stack">
-              {akronMapView === 'neighborhoods'
-                ? <NeighborhoodMap activeSlug={null} activeLabelOverride="all of Akron" />
-                : <SummitCountyMap activeSlug={AKRON_SLUG} />}
-
-              <div className="akron-map-toggle">
-                <label htmlFor="akron-map-toggle-select" className="akron-map-toggle-label">
-                  View
-                </label>
-                <select
-                  id="akron-map-toggle-select"
-                  className="akron-map-toggle-select"
-                  value={akronMapView}
-                  onChange={(e) => setAkronMapView(e.target.value)}
-                >
-                  <option value="neighborhoods">Akron Neighborhoods</option>
-                  <option value="summit-county">Summit County</option>
-                </select>
-              </div>
+        {hasMap ? (
+          <div className="hub-hero-grid">
+            <div className="hub-hero-controls">
+              {shareRow}
+              {searchBox}
+              {filtersPanel}
+              <p className="hub-count" aria-hidden="true">{countLabel}</p>
             </div>
-          ) : isCity ? (
-            <SummitCountyMap activeSlug={hub.slug} />
-          ) : null
-
-          return (
-            <div className={hasMap ? 'hub-hero-grid' : 'hub-hero-stack'}>
-              <p className={`hub-intro${hasMap ? ' hub-intro--with-map' : ''}`}>
-                {hub.intro}
-              </p>
-
-              <div className="hub-share">
-                <ShareButtons
-                  url={canonicalPath}
-                  title={hub.h1}
-                  text={hub.metaDescription}
-                  campaign={isCategory ? 'category_hub' : isCity ? 'city_hub' : 'neighborhood_hub'}
-                />
-              </div>
-
-              {hasMap && <div className="hub-hero-aside">{mapAside}</div>}
-            </div>
-          )
-        })()}
-
-        <div className="hub-search">
-          <HubSearchIcon />
-          <input
-            className="hub-search-input"
-            type="text"
-            placeholder={`Search ${hub.label.toLowerCase()}…`}
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            onKeyDown={onSearchKeyDown}
-            onBlur={onSearchBlur}
-            aria-label={`Search ${hub.label}`}
-          />
-          {searchInput && (
-            <button
-              type="button"
-              className="hub-search-clear"
-              onClick={() => { setSearchInput(''); setSearch('') }}
-              aria-label="Clear search"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-
-        <HubFilters
-          lockedDimensions={lockedDimensions}
-          sort={sort}                      onSort={setSort}
-          activeIntentId={activeIntentId}  onIntentId={setActiveIntentId}
-          rawCategories={rawCategories}    onRawCategories={setRawCategories}
-          priceFilter={priceFilter}        onPriceFilter={setPriceFilter}
-          dateFrom={dateFrom}              onDateFrom={setDateFrom}
-          dateTo={dateTo}                  onDateTo={setDateTo}
-          hasAnyUserFilter={
-            !!activeIntentId
-            || rawCategories.length > 0
-            || priceFilter !== null
-            || dateFrom !== null
-            || dateTo !== null
-            || sort !== 'soonest'
-          }
-          onClearAll={() => {
-            setSearchInput('')
-            setSearchParams({}, { replace: true })
-          }}
-        />
+            <div className="hub-hero-aside">{mapAside}</div>
+          </div>
+        ) : (
+          <div className="hub-hero-stack">
+            <p className="hub-intro">{hub.intro}</p>
+            {shareRow}
+            {searchBox}
+            {filtersPanel}
+          </div>
+        )}
       </div>
 
       <section
         className={`hub-events${isRefreshing ? ' hub-events--refreshing' : ''}`}
         aria-labelledby="hub-events-heading"
       >
-        <h2 id="hub-events-heading" className="hub-section-heading">
-          {(() => {
-            const showCount = isAkronNeighborhood || isCategory
-              ? total
-              : events.length
-            if (showCount > 0) {
-              return `${showCount.toLocaleString()} upcoming ${showCount === 1 ? 'event' : 'events'}`
-            }
-            return 'Upcoming events'
-          })()}
+        {/* On map hubs the count is rendered in the hero controls column;
+            the heading stays in the DOM (visually hidden) so the section
+            keeps its accessible name. */}
+        <h2 id="hub-events-heading" className={hasMap ? 'sr-only' : 'hub-section-heading'}>
+          {countLabel}
         </h2>
 
         {loading && allEvents.length === 0 && !isRefreshing && (
@@ -525,6 +544,14 @@ export default function CategoryPage() {
           </div>
         )}
       </section>
+
+      {/* Map hubs: the SEO intro copy reads below the grid instead of
+          competing with the controls and map above it. */}
+      {hasMap && (
+        <section className="hub-about" aria-label={`About ${hub.label}`}>
+          <p className="hub-intro hub-intro--below">{hub.intro}</p>
+        </section>
+      )}
 
       <NewsletterCTA
         variant="hub"

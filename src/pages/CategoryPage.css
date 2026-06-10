@@ -53,43 +53,48 @@
   margin: 0 0 24px;
 }
 
-/* ── Neighborhood hub hero grid ────────────────────────────────────
+/* ── Map hub hero grid ─────────────────────────────────────────────
  *
- * Two-column layout for neighborhood hubs that ship with a map
- * mockup: intro paragraph on the left, the City-of-Akron map (with
- * the active neighborhood highlighted) on the right. Mirrors the
- * Art × Love poster layout the project is targeting.
+ * Two-column layout for hubs that ship with a map: the controls
+ * column on the left (share / copy-link, search, filter & sort, and
+ * the live event count), the map on the right. The events grid spans
+ * full width below, and the SEO intro copy moves to a .hub-about
+ * section after the grid.
  *
- * Single column below the tablet breakpoint — the map drops below
- * the intro so it doesn't compete for narrow screens. The min-width
- * of the intro column (28ch) keeps body copy readable; below that
- * the auto-collapse kicks in.
- *
- * The `.hub-intro--with-map` modifier just removes the standalone
- * bottom margin since the grid handles spacing for both columns.
+ * Single column below the tablet breakpoint — controls first so
+ * visitors can act immediately, map follows, grid after.
  */
 .hub-hero-grid {
   display: grid;
   grid-template-columns: minmax(28ch, 1.4fr) minmax(280px, 1fr);
-  /* Intro and the share / copy-link row stack down the left column;
-   * the map occupies the right column spanning every row. The trailing
-   * "." row soaks up any extra height when the map is taller than the
-   * stacked controls, so those controls hug the top instead of being
-   * spread out to match the map's height. The search input is a
-   * separate full-width block below this grid. */
-  grid-template-areas:
-    "intro aside"
-    "share aside"
-    ".     aside";
-  grid-template-rows: auto auto 1fr;
   column-gap: 32px;
   align-items: start;
   margin: 0 0 28px;
 }
 
-.hub-hero-grid > .hub-intro--with-map { grid-area: intro; margin: 0 0 20px; }
-.hub-hero-grid > .hub-share           { grid-area: share;  margin: 0; }
-.hub-hero-grid > .hub-hero-aside      { grid-area: aside;  min-width: 0; }
+.hub-hero-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+/* Inside the controls column the pieces space themselves via the
+ * column gap — neutralize their standalone-block margins. */
+.hub-hero-controls .hub-share   { margin: 0; }
+.hub-hero-controls .hub-search  { margin: 0; }
+.hub-hero-controls .hub-filters { margin: 0; }
+
+.hub-hero-grid > .hub-hero-aside { min-width: 0; }
+
+/* Live event count at the foot of the controls column. Mirrors the
+ * .hub-section-heading it visually replaces on map hubs. */
+.hub-count {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
 
 /* No-map category hubs: intro / share flow as a normal full-width
  * block using each element's own margins. */
@@ -98,15 +103,19 @@
 @media (max-width: 768px) {
   .hub-hero-grid {
     grid-template-columns: 1fr;
-    /* Single column: map drops back under the intro, share follows. */
-    grid-template-areas:
-      "intro"
-      "aside"
-      "share";
-    grid-template-rows: none;
     row-gap: 16px;
   }
-  .hub-hero-grid > .hub-intro--with-map { margin: 0; }
+}
+
+/* ── Below-grid intro copy (map hubs) ──────────────────────────── */
+.hub-about {
+  margin: 40px 0 0;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+.hub-intro--below {
+  max-width: 70ch;
+  margin: 0;
 }
 
 /* ── Akron city hub map stack ──────────────────────────────────────
