@@ -817,6 +817,50 @@ function warnEventAdvisories(row) {
   }
 }
 
+/**
+ * Resolve an event's v2 content categories (1–2 slugs) from what the scraper
+ * passed plus text inference. Pure — exported for tests.
+ *
+ * Sources may pass any of:
+ *   • categories: ['music','food']  — explicit v2 list (preferred)
+ *   • category:   'music' | 'art'   — a single hint (v2 OR legacy v1 slug)
+ *   • nothing                       — inference alone decides
+ * Inference always runs, so a single source hint still gets enriched toward
+ * multi-category when the text clearly supports a second one.
+ *
+ * 'other' is a fallback, never a peer: it survives only when it is the ONLY
+ * candidate. Before the June 2026 tagging audit this function's inline
+ * predecessor kept inference's ['other'] next to a real source hint, writing
+ * junk pairs like ['music','other'] to 750 live events — and when a legacy
+ * hint itself mapped to 'other' (e.g. v1 'community'), it could even land as
+ * the PRIMARY badge ahead of a real inferred category. See
+ * docs/tagging-audit-2026-06.md (Bug 1).
+ *
+ * @param {{categories?: string[], category?: string}} source — scraper input
+ * @param {string[]} inferredCategories — inferCategories().categories
+ * @returns {string[]} 1–2 valid v2 slugs, primary first
+ */
+export function resolveEventCategories(source = {}, inferredCategories = ['other']) {
+  let categories
+  if (Array.isArray(source.categories) && source.categories.length) {
+    categories = source.categories.slice()
+  } else {
+    categories = inferredCategories.slice()
+    const hint = source.category
+    if (hint) {
+      const mapped = CATEGORY_SLUGS.includes(hint)
+        ? hint
+        : (V1_TO_V2[hint]?.categories?.[0] ?? null)
+      if (mapped && !categories.includes(mapped)) categories = [mapped, ...categories]
+    }
+  }
+  categories = [...new Set(categories.filter((c) => CATEGORY_SLUGS.includes(c)))]
+  if (categories.length > 1) categories = categories.filter((c) => c !== 'other')
+  categories = categories.slice(0, 2)
+  if (categories.length === 0) categories = ['other']
+  return categories
+}
+
 export async function upsertEventSafe(row) {
   // ── Data contract gate ──────────────────────────────────────────────────
   // Reject malformed rows before any write. Violations come back in the
@@ -848,28 +892,8 @@ export async function upsertEventSafe(row) {
   }
 
   // ── Resolve the v2 content categories (array) + facet flags ───────────────
-  // Sources may pass any of:
-  //   • categories: ['music','food']  — explicit v2 list (preferred)
-  //   • category:   'music' | 'art'   — a single hint (v2 OR legacy slug)
-  //   • nothing                       — we infer from title + description
-  // We always run inference too, so even a single source hint gets enriched
-  // toward multi-category when the text clearly supports a second one.
   const inferred = _inferCategories(sanitized.title, sanitized.description)
-  let categories
-  if (Array.isArray(sanitized.categories) && sanitized.categories.length) {
-    categories = sanitized.categories.slice()
-  } else {
-    categories = inferred.categories.slice()
-    const hint = sanitized.category
-    if (hint) {
-      const mapped = CATEGORY_SLUGS.includes(hint)
-        ? hint
-        : (V1_TO_V2[hint]?.categories?.[0] ?? null)
-      if (mapped && !categories.includes(mapped)) categories = [mapped, ...categories]
-    }
-  }
-  categories = [...new Set(categories.filter((c) => CATEGORY_SLUGS.includes(c)))].slice(0, 2)
-  if (categories.length === 0) categories = ['other']
+  const categories = resolveEventCategories(sanitized, inferred.categories)
 
   // Facet flags: honor explicit source flags, else inference. Legacy 'nonprofit'
   // hint implies fundraiser.

@@ -109,7 +109,11 @@ describe('Zips: normalization', () => {
     assert.equal(fb.startAt, '2026-09-12T19:30:00.000Z') // already-UTC DTSTART
     assert.ok(fb.tags.includes('sports'))
     assert.ok(fb.tags.includes('football'))
-    assert.ok(fb.tags.includes('akron-zips'))
+    // 'akron-zips' was intentionally dropped as redundant in 4221ec2
+    // ("clean up scraper tagging") — 'zips' + 'university-of-akron' cover it.
+    assert.ok(fb.tags.includes('zips'))
+    assert.ok(fb.tags.includes('university-of-akron'))
+    assert.ok(!fb.tags.includes('akron-zips'))
   })
   it('handles an all-day game and a multi-word sport', () => {
     const vb = parseAll().find((g) => /Volleyball/.test(g.sport))
