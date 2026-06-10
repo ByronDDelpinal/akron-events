@@ -14,7 +14,7 @@
 
 import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
-import { supabaseAdmin } from './lib/supabase-admin.js'
+
 import {
   logUpsertResult, logScraperError, stripHtml, enrichWithImageDimensions, upsertEventSafe,
   linkEventVenue, linkEventOrganization, ensureVenue, linkOrganizationVenue,
@@ -46,7 +46,6 @@ function parseCategory(categories = [], tags = []) {
   if (has('educat') || has('workshop') || has('program') || hasWord('class')) return 'nature'
   return 'nature'
 }
-
 
 // ── Venue cache ────────────────────────────────────────────────────────────
 

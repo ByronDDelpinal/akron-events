@@ -1,8 +1,9 @@
+import type { LooseRow } from '@/types'
 import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
 
-type Row = Record<string, any>
+type Row = LooseRow
 
 interface BatchMeta {
   batchId: string

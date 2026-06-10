@@ -1,3 +1,4 @@
+import type { LooseRow } from '@/types'
 import { useState, useCallback, useEffect, type ReactNode } from 'react'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { format } from 'date-fns'
@@ -184,7 +185,7 @@ export default function EventPage() {
             {event.organizations?.length > 0 ? (
               <p className="event-detail-organizer">
                 Presented by{' '}
-                {event.organizations.map((org: Record<string, any>, i: number) => (
+                {event.organizations.map((org: LooseRow, i: number) => (
                   <span key={org.id}>
                     {i > 0 && ', '}
                     {embed
@@ -267,7 +268,7 @@ export default function EventPage() {
               </div>
               {event.age_restriction !== 'not_specified' && (
                 <p className="info-card-age">
-                  {AGE_LABEL[event.age_restriction] ?? ''} · Age restriction applies
+                  {AGE_LABEL[event.age_restriction ?? ''] ?? ''} · Age restriction applies
                 </p>
               )}
               {event.age_restriction === 'not_specified' && (
@@ -302,7 +303,7 @@ export default function EventPage() {
 
               {(event.areas?.length ?? 0) > 0 && (
                 <InfoRow icon={<AreaIcon />} label="Area"
-                  value={event.areas!.map((a: Record<string, any>) => a.name).join(', ')}
+                  value={event.areas!.map((a: LooseRow) => a.name).join(', ')}
                   sub={event.areas![0]?.capacity ? `Capacity: ${event.areas![0].capacity}` : null}
                 />
               )}
@@ -457,7 +458,7 @@ function MobileInfoGrid({ event, price }: { event: AppEvent; price: PriceDisplay
       <div className="mobile-info-cell">
         <p className="mobile-info-lbl">Ages</p>
         <p className="mobile-info-val">
-          {event.age_restriction === 'not_specified' ? 'Not specified' : (AGE_LABEL[event.age_restriction] ?? '')}
+          {event.age_restriction === 'not_specified' ? 'Not specified' : (AGE_LABEL[event.age_restriction ?? ''] ?? '')}
         </p>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import type { TablesInsert } from '@/lib/database.types'
 import { useState, type FormEvent } from 'react'
 import { supabase } from '@/lib/supabase'
 import { SEO } from '@/lib/seo'
@@ -67,7 +68,7 @@ export default function SubmitPage() {
 
       const { data: inserted, error: insertError } = await supabase
         .from('events')
-        .insert(payload as any)
+        .insert(payload as TablesInsert<'events'>)
         .select('id')
         .single()
       if (insertError) throw insertError
@@ -77,7 +78,7 @@ export default function SubmitPage() {
       if (cats.length) {
         const { error: catError } = await supabase
           .from('event_categories')
-          .insert(cats.map((category) => ({ event_id: (inserted as any).id, category })) as any)
+          .insert(cats.map((category) => ({ event_id: (inserted as { id: string }).id, category })) as TablesInsert<'event_categories'>[])
         if (catError) console.warn('[submit] event_categories insert failed', catError)
       }
 
@@ -85,7 +86,7 @@ export default function SubmitPage() {
       try {
         const { error: notifyError } = await supabase.functions.invoke('notify-pending-event', {
           body: {
-            event_id:        (inserted as any).id,
+            event_id:        (inserted as { id: string }).id,
             organizer_name:  form.organizer_name || null,
             organizer_email: form.organizer_email || null,
             venue_name:      form.venue_name || null,

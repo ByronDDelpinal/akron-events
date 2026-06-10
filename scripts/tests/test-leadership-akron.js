@@ -31,8 +31,6 @@ import {
   FEATURED_EVENT,
   HTML_ENTITIES_TITLE,
   DIFFERENT_VENUE,
-  NO_ZIP_IN_ADDRESS,
-  UNUSUAL_ADDRESS_FORMAT,
   ALL_FIXTURES,
 } from './fixtures/leadership-akron-events.js'
 

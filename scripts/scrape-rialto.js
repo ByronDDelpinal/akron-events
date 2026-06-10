@@ -168,7 +168,7 @@ async function main() {
     }
 
     // Fetch all upcoming events
-    let allEvents = []
+    const allEvents = []
     for (const collectionUrl of COLLECTION_URLS) {
       console.log(`\n🔍  Fetching events from ${collectionUrl}…`)
       const events = await fetchSquarespaceEvents(collectionUrl)

@@ -31,7 +31,6 @@ import {
   linkEventOrganization,
   ensureVenue,
   ensureOrganization,
-  linkOrganizationVenue,
   easternToIso,
 } from './lib/normalize.js'
 
@@ -104,7 +103,7 @@ function extractEndTimeFromMeta(meta = {}) {
  * Parse event date from the post's rendered content as a last resort.
  * Looks for patterns like "Friday, April 4" or "Saturday, March 22, 2026".
  */
-function extractDateFromContent(content = '', postDate = '') {
+function extractDateFromContent(_content = '', postDate = '') {
   // If the post date itself is valid and in the future-ish, use it
   if (postDate) {
     const d = new Date(postDate)
@@ -178,7 +177,6 @@ async function findEventsCategoryId() {
 // ── Fetch posts ───────────────────────────────────────────────────────────
 
 async function fetchEventPosts(categoryId) {
-  const cutoff    = new Date().toISOString().split('T')[0]
   const allPosts  = []
   let page        = 1
   let totalPages  = 1
@@ -227,7 +225,8 @@ async function fetchEventPosts(categoryId) {
 async function processEvents(posts, venueId, organizerId) {
   const now        = Date.now()
   const horizon    = now + DAYS_AHEAD * 86400_000
-  let inserted = 0, updated = 0, skipped = 0
+  let inserted = 0, skipped = 0
+  const updated = 0
 
   for (const post of posts) {
     try {

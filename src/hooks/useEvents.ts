@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import type { LooseRow, LooseQuery } from '@/types'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAsync } from './useAsync'
 
@@ -9,7 +10,7 @@ import { useAsync } from './useAsync'
  * the query builders here are intentionally loose and the *public* surface
  * (hook options + the normalized `AppEvent`) carries the types consumers rely on.
  */
-type RawRow = Record<string, any>
+type RawRow = LooseRow
 
 /**
  * The normalized event shape every UI surface consumes. Common fields are
@@ -27,7 +28,20 @@ export interface AppEvent {
   organizer: RawRow | null
   organizations: RawRow[]
   areas?: RawRow[]
-  [key: string]: any
+  end_at?: string | null
+  description?: string | null
+  featured?: boolean | null
+  tags?: string[] | null
+  banner_eligible?: boolean | null
+  image_width?: number | null
+  image_height?: number | null
+  image_url?: string | null
+  ticket_url?: string | null
+  source_url?: string | null
+  price_min?: number | null
+  price_max?: number | null
+  age_restriction?: string | null
+  [key: string]: unknown
 }
 
 /** Extract a human-readable message from an unknown thrown value. */
@@ -74,7 +88,7 @@ function categorySelectFragment(categories: string[]): string {
   return `${filterEmbed} event_categories ( category ),`
 }
 
-function applyCategoryFilter(query: any, categories: string[]): any {
+function applyCategoryFilter(query: LooseQuery, categories: string[]): LooseQuery {
   if (categories.length > 0) {
     query = query.in('_catfilter.category', categories)
   }
@@ -125,8 +139,19 @@ export function useEvents({
   const [error,   setError]   = useState<string | null>(null)
   const [total,   setTotal]   = useState(0)
 
+  // The caller may pass fresh array literals on every render, so the fetch
+  // effect keys on a serialized form and reads memoized arrays derived from
+  // it. Values are slugs/keys (never contain commas), so join/split is safe.
+  const categoriesKey    = categories.join(',')
+  const hiddenSourcesKey = hiddenSources.join(',')
+  const venueCitiesKey   = venueCities.join(',')
+  const categoriesStable    = useMemo(() => categoriesKey.split(',').filter(Boolean), [categoriesKey])
+  const hiddenSourcesStable = useMemo(() => hiddenSourcesKey.split(',').filter(Boolean), [hiddenSourcesKey])
+  const venueCitiesStable   = useMemo(() => venueCitiesKey.split(',').filter(Boolean), [venueCitiesKey])
+
   useEffect(() => {
     let cancelled = false
+    const categories = categoriesStable, hiddenSources = hiddenSourcesStable, venueCities = venueCitiesStable
 
     async function fetchEvents() {
       setLoading(true)
@@ -140,7 +165,7 @@ export function useEvents({
         const venueJoin = useInnerVenue ? 'event_venues!inner' : 'event_venues'
         const venueTbl  = useInnerVenue ? 'venues!inner'      : 'venues'
 
-        let query: any = supabase
+        let query: LooseQuery = supabase
           .from('events')
           .select(`
             *,
@@ -222,7 +247,7 @@ export function useEvents({
 
     fetchEvents()
     return () => { cancelled = true }
-  }, [categories.join(','), family, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSources.join(','), neighborhoodSlug, venueCities.join(','), sort, limit, offset])
+  }, [categoriesStable, family, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSourcesStable, neighborhoodSlug, venueCitiesStable, sort, limit, offset])
 
   const hasMore = offset + limit < total
 
@@ -459,15 +484,24 @@ export function useMapEvents({
   const [error,   setError]   = useState<string | null>(null)
   const [total,   setTotal]   = useState(0)
 
+  // The caller may pass fresh array literals on every render, so the fetch
+  // effect keys on a serialized form and reads memoized arrays derived from
+  // it. Values are slugs/keys (never contain commas), so join/split is safe.
+  const categoriesKey    = categories.join(',')
+  const hiddenSourcesKey = hiddenSources.join(',')
+  const categoriesStable    = useMemo(() => categoriesKey.split(',').filter(Boolean), [categoriesKey])
+  const hiddenSourcesStable = useMemo(() => hiddenSourcesKey.split(',').filter(Boolean), [hiddenSourcesKey])
+
   useEffect(() => {
     let cancelled = false
+    const categories = categoriesStable, hiddenSources = hiddenSourcesStable
 
     async function fetchMapEvents() {
       setLoading(true)
       setError(null)
 
       try {
-        let query: any = supabase
+        let query: LooseQuery = supabase
           .from('events')
           .select(`
             id, title, start_at, price_min, price_max, is_family, is_fundraiser,
@@ -542,7 +576,7 @@ export function useMapEvents({
 
     fetchMapEvents()
     return () => { cancelled = true }
-  }, [categories.join(','), family, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSources.join(',')])
+  }, [categoriesStable, family, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSourcesStable])
 
   return { events, loading, error, total }
 }

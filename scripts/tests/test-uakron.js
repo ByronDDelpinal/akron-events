@@ -7,12 +7,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 
 import { stripHtml } from '../lib/normalize.js'
 import { classifySource } from '../scrape-uakron-calendar.js'
-import { EJ_THOMAS_EVENT, GENERAL_UAKRON_EVENT, SPORTS_EVENT, LECTURE_EVENT, MISSING_TITLE, MISSING_DATE, PAID_EVENT, PERFORMANCE_CONCERT, MYERS_ART_EVENT, CHP_EVENT, NUMERIC_COST_EVENT, TIERED_COST_EVENT, OBJECT_COST_EVENT, ALL_FIXTURES } from './fixtures/uakron-events.js'
-
-const KNOWN_VENUES = {
-  'E.J. Thomas Performing Arts Hall': { address: '198 Hill St', city: 'Akron', state: 'OH', zip: '44325', lat: 41.0756, lng: -81.5113 },
-  'University of Akron': { address: '302 Buchtel Common', city: 'Akron', state: 'OH', zip: '44325', lat: 41.0756, lng: -81.5106 },
-}
+import { EJ_THOMAS_EVENT, GENERAL_UAKRON_EVENT, MISSING_TITLE, MISSING_DATE, PAID_EVENT, PERFORMANCE_CONCERT, MYERS_ART_EVENT, CHP_EVENT, NUMERIC_COST_EVENT, TIERED_COST_EVENT, OBJECT_COST_EVENT, ALL_FIXTURES } from './fixtures/uakron-events.js'
 
 function parseCategory(ev) {
   const group = (ev.group_title ?? '').toLowerCase()

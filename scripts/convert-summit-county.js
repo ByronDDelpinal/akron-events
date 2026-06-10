@@ -97,7 +97,7 @@ async function main() {
 
   // shapefile streams records one at a time — sweep the whole file
   // (~3.2k US counties), pick up the single Summit, OH record.
-  // eslint-disable-next-line no-constant-condition
+   
   while (true) {
     const result = await source.read()
     if (result.done) break

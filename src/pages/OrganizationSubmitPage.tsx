@@ -1,3 +1,4 @@
+import type { TablesInsert } from '@/lib/database.types'
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
@@ -96,7 +97,7 @@ export default function OrganizationSubmitPage() {
 
       const { data: orgData, error: orgError } = await supabase
         .from('organizations')
-        .insert(orgPayload as any)
+        .insert(orgPayload as TablesInsert<'organizations'>)
         .select('id')
         .single()
       if (orgError) throw orgError
@@ -120,13 +121,13 @@ export default function OrganizationSubmitPage() {
           lng:             coords?.lng ?? null,
           parking_type:    venue.parking_type,
           parking_notes:   venue.parking_notes || null,
-          organization_id: (orgData as any)?.id ?? null,
+          organization_id: (orgData as { id: string } | null)?.id ?? null,
           status:          'pending_review',
         }
 
         const { data: venueData, error: venueError } = await supabase
           .from('venues')
-          .insert(venuePayload as any)
+          .insert(venuePayload as TablesInsert<'venues'>)
           .select('id')
           .single()
         if (venueError) throw venueError
@@ -140,7 +141,7 @@ export default function OrganizationSubmitPage() {
             description: a.description || null,
             capacity:    a.capacity ? parseInt(a.capacity) : null,
           }))
-          const { error: areaError } = await supabase.from('areas').insert(areaRows as any)
+          const { error: areaError } = await supabase.from('areas').insert(areaRows as TablesInsert<'areas'>[])
           if (areaError) console.warn('Area insert failed:', areaError.message)
         }
       }

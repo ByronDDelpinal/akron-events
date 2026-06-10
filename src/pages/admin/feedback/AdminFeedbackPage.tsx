@@ -1,3 +1,4 @@
+import type { LooseRow, LooseQuery } from '@/types'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
@@ -5,7 +6,7 @@ import { Pagination } from '@/components/admin'
 
 const PAGE_SIZE = 50
 
-type Row = Record<string, any>
+type Row = LooseRow
 
 interface CategoryDef { id: string; label: string; icon?: string }
 
@@ -38,7 +39,7 @@ export default function AdminFeedbackPage() {
     setLoading(true)
     const from = page * PAGE_SIZE
 
-    let query: any = supabase
+    let query: LooseQuery = supabase
       .from('feedback_posts')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })

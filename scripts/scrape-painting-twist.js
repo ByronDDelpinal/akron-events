@@ -24,7 +24,6 @@ import {
   linkEventOrganization,
   ensureVenue,
   ensureOrganization,
-  linkOrganizationVenue,
   easternToIso,
 } from './lib/normalize.js'
 
@@ -169,9 +168,6 @@ function parseEvents(html) {
   }
 
   // Also try regex-based text parsing as the primary approach
-  // The structured calendar text has date patterns near price and title patterns
-  const datePattern = /[A-Z][a-z]{2,3},\s+[A-Z][a-z]{2,8}\s+\d{1,2},\s+\d{1,2}:\d{2}\s*[ap]m/gi
-
   // Build a map of event IDs → context blocks from the HTML
   const idContextMap = new Map()
   for (const match of eventLinks) {

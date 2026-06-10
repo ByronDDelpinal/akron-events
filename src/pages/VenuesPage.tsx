@@ -1,3 +1,4 @@
+import type { LooseRow } from '@/types'
 import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useVenues } from '@/hooks/useEvents'
@@ -6,7 +7,7 @@ import { PARKING_LABEL } from '@/lib/eventFormatting'
 import './VenuesPage.css'
 import { GlobeIcon, ParkingIcon, SearchIcon } from '@/components/icons'
 
-type Row = Record<string, any>
+type Row = LooseRow
 
 export default function VenuesPage() {
   const { venues, loading, error } = useVenues()

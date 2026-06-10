@@ -203,7 +203,7 @@ function extractShowSlugs(homeHtml) {
 
 // ── Parse individual show page ─────────────────────────────────────────────
 
-function parseShowPage(html, slug) {
+function parseShowPage(html, _slug) {
   // Get og:image meta tag (Squarespace reliably has this)
   const ogImage = html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]+)"/) ??
                   html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:image"/)
@@ -260,7 +260,7 @@ function parseShowPage(html, slug) {
 
 // ── Fetch and process shows ────────────────────────────────────────────────
 
-async function fetchAndProcessShows(organizerId) {
+async function fetchAndProcessShows(_organizerId) {
   console.log(`\n🔍  Fetching homepage: ${HOME_URL}…`)
   const homeHtml = await fetchHtml(HOME_URL)
   const slugs    = extractShowSlugs(homeHtml)

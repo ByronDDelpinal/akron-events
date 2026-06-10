@@ -161,7 +161,7 @@ function parseReceptionTimes(text) {
     // is "5:30", start is also PM. Mirror end's meridiem onto start unless
     // the resulting start would be after end (then flip it).
     let startH = (parseInt(sH, 10) % 12) + (mer.toUpperCase() === 'PM' ? 12 : 0)
-    let endH   = (parseInt(eH, 10) % 12) + (mer.toUpperCase() === 'PM' ? 12 : 0)
+    const endH   = (parseInt(eH, 10) % 12) + (mer.toUpperCase() === 'PM' ? 12 : 0)
     if (startH > endH) startH -= 12
     const dateStr = `${year}-${String(m).padStart(2,'0')}-${String(parseInt(day,10)).padStart(2,'0')}`
     return {

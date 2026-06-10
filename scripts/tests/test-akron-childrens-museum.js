@@ -30,13 +30,10 @@ import {
   SPECIAL_EVENT,
   RECURRING_EVENT,
   NO_IMAGE,
-  FREE_EVENT,
   NO_TIMES,
   NO_DATE_NO_REPEAT,
-  RECURRING_SATURDAY,
   HTML_ENTITIES,
   MIXED_COST,
-  RELATIVE_IMAGE,
   ALL_FIXTURES,
 } from './fixtures/akron-childrens-museum-events.js'
 

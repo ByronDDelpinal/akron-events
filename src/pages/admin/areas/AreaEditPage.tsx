@@ -1,10 +1,11 @@
+import type { LooseRow } from '@/types'
 import { useState, useEffect, type FormEvent } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useFormState } from '@/lib/admin/useFormState'
 import { FormField, FormInput, FormSelect, FormTextarea } from '@/components/admin'
 
-type Row = Record<string, any>
+type Row = LooseRow
 
 const DEFAULT_AREA: Row = { name: '', venue_id: null, description: '', capacity: null }
 

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL = 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 
-import { SINGLE_DATE, MONTH_RANGE, SINGLE_DAY_RANGE, TIME_EXTRACTION, ALL_FIXTURES } from './fixtures/civic-events.js'
+import { SINGLE_DATE, MONTH_RANGE, SINGLE_DAY_RANGE, TIME_EXTRACTION } from './fixtures/civic-events.js'
 
 function parseTime(raw) {
   const m = raw.match(/(\d{1,2}):(\d{2})\s*(am|pm)/i)

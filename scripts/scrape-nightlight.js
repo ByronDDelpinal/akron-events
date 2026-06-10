@@ -376,7 +376,7 @@ export function parseMovieShowtimes(html) {
     .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
     .replace(/<(?:br|\/p|\/div|\/li|\/h[1-6]|\/section|\/article)[^>]*>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;| /g, ' ')
+    .replace(/&nbsp;|\u00a0/g, ' ')
     .replace(/\s*\n\s*/g, '\n')
     .replace(/[ \t]+/g, ' ')
   const lines = text.split('\n').map(s => s.trim()).filter(Boolean)

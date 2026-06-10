@@ -112,6 +112,10 @@ function AppInner() {
     if (location.hash) return
     if ((location.state as { preserveScroll?: boolean } | null)?.preserveScroll) return
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    // location.hash is read only by the early return. Reacting to hash-only
+    // changes would scroll-to-top when a hash clears on the same pathname,
+    // which this effect deliberately ignores (see comment above).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, navigationType, location.state])
 
   return (

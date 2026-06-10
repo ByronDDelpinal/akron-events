@@ -22,7 +22,7 @@ function parseEventDateTime(rawText = '') {
     return { dateStr, startTime: '12:00 pm', endTime: null, allDay: true }
   }
 
-  const rangePat = /(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*[–\-]\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm))/i
+  const rangePat = /(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*[–-]\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm))/i
   const rangeMatch = afterDate.match(rangePat)
 
   if (rangeMatch) {

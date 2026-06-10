@@ -32,12 +32,10 @@ import {
   linkEventOrganization,
   ensureVenue,
   ensureOrganization,
-  linkOrganizationVenue,
   easternToIso,
 } from './lib/normalize.js'
 
 const BASE_URL   = 'https://akronartmuseum.org/calendar/'
-const DAYS_AHEAD = 180   // 6 months
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 // stripHtml imported from normalize.js — handles all named + numeric HTML entities
@@ -71,7 +69,7 @@ function parseEventDateTime(rawText = '') {
 
   // Time range: "1:00 – 4:00 pm" or "10:00 am – 12:00 pm" or "7:00 pm"
   // The dash can be – (en dash) or -
-  const rangePat = /(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*[–\-]\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm))/i
+  const rangePat = /(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*[–-]\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm))/i
   const rangeMatch = afterDate.match(rangePat)
 
   if (rangeMatch) {
@@ -112,10 +110,6 @@ function parseCalendarPage(html) {
   const events = []
 
   // Find all .me-event-list-item blocks
-  // Each item is wrapped in: <div class="me-event-list-item">...</div>
-  const itemRe = /<div[^>]+class="[^"]*me-event-list-item[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>\s*<\/a>/g
-  // Simpler: split on the opening tag of the anchor .me-event-list-item__link
-  const linkRe = /href="(https:\/\/akronartmuseum\.org\/media\/events\/[^"]+)"/g
 
   // Walk the HTML looking for .me-event-list-item__link anchors
   // Strategy: find each occurrence of class="me-event-list-item" and extract the block
@@ -482,7 +476,8 @@ async function fetchAllEvents() {
 // ── Process ───────────────────────────────────────────────────────────────
 
 async function processEvents(items, venueId, organizerId) {
-  let inserted = 0, updated = 0, skipped = 0
+  let inserted = 0, skipped = 0
+  const updated = 0
   const now = Date.now()
 
   for (const item of items) {

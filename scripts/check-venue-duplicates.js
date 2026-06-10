@@ -37,7 +37,6 @@ const RED     = '\x1b[31m'
 const YELLOW  = '\x1b[33m'
 const GREEN   = '\x1b[32m'
 const CYAN    = '\x1b[36m'
-const MAGENTA = '\x1b[35m'
 const WHITE   = '\x1b[37m'
 
 // ── CLI flags ───────────────────────────────────────────────────────────────

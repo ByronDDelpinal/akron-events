@@ -16,7 +16,7 @@
  * Run:  node --test scripts/tests/test-scraper-runner.js
  */
 
-import { describe, it, beforeEach } from 'node:test'
+import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
 // ── Stub factory ──────────────────────────────────────────────────────────────
@@ -69,12 +69,10 @@ function makeRunner(stubs) {
       : stubs.ensureOrganization(name, details)
   }
 
-  function defineScraper({ source, label, fetch: fetchItems, parse, venue, org }) {
+  function defineScraper({ source, fetch: fetchItems, parse, venue, org }) {
     if (!source) throw new Error('defineScraper: `source` is required')
     if (typeof fetchItems !== 'function') throw new Error('defineScraper: `fetch` must be a function')
     if (typeof parse !== 'function') throw new Error('defineScraper: `parse` must be a function')
-
-    const displayName = label ?? source
 
     async function run() {
       const start = Date.now()
@@ -91,7 +89,7 @@ function makeRunner(stubs) {
           let row
           try {
             row = parse(item)
-          } catch (parseErr) {
+          } catch {
             skipped++
             continue
           }
@@ -260,7 +258,7 @@ describe('defineScraper — skip / error handling', () => {
     const { run } = defineScraper({
       source: 's',
       fetch:  async () => [{}, {}, {}],
-      parse:  (item, i) => null,  // always null
+      parse:  (_item, _i) => null,  // always null
     })
 
     await run()
@@ -273,7 +271,6 @@ describe('defineScraper — skip / error handling', () => {
     const { stubs, calls } = makeStubs()
     const defineScraper = makeRunner(stubs)
 
-    let count = 0
     const { run } = defineScraper({
       source: 's',
       fetch:  async () => [1, 2, 3],

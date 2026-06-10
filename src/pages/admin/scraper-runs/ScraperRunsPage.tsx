@@ -1,3 +1,4 @@
+import type { LooseRow } from '@/types'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
@@ -5,7 +6,7 @@ import { Pagination } from '@/components/admin'
 
 const PAGE_SIZE = 50
 
-type Row = Record<string, any>
+type Row = LooseRow
 
 export default function ScraperRunsPage() {
   const [runs, setRuns] = useState<Row[]>([])

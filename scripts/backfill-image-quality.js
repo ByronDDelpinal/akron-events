@@ -44,8 +44,6 @@ const CONCURRENCY = (() => {
   return arg ? parseInt(arg.split('=')[1], 10) : 20
 })()
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-
 async function main() {
   console.log(
     `\n🖼️   Backfilling image quality signals${EXECUTE ? '' : '  (DRY RUN — pass --execute)'}` +

@@ -40,3 +40,23 @@ export interface EventWithRelations extends Event {
   areas?: Area[]
   event_categories?: { category: string }[]
 }
+
+/**
+ * Transitional row type for Supabase query results that select bespoke join
+ * shapes the generated database.types.ts doesn't directly describe.
+ *
+ * This is the ONE permitted `any` in src/. Do not add new `any`s; import
+ * LooseRow instead so the debt stays visible in a single place. Tech-debt
+ * item: replace LooseRow usage with precise per-query types.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type LooseRow = Record<string, any>
+
+/**
+ * Transitional alias for Supabase query builders built up conditionally
+ * (filters chained inside branches), where the PostgrestFilterBuilder
+ * generics become unwieldy to thread through. Same contract as LooseRow:
+ * this is the only sanctioned spelling; do not introduce new `any`s.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type LooseQuery = any

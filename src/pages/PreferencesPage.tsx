@@ -1,3 +1,4 @@
+import type { LooseRow } from '@/types'
 import { useState, useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
@@ -7,7 +8,7 @@ import { SEO } from '@/lib/seo'
 import { trackEvent } from '@/lib/analytics'
 import './PreferencesPage.css'
 
-type Row = Record<string, any>
+type Row = LooseRow
 
 interface AreaPreset {
   id: string
@@ -467,7 +468,7 @@ export default function PreferencesPage() {
         No selection means all organizations. Only add organizations here if you want to filter to specific ones.
       </p>
       <SearchableMultiSelect
-        allEntities={allOrgs as any}
+        allEntities={allOrgs as { id: string; name: string }[]}
         selectedIds={selectedOrgIds}
         onChange={setSelectedOrgIds}
         placeholder="Search organizations…"
@@ -479,7 +480,7 @@ export default function PreferencesPage() {
         No selection means all venues. Only add venues here if you want to filter to specific ones.
       </p>
       <SearchableMultiSelect
-        allEntities={allVenues as any}
+        allEntities={allVenues as { id: string; name: string }[]}
         selectedIds={selectedVenueIds}
         onChange={setSelectedVenueIds}
         placeholder="Search venues…"

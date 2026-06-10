@@ -1,3 +1,4 @@
+import type { LooseRow } from '@/types'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
@@ -5,7 +6,7 @@ import { ConfirmDialog, Pagination } from '@/components/admin'
 
 const PAGE_SIZE = 50
 
-type Row = Record<string, any>
+type Row = LooseRow
 
 export default function AreasListPage() {
   const navigate = useNavigate()

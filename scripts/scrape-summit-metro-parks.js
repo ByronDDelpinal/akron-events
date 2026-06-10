@@ -14,7 +14,7 @@
 
 import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
-import { supabaseAdmin } from './lib/supabase-admin.js'
+
 import {
   logUpsertResult, logScraperError, stripHtml, enrichWithImageDimensions, upsertEventSafe,
   linkEventVenue, linkEventOrganization, ensureVenue, linkOrganizationVenue,

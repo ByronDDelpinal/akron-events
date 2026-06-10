@@ -30,7 +30,7 @@ function parseDateText(raw) {
     return { dateStr: isoMatch[1], timeStr: timeMatch ? timeMatch[1] + ':00' : '09:00:00' }
   }
 
-  let timeStr = '09:00:00'
+  const timeStr = '09:00:00'
 
   // "Month DD, YYYY" or "Month DD-DD, YYYY"
   const fullMatch = s.match(/([A-Za-z]+)\s+(\d{1,2})(?:-\d{1,2})?,?\s*(\d{4})/)

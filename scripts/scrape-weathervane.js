@@ -24,7 +24,6 @@ import {
   linkEventOrganization,
   ensureVenue,
   ensureOrganization,
-  linkOrganizationVenue,
   easternToIso,
 } from './lib/normalize.js'
 

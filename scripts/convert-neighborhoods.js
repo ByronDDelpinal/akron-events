@@ -129,7 +129,7 @@ async function main() {
 
   // shapefile streams records one at a time so we can fail fast on
   // any record whose NAME isn't in our slug map.
-  // eslint-disable-next-line no-constant-condition
+   
   while (true) {
     const result = await source.read()
     if (result.done) break

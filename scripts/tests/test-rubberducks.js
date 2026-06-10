@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL = 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 
-import { F1, F2, ALL } from './fixtures/rubberducks-events.js'
+import { F1, ALL } from './fixtures/rubberducks-events.js'
 
 function normalizeGame(game) {
   if (!game.game || !game.date) return null

@@ -1,3 +1,4 @@
+import type { TablesInsert } from '@/lib/database.types'
 import { useState, type FormEvent } from 'react'
 import { supabase } from '@/lib/supabase'
 import { geocodeAddress } from '@/lib/geocode'
@@ -81,7 +82,7 @@ export default function VenueSubmitPage() {
 
       const { data: venueData, error: venueError } = await supabase
         .from('venues')
-        .insert(venuePayload as any)
+        .insert(venuePayload as TablesInsert<'venues'>)
         .select('id')
         .single()
 
@@ -96,7 +97,7 @@ export default function VenueSubmitPage() {
           description: a.description || null,
           capacity:    a.capacity ? parseInt(a.capacity) : null,
         }))
-        const { error: areaError } = await supabase.from('areas').insert(areaRows as any)
+        const { error: areaError } = await supabase.from('areas').insert(areaRows as TablesInsert<'areas'>[])
         if (areaError) console.warn('Area insert failed:', areaError.message)
       }
 

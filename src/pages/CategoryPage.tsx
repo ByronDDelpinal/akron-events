@@ -7,6 +7,7 @@
  * between hub types is which filter the page applies before listing events.
  */
 
+import type { LooseRow } from '@/types'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useParams, Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useEvents, PAGE_SIZE, type AppEvent } from '@/hooks/useEvents'
@@ -27,6 +28,7 @@ import {
 } from '@/lib/filterOptions'
 import {
   SEO,
+  type HubInput,
   buildGraph,
   breadcrumbSchema,
   itemListSchema,
@@ -42,10 +44,10 @@ import { AKRON_SLUG, AKRON_LABEL } from '@/lib/cities'
 import { eventPath } from '@/lib/slug'
 import './CategoryPage.css'
 
-type Row = Record<string, any>
+type Row = LooseRow
 // The hub registry lives in plain JS (seo/categories.js) and returns a wide
 // union of shapes; treat it loosely here.
-type Hub = any
+type Hub = LooseRow
 
 interface LockedDimensions {
   category: boolean
@@ -87,7 +89,7 @@ function getLockedDimensions(hub: Hub, isCategory: boolean): LockedDimensions {
  */
 export default function CategoryPage() {
   const { slug } = useParams()
-  const hub: Hub | null = getHub(slug)
+  const hub: Hub | null = getHub(slug) ?? null
 
   if (!hub || (hub.disabled && !hub.preview)) return <Navigate to="/" replace />
 
@@ -432,8 +434,8 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
   return (
     <div className="hub-page">
       <SEO
-        title={hubTitle(hub)}
-        description={hubDescription(hub)}
+        title={hubTitle(hub as HubInput)}
+        description={hubDescription(hub as HubInput)}
         path={canonicalPath}
         image={`/api/og/hub/${hub.slug}`}
         type="website"

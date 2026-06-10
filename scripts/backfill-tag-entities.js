@@ -50,7 +50,7 @@ async function run() {
   let totalChanged = 0
   const sample = []
 
-  /* eslint-disable no-constant-condition */
+   
   while (true) {
     // Postgres array containment can't easily ask "any entry contains &",
     // so we just stream every event with a non-null, non-empty tags array

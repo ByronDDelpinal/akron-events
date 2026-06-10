@@ -8,6 +8,7 @@
  * Requires: react-map-gl + mapbox-gl. Token: VITE_MAPBOX_TOKEN in .env.
  */
 
+import type { LooseRow } from '@/types'
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import MapGL, { Marker, Popup, NavigationControl, type MapRef } from 'react-map-gl/mapbox'
 import { format } from 'date-fns'
@@ -35,9 +36,9 @@ const CATEGORY_EMOJI: Record<string, string> = {
 }
 
 /** Loose event/venue shapes — the map consumes joined rows with dynamic keys. */
-type MapEvent = Record<string, any>
+type MapEvent = LooseRow
 interface VenueGroup {
-  venue: Record<string, any>
+  venue: LooseRow
   events: MapEvent[]
 }
 
@@ -126,7 +127,7 @@ export default function MapView({ events, onBackToList }: MapViewProps) {
         <MapGL
           ref={mapRef}
           {...viewState}
-          onMove={(e: any) => setViewState(e.viewState)}
+          onMove={(e: { viewState: typeof viewState }) => setViewState(e.viewState)}
           style={{ width: '100%', height: '100%' }}
           mapStyle={MAP_STYLE}
           mapboxAccessToken={MAPBOX_TOKEN}
@@ -142,7 +143,7 @@ export default function MapView({ events, onBackToList }: MapViewProps) {
               longitude={Number(venue.lng)}
               latitude={Number(venue.lat)}
               anchor="bottom"
-              onClick={(e: any) => {
+              onClick={(e: { originalEvent: MouseEvent }) => {
                 e.originalEvent.stopPropagation()
                 setMapActive(true)
                 setPopupVenueId((prev) => prev === venue.id ? null : venue.id)
@@ -395,7 +396,7 @@ function InteractiveVenueMap({ lat, lng, venueName, venueAddress, directionsUrl 
             longitude={Number(lng)}
             latitude={Number(lat)}
             anchor="bottom"
-            onClick={(e: any) => {
+            onClick={(e: { originalEvent: MouseEvent }) => {
               e.originalEvent.stopPropagation()
               setPopupOpen((open) => !open)
             }}

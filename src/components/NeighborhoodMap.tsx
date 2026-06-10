@@ -23,7 +23,11 @@ import './NeighborhoodMap.css'
 const GEOJSON_URL = '/akron-neighborhoods.geojson'
 
 // Loose GeoJSON shapes — the data is fetched at runtime, not from a typed API.
-type Geometry = { type: string; coordinates: any }
+/** GeoJSON position pair (lon, lat). Narrowed via the `type` discriminant. */
+type Ring = [number, number][]
+type Geometry =
+  | { type: 'Polygon'; coordinates: Ring[] }
+  | { type: 'MultiPolygon'; coordinates: Ring[][] }
 type Feature = { geometry: Geometry; properties: { slug: string; name: string } }
 type FeatureCollection = { features: Feature[] }
 type Point = [number, number]

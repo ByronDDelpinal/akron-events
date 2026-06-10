@@ -1,3 +1,5 @@
+import type { TablesInsert, TablesUpdate } from '@/lib/database.types'
+import type { LooseRow } from '@/types'
 import { useState, useEffect, type Dispatch, type FormEvent, type SetStateAction } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
@@ -9,7 +11,7 @@ import {
   EntityMultiSelect, OverrideLockDisplay,
 } from '@/components/admin'
 
-type Row = Record<string, any>
+type Row = LooseRow
 
 const DEFAULT_ORG: Row = {
   name: '', status: 'published', description: '', website: '',
@@ -88,11 +90,11 @@ function OrgForm({ seed, isNew, orgId, allVenues, ownedVenueIds, setOwnedVenueId
 
     let id: string | undefined = orgId
     if (isNew) {
-      const { data, error } = await supabase.from('organizations').insert(orgFields as any).select('id').single()
+      const { data, error } = await supabase.from('organizations').insert(orgFields as unknown as TablesInsert<'organizations'>).select('id').single()
       if (error) { alert('Create failed: ' + error.message); return }
       id = (data as Row).id
     } else {
-      const { error } = await supabase.from('organizations').update(orgFields as any).eq('id', id!)
+      const { error } = await supabase.from('organizations').update(orgFields as unknown as TablesUpdate<'organizations'>).eq('id', id!)
       if (error) { alert('Save failed: ' + error.message); return }
     }
 
@@ -176,7 +178,7 @@ function OrgForm({ seed, isNew, orgId, allVenues, ownedVenueIds, setOwnedVenueId
 
         <div className="admin-section-label">Owned Venues</div>
         <EntityMultiSelect
-          allEntities={allVenues as any}
+          allEntities={allVenues as { id: string; name: string }[]}
           selectedIds={ownedVenueIds}
           onChange={setOwnedVenueIds}
           placeholder="Search and select venues…"

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL = 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 
-import { F1, F2, ALL } from './fixtures/painting-twist-events.js'
+import { F1, F2 } from './fixtures/painting-twist-events.js'
 
 function parsePwtDateTime(raw) {
   const m = raw.match(/^(\d{1,2}):(\d{2})(am|pm)$/i)

@@ -23,7 +23,7 @@
 
 import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
-import { supabaseAdmin } from './lib/supabase-admin.js'
+
 import {
   logUpsertResult, logScraperError, stripHtml, enrichWithImageDimensions, upsertEventSafe,
   linkEventVenue, linkEventOrganization, ensureVenue, linkOrganizationVenue,
@@ -60,7 +60,6 @@ function parseCategory(categories = [], title = '') {
   // Brewery events default to community
   return 'community'
 }
-
 
 // ── Fetch ─────────────────────────────────────────────────────────────────
 
@@ -114,7 +113,8 @@ async function fetchAllPages() {
 // ── Process ───────────────────────────────────────────────────────────────
 
 async function processEvents(rawEvents, venueId, organizerId) {
-  let inserted = 0, updated = 0, skipped = 0
+  let inserted = 0, skipped = 0
+  const updated = 0
 
   for (const ev of rawEvents) {
     try {

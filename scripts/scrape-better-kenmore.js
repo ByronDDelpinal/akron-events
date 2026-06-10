@@ -185,7 +185,7 @@ function metaContent(html, prop) {
 export function extractDetail(html) {
   const rawTitle = metaContent(html, 'og:title') || firstMatch(html, /<h1[^>]*>([\s\S]*?)<\/h1>/i) || ''
   const title = decodeEntities(stripHtml(rawTitle))
-    .replace(/\s*[|–\-]\s*Better Kenmore\s*$/i, '')
+    .replace(/\s*[|–-]\s*Better Kenmore\s*$/i, '')
     .trim()
 
   let description = decodeEntities(metaContent(html, 'og:description') || '')

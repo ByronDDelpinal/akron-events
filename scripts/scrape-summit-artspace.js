@@ -58,7 +58,6 @@ function parseCategory(categories = []) {
   return 'art'
 }
 
-
 // ── Fetch all pages ───────────────────────────────────────────────────────
 
 async function fetchAllPages() {

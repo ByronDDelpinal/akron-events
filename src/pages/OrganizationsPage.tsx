@@ -1,3 +1,4 @@
+import type { LooseRow } from '@/types'
 import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useOrganizations } from '@/hooks/useEvents'
@@ -5,7 +6,7 @@ import { SEO, buildGraph, itemListSchema, breadcrumbSchema } from '@/lib/seo'
 import './OrganizationsPage.css'
 import { SearchIcon } from '@/components/icons'
 
-type Row = Record<string, any>
+type Row = LooseRow
 
 export default function OrganizationsPage() {
   const { organizations, loading, error } = useOrganizations()

@@ -1,3 +1,5 @@
+import type { TablesInsert, TablesUpdate } from '@/lib/database.types'
+import type { LooseRow } from '@/types'
 import { useState, useEffect, useCallback, type FormEvent } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
@@ -10,7 +12,7 @@ import {
   OverrideLockDisplay, ConfirmDialog,
 } from '@/components/admin'
 
-type Row = Record<string, any>
+type Row = LooseRow
 
 const DEFAULT_VENUE: Row = {
   name: '', status: 'published', address: '', city: 'Akron', state: 'OH',
@@ -45,7 +47,8 @@ export default function VenueEditPage() {
         setReady(true)
       })()
     }
-  }, [id, isNew])
+    // fetchAreas is a useCallback([]) — stable for the component lifetime.
+  }, [id, isNew, fetchAreas])
 
   if (!ready) return <div className="admin-loading">Loading venue…</div>
 
@@ -97,10 +100,10 @@ function VenueForm({ seed, isNew, allOrgs, venueId, areas, onAreasChange, onNavi
     }
 
     if (isNew) {
-      const { error } = await supabase.from('venues').insert(venueFields as any)
+      const { error } = await supabase.from('venues').insert(venueFields as unknown as TablesInsert<'venues'>)
       if (error) { alert('Create failed: ' + error.message); return }
     } else {
-      const { error } = await supabase.from('venues').update(venueFields as any).eq('id', venueId!)
+      const { error } = await supabase.from('venues').update(venueFields as unknown as TablesUpdate<'venues'>).eq('id', venueId!)
       if (error) { alert('Save failed: ' + error.message); return }
     }
     onNavigateBack()
@@ -310,7 +313,7 @@ function AddAreaForm({ venueId, onSaved, onCancel }: AddAreaFormProps) {
       venue_id: venueId,
       description: description.trim() || null,
       capacity: capacity ? parseInt(capacity) : null,
-    } as any)
+    } as TablesInsert<'areas'>)
     setSaving(false)
     if (error) { alert('Failed to add area: ' + error.message); return }
     onSaved()

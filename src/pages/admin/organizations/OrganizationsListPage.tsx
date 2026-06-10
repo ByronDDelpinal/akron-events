@@ -1,3 +1,4 @@
+import type { LooseRow, LooseQuery } from '@/types'
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
@@ -5,7 +6,7 @@ import { StatusBadge, SearchBar, ConfirmDialog, Pagination } from '@/components/
 
 const PAGE_SIZE = 50
 
-type Row = Record<string, any>
+type Row = LooseRow
 
 function MissingChip({ label }: { label: string }) {
   return (
@@ -32,7 +33,7 @@ export default function OrganizationsListPage() {
 
   const fetchOrgs = useCallback(async () => {
     setLoading(true)
-    let query: any = supabase
+    let query: LooseQuery = supabase
       .from('organizations')
       .select('id, name, status, city, image_url, description, venues ( id, name ), event_organizations ( event_id )', { count: 'exact' })
       .order('name')

@@ -2,12 +2,13 @@
  * ESLint 9 flat config for Akron Pulse.
  *
  * Replaces .eslintrc.cjs (ESLint 8). Two lint surfaces, two scripts:
- *   npm run lint      — scripts/ (Node scrapers + tooling), warning cap 100
- *   npm run lint:src  — src/ (React + TypeScript), warning cap 250
+ *   npm run lint      — scripts/ (Node scrapers + tooling)
+ *   npm run lint:src  — src/ (React + TypeScript)
  *
- * The src/ cap is a ratchet: src/ was previously unlinted, so pre-existing
- * warnings are capped rather than fixed in one sweep. Lower the cap in
- * package.json as warnings are burned down. New ERRORS always fail.
+ * Both run with --max-warnings 0: the codebase is warning-clean, so any new
+ * warning fails CI. Deliberate exceptions are inline eslint-disable comments
+ * with a justification (grep for eslint-disable to audit them), plus the
+ * sanctioned LooseRow/LooseQuery aliases in src/types/index.ts.
  *
  * Rule parity notes vs the old config:
  *   - no-extra-semi dropped (deprecated formatting rule in ESLint 9)
@@ -26,9 +27,9 @@ const baseRules = {
   'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
   'prefer-const': 'warn',
   eqeqeq: ['error', 'always', { null: 'ignore' }],
-  // Downgraded to warn: pre-existing issues across scraper scripts.
-  // Fix incrementally — they are not bugs.
-  'no-empty': 'warn',
+  // Empty catch is an established pattern here: best-effort cleanup and
+  // optional parsing where failure is expected (see scripts/lib/puppeteer.js).
+  'no-empty': ['warn', { allowEmptyCatch: true }],
   'no-useless-escape': 'warn',
   'no-constant-condition': 'warn',
   'no-irregular-whitespace': 'warn',

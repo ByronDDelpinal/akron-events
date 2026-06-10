@@ -1,3 +1,4 @@
+import type { LooseRow } from '@/types'
 import { Fragment, useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { SEO } from '@/lib/seo'
@@ -28,12 +29,15 @@ interface EvaluatedSource {
 }
 
 /** A row from the scraper_health view (dynamic shape). */
-type HealthRow = Record<string, any>
+type HealthRow = LooseRow
 
 // ── Static data-source registry ──────────────────────────────────────────────
 // Each entry describes one ingestion source regardless of whether it has ever
 // logged a scraper_run. The `key` must match the scraper_name used in normalize.js.
 
+// TODO(tech-debt): generate this registry from scripts/manifest.js and move
+// it out of the page module (audit item #5); AboutPage imports it today.
+// eslint-disable-next-line react-refresh/only-export-components
 export const DATA_SOURCES: DataSource[] = [
   // ── Public REST APIs ────────────────────────────────────────────────────
   {

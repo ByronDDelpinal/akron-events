@@ -87,7 +87,6 @@ const DETAIL_BATCH_SIZE    = 3     // concurrent fetches per batch
 const DETAIL_MIN_MS        = 1500  // jitter between batches
 const DETAIL_MAX_MS        = 3000
 const DETAIL_TIMEOUT_MS    = 12000 // per-request timeout
-const DETAIL_MIN_DESC_LEN  = 100   // skip detail fetch if existing desc is already this long
 
 const AKRON_LAT = 41.0814
 const AKRON_LNG = -81.5190
@@ -338,20 +337,6 @@ function extractEventsFromData(data) {
   }
 
   return recursiveFindEvents(data, 0) ?? []
-}
-
-/**
- * Extract the first bucket that looks like a main "all events" result set —
- * the one with the largest results array. We use this for pagination.
- */
-function findMainBucket(serverData) {
-  if (!Array.isArray(serverData?.buckets)) return null
-  let best = null
-  for (const bucket of serverData.buckets) {
-    const count = bucket?.events?.results?.length ?? 0
-    if (!best || count > (best.events?.results?.length ?? 0)) best = bucket
-  }
-  return best
 }
 
 function isEventLike(obj) {

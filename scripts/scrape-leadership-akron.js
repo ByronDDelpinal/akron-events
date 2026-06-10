@@ -141,7 +141,7 @@ async function main() {
       description: 'Leadership Akron is a nonprofit leadership development organization that cultivates, connects, and inspires leaders to strengthen the greater Akron community.',
     })
 
-    let allEvents = []
+    const allEvents = []
     for (const collectionUrl of COLLECTION_URLS) {
       console.log(`\n🔍  Fetching events from ${collectionUrl}…`)
       const events = await fetchSquarespaceEvents(collectionUrl)

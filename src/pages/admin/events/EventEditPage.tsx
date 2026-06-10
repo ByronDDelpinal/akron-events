@@ -1,3 +1,5 @@
+import type { TablesInsert, TablesUpdate } from '@/lib/database.types'
+import type { LooseRow } from '@/types'
 import { useState, useEffect, useCallback, type Dispatch, type FormEvent, type SetStateAction } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
@@ -9,7 +11,7 @@ import {
   ChipSelector, EntityMultiSelect, OverrideLockDisplay,
 } from '@/components/admin'
 
-type Row = Record<string, any>
+type Row = LooseRow
 type SetIds = Dispatch<SetStateAction<string[]>>
 
 const DEFAULT_EVENT: Row = {
@@ -71,7 +73,8 @@ export default function EventEditPage() {
         setReady(true)
       })()
     }
-  }, [id, isNew])
+    // fetchRelated is a useCallback([]) — stable for the component lifetime.
+  }, [id, isNew, fetchRelated])
 
   if (!ready) return <div className="admin-loading">Loading event…</div>
 
@@ -142,11 +145,11 @@ function EventForm({
 
     let id: string | undefined = eventId
     if (isNew) {
-      const { data, error } = await supabase.from('events').insert(eventFields as any).select('id').single()
+      const { data, error } = await supabase.from('events').insert(eventFields as unknown as TablesInsert<'events'>).select('id').single()
       if (error) { alert('Create failed: ' + error.message); return }
       id = (data as Row).id
     } else {
-      const { error } = await supabase.from('events').update(eventFields as any).eq('id', id!)
+      const { error } = await supabase.from('events').update(eventFields as unknown as TablesUpdate<'events'>).eq('id', id!)
       if (error) { alert('Save failed: ' + error.message); return }
     }
 
@@ -158,24 +161,24 @@ function EventForm({
     if (cats.length) {
       const { error: catErr } = await supabase
         .from('event_categories')
-        .insert(cats.map((category) => ({ event_id: id, category })) as any)
+        .insert(cats.map((category) => ({ event_id: id, category })) as TablesInsert<'event_categories'>[])
       if (catErr) { alert('Category save failed: ' + catErr.message); return }
     }
 
     // Junction tables
     if (!isNew) await supabase.from('event_venues').delete().eq('event_id', id!)
     if (linkedVenueIds.length > 0) {
-      await supabase.from('event_venues').insert(linkedVenueIds.map((vid) => ({ event_id: id, venue_id: vid })) as any)
+      await supabase.from('event_venues').insert(linkedVenueIds.map((vid) => ({ event_id: id, venue_id: vid })) as TablesInsert<'event_venues'>[])
     }
 
     if (!isNew) await supabase.from('event_organizations').delete().eq('event_id', id!)
     if (linkedOrgIds.length > 0) {
-      await supabase.from('event_organizations').insert(linkedOrgIds.map((oid) => ({ event_id: id, organization_id: oid })) as any)
+      await supabase.from('event_organizations').insert(linkedOrgIds.map((oid) => ({ event_id: id, organization_id: oid })) as TablesInsert<'event_organizations'>[])
     }
 
     if (!isNew) await supabase.from('event_areas').delete().eq('event_id', id!)
     if (linkedAreaIds.length > 0) {
-      await supabase.from('event_areas').insert(linkedAreaIds.map((aid) => ({ event_id: id, area_id: aid })) as any)
+      await supabase.from('event_areas').insert(linkedAreaIds.map((aid) => ({ event_id: id, area_id: aid })) as TablesInsert<'event_areas'>[])
     }
 
     onNavigateBack()
@@ -263,7 +266,7 @@ function EventForm({
 
         <FormField label="Linked Venues">
           <EntityMultiSelect
-            allEntities={allVenues as any}
+            allEntities={allVenues as { id: string; name: string }[]}
             selectedIds={linkedVenueIds}
             onChange={setLinkedVenueIds}
             placeholder="Search and select venues…"
@@ -272,14 +275,14 @@ function EventForm({
 
         <FormField label="Linked Organizations">
           <EntityMultiSelect
-            allEntities={allOrgs as any}
+            allEntities={allOrgs as { id: string; name: string }[]}
             selectedIds={linkedOrgIds}
             onChange={setLinkedOrgIds}
             placeholder="Search and select organizations…"
           />
         </FormField>
 
-        <ChipSelector label="Linked Areas" items={allAreas as any} selectedIds={linkedAreaIds} onChange={setLinkedAreaIds} />
+        <ChipSelector label="Linked Areas" items={allAreas as { id: string; name: string }[]} selectedIds={linkedAreaIds} onChange={setLinkedAreaIds} />
 
         <OverrideLockDisplay overrides={overrides} />
 

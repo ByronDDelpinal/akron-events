@@ -1,3 +1,4 @@
+import type { LooseRow } from '@/types'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useVenue, useVenueEvents } from '@/hooks/useEvents'
 import { VenueMap } from '@/components/MapView'
@@ -21,7 +22,7 @@ import {
 import './VenueDetailPage.css'
 import { BackIcon, CalIcon, GlobeIcon, OrgIcon, PinIcon } from '@/components/icons'
 
-type Row = Record<string, any>
+type Row = LooseRow
 
 export default function VenueDetailPage() {
   const { id }    = useParams()

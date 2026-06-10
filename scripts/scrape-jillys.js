@@ -36,7 +36,6 @@ import {
   linkEventOrganization,
   ensureVenue,
   ensureOrganization,
-  linkOrganizationVenue,
 } from './lib/normalize.js'
 
 const AJAX_URL   = 'https://jillysmusicroom.com/wp-admin/admin-ajax.php'

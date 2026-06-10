@@ -1,10 +1,11 @@
+import type { LooseRow } from '@/types'
 import { useState, useEffect, useCallback, useRef, type ChangeEvent, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import { supabase } from '@/lib/supabase'
 import Modal from '@/components/Modal'
 import { SEO } from '@/lib/seo'
 import './FeedbackPage.css'
 
-type Row = Record<string, any>
+type Row = LooseRow
 
 interface CatDef {
   id: string
@@ -160,7 +161,13 @@ export default function FeedbackPage() {
 
       const { error } = await supabase
         .from('feedback_posts')
-        .insert(payload as any)
+        .insert(
+          // TODO(tech-debt): the `feedback` table is missing from the generated
+          // database.types.ts — regenerate via `supabase gen types`, then
+          // replace this cast with TablesInsert<'feedback'>.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          payload as any
+        )
         .select()
         .single()
 

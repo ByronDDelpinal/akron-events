@@ -1,3 +1,4 @@
+import type { LooseRow } from '@/types'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useOrganization } from '@/hooks/useEvents'
@@ -20,7 +21,7 @@ import {
 import './OrganizationDetailPage.css'
 import { BackIcon, CalIcon, GlobeIcon, PinIcon, SearchIcon } from '@/components/icons'
 
-type Row = Record<string, any>
+type Row = LooseRow
 
 const EVENTS_PAGE_SIZE = 25
 

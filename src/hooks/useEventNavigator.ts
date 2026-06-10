@@ -1,3 +1,4 @@
+import type { LooseRow } from '@/types'
 import { useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { eventPath } from '@/lib/slug'
@@ -38,7 +39,7 @@ export function useEventNavigator(): (event: NavigableEvent) => void {
       }
       if (embed.target === 'external') {
         // Go straight to the event's own site; skip the Akron Pulse detail page.
-        const externalUrl = (event as any).ticket_url || (event as any).source_url
+        const externalUrl = (event as LooseRow).ticket_url || (event as LooseRow).source_url
         const url = externalUrl ?? `${window.location.origin}${path}`
         window.open(url, '_blank', 'noopener,noreferrer')
         return

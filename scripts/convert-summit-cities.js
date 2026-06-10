@@ -275,7 +275,7 @@ async function readSource(source, cityPolys, cityPrimary, regionPolys) {
   const dbfBuf = await readFile(`${source.base}.dbf`)
   const reader = await shapefile.open(shpBuf, dbfBuf, { encoding: 'utf-8' })
 
-  // eslint-disable-next-line no-constant-condition
+   
   while (true) {
     const result = await reader.read()
     if (result.done) break

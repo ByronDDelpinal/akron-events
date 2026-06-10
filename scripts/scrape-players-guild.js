@@ -14,7 +14,7 @@
 
 import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
-import { supabaseAdmin } from './lib/supabase-admin.js'
+
 import {
   logUpsertResult, logScraperError, stripHtml, enrichWithImageDimensions, upsertEventSafe,
   linkEventVenue, linkEventOrganization, ensureVenue, linkOrganizationVenue,
@@ -24,7 +24,6 @@ import {
 const BASE_URL   = 'https://playersguildtheatre.com/wp-json/tribe/events/v1/events'
 const PER_PAGE   = 50
 const DAYS_AHEAD = 365   // theatre seasons are planned well in advance
-
 
 // ── Fetch ──────────────────────────────────────────────────────────────────
 

@@ -23,7 +23,6 @@ import {
   linkEventOrganization,
   ensureVenue,
   ensureOrganization,
-  linkOrganizationVenue,
 } from './lib/normalize.js'
 
 const TEAM_ID     = 402     // Akron RubberDucks

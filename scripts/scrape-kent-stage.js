@@ -128,7 +128,7 @@ function decodeEntities(s) {
  */
 function parseEventUrls(html) {
   const seen = new Set()
-  const re = /href="([^"]*\/event\/([^"\/]+)\/[^"\/]+\/[^"\/]+\/?)"/gi
+  const re = /href="([^"]*\/event\/([^"/]+)\/[^"/]+\/[^"/]+\/?)"/gi
   for (const m of html.matchAll(re)) {
     const url = m[1]
     const slug = m[2]

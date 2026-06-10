@@ -35,7 +35,6 @@ import {
   linkEventOrganization,
   ensureVenue,
   ensureOrganization,
-  linkOrganizationVenue,
   parseCostFromTribe,
   parseTagsFromTribe,
 } from './lib/normalize.js'
@@ -80,7 +79,7 @@ function parseCategory(categories = []) {
 
 const venueCache = new Map()
 
-async function ensureEventVenue(tribeVenue, fallbackVenueId, organizerId) {
+async function ensureEventVenue(tribeVenue, fallbackVenueId, _organizerId) {
   if (!tribeVenue || !tribeVenue.venue) return fallbackVenueId
 
   const venueName = tribeVenue.venue.trim()

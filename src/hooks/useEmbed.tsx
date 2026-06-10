@@ -25,6 +25,9 @@ export function EmbedProvider({
 }
 
 /** Returns the embed config, or null on the normal site. */
+// Context module exports its provider + hook together by design; the HMR
+// boundary warning doesn't apply meaningfully here.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useEmbed(): EmbedConfig | null {
   return useContext(EmbedContext)
 }

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL = 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 
-import { F1, F2, ALL } from './fixtures/ohio-shakespeare-events.js'
+import { F1, F2 } from './fixtures/ohio-shakespeare-events.js'
 
 function parseDateString(raw) {
   const rangePat = /^(\w+)\s+(\d{1,2})\s*-\s*(\w+)\s+(\d{1,2}),\s+(\d{4})$/

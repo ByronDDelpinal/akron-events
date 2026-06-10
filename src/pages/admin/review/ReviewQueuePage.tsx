@@ -1,3 +1,5 @@
+import type { TablesUpdate } from '@/lib/database.types'
+import type { LooseRow } from '@/types'
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { format } from 'date-fns'
@@ -8,7 +10,7 @@ import { eventPath } from '@/lib/slug'
 
 const PAGE_SIZE = 50
 
-type Row = Record<string, any>
+type Row = LooseRow
 
 // Categories available for reassignment — everything except 'other'
 const REMAP_OPTIONS = CATEGORIES.filter((c) => c.value !== 'other')
@@ -81,7 +83,7 @@ export default function ReviewQueuePage() {
     if (!error) {
       const res = await supabase
         .from('events')
-        .update({ manual_overrides: updatedOverrides, needs_review: false } as any)
+        .update({ manual_overrides: updatedOverrides, needs_review: false } as TablesUpdate<'events'>)
         .eq('id', ev.id)
       error = res.error
     }

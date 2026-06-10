@@ -22,7 +22,6 @@ const YELLOW = '\x1b[33m'
 const GREEN  = '\x1b[32m'
 const BOLD   = '\x1b[1m'
 const DIM    = '\x1b[2m'
-const CYAN   = '\x1b[36m'
 
 async function main() {
   const { data: rows, error } = await supabaseAdmin
@@ -56,7 +55,7 @@ async function main() {
 
   for (const row of rows) {
     const {
-      scraper_name, last_ran_at, hours_since_run, last_status,
+      scraper_name, hours_since_run,
       last_events_found, avg_events_last5, total_runs,
       is_stale, is_zero_streak, is_error, alert,
     } = row

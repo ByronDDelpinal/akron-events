@@ -28,7 +28,6 @@ import {
   ONLY_DOORS_TIME,
   NO_IMAGE,
   WEBP_IMAGE,
-  LONG_DESCRIPTION_TEXT,
   ALL_FIXTURES,
 } from './fixtures/blu-jazz-events.js'
 

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL = 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 
-import { F1, F2, ALL } from './fixtures/downtown-akron-events.js'
+import { F1, F2 } from './fixtures/downtown-akron-events.js'
 
 function parseTime(raw) {
   const m = raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i)
