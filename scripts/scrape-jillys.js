@@ -23,6 +23,7 @@
  *   SUPABASE_SERVICE_ROLE_KEY — Supabase service role key
  */
 
+import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
 import {
   logUpsertResult,
@@ -329,4 +330,8 @@ async function main() {
   }
 }
 
-main()
+// Run only when invoked directly (`node scripts/scrape-jillys.js`); importing the module
+// for tests exposes the pure parsers without triggering a live run.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main()
+}
