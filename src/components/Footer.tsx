@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from '@/hooks/useTheme'
-import { THEMES, DEFAULT_THEME, THEME_STORAGE_KEY, LEGACY_THEME_STORAGE_KEY, getThemeLogo } from '@/lib/themes'
+import { SITE_THEMES, DEFAULT_THEME, THEME_STORAGE_KEY, LEGACY_THEME_STORAGE_KEY, getThemeLogo } from '@/lib/themes'
 import { ENABLED_CATEGORY_HUBS, ENABLED_NEIGHBORHOOD_HUBS } from '@/lib/seo'
 import './Footer.css'
 
@@ -141,7 +141,7 @@ export default function Footer() {
               value={theme}
               onChange={(e) => setTheme(e.target.value)}
             >
-              {THEMES.map((t) => (
+              {SITE_THEMES.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
                 </option>
@@ -201,7 +201,7 @@ export default function Footer() {
                 aria-label="Theme"
                 tabIndex={hidden ? -1 : 0}
               >
-                {THEMES.map((t) => (
+                {SITE_THEMES.map((t) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>

@@ -187,8 +187,12 @@ export function useEvents({
 
         if (search && search.trim().length > 0) {
           const term = normalizeSearch(search.trim())
+          // Tags are folded into description_normalized server-side (migration
+          // 031), so this title/description match also covers tag searches
+          // (e.g. "baseball" → events tagged baseball) without a fragile
+          // array-contains filter inside .or().
           query = query.or(
-            `title_normalized.ilike.*${term}*,description_normalized.ilike.*${term}*,tags.cs.{${term}}`
+            `title_normalized.ilike.*${term}*,description_normalized.ilike.*${term}*`
           )
         }
 
@@ -500,8 +504,12 @@ export function useMapEvents({
 
         if (search && search.trim().length > 0) {
           const term = normalizeSearch(search.trim())
+          // Tags are folded into description_normalized server-side (migration
+          // 031), so this title/description match also covers tag searches
+          // (e.g. "baseball" → events tagged baseball) without a fragile
+          // array-contains filter inside .or().
           query = query.or(
-            `title_normalized.ilike.*${term}*,description_normalized.ilike.*${term}*,tags.cs.{${term}}`
+            `title_normalized.ilike.*${term}*,description_normalized.ilike.*${term}*`
           )
         }
 

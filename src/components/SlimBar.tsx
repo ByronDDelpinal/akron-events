@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import type { ChangeEvent } from 'react'
 import { useTheme } from '@/hooks/useTheme'
-import { THEMES, getThemeLogo } from '@/lib/themes'
+import { SITE_THEMES, getThemeLogo } from '@/lib/themes'
 import './SlimBar.css'
 
 /**
@@ -40,7 +40,7 @@ export default function SlimBar() {
               onChange={(e: ChangeEvent<HTMLSelectElement>) => setTheme(e.target.value)}
               aria-label="Theme"
             >
-              {THEMES.map((t) => (
+              {SITE_THEMES.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </select>

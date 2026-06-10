@@ -687,3 +687,63 @@
 
   --shadow-focus: 0 0 0 3px rgba(208, 56, 8, 0.2);
 }
+
+/* ──────────────────────────────────────────────────────────────────
+   Postcard — partner palette (white-label embed)
+   Matched to a partner site's brand: bright lagoon teal (#0BAEC1)
+   background/buttons, deep teal (#027A87) links, magenta (#DA0553)
+   headline accents, charcoal (#444340) text, Open Sans throughout,
+   white content panels. The bright teal reads as a mid accent only —
+   it fails AA as text on light backgrounds, so the darker link teal
+   carries the primary role. Audited AA pairs:
+     - white on --amber #027A87 (5.1:1) and on --bg-nav #035E68 (7.5:1)
+     - --amber / --coral on --bg-page (≥4.7:1)
+     - --text-muted #5C7378 on --bg-page (4.7:1)
+     - --amber-on-dark #6FDCE9 on --bg-nav (4.7:1)
+   ────────────────────────────────────────────────────────────────── */
+.theme-postcard {
+  /* Typography — the partner site is Open Sans end-to-end; one family
+     in both roles keeps the embed feeling native on their pages. */
+  --font-display: 'Open Sans', system-ui, sans-serif;
+  --font-body:    'Open Sans', system-ui, sans-serif;
+
+  --bg-page:       #F4FBFC;
+  --bg-card:       #FFFFFF;
+  --bg-secondary:  #E4F4F7;
+  --bg-nav:        #035E68;
+
+  --text-primary:   #2B2B29;
+  --text-secondary: #444340;   /* partner's exact body charcoal */
+  --text-muted:     #5C7378;
+
+  --amber:        #027A87;     /* partner link teal as primary */
+  --amber-hover:  #02616B;
+  --amber-pale:   #DCF2F5;
+  --amber-border: rgba(2, 122, 135, 0.25);
+  --amber-on-dark: #6FDCE9;    /* bright lagoon for text on --bg-nav */
+
+  --green-deep:   #035E68;
+  --green-mid:    #0BAEC1;     /* partner's signature bright teal */
+
+  --coral:        #DA0553;     /* partner headline magenta */
+  --coral-hover:  #B30444;
+  --coral-pale:   #FBDFE9;
+
+  --border:       #D3E6EA;
+  --border-mid:   #AFCED5;
+
+  --chip-bg:         #E0F0F3;
+  --chip-text:       #3C5B61;
+  --chip-active-bg:  #027A87;
+  --chip-active-txt: #FFFFFF;
+
+  --amber-tint-10: rgba(2, 122, 135, 0.10);
+  --amber-tint-25: rgba(2, 122, 135, 0.25);
+  --amber-tint-50: rgba(2, 122, 135, 0.50);
+
+  --coral-tint-15: rgba(218, 5, 83, 0.15);
+  --coral-tint-25: rgba(218, 5, 83, 0.25);
+  --coral-tint-35: rgba(218, 5, 83, 0.35);
+
+  --shadow-focus: 0 0 0 3px rgba(2, 122, 135, 0.2);
+}

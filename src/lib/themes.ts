@@ -16,6 +16,12 @@ export interface ThemeOption {
   id: string
   name: string
   description: string
+  /**
+   * Partner (white-label) palette. Partner themes are valid anywhere a
+   * theme id is accepted — the embed builder and the embed ?theme= param —
+   * but are filtered out of the public site's pickers (see SITE_THEMES).
+   */
+  partner?: boolean
 }
 
 export interface ThemeFonts {
@@ -92,7 +98,17 @@ export const THEMES: ThemeOption[] = [
     name: 'Prime Time',
     description: 'Primary colors on oxford navy.',
   },
+  // ── Partner palettes (white-label embeds) ──
+  {
+    id: 'postcard',
+    name: 'Postcard',
+    description: 'Bright lagoon teal with magenta — greetings from the everyday.',
+    partner: true,
+  },
 ]
+
+/** Themes shown in the public site's pickers (partner palettes excluded). */
+export const SITE_THEMES: ThemeOption[] = THEMES.filter((t) => !t.partner)
 
 export const DEFAULT_THEME = 'akron-pulse'
 export const THEME_STORAGE_KEY = 'akronpulse.theme'
@@ -218,6 +234,13 @@ export const THEME_FONTS: Record<string, ThemeFonts> = {
     display: "'Oswald', system-ui, sans-serif",
     body: "'Archivo', system-ui, sans-serif",
     googleFontsHref: 'https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Archivo:wght@400;500;700&display=swap',
+  },
+  'postcard': {
+    // Partner match: the partner site sets everything in Open Sans, so a
+    // single family carries both display and body roles here.
+    display: "'Open Sans', system-ui, sans-serif",
+    body: "'Open Sans', system-ui, sans-serif",
+    googleFontsHref: 'https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap',
   },
 }
 
