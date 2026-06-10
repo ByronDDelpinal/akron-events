@@ -195,7 +195,7 @@ export default function EmbedBuilderPage() {
   return (
     <>
       <SEO
-        title="Embed Builder — Akron Pulse"
+        title="Embed Builder | Akron Pulse"
         description="Configure and preview a white-label Akron Pulse events calendar for your website. Copy the iframe snippet and drop it into any page."
       />
 
@@ -397,7 +397,7 @@ export default function EmbedBuilderPage() {
                     checked={state.target === 'external'}
                     onChange={() => set('target', 'external')}
                   />
-                  <span>Go direct to event site <span className="builder-feature-desc">skips detail page — best for sidebars</span></span>
+                  <span>Go direct to event site <span className="builder-feature-desc">skips detail page, best for sidebars</span></span>
                 </label>
               </div>
             </div>

@@ -27,14 +27,14 @@ const COPY: Record<Variant, CopyBlock> = {
     eyebrow: 'Never miss an event',
     heading: 'Get Akron events in your inbox, on your schedule',
     body:
-      "A free email roundup of the best upcoming events in Akron — concerts, family activities, free things to do, and more. Pick how often you want it.",
+      "A free email roundup of the best upcoming events in Akron: concerts, family activities, free things to do, and more. Pick how often you want it.",
     cta: 'Sign up free',
   },
   hub: {
     eyebrow: 'Weekly digest',
     heading: 'Get Akron events in your inbox, on your schedule',
     body:
-      "A free email roundup of the best upcoming events in Akron — concerts, art shows, family activities, free things to do, and more. Pick how often you want it.",
+      "A free email roundup of the best upcoming events in Akron: concerts, art shows, family activities, free things to do, and more. Pick how often you want it.",
     cta: 'Sign up free',
   },
 }

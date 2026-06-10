@@ -38,7 +38,7 @@ export default function VenuesPage() {
   return (
     <>
       <SEO
-        title="Venues — Event Venues in Akron & Summit County"
+        title="Venues | Event Venues in Akron & Summit County"
         description="A directory of concert halls, gallery spaces, parks, theatres, and more around Akron and Summit County. Browse venues to find where events are happening."
         path="/venues"
         jsonLd={seoGraph}
@@ -49,7 +49,7 @@ export default function VenuesPage() {
           <p className="venues-hero-eyebrow">Summit County</p>
           <h1 className="venues-hero-title">Where it happens</h1>
           <p className="venues-hero-sub">
-            Every venue we track — from concert halls and gallery spaces to parks,
+            Every venue we track, from concert halls and gallery spaces to parks,
             theatres, and dive bars.
           </p>
         </div>

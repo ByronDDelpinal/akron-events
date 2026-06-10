@@ -127,7 +127,7 @@ export default function VenueSubmitPage() {
   return (
     <div className="page-shell">
       <SEO
-        title="Submit Venue — Add an Event Space to Akron Pulse"
+        title="Submit Venue | Add an Event Space to Akron Pulse"
         description="Know a great event space in Akron or Summit County? Submit it to Akron Pulse and help map the local events scene."
         path="/venues/submit"
       />
@@ -137,7 +137,7 @@ export default function VenueSubmitPage() {
       </p>
 
       <div className="notice-box">
-        All venues are reviewed before going live. Include as much detail as you can — it helps people plan.
+        All venues are reviewed before going live. Include as much detail as you can. It helps people plan.
       </div>
 
       <form onSubmit={handleSubmit}>

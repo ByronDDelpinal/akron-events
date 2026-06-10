@@ -477,7 +477,7 @@ function ActionButtons({ event, price }: { event: AppEvent; price: PriceDisplay 
   const primaryUrl   = firstAbsoluteUrl(event.ticket_url, event.source_url)
   const isTicketLink = !!event.ticket_url && primaryUrl === event.ticket_url
   const primaryLabel = isTicketLink
-    ? (price.free ? 'Register — Free' : `Get Tickets — ${price.label}`)
+    ? (price.free ? 'Register (Free)' : `Get Tickets · ${price.label}`)
     : 'View Event Details →'
 
   return (

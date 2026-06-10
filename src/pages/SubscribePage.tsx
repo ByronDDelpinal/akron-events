@@ -134,8 +134,8 @@ export default function SubscribePage() {
   return (
     <div className="page-shell subscribe-shell">
       <SEO
-        title="Subscribe — Akron Events Newsletter in Your Inbox"
-        description="A free digest of upcoming events in Akron and Summit County. Pick your categories and how often you want to hear from us — no spam, easy one-click unsubscribe."
+        title="Subscribe | Akron Events Newsletter in Your Inbox"
+        description="A free digest of upcoming events in Akron and Summit County. Pick your categories and how often you want to hear from us. No spam, easy one-click unsubscribe."
         path="/subscribe"
       />
       {/* ── Hero messaging ── */}
@@ -143,7 +143,7 @@ export default function SubscribePage() {
         Get {EMAIL_THEME.brandName} in your inbox
       </h1>
       <p className="page-sub subscribe-sub">
-        No password, no account — just the events you care about, delivered on your schedule.
+        No password, no account, just the events you care about, delivered on your schedule.
       </p>
 
       <form onSubmit={handleSubmit} className="subscribe-form">
@@ -180,7 +180,7 @@ export default function SubscribePage() {
             )}
             {manageStatus === 'not_found' && (
               <p className="manage-sub-msg manage-sub-not-found">
-                No subscription found for that email — fill out the form below to get started.
+                No subscription found for that email. Fill out the form below to get started.
               </p>
             )}
           </div>
@@ -255,8 +255,8 @@ export default function SubscribePage() {
         {/* ── Post-CTA messaging ── */}
         <p className="subscribe-fine-print">
           After confirming your email, you'll unlock your preference center
-          where you can fine-tune everything — categories, specific venues,
-          price range, and more. No password needed, ever. Not now, not later.
+          where you can fine-tune everything: categories, specific venues,
+          price range, and more. No password needed, ever.
         </p>
       </form>
 

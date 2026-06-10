@@ -54,7 +54,7 @@ export default function VenueDetailPage() {
   )}`
 
   // ── SEO: Place schema + breadcrumb + list of upcoming events ────
-  const seoTitle = `Venue: ${venue.name} — Upcoming Events in ${venue.city || 'Akron'}`
+  const seoTitle = `Venue: ${venue.name} | Upcoming Events in ${venue.city || 'Akron'}`
   const seoDesc = (
     venue.description
     || `See upcoming events at ${venue.name} in ${venue.city || 'Akron'}, ${venue.state || 'OH'}. Concerts, community gatherings, and more.`

@@ -11,7 +11,7 @@ export const SITE = {
   baseUrl: 'https://akronpulse.com',
   // Written long-form for AI citations — what Akron Pulse IS, in one line.
   description:
-    'Akron Pulse is a free directory of local events in Akron, Ohio and Summit County — concerts, art shows, community gatherings, fundraisers, farmers markets, sports, and more, all in one place.',
+    'Akron Pulse is a free directory of local events in Akron, Ohio and Summit County: concerts, art shows, community gatherings, fundraisers, farmers markets, sports, and more, all in one place.',
   locale: 'en_US',
   country: 'US',
   region: 'OH',

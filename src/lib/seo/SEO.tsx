@@ -36,7 +36,7 @@ export default function SEO({
   jsonLd = null,
 }: SEOProps) {
   const fullTitle = !title
-    ? `${SITE.name} — ${SITE.tagline}`
+    ? `${SITE.name} | ${SITE.tagline}`
     : titleExact
       ? title
       : `${title} | ${SITE.name}`

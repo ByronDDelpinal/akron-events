@@ -181,7 +181,7 @@ export default function HomePage() {
         <div className="hero-glow" />
         <p className="hero-eyebrow">Summit County, Ohio</p>
         <h1>What's happening<br />in <span>Akron?</span></h1>
-        <p className="hero-sub">Concerts, galas, art shows, markets, and more — happening right now in Akron.</p>
+        <p className="hero-sub">Concerts, galas, art shows, markets, and more, happening right now in Akron.</p>
         <div className="search-wrap" ref={searchWrapRef}>
           <SearchIcon className="search-icon" />
           <input
@@ -314,8 +314,8 @@ function GridPromo() {
 
   const handleShare = async () => {
     const shareData = {
-      title: 'Akron Pulse — Akron Events',
-      text: "Check out Akron Pulse — it's where I find everything happening in Akron & Summit County.",
+      title: 'Akron Pulse | Akron Events',
+      text: "Check out Akron Pulse. It's where I find everything happening in Akron & Summit County.",
       url: window.location.origin,
     }
     if (navigator.share) {

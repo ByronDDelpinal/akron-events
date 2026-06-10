@@ -37,7 +37,7 @@ export default function OrganizersPage() {
           Send your flyer, press release, or newsletter to{' '}
           <a href={`mailto:${INTAKE_EMAIL}`} className="organizers-email">{INTAKE_EMAIL}</a>.
           Our pipeline reads it, and your event is live within 24 hours. No
-          forms, no hoops — if you can forward an email, you can be on the
+          forms to fill out. If you can forward an email, you can be on the
           calendar.
         </>
       ),
@@ -47,7 +47,7 @@ export default function OrganizersPage() {
       title: 'Submit the form',
       description: (
         <>
-          The five-minute version. Tell us what, where, and when — we review
+          The five-minute version. Tell us what, where, and when. We review
           every submission before it goes live, usually the same day.
         </>
       ),
@@ -58,7 +58,7 @@ export default function OrganizersPage() {
       isNew: true,
       description: (
         <>
-          A live Akron Pulse calendar embedded on your website — your colors,
+          A live Akron Pulse calendar embedded on your website: your colors,
           your filters, only the events that fit your audience. One
           copy-paste snippet, always up to date, free like everything else.
         </>
@@ -70,7 +70,7 @@ export default function OrganizersPage() {
       description: (
         <>
           Register your organization so it shows up in our public directory
-          with its own page listing your upcoming events — no account to
+          with its own page listing your upcoming events. No account to
           manage, we keep it current. Run a space instead?{' '}
           <Link to="/venues/submit">Register a venue</Link>.
         </>
@@ -82,7 +82,7 @@ export default function OrganizersPage() {
   return (
     <>
       <SEO
-        title="For Organizers & Partners — Get Your Events on Akron Pulse"
+        title="For Organizers & Partners | Get Your Events on Akron Pulse"
         description="Put your events in front of Akron, free. Submit through a form, email intake@akronpulse.com, register your organization, or embed the live calendar on your own website."
         path="/organizers"
         jsonLd={seoGraph}
@@ -91,9 +91,9 @@ export default function OrganizersPage() {
       <div className="organizers-hero">
         <h1>You make it happen. <span>We make it heard.</span></h1>
         <p>
-          Akron Pulse exists so nobody finds out about the good stuff after it
-          happened. If you&apos;re the one making the good stuff happen, here are
-          four ways to plug in — every one of them free.
+          Akron Pulse exists so people see what&apos;s going on before it
+          happens. If you&apos;re the one making the good stuff happen, here are
+          four ways to plug in, all of them free.
         </p>
       </div>
 

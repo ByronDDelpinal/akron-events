@@ -120,7 +120,7 @@ export default function SubmitPage() {
   return (
     <div className="page-shell">
       <SEO
-        title="Submit Event — Free Listing in Akron"
+        title="Submit Event | Free Listing in Akron"
         description="Have an event happening in Akron or Summit County? Submit it to Akron Pulse for free and reach locals looking for things to do."
         path="/submit"
       />
@@ -128,7 +128,7 @@ export default function SubmitPage() {
       <p className="page-sub">Have an event happening in Akron or Summit County? Share it with the community.</p>
 
       <div className="notice-box">
-        All submissions are reviewed before going live — usually within 24 hours. We'll reach out if we have questions.
+        All submissions are reviewed before going live, usually within 24 hours. We'll reach out if we have questions.
       </div>
 
       <form onSubmit={handleSubmit}>

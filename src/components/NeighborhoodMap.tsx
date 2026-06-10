@@ -250,7 +250,7 @@ export default function NeighborhoodMap({ activeSlug, activeLabelOverride, class
               href={`/events/${f.slug}`}
               onClick={(e) => handlePolygonClick(e, f.slug)}
               onDoubleClick={(e) => handlePolygonDoubleClick(e, f.slug)}
-              aria-label={`Select ${f.name} — double-click to open`}
+              aria-label={`Select ${f.name}, double-click to open`}
             >
               <title>{f.name}</title>
               <path d={f.d} className={cls} />

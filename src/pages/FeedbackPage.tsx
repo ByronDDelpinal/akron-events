@@ -287,7 +287,7 @@ export default function FeedbackPage() {
   return (
     <>
       <SEO
-        title="Feedback — Town Square for Akron Pulse"
+        title="Feedback | Town Square for Akron Pulse"
         description="Share bugs, ideas, and wishlist items for Akron Pulse. The roadmap is shaped by the people who use the site."
         path="/feedback"
       />

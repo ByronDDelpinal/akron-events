@@ -48,7 +48,7 @@ export default function OrganizationDetailPage() {
   const venues: Row[] = org.venues ?? []
 
   // ── SEO: Organization schema + breadcrumb + event list ──────────
-  const seoTitle = `Organization: ${org.name} — Events & Programs in Akron, OH`
+  const seoTitle = `Organization: ${org.name} | Events & Programs in Akron, OH`
   const seoDesc = (
     org.description
     || `Upcoming events and programs from ${org.name}, a local organization in Akron, OH.`

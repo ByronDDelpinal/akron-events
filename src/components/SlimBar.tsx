@@ -20,7 +20,7 @@ export default function SlimBar() {
 
         {/* ── Identity: logo + vibe switcher (Row 1 on mobile) ── */}
         <div className="slim-bar-identity">
-          <Link to="/" className="slim-bar-logo" aria-label="Akron Pulse — home">
+          <Link to="/" className="slim-bar-logo" aria-label="Akron Pulse, home">
             <img
               src={getThemeLogo(theme)}
               alt=""

@@ -19,7 +19,7 @@ const FAQS: Faq[] = [
   {
     question: 'What is Akron Pulse?',
     answer:
-      'Akron Pulse is a free directory of local events in Akron (OH) and Summit County. We track concerts, shows, gatherings, fundraisers, markets, games, classes, excursions, and more — so more people can plan, find community, and live the life they dream of.',
+      'Akron Pulse is a free directory of local events in Akron (OH) and Summit County. We track concerts, shows, gatherings, fundraisers, markets, games, classes, excursions, and more, so more people can plan ahead, find community, and get out more often.',
   },
   {
     question: 'How much does Akron Pulse cost?',
@@ -29,7 +29,7 @@ const FAQS: Faq[] = [
   {
     question: 'How do I submit an event to Akron Pulse?',
     answer:
-      'Anyone can submit an event through the Submit page, or simply email it to intake@akronpulse.com and it will be processed and live within 24 hours. Submissions are reviewed before being published. We also aggregate events from venue websites and partner organizations – so please check to make sure yours isn\'t already listed.',
+      'Anyone can submit an event through the Submit page, or simply email it to intake@akronpulse.com and it will be processed and live within 24 hours. Submissions are reviewed before being published. We also aggregate events from venue websites and partner organizations, so please check to make sure yours isn\'t already listed.',
     answerNode: (
       <>
         Anyone can submit an event through the{' '}
@@ -37,7 +37,7 @@ const FAQS: Faq[] = [
         <a href="mailto:intake@akronpulse.com">intake@akronpulse.com</a> and it
         will be processed and live within 24 hours. Submissions are reviewed
         before being published. We also aggregate events from venue websites and
-        partner organizations – so please check to make sure yours isn&apos;t
+        partner organizations, so please check to make sure yours isn&apos;t
         already listed.
       </>
     ),
@@ -45,25 +45,25 @@ const FAQS: Faq[] = [
   {
     question: 'Why should I use Akron Pulse?',
     answer:
-      'We\'ve lived in Summit County for more than 10 years and the most common complaint we hear from residents is that they only ever hear about events after they happen. Akron Pulse is designed to change that – it features more local event listings than any other resource in Summit County.',
+      'We\'ve lived in Summit County for more than 10 years and the most common complaint we hear from residents is that they only ever hear about events after they happen. Akron Pulse is designed to change that: it features more local event listings than any other resource in Summit County.',
   },
   {
     question: 'How should I use Akron Pulse?',
     answer:
-      'We love the website, but we recommend subscribing to our newsletter. You can choose the cadence and focus of your Akron Pulse to explore, find community, discover local gems, and live the life you want here.',
+      'We love the website, but we recommend subscribing to our newsletter. You can choose the cadence and focus of your Akron Pulse to explore, find community, and discover local gems.',
     answerNode: (
       <>
         We love the website, but we recommend{' '}
         <Link to="/subscribe">subscribing to our newsletter</Link>. You can
         choose the cadence and focus of your Akron Pulse to explore, find
-        community, discover local gems, and live the life you want here.
+        community, and discover local gems.
       </>
     ),
   },
   {
     question: 'Who created Akron Pulse?',
     answer:
-      'Akron Pulse is a collaboration between Byron Delpinal and Mac Love, two Summit County residents who are tired of hearing people say "there\'s nothing going on" or "nothing to do here." Get the Akron Pulse – you\'ll know better.',
+      'Akron Pulse is a collaboration between Byron Delpinal and Mac Love, two Summit County residents who are tired of hearing people say "there\'s nothing going on" or "nothing to do here." Get the Akron Pulse. You\'ll know better.',
   },
 ]
 
@@ -88,7 +88,7 @@ export default function AboutPage() {
   return (
     <>
       <SEO
-        title="About — How Akron Pulse Works"
+        title="About | How Akron Pulse Works"
         description="Akron Pulse is a free directory of local events in Akron and Summit County. Learn what we cover, how often we update, and how to submit your own event."
         path="/about"
         jsonLd={seoGraph}
@@ -127,9 +127,9 @@ export default function AboutPage() {
         <p className="about-p">
           Akron Pulse will make sure you learn about an event a week early, not a day late.
           We pull data from local websites, venue calendars, ticketing platforms, community
-          mailers, and user submissions – updated daily, no duplicates, no noise – to give
-          you the most comprehensive and reliable events calendar in Summit County. The best
-          part – you can tailor it to the cadence that works best for you. Check it out!
+          mailers, and user submissions (updated daily and deduplicated) to give you the
+          most comprehensive and reliable events calendar in Summit County. The best part:
+          you can tailor it to the cadence that works best for you. Check it out!
         </p>
 
         <div className="about-divider" />
@@ -180,7 +180,7 @@ export default function AboutPage() {
 
         <h3 className="about-section-title">See Something Missing?</h3>
         <p className="about-p">
-          Wrong info, duplicate listing, new venue in town – reach out. We read
+          Wrong info, duplicate listing, new venue in town? Reach out. We read
           everything:{' '}
           <a href="mailto:byron@akronpulse.com">byron@akronpulse.com</a> and{' '}
           <a href="mailto:mac@akronpulse.com">mac@akronpulse.com</a>
@@ -223,8 +223,8 @@ function TransparencySection() {
 
       <h3 className="about-section-title">Built in the Open</h3>
       <p className="about-p">
-        Akron Pulse is fully open source — every scraper, data pipeline, and line
-        of this frontend is public on GitHub. No black boxes, no hidden logic.
+        Akron Pulse is fully open source: every scraper, data pipeline, and line
+        of this frontend is public on GitHub. Nothing is hidden.
       </p>
       <p className="about-p">
         Live somewhere else? The whole stack is designed to be forked. Swap the
@@ -246,7 +246,7 @@ function TransparencySection() {
 
       <h3 className="about-section-title">What We&rsquo;re Watching</h3>
       <p className="about-p" style={{ marginBottom: 'var(--space-lg)' }}>
-        We pull from {DATA_SOURCES.length} sources — venues, parks departments,
+        We pull from {DATA_SOURCES.length} sources: venues, parks departments,
         university calendars, city feeds, and more. Search by name or URL
         fragment to find a specific one.
       </p>

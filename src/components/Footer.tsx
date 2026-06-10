@@ -205,7 +205,7 @@ export default function Footer() {
 
           {/* Row 1 on mobile: logo + vibe switcher */}
           <div className="footer-slim-bar-identity">
-            <Link to="/" className="footer-slim-bar-logo" aria-label="Akron Pulse — home" tabIndex={hidden ? -1 : 0}>
+            <Link to="/" className="footer-slim-bar-logo" aria-label="Akron Pulse, home" tabIndex={hidden ? -1 : 0}>
               <img src={getThemeLogo(theme)} alt="" className="footer-logo-img" />
               <span className="footer-pulse-wordmark">The Pulse</span>
             </Link>

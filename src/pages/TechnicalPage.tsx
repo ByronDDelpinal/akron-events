@@ -1114,7 +1114,7 @@ export default function TechnicalPage() {
   return (
     <>
       <SEO
-        title="Technical — How Akron Pulse Is Built"
+        title="Technical | How Akron Pulse Is Built"
         description="A transparent look at the data sources, scrapers, and pipeline health behind Akron Pulse. Every source listed, with live ingestion status."
         path="/technical"
       />
@@ -1124,7 +1124,7 @@ export default function TechnicalPage() {
           <p className="tp-hero__eyebrow">Akron Pulse / Open Infrastructure</p>
           <h1 className="tp-hero__title">Technical Details</h1>
           <p className="tp-hero__sub">
-            A transparent look at how event data flows into this site — every source,
+            A transparent look at how event data flows into this site: every source,
             every scraper, and the live health of each pipeline.
           </p>
         </div>
@@ -1157,7 +1157,7 @@ export default function TechnicalPage() {
             <p className="tp-section__desc">
               Every venue, organizer, and feed that produces events on this site,
               sorted alphabetically. The <strong>Source</strong> column tells you
-              where the data comes from — Eventbrite, Ticketmaster, The Events
+              where the data comes from: Eventbrite, Ticketmaster, The Events
               Calendar (Tribe), an iCalendar subscription, a Squarespace events
               collection, or a per-site scraper. Sources that ride on an
               aggregator (House Three Thirty via Eventbrite, Blossom Music Center
@@ -1264,7 +1264,7 @@ export default function TechnicalPage() {
             <h2 className="tp-section__title">Source Evaluation Log</h2>
             <p className="tp-section__desc">
               Sources we investigated and decided not to ingest. Documenting these
-              keeps the coverage story honest — every "why isn't X in here?"
+              keeps the coverage story honest: every "why isn't X in here?"
               has a reasoned answer. Each entry is revisited when the underlying
               conditions change.
             </p>
@@ -1364,7 +1364,7 @@ export default function TechnicalPage() {
             <p className="tp-section__desc">
               The same handful of platforms account for every source in the table
               above. Each card below totals the sources and events it covers, then
-              explains the integration approach — useful when the question shifts
+              explains the integration approach. Useful when the question shifts
               from "are we pulling X?" to "how exactly are we pulling it?".
             </p>
           </div>

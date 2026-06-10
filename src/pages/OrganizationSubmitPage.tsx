@@ -187,7 +187,7 @@ export default function OrganizationSubmitPage() {
   return (
     <div className="page-shell">
       <SEO
-        title="Submit Organization — Register an Akron Nonprofit or Host"
+        title="Submit Organization | Register an Akron Nonprofit or Host"
         description="Register your organization on Akron Pulse so locals can find your events, programs, and venues."
         path="/organizations/submit"
       />

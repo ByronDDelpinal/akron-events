@@ -397,7 +397,7 @@ export default function PreferencesPage() {
     <div className="page-shell prefs-shell">
       <SEO
         title="Newsletter Preferences"
-        description="Manage your Akron Pulse newsletter preferences — categories, price range, frequency."
+        description="Manage your Akron Pulse newsletter preferences: categories, price range, frequency."
         path="/subscribe/preferences"
         noindex
       />
