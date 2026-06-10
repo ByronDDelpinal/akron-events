@@ -160,6 +160,7 @@ export default function Footer() {
         <div className="footer-slim">
           <div className="footer-logo">
             <img src={getThemeLogo(theme)} alt="" aria-hidden="true" className="footer-logo-img" />
+            <span className="footer-pulse-wordmark">The Pulse</span>
           </div>
           <nav className="footer-cols" aria-label="Site">
             <div className="footer-col">
@@ -204,6 +205,7 @@ export default function Footer() {
           <div className="footer-slim-bar-identity">
             <Link to="/" className="footer-slim-bar-logo" aria-label="Akron Pulse — home" tabIndex={hidden ? -1 : 0}>
               <img src={getThemeLogo(theme)} alt="" className="footer-logo-img" />
+              <span className="footer-pulse-wordmark">The Pulse</span>
             </Link>
 
             <div className="footer-slim-vibes">
@@ -231,7 +233,7 @@ export default function Footer() {
               <Link to="/" className="footer-slim-bar-link footer-slim-bar-link--events" tabIndex={hidden ? -1 : 0}>Events</Link>
               <Link to="/venues" className="footer-slim-bar-link" tabIndex={hidden ? -1 : 0}>Venues</Link>
               <Link to="/organizations" className="footer-slim-bar-link" tabIndex={hidden ? -1 : 0}>Organizations</Link>
-              <Link to="/subscribe" className="footer-slim-bar-link footer-slim-bar-link--pulse" tabIndex={hidden ? -1 : 0}>The Pulse</Link>
+              <Link to="/subscribe" className="footer-slim-bar-link footer-slim-bar-link--pulse" tabIndex={hidden ? -1 : 0}>Newsletter</Link>
             </nav>
 
             <p className="footer-copy footer-slim-bar-copy">

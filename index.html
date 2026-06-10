@@ -104,7 +104,75 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- ── Boot shell ─────────────────────────────────────────────
+           Static copy of the header + homepage hero, painted as soon
+           as the (render-blocking) CSS bundle arrives instead of
+           after React mounts. This is what fixes FCP/LCP on mobile:
+           the LCP element is the hero poster, and without this shell
+           its "element render delay" was ~2s of JS boot time.
+
+           Rules for editing:
+           - Markup MUST mirror the hero in src/pages/HomePage.tsx and
+             the header in src/components/Header.tsx (same classes,
+             same copy) so the React mount repaints identically with
+             no visual flash. If you change either component, change
+             this shell too.
+           - All styles come from the bundled CSS via the shared class
+             names. Do not add inline styles here.
+           - createRoot().render() replaces this subtree on mount; the
+             inline script right after #root removes it pre-paint on
+             any non-home path (event pages, /embed, /admin, …).      -->
+      <div id="boot-shell">
+        <header class="site-header">
+          <div class="header-inner">
+            <a href="/" class="nav-logo">
+              <img
+                src="/theme-logos/AkronPulse_Civic-Teal.png"
+                alt=""
+                class="nav-logo-img"
+                aria-hidden="true"
+              />
+              Akron <span class="amber">Pulse</span>
+            </a>
+          </div>
+        </header>
+        <main>
+          <div class="hero">
+            <div class="hero-bg" aria-hidden="true">
+              <div class="hero-bg-poster"></div>
+              <div class="hero-bg-scrim"></div>
+            </div>
+            <div class="hero-glow"></div>
+            <p class="hero-eyebrow">Summit County, Ohio</p>
+            <h1>What's happening<br />in <span>Akron?</span></h1>
+            <p class="hero-sub">Concerts, galas, art shows, markets, and more — happening right now in Akron.</p>
+            <div class="search-wrap">
+              <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input class="search-input" type="text" placeholder="Search events, venues, organizers…" />
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+    <script>
+      // Boot-shell gating, runs before first paint:
+      //  - non-home paths get no shell (they'd flash the wrong page)
+      //  - non-default themes hide the (default) logo image rather than
+      //    show the wrong one; React mounts the correct logo moments later
+      (function () {
+        try {
+          var shell = document.getElementById('boot-shell')
+          if (!shell) return
+          if (location.pathname !== '/') { shell.remove(); return }
+          var t = localStorage.getItem('akronpulse.theme')
+          if (t && t !== 'akron-pulse') {
+            var logo = shell.querySelector('.nav-logo-img')
+            if (logo) logo.style.visibility = 'hidden'
+          }
+        } catch (e) {}
+      })()
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

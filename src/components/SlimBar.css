@@ -31,7 +31,20 @@
 .slim-bar-logo {
   display: flex;
   align-items: center;
+  gap: var(--space-xs);
   flex-shrink: 0;
+  text-decoration: none;
+}
+
+/* "The Pulse" lockup — mark + wordmark are one logo unit; see
+ * .footer-pulse-wordmark for the dark-bar variant. */
+.slim-bar-wordmark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--amber);
+  white-space: nowrap;
+  line-height: 1;
 }
 .slim-bar-logo-img {
   height: 20px;

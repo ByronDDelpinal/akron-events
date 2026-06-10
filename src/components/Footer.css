@@ -58,7 +58,20 @@ footer {
 .footer-slim-bar-logo {
   display: flex;
   align-items: center;
+  gap: var(--space-xs);
   flex-shrink: 0;
+  text-decoration: none;
+}
+
+/* "The Pulse" lockup — the waveform mark and wordmark are one logo
+ * unit and must never appear apart (or wrap apart). */
+.footer-pulse-wordmark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-md);
+  color: var(--amber-on-dark);
+  white-space: nowrap;
+  line-height: 1;
 }
 
 /* Right group: nav links + copyright */
@@ -139,6 +152,7 @@ footer {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: var(--space-xs);
   margin-bottom: var(--space-sm);
 }
 .footer-logo-img {

@@ -27,6 +27,7 @@ export default function SlimBar() {
               aria-hidden="true"
               className="slim-bar-logo-img"
             />
+            <span className="slim-bar-wordmark">The Pulse</span>
           </Link>
 
           <div className="slim-bar-vibes">
@@ -53,7 +54,7 @@ export default function SlimBar() {
             <Link to="/" className="slim-bar-link slim-bar-link--events">Events</Link>
             <Link to="/venues" className="slim-bar-link">Venues</Link>
             <Link to="/organizations" className="slim-bar-link">Organizations</Link>
-            <Link to="/subscribe" className="slim-bar-link slim-bar-link--pulse">The Pulse</Link>
+            <Link to="/subscribe" className="slim-bar-link slim-bar-link--pulse">Newsletter</Link>
           </nav>
 
           <p className="slim-bar-copy">© {new Date().getFullYear()} Akron Pulse</p>
