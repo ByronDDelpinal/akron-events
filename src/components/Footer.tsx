@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from '@/hooks/useTheme'
 import { SITE_THEMES, DEFAULT_THEME, THEME_STORAGE_KEY, LEGACY_THEME_STORAGE_KEY, getThemeLogo } from '@/lib/themes'
 import { ENABLED_CATEGORY_HUBS, ENABLED_NEIGHBORHOOD_HUBS } from '@/lib/seo'
+import { InstallFooterLink } from '@/components/InstallPrompt'
 import './Footer.css'
 
 // All localStorage keys that count as "preferences"
@@ -169,6 +170,7 @@ export default function Footer() {
               <Link to="/venues">Venues</Link>
               <Link to="/organizations">Organizations</Link>
               <Link to="/subscribe">Get the Newsletter</Link>
+              <InstallFooterLink />
             </div>
             <div className="footer-col">
               <p className="footer-col-title">Contribute</p>

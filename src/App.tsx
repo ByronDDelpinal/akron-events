@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useNavigat
 import { useEffect } from 'react'
 import Header   from '@/components/Header'
 import Footer   from '@/components/Footer'
+import InstallPrompt from '@/components/InstallPrompt'
 import EmbedLayout   from '@/pages/embed/EmbedLayout'
 import EmbedHomePage from '@/pages/embed/EmbedHomePage'
 import HomePage  from '@/pages/HomePage'
@@ -183,6 +184,7 @@ function SiteChrome() {
         <Outlet />
       </main>
       <Footer />
+      <InstallPrompt />
     </>
   )
 }

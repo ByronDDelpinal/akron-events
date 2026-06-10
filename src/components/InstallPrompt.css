@@ -1,0 +1,157 @@
+/* ── Install pill ────────────────────────────────────────────────────
+ * Fixed above the slim footer bar (z-index 60) and below the sticky
+ * header (z-index 100). Card-styled so it reads as part of the site,
+ * not a browser intrusion. */
+.install-pill {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 84px; /* clears the slim footer bar */
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  width: min(440px, calc(100vw - var(--space-3xl)));
+  padding: var(--space-md) var(--space-lg);
+  background: var(--bg-card);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-hover);
+  animation: install-pill-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes install-pill-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .install-pill { animation: none; }
+}
+
+.install-pill-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.install-pill-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.install-pill-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.install-pill-sub {
+  margin: 2px 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.install-pill-btn {
+  flex-shrink: 0;
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--amber);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter var(--transition-medium);
+}
+.install-pill-btn:hover { filter: brightness(1.12); }
+
+.install-pill-close {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.install-pill-close:hover { background: var(--bg-secondary); }
+
+/* ── Footer link ─────────────────────────────────────────────────────
+ * Mimics the .footer-col a styling (it's a <button> for a11y since it
+ * performs an action rather than navigating). */
+.footer-install-link {
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--overlay-light-50);
+  transition: color var(--transition-medium);
+}
+.footer-install-link:hover { color: var(--amber-on-dark); }
+
+/* ── iOS instruction sheet ───────────────────────────────────────────── */
+.ios-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.ios-sheet {
+  width: min(440px, 100vw);
+  margin: 0 var(--space-lg) var(--space-xl);
+  padding: var(--space-xl);
+  background: var(--bg-card);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-xxl);
+  box-shadow: var(--shadow-hover);
+}
+
+.ios-sheet-title {
+  margin: 0 0 var(--space-md);
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.ios-sheet-steps {
+  margin: 0 0 var(--space-lg);
+  padding-left: var(--space-xl);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.ios-sheet-icon {
+  display: inline-flex;
+  vertical-align: text-bottom;
+  color: var(--amber);
+}
+
+.ios-sheet-close {
+  width: 100%;
+  padding: var(--space-md);
+  background: var(--amber);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
