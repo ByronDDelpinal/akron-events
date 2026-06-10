@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { SEO, buildGraph, faqPageSchema, breadcrumbSchema } from '@/lib/seo'
 import { INTENTS } from '@/lib/intents'
-import { DATA_SOURCES } from '@/pages/TechnicalPage'
+import { DATA_SOURCES } from '@/lib/dataSources'
 import './AboutPage.css'
 
 const GITHUB_URL = 'https://github.com/byronddelpinal/akron-events'

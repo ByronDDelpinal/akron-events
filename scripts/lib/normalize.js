@@ -756,7 +756,78 @@ export function sanitizeEventText(row) {
   }
 }
 
+// ── Ingestion data contract ───────────────────────────────────────────────────
+
+const CONTRACT_PAST_LIMIT_MS   = 2 * 365 * 86_400_000 // 2 years back
+const CONTRACT_FUTURE_LIMIT_MS = 3 * 365 * 86_400_000 // 3 years ahead
+
+/**
+ * Validate an event row against the ingestion data contract.
+ *
+ * This is the single gate between all 50+ scrapers and the events table:
+ * upsertEventSafe calls it before any write, turning malformed rows into
+ * loud, countable skips instead of silent data corruption (the zoo-midnight
+ * and Eventbrite-geo incidents both shipped through this seam unchecked).
+ *
+ * Returns null when the row is valid, otherwise a human-readable reason.
+ * Date-range bounds are deliberately generous — they exist to catch parser
+ * bugs (year 1970/2126 artifacts), not to police editorial freshness.
+ */
+export function validateEvent(row) {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) return 'row is not an object'
+
+  if (typeof row.title !== 'string' || !row.title.trim()) return 'missing or blank title'
+  if (row.title.length > 500) return `title exceeds 500 chars (${row.title.length})`
+
+  if (typeof row.source !== 'string' || !row.source.trim()) return 'missing source key'
+
+  if (!row.start_at) return 'missing start_at'
+  const start = Date.parse(row.start_at)
+  if (Number.isNaN(start)) return `unparseable start_at: ${JSON.stringify(row.start_at)}`
+  const now = Date.now()
+  if (start < now - CONTRACT_PAST_LIMIT_MS) return `start_at implausibly old: ${row.start_at}`
+  if (start > now + CONTRACT_FUTURE_LIMIT_MS) return `start_at implausibly far out: ${row.start_at}`
+
+  if (row.end_at != null && row.end_at !== '') {
+    const end = Date.parse(row.end_at)
+    if (Number.isNaN(end)) return `unparseable end_at: ${JSON.stringify(row.end_at)}`
+    if (end < start) return `end_at precedes start_at (${row.end_at} < ${row.start_at})`
+  }
+
+  return null
+}
+
+/** Log-only contract advisories — suspicious but storable. */
+function warnEventAdvisories(row) {
+  // NULLs are distinct in the (source, source_id) unique constraint, so a row
+  // without source_id cannot dedupe across runs. A few Squarespace/ICS items
+  // legitimately lack stable ids today, so this warns instead of rejecting.
+  if (row.source_id == null || row.source_id === '') {
+    console.warn(`  ⚠ contract: "${row.title}" has no source_id — it cannot dedupe across runs`)
+  }
+
+  // Midnight-ET start with no end time is the classic dropped-time signature
+  // (the old two-arg easternToIso bug). Legitimate all-day events trip this
+  // too, so it stays a warning — but a scraper logging this for EVERY row is
+  // almost certainly losing its time component.
+  const d = new Date(row.start_at)
+  const utcH = d.getUTCHours()
+  if ((utcH === 4 || utcH === 5) && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && !row.end_at) {
+    console.warn(`  ⚠ contract: "${row.title}" starts at midnight ET with no end_at — dropped time component?`)
+  }
+}
+
 export async function upsertEventSafe(row) {
+  // ── Data contract gate ──────────────────────────────────────────────────
+  // Reject malformed rows before any write. Violations come back in the
+  // standard { data, error } shape, so every caller already treats them as a
+  // skipped upsert and they appear in the per-run skip counts.
+  const violation = validateEvent(row)
+  if (violation) {
+    return { data: null, error: { message: `data contract: ${violation}` }, isNew: false }
+  }
+  warnEventAdvisories(row)
+
   // Sanitize text fields — decode HTML entities and strip any stray tags.
   // This catches cases where scrapers pass raw API titles containing entities
   // like &#8217; or &amp; that would otherwise appear verbatim in the DB.
