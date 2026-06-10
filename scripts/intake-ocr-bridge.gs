@@ -31,7 +31,13 @@
  *
  * Contract with the nightly task (keep in sync with the scheduled-task prompt):
  *   - OCR output emails have subject prefix "OCR: "
- *   - Originals get label "ocr-done" and are marked read
+ *   - Originals get label "ocr-done" and are marked read ONLY after a
+ *     successful send; on OCR failure the original stays unread and the next
+ *     10-minute run retries it
+ *   - Google's OCR endpoint rate-limits sporadically; each attachment is
+ *     retried in-run with backoff, and the message is retried across runs up
+ *     to GIVE_UP_AFTER_ATTEMPTS times (~5 hours) before an email with
+ *     "[OCR FAILED" markers is sent so the nightly task can flag it
  *   - Attachments smaller than MIN_ATTACHMENT_BYTES are ignored (logos,
  *     signatures, tracking pixels)
  */
@@ -44,6 +50,8 @@ var OCR_MIME_TYPES = [
   'image/png', 'image/jpeg', 'image/jpg', 'image/gif',
   'image/webp', 'image/heic', 'image/heif', 'application/pdf'
 ];
+var IN_RUN_OCR_TRIES = 4;        // per-attachment tries within one run (3s/9s/27s backoff)
+var GIVE_UP_AFTER_ATTEMPTS = 30; // cross-run retries (~5 hours at a 10-min trigger)
 
 function processImageEmails() {
   var label = getOrCreateLabel_(OCR_LABEL_NAME);
@@ -69,11 +77,13 @@ function processImageEmails() {
 
       if (attachments.length === 0) return; // text-only email: nightly task handles it
 
+      var anyFailed = false;
       var ocrSections = attachments.map(function (a, i) {
         var text = '';
         try {
-          text = ocrBlob_(a.copyBlob(), a.getName() || 'attachment-' + (i + 1));
+          text = ocrWithBackoff_(a.copyBlob(), a.getName() || 'attachment-' + (i + 1));
         } catch (e) {
+          anyFailed = true;
           text = '[OCR FAILED: ' + e.message + ']';
         }
         return (
@@ -82,6 +92,13 @@ function processImageEmails() {
           (text.trim() || '[No text detected in image]')
         );
       });
+
+      // On failure, leave the original untouched so the next run retries it,
+      // unless we've been failing for ~5 hours — then send what we have so the
+      // nightly task can flag it for manual attention.
+      if (anyFailed && bumpAttempts_(message.getId()) < GIVE_UP_AFTER_ATTEMPTS) {
+        return;
+      }
 
       var body =
         'Automated OCR extraction by the Intake OCR Bridge.\n\n' +
@@ -98,8 +115,39 @@ function processImageEmails() {
 
       thread.addLabel(label);
       message.markRead();
+      clearAttempts_(message.getId());
     });
   });
+}
+
+/**
+ * Google's OCR endpoint rate-limits sporadically ("User rate limit exceeded
+ * for OCR"), usually transiently. Retry within the run using exponential
+ * backoff before giving up and letting the cross-run retry take over.
+ */
+function ocrWithBackoff_(blob, name) {
+  var waitMs = 3000;
+  for (var attempt = 1; ; attempt++) {
+    try {
+      return ocrBlob_(blob, name);
+    } catch (e) {
+      if (attempt >= IN_RUN_OCR_TRIES) throw e;
+      Utilities.sleep(waitMs);
+      waitMs *= 3;
+    }
+  }
+}
+
+function bumpAttempts_(messageId) {
+  var props = PropertiesService.getScriptProperties();
+  var key = 'ocr-attempts-' + messageId;
+  var n = Number(props.getProperty(key) || 0) + 1;
+  props.setProperty(key, String(n));
+  return n;
+}
+
+function clearAttempts_(messageId) {
+  PropertiesService.getScriptProperties().deleteProperty('ocr-attempts-' + messageId);
 }
 
 /**

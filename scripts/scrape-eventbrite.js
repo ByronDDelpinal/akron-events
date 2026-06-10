@@ -40,6 +40,7 @@ import { supabaseAdmin } from './lib/supabase-admin.js'
 import {
   EVENTBRITE_CATEGORY_MAP,
   categoryFromEventbriteNames,
+  easternToIso,
   inferCategory,
   parseEventbritePrice,
   logUpsertResult,
@@ -407,6 +408,25 @@ function extractPageCount(data) {
 }
 
 // ── JSON-LD fallback ─────────────────────────────────────────────────────────
+/**
+ * Convert an Eventbrite datetime string to a UTC ISO string.
+ *
+ * Eventbrite emits two shapes: with an explicit offset ("2026-06-24T20:00:00-04:00",
+ * "...Z") and without ("2026-06-24T20:00:00"). `new Date()` parses the offset-less
+ * shape as ENVIRONMENT-local time, which is UTC in CI — that stored 8 PM ET events
+ * as 20:00 UTC (4 PM ET). Offset-less Eventbrite times for Akron events are
+ * Eastern wall-clock times, so route them through easternToIso().
+ */
+function eventbriteToUtcIso(dt) {
+  if (!dt) return null
+  const s = String(dt).trim()
+  if (/(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(s)) {
+    const parsed = new Date(s)
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+  }
+  return easternToIso(s)
+}
+
 function extractJsonLdEvents(html) {
   const events = []
   const re = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
@@ -421,8 +441,8 @@ function extractJsonLdEvents(html) {
             id:    item.url?.match(/(\d{10,})/)?.[1] ?? String(Math.random()),
             name:  item.name,
             url:   item.url ?? null,
-            start: { utc: item.startDate ? new Date(item.startDate).toISOString() : null },
-            end:   { utc: item.endDate   ? new Date(item.endDate).toISOString()   : null },
+            start: { utc: eventbriteToUtcIso(item.startDate) },
+            end:   { utc: eventbriteToUtcIso(item.endDate) },
             is_free: false,
             logo:  { url: pickBestImageUrl(item.image) },
             venue: item.location ? {
@@ -669,10 +689,12 @@ function normaliseEvent(ev) {
   if (ev.start?.utc) {
     start_at = ev.start.utc; end_at = ev.end?.utc ?? null
   } else if (ev.start_date && ev.start_time) {
-    start_at = `${ev.start_date}T${ev.start_time}`
-    end_at   = ev.end_date ? `${ev.end_date}T${ev.end_time ?? '23:59:00'}` : null
+    // Naked date+time strings are Eastern wall-clock — convert, don't pass
+    // through, or Postgres interprets them as UTC (the 4-hour-shift bug).
+    start_at = eventbriteToUtcIso(`${ev.start_date}T${ev.start_time}`)
+    end_at   = ev.end_date ? eventbriteToUtcIso(`${ev.end_date}T${ev.end_time ?? '23:59:00'}`) : null
   } else if (ev.start_datetime) {
-    start_at = ev.start_datetime; end_at = ev.end_datetime ?? null
+    start_at = eventbriteToUtcIso(ev.start_datetime); end_at = eventbriteToUtcIso(ev.end_datetime)
   }
 
   if (!start_at) return null
