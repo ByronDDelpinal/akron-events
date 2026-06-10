@@ -556,7 +556,7 @@ export default function PreferencesPage() {
           <button
             type="button"
             className={`pill pill-sm ${locationMode === 'zipcode' ? 'pill-active' : ''}`}
-            onClick={() => { setLocationMode('zipcode'); setSelectedArea(null) }}
+            onClick={() => { setLocationMode('zipcode'); setSelectedAreas([]) }}
           >
             Zipcode
           </button>
