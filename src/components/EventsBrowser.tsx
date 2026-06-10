@@ -185,7 +185,7 @@ export default function EventsBrowser({
     if (el.getBoundingClientRect().top < window.innerHeight + PREFETCH_PX) {
       loadMoreRef.current?.()
     }
-  }, [allEvents.length, loading, hasMore]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allEvents.length, loading, hasMore])
 
   // ── FilterBar visibility ──────────────────────────────────────────────
   const showFilterBar = features.filter || features.map || features.density

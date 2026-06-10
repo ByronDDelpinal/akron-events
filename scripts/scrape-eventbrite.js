@@ -37,6 +37,7 @@
 
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
+import { preloadSummitCountyBoundary, pointInSummitCounty } from './lib/summit-county.js'
 import {
   EVENTBRITE_CATEGORY_MAP,
   categoryFromEventbriteNames,
@@ -596,7 +597,9 @@ async function upsertVenue(ev) {
   const addr = v.address ?? v.location ?? {}
   return ensureVenue(v.name, {
     address:      addr.address_1 ?? addr.localized_address_display ?? null,
-    city:         addr.city ?? 'Akron',
+    // No silent 'Akron' default — a fabricated city would let a venue dodge
+    // the Summit County gate and corrupts the venue directory.
+    city:         addr.city ?? null,
     state:        addr.region ?? 'OH',
     zip:          addr.postal_code ?? null,
     lat:          v.latitude  ? parseFloat(v.latitude)  : null,
@@ -623,19 +626,59 @@ async function upsertOrganizer(ev) {
  * "don't restrict to only online events." Eventbrite then surfaces popular
  * online events globally as filler in the Akron results.
  *
- * We reject on three signals (any one is sufficient):
+ * We reject on four signals (any one is sufficient):
  *   1. Ticket URL host is not eventbrite.com. Localized TLDs (.de, .it, .at,
  *      .co.uk, .sg, .ca, .fr) are used exclusively for non-US events on
  *      Eventbrite — none of our legit Akron events ever appear on these.
  *   2. The event is explicitly flagged as online-only (no physical venue).
  *   3. There's no venue attached at all, OR the attached venue is outside
  *      Ohio. Online events have no venue; foreign events have foreign venues.
+ *   4. The venue is outside Summit County (see isInSummitCounty below).
  *
- * We deliberately do NOT restrict to a fixed Akron-area city allow-list —
- * legit Summit County events occasionally have venues in surrounding towns,
- * and Eventbrite's "oh--akron" place filter is already doing geographic
- * filtering at the source. State == OH is a sufficient post-filter.
+ * History — why check 4 exists (2026-06-10 incident): this filter used to
+ * trust Eventbrite's "oh--akron" place search to do the geographic scoping
+ * and only enforced state == OH here. On 2026-06-10 Eventbrite shipped a
+ * destination-search redesign that replaced the Akron-bounded result list
+ * with distance-ranked results spanning all of Northeast Ohio. One run
+ * published 734 out-of-county events (Cleveland, Parma, Youngstown, ...)
+ * before the gap was caught. We now do our own county-level gate and never
+ * again delegate locality to the source.
  */
+
+// Every postal city/township name used by addresses inside Summit County.
+// Uniontown (44685) and Mogadore (44260) straddle the county line; the
+// polygon check resolves them when coords exist, and we accept them here
+// when coords are missing (better a rare Lake/Portage-edge event than
+// dropping legit Green/Springfield events).
+const SUMMIT_COUNTY_CITIES = new Set([
+  'akron', 'barberton', 'cuyahoga falls', 'fairlawn', 'green', 'hudson',
+  'macedonia', 'munroe falls', 'new franklin', 'norton', 'stow', 'tallmadge',
+  'twinsburg', 'boston heights', 'clinton', 'lakemore', 'mogadore',
+  'northfield', 'northfield center', 'peninsula', 'reminderville',
+  'richfield', 'silver lake', 'sagamore hills', 'bath', 'copley',
+  'coventry township', 'boston township', 'uniontown',
+])
+
+/**
+ * County-level locality gate. Hierarchy:
+ *   1. Venue lat/lng present → point-in-polygon against the TIGER/Line
+ *      Summit County boundary (same module the Akron Life scraper uses) →
+ *      authoritative.
+ *   2. Else city present → must be on the Summit County allow-list.
+ *   3. Else → reject. Unlike the Akron Life scraper's permissive default,
+ *      unknown locality here means we cannot trust the feed's scoping —
+ *      that assumption is exactly what failed on 2026-06-10.
+ *
+ * Requires preloadSummitCountyBoundary() to have been awaited at startup.
+ */
+function isInSummitCounty(venue, addr) {
+  const lat = Number(venue.latitude), lng = Number(venue.longitude)
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    return pointInSummitCounty(lat, lng)
+  }
+  const city = String(addr.city ?? '').toLowerCase().trim()
+  return city ? SUMMIT_COUNTY_CITIES.has(city) : false
+}
 function isAkronEvent(ev) {
   // 1. Ticket URL must be on eventbrite.com (not .de/.it/.at/.co.uk/.sg/.ca/.fr)
   const url = ev.url ?? ev.ticket_url ?? ''
@@ -669,6 +712,12 @@ function isAkronEvent(ev) {
   const region = addr.region ?? addr.state ?? null
   if (region && region !== 'OH' && region !== 'Ohio') {
     if (DEBUG) console.log(`  [filter] rejected (region=${region}): ${ev.name?.text ?? ev.name}`)
+    return false
+  }
+
+  // 4. County-level gate — never trust the feed's geographic scoping.
+  if (!isInSummitCounty(venue, addr)) {
+    if (DEBUG) console.log(`  [filter] rejected (outside Summit County: ${addr.city ?? 'no city'}): ${ev.name?.text ?? ev.name}`)
     return false
   }
 
@@ -761,6 +810,39 @@ function normaliseEvent(ev) {
     status:          'published',
     featured:        false,
   }
+}
+
+// ── Volume anomaly guard ─────────────────────────────────────────────────────
+/**
+ * Refuse to publish a run whose volume is wildly out of line with history.
+ *
+ * On 2026-06-10 an Eventbrite search redesign turned a ~50-event feed into a
+ * 972-event NE-Ohio firehose and the run published all of it. A source-side
+ * change should fail loudly, not bulk-publish. Returns null when the volume
+ * is sane, or an error string describing the anomaly.
+ *
+ * Only enforced once we have 3+ successful runs of history; threshold is
+ * 3× the trailing average with a 120-event floor so normal growth never trips.
+ */
+const VOLUME_GUARD_MULTIPLIER = 3
+const VOLUME_GUARD_FLOOR      = 120
+const VOLUME_GUARD_MIN_RUNS   = 3
+
+async function volumeAnomaly(found) {
+  try {
+    const { data } = await supabaseAdmin
+      .from('scraper_runs').select('events_found')
+      .eq('scraper_name', 'eventbrite').eq('status', 'success')
+      .order('ran_at', { ascending: false }).limit(5)
+    if (!data || data.length < VOLUME_GUARD_MIN_RUNS) return null
+    const avg = data.reduce((s, r) => s + (r.events_found ?? 0), 0) / data.length
+    const cap = Math.max(Math.round(avg * VOLUME_GUARD_MULTIPLIER), VOLUME_GUARD_FLOOR)
+    if (found > cap) {
+      return `Volume anomaly: found ${found} events vs trailing avg ${Math.round(avg)} ` +
+             `(cap ${cap}). Refusing to publish — inspect the feed before re-running with --force.`
+    }
+    return null
+  } catch { return null } // guard must never break a healthy run
 }
 
 // ── Cooldown ─────────────────────────────────────────────────────────────────
@@ -1290,6 +1372,10 @@ async function main() {
       process.exit(0)
     }
 
+    // Summit County polygon for the locality gate; pointInSummitCounty()
+    // is synchronous after this.
+    await preloadSummitCountyBoundary()
+
     const rawEventsAll = await fetchAllEvents()
 
     // Filter out non-Akron / online / international events BEFORE the detail
@@ -1298,8 +1384,24 @@ async function main() {
     const rawEvents   = rawEventsAll.filter(isAkronEvent)
     const filteredOut = rawEventsAll.length - rawEvents.length
     if (filteredOut > 0) {
-      console.log(`\n🧹  Filtered out ${filteredOut} non-Akron event(s) ` +
-                  `(international/online/no-venue) — ${rawEvents.length} remain`)
+      console.log(`\n🧹  Filtered out ${filteredOut} non-local event(s) ` +
+                  `(international/online/no-venue/out-of-county) — ${rawEvents.length} remain`)
+    }
+
+    // Refuse to publish a run whose volume is wildly out of line with history
+    // (source-side feed changes should fail loudly, not bulk-publish).
+    if (!FORCE) {
+      const anomaly = await volumeAnomaly(rawEvents.length)
+      if (anomaly) {
+        console.error(`\n🛑  ${anomaly}`)
+        await logUpsertResult('eventbrite', 0, 0, 0, {
+          status:       'error',
+          errorMessage: anomaly,
+          durationMs:   Date.now() - start,
+          eventsFound:  rawEvents.length,
+        })
+        process.exit(1)
+      }
     }
 
     if (rawEvents.length === 0) {

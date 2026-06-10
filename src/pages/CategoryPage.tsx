@@ -79,12 +79,22 @@ function getLockedDimensions(hub: Hub, isCategory: boolean): LockedDimensions {
   }
 }
 
+/**
+ * Route component: resolves the hub from the URL slug and redirects when it
+ * doesn't exist. Kept hook-free by design — the early return means no hooks
+ * may appear above it (react-hooks/rules-of-hooks). All page logic lives in
+ * CategoryPageContent, which only mounts with a guaranteed non-null hub.
+ */
 export default function CategoryPage() {
   const { slug } = useParams()
   const hub: Hub | null = getHub(slug)
 
   if (!hub || (hub.disabled && !hub.preview)) return <Navigate to="/" replace />
 
+  return <CategoryPageContent hub={hub} slug={slug} />
+}
+
+function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
   const isCategory     = !!getCategoryHub(slug)
   const isNeighborhood = !isCategory && !!getNeighborhoodHub(slug)
   const isCity         = !isCategory && !isNeighborhood && !!getCityHub(slug)
@@ -292,7 +302,7 @@ export default function CategoryPage() {
     if (el.getBoundingClientRect().top < window.innerHeight + PREFETCH_PX) {
       loadMoreRef.current?.()
     }
-  }, [allEvents.length, loading, hasMore]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allEvents.length, loading, hasMore])
 
   // ── Breadcrumb trail ──
   const canonicalPath = `/events/${hub.slug}`

@@ -571,7 +571,7 @@ export const DATA_SOURCES: DataSource[] = [
     method:      'HTML scrape',
     methodDetail:'window.__SERVER_DATA__ + internal POST API — Akron geo-feed',
     venue:       'Regional events (Akron / Summit County)',
-    notes:       'Public API deprecated in 2020. Scraper fetches the Akron search page, extracts event buckets from window.__SERVER_DATA__, and paginates via the internal /api/v3/destination/search/ POST endpoint using session cookies for auth. Catches the long tail of community events through one citywide geo-feed rather than per-organizer scrapes.',
+    notes:       'Public API deprecated in 2020. Scraper fetches the Akron search page, extracts event buckets from window.__SERVER_DATA__, and paginates via the internal /api/v3/destination/search/ POST endpoint using session cookies for auth. Catches the long tail of community events through one citywide geo-feed rather than per-organizer scrapes. Since 2026-06 every event also passes a local Summit County gate (TIGER/Line point-in-polygon when the venue has coordinates, county city allow-list otherwise) plus a run-volume anomaly guard, after an Eventbrite search redesign briefly flooded the feed with region-wide events.',
     status:      'active',
   },
 
