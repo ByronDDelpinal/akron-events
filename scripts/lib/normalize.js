@@ -13,6 +13,7 @@ import { normalizeImageUrl } from './image-url-normalizer.js'
 import { resolveNeighborhoodSlug } from './neighborhood-resolver.js'
 import { inferCategories as _inferCategories } from './category-inference.js'
 import { V1_TO_V2, CATEGORY_SLUGS } from '../../src/lib/categories.js'
+import { defaultCategoryFor } from '../manifest.js'
 
 // ════════════════════════════════════════════════════════════════════════════
 // HTML / TEXT UTILITIES
@@ -990,9 +991,15 @@ function warnEventAdvisories(row) {
  *
  * @param {{categories?: string[], category?: string}} source — scraper input
  * @param {string[]} inferredCategories — inferCategories().categories
+ * @param {string|null} defaultCategory — per-source fallback (manifest
+ *   `defaultCategory`). Applied ONLY when native+inference resolve to a bare
+ *   ['other']; it is a last-resort prior, never an override, so a confident
+ *   source/text classification always wins. This is the mechanism that keeps
+ *   a source's unlabelled long tail (bare band names, committee meetings) in
+ *   the right bucket on every re-scrape instead of decaying to 'other'.
  * @returns {string[]} 1–2 valid v2 slugs, primary first
  */
-export function resolveEventCategories(source = {}, inferredCategories = ['other']) {
+export function resolveEventCategories(source = {}, inferredCategories = ['other'], defaultCategory = null) {
   let categories
   if (Array.isArray(source.categories) && source.categories.length) {
     categories = source.categories.slice()
@@ -1010,6 +1017,14 @@ export function resolveEventCategories(source = {}, inferredCategories = ['other
   if (categories.length > 1) categories = categories.filter((c) => c !== 'other')
   categories = categories.slice(0, 2)
   if (categories.length === 0) categories = ['other']
+  // Source-default fallback: only rescue a bare ['other'], never override a
+  // real classification. `other` itself is not a valid default.
+  if (
+    categories.length === 1 && categories[0] === 'other' &&
+    defaultCategory && defaultCategory !== 'other' && CATEGORY_SLUGS.includes(defaultCategory)
+  ) {
+    categories = [defaultCategory]
+  }
   return categories
 }
 
@@ -1045,7 +1060,9 @@ export async function upsertEventSafe(row) {
 
   // ── Resolve the v2 content categories (array) + facet flags ───────────────
   const inferred = _inferCategories(sanitized.title, sanitized.description)
-  const categories = resolveEventCategories(sanitized, inferred.categories)
+  const categories = resolveEventCategories(
+    sanitized, inferred.categories, defaultCategoryFor(sanitized.source)
+  )
 
   // Facet flags: honor explicit source flags, else inference. Legacy 'nonprofit'
   // hint implies fundraiser.

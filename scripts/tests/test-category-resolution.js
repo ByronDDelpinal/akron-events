@@ -11,6 +11,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { resolveEventCategories, inferCategories } from '../lib/normalize.js'
+import { defaultCategoryFor, SOURCE_DEFAULT_CATEGORY } from '../manifest.js'
 
 describe('resolveEventCategories', () => {
   // ── Bug 1 regressions ──────────────────────────────────────────────────
@@ -77,5 +78,55 @@ describe('resolveEventCategories', () => {
     const inferred = inferCategories('Wine Tasting Night', 'An evening wine tasting.').categories
     const out = resolveEventCategories({ category: 'music' }, inferred)
     assert.deepEqual(out, ['music', 'food'])
+  })
+
+  // ── Source-default fallback (3rd arg) ───────────────────────────────────
+  it('applies the source default only when the result is a bare other', () => {
+    // Bare band name on a music-default feed → music, on every scrape.
+    assert.deepEqual(resolveEventCategories({}, ['other'], 'music'), ['music'])
+  })
+
+  it('never lets the source default override a real classification', () => {
+    // "Mean Girls" text-infers theater; a music-default feed must keep theater.
+    assert.deepEqual(resolveEventCategories({}, ['theater'], 'music'), ['theater'])
+    // An explicit per-event hint also wins over the default.
+    assert.deepEqual(resolveEventCategories({ category: 'comedy' }, ['other'], 'music'), ['comedy'])
+  })
+
+  it('ignores an invalid or other source default', () => {
+    assert.deepEqual(resolveEventCategories({}, ['other'], 'bogus'), ['other'])
+    assert.deepEqual(resolveEventCategories({}, ['other'], 'other'), ['other'])
+    assert.deepEqual(resolveEventCategories({}, ['other'], null), ['other'])
+  })
+
+  it('end-to-end: unclassifiable title + civic-default source → civic', () => {
+    const inferred = inferCategories('Quarterly Co-Chair Meeting', '').categories
+    assert.deepEqual(inferred, ['other'])
+    assert.deepEqual(resolveEventCategories({}, inferred, defaultCategoryFor('torchbearers')), ['civic'])
+  })
+
+  it('sources without a default leave an unclassifiable title as other (goes to review)', () => {
+    // Removing blunt defaults is deliberate: a bare band name on akron_life /
+    // ticketmaster falls to review rather than being mislabeled 'music'.
+    const inferred = inferCategories('Mac Saturn', '').categories
+    assert.deepEqual(inferred, ['other'])
+    assert.equal(defaultCategoryFor('akron_life'), null)
+    assert.equal(defaultCategoryFor('ticketmaster'), null)
+    assert.deepEqual(resolveEventCategories({}, inferred, defaultCategoryFor('akron_life')), ['other'])
+  })
+})
+
+describe('manifest source defaults', () => {
+  it('exposes only valid, non-other default categories', () => {
+    for (const [key, cat] of Object.entries(SOURCE_DEFAULT_CATEGORY)) {
+      assert.notEqual(cat, 'other', `${key} default must not be 'other'`)
+      assert.deepEqual(resolveEventCategories({}, ['other'], cat), [cat],
+        `${key} default '${cat}' is not a resolvable category`)
+    }
+  })
+
+  it('returns null for sources without a default', () => {
+    assert.equal(defaultCategoryFor('eventbrite'), null)
+    assert.equal(defaultCategoryFor('nonexistent_source'), null)
   })
 })

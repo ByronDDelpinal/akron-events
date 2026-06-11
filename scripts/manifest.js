@@ -13,6 +13,16 @@
  *   label   — human-readable name (dashboards, logs, Technical page)
  *   group   — platform / publisher group (for the Technical page grouping)
  *   active  — false means run-all skips it (preserves the record for reference)
+ *   defaultCategory — OPTIONAL. A per-source fallback content category used ONLY
+ *             when a row's native source category AND text inference both come
+ *             back 'other' (see resolveEventCategories in scripts/lib/normalize.js).
+ *             It is a blunt prior, never an override: confident native/text
+ *             classifications always win, so e.g. a theater show on a
+ *             music-default feed still resolves to 'theater'. Set it only for
+ *             sources whose unlabelled long tail is dominated by one type
+ *             (a music-venue feed, a civic org's own programming). This is what
+ *             lets these events self-heal on every scrape instead of decaying
+ *             back to 'other' + needs_review.
  *
  * Run order matters: `scrape:all` runs scrapers sequentially in the order
  * listed here. Place deduplication last.
@@ -74,7 +84,7 @@ export const SCRAPERS = [
   { key: 'the_well_cdc',        script: 'scripts/scrape-the-well-cdc.js',             label: 'The Well CDC',                 group: 'custom',         active: true  },
   { key: 'better_kenmore',       script: 'scripts/scrape-better-kenmore.js',          label: 'Better Kenmore CDC',           group: 'wordpress',      active: true  },
   { key: 'life_gurukula',        script: 'scripts/scrape-life-gurukula.js',           label: 'Life Gurukula',                group: 'ics',            active: true  },
-  { key: 'torchbearers',         script: 'scripts/scrape-torchbearers.js',            label: 'Torchbearers',        group: 'custom',         active: true  },
+  { key: 'torchbearers',         script: 'scripts/scrape-torchbearers.js',            label: 'Torchbearers',        group: 'custom',         active: true, defaultCategory: 'civic' },
 
   // ── Education ──────────────────────────────────────────────────────────
   { key: 'akron_public_schools', script: 'scripts/scrape-akron-public-schools.js',    label: 'Akron Public Schools',         group: 'ics',            active: true  },
@@ -109,3 +119,14 @@ export const SCRAPER_GROUP    = Object.freeze(Object.fromEntries(SCRAPERS.map((s
 
 // All active source keys — useful for validation and health checks.
 export const ACTIVE_SOURCE_KEYS = Object.freeze(ACTIVE_SCRAPERS.map((s) => s.key))
+
+// Per-source fallback content category (see the `defaultCategory` note in the
+// header). Only sources that declare one appear here.
+export const SOURCE_DEFAULT_CATEGORY = Object.freeze(
+  Object.fromEntries(SCRAPERS.filter((s) => s.defaultCategory).map((s) => [s.key, s.defaultCategory]))
+)
+
+/** The fallback content category for a source key, or null if none is set. */
+export function defaultCategoryFor(sourceKey) {
+  return SOURCE_DEFAULT_CATEGORY[sourceKey] ?? null
+}
