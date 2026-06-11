@@ -1,9 +1,11 @@
 /**
  * emailTheme.ts
  *
- * Single source of truth for all brand values used in email templates
- * and the subscribe/preference pages. When the brand changes, update
- * this file only — everything else pulls from here.
+ * Frontend copy of the brand values used in email templates and the
+ * subscribe/preference pages. The edge functions can't import from
+ * src/, so the same contract lives in supabase/functions/_shared/email.ts
+ * (plus the masthead/footer shell). When the brand changes, update
+ * BOTH files together.
  */
 
 export interface EmailTheme {
@@ -27,7 +29,7 @@ export const EMAIL_THEME: EmailTheme = {
 
   // URLs (update when domain changes)
   baseUrl: 'https://akronpulse.com',     // production domain (May 2026 rebrand from events.supportlocalakron.com)
-  logoUrl: null,                         // set when logo is hosted
+  logoUrl: 'https://akronpulse.com/theme-logos/AkronPulse_Civic-Teal.png', // transparent pulse logomark (masthead pairs it with a text wordmark)
 
   // Colors — synced with the Civic Teal palette in globals.css :root
   colors: {

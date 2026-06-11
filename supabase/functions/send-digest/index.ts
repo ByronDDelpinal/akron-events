@@ -10,6 +10,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend@4'
+import { THEME, escapeHtml, button, renderEmailShell } from '../_shared/email.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -29,34 +30,11 @@ const MAX_EVENTS_PER_EMAIL = 14
 // without bloating the email.
 const TAIL_EVENT_COUNT = 8
 
-// ── Brand theme (mirrors src/lib/emailTheme.js — update both together) ──
-// `from` falls back to RESEND_FROM env var for parity with subscribe
-// fn, so a future sender change is one secret update. `replyTo`
-// routes replies to a real human inbox; overridable via RESEND_REPLY_TO.
-const THEME = {
-  brandName: 'Akron Pulse',
-  copyrightHolder: 'Akron Pulse',
-  location: 'Akron, OH',
-  from: Deno.env.get('RESEND_FROM') || 'Akron Pulse <digest@akronpulse.com>',
-  replyTo: Deno.env.get('RESEND_REPLY_TO') || 'byron@akronpulse.com',
-  colors: {
-    primary:       '#0E5163',
-    background:    '#FCFAF4',
-    card:          '#FFFFFF',
-    dark:          '#0A3B48',
-    textPrimary:   '#1F2A30',
-    textSecondary: '#3E5560',
-    textMuted:     '#5F7886',
-    border:        '#DAD5C8',
-    freeBg:        '#E4F0E6',
-    freeTxt:       '#1A5428',
-    white:         '#FFFFFF',
-  },
-  fonts: {
-    display: "'Space Grotesk',system-ui,sans-serif",
-    body:    "'DM Sans',system-ui,sans-serif",
-  },
-} as const
+// Brand theme, masthead/footer shell, and button/escape helpers all
+// live in ../_shared/email.ts so every subscriber-facing email renders
+// the same brand system. CATEGORY_GRADIENT / CATEGORY_LABEL stay in
+// this file: they're digest-specific and test-send-digest-schema.js
+// statically asserts they cover every category slug.
 
 // Haversine distance in miles (no API calls)
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -320,22 +298,23 @@ function priceLabel(e: Event): { label: string; free: boolean } | null {
 function imageBlock(e: Event, opts: { width: string; height: string; radius: string }): string {
   const url = resolveEventImage(e)
   if (url) {
-    return `<img src="${url}" alt="" style="display:block;width:${opts.width};height:${opts.height};object-fit:cover;border-radius:${opts.radius};">`
+    return `<img src="${url}" alt="" width="${opts.width.replace('px', '')}" style="display:block;width:${opts.width};height:${opts.height};object-fit:cover;border-radius:${opts.radius};">`
   }
   const [c1, c2] = CATEGORY_GRADIENT[e.category] || CATEGORY_GRADIENT.other
   const label = CATEGORY_LABEL[e.category] || 'Event'
   // Solid bg + linear-gradient: clients that strip gradients
   // (Outlook desktop) fall back to the solid color. Label is
-  // legible in either state.
+  // legible in either state. Centered via line-height (NOT flexbox —
+  // Outlook ignores flex and the label would pin to the top-left).
   return `
     <div style="
-      display:flex;align-items:center;justify-content:center;
       width:${opts.width};height:${opts.height};border-radius:${opts.radius};
       background:${c1};
       background-image:linear-gradient(135deg, ${c1} 0%, ${c2} 100%);
-      color:#FCFAF4;font-family:'Space Grotesk', system-ui, sans-serif;
-      font-size:0.78rem;font-weight:700;letter-spacing:0.08em;
-      text-transform:uppercase;text-align:center;
+      color:#FCFAF4;font-family:${THEME.fonts.display};
+      font-size:12px;font-weight:700;letter-spacing:0.08em;
+      text-transform:uppercase;text-align:center;line-height:${opts.height};
+      overflow:hidden;
     ">${label}</div>
   `
 }
@@ -362,8 +341,27 @@ function formatTimeOnly(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 }
 
-// ── Build email HTML (inline styles for email client compatibility) ──
-// All colors/fonts reference THEME so a brand swap only touches one object.
+/**
+ * Human label for the subscriber's event window. Frequency (when the
+ * email arrives) and lookahead (how far ahead it covers) are
+ * configured independently, so copy must describe the WINDOW, never
+ * the cadence: a daily subscriber can have a 30-day lookahead.
+ * Mirrors the window logic in filterEventsForSubscriber.
+ */
+function windowLabel(sub: Subscriber): string {
+  if (sub.frequency === 'monthly') {
+    const month = new Date().toLocaleDateString('en-US', { month: 'long' })
+    return `through the end of ${month}`
+  }
+  if (sub.lookahead_days === 1) return 'tomorrow'
+  return `over the next ${sub.lookahead_days} days`
+}
+
+// ── Build email HTML ──────────────────────────────────────────────
+// Digest content only — the brand shell (masthead, mission footer,
+// palette) comes from _shared/email.ts. Layout rules: tables only (no
+// flexbox — Outlook), px font sizes only (no rem), and every piece of
+// scraped/user-submitted text goes through escapeHtml().
 function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: number, tailEvents: Event[] = []): string {
   const prefsUrl = `${BASE_URL}/subscribe/preferences?token=${sub.token}`
   const unsubUrl = `${BASE_URL}/unsubscribe?token=${sub.token}`
@@ -376,31 +374,20 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
   const picks = events.filter(e => e !== hero)
   const dayGroups = groupByDay(picks)
 
-  // Preheader text: hidden span at the very top of the body that
-  // mail clients pull into the inbox preview snippet. Without this
-  // Gmail just grabs the bare brand wordmark from the header. Keep
-  // under ~110 chars so it doesn't get truncated.
+  // Preheader: inbox preview snippet. Keep under ~110 chars.
   const preheaderBits: string[] = []
   if (hero) preheaderBits.push(`Featured: ${hero.title}`)
   preheaderBits.push(`${events.length} picks${tailEvents.length > 0 ? ` + ${tailEvents.length} more` : ''}`)
   const firstFree = events.find(e => priceLabel(e)?.free)
   if (firstFree && firstFree !== hero) preheaderBits.push(`free: ${firstFree.title}`)
-  const preheader = preheaderBits.join(' · ').slice(0, 110)
+  const preheader = escapeHtml(preheaderBits.join(' · ').slice(0, 110))
 
-  let html = `
-<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:${c.background};font-family:${f.body};">
-
-<!-- Preheader (shown by mail clients as the inbox snippet, hidden in the rendered email body). -->
-<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${c.background};">
-  ${preheader}
-</div>
-
-<div style="max-width:560px;margin:0 auto;padding:32px 20px;">
-
-  <div style="text-align:center;margin-bottom:28px;">
-    <span style="font-family:${f.display};font-size:1.3rem;font-weight:700;color:${c.dark};letter-spacing:-0.02em;">${THEME.brandName}</span>
+  // Greeting — brand voice, one line, describing the subscriber's
+  // actual event window (not their send cadence — frequency and
+  // lookahead are configured independently).
+  let content = `
+  <div style="font-family:${f.body};font-size:14px;color:${c.textSecondary};line-height:1.5;margin:0 0 20px;">
+    Here&rsquo;s what&rsquo;s happening ${windowLabel(sub)}, before it happens.
   </div>
 `
 
@@ -410,127 +397,198 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
     const heroUrl = `${BASE_URL}/events/${hero.id}`
     const heroDate = new Date(hero.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     const price = priceLabel(hero)
-    html += `
-  <a href="${heroUrl}" style="display:block;background:${c.card};border-radius:12px;overflow:hidden;margin-bottom:20px;border:1px solid ${c.border};text-decoration:none;color:inherit;">
-    ${imageBlock(hero, { width: '100%', height: '200px', radius: '0' })}
-    <div style="padding:20px;">
-      <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:${c.primary};margin-bottom:6px;">Featured</div>
-      <div style="font-family:${f.display};font-size:1.1rem;font-weight:700;color:${c.textPrimary};margin-bottom:6px;">${hero.title}</div>
-      <div style="font-size:0.82rem;color:${c.textSecondary};margin-bottom:4px;">${heroDate}${venue ? ` · ${venue.name}` : ''}</div>
-      ${price ? `<div style="display:inline-block;margin-top:8px;padding:3px 10px;background:${price.free ? c.freeBg : c.primary};color:${price.free ? c.freeTxt : c.white};font-size:0.72rem;font-weight:600;border-radius:10px;">${price.label}</div>` : ''}
-      ${hero.ticket_url ? `<span style="display:inline-block;margin-top:10px;padding:8px 18px;background:${c.primary};color:${c.white};text-decoration:none;border-radius:8px;font-size:0.82rem;font-weight:600;">Get Tickets</span>` : ''}
-    </div>
-  </a>
+    content += `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px;">
+    <tr>
+      <td style="border:1px solid ${c.border};border-radius:12px;">
+        <a href="${heroUrl}" style="display:block;text-decoration:none;color:inherit;">
+          ${imageBlock(hero, { width: '100%', height: '200px', radius: '12px 12px 0 0' })}
+          <div style="padding:18px 20px 20px;">
+            <div style="font-family:${f.display};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:${c.primary};margin-bottom:6px;">Featured</div>
+            <div style="font-family:${f.display};font-size:18px;font-weight:700;color:${c.textPrimary};margin-bottom:6px;line-height:1.3;">${escapeHtml(hero.title)}</div>
+            <div style="font-size:13px;color:${c.textSecondary};margin-bottom:4px;">${heroDate}${venue ? ` &middot; ${escapeHtml(venue.name)}` : ''}</div>
+            ${price ? `<div style="display:inline-block;margin-top:8px;padding:3px 10px;background:${price.free ? c.freeBg : c.primary};color:${price.free ? c.freeTxt : c.white};font-size:12px;font-weight:600;border-radius:10px;">${price.label}</div>` : ''}
+            ${hero.ticket_url ? `<div style="margin-top:12px;">${button(heroUrl, 'Get Tickets', { align: 'left' })}</div>` : ''}
+          </div>
+        </a>
+      </td>
+    </tr>
+  </table>
 `
   }
 
-  // Picks — grouped by day. Each row is a compact 56×56 thumb +
-  // title + single meta line (time · venue). Same anchor wrapping
-  // pattern so the entire row is clickable.
+  // Picks — grouped by day. One table; day headers and event rows are
+  // <tr>s so the thumb/text columns align without flexbox.
   if (dayGroups.length > 0) {
-    html += `<div style="font-family:${f.display};font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:${c.textMuted};border-bottom:1px solid ${c.border};padding-bottom:8px;margin-bottom:16px;">Your picks</div>`
-
+    content += `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td colspan="2" style="font-family:${f.display};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:${c.textMuted};border-bottom:1px solid ${c.border};padding-bottom:8px;">Your picks</td>
+    </tr>
+`
     for (const group of dayGroups) {
       // Per-day header (Sunday, Jun 1) — small uppercase label
-      html += `
-  <div style="font-family:${f.display};font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:${c.primary};margin:18px 0 8px;">
-    ${group.label}
-  </div>
+      content += `
+    <tr>
+      <td colspan="2" style="font-family:${f.display};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:${c.primary};padding:18px 0 4px;">${group.label}</td>
+    </tr>
 `
       for (const event of group.events) {
         const venue = event.venues[0]
         const eventUrl = `${BASE_URL}/events/${event.id}`
-        const meta = [formatTimeOnly(event.start_at), venue?.name].filter(Boolean).join(' · ')
+        const meta = [formatTimeOnly(event.start_at), venue ? escapeHtml(venue.name) : null].filter(Boolean).join(' &middot; ')
         const price = priceLabel(event)
         const pills: string[] = []
         if (event.featured) {
-          pills.push(`<span style="display:inline-block;margin-top:4px;margin-right:6px;padding:2px 8px;background:${c.primary};color:${c.white};font-size:0.66rem;font-weight:600;border-radius:8px;letter-spacing:0.04em;text-transform:uppercase;">Featured</span>`)
+          pills.push(`<span style="display:inline-block;margin-top:4px;margin-right:6px;padding:2px 8px;background:${c.primary};color:${c.white};font-size:11px;font-weight:600;border-radius:8px;letter-spacing:0.04em;text-transform:uppercase;">Featured</span>`)
         }
         if (price?.free) {
-          pills.push(`<span style="display:inline-block;margin-top:4px;padding:2px 8px;background:${c.freeBg};color:${c.freeTxt};font-size:0.68rem;font-weight:600;border-radius:8px;">Free</span>`)
+          pills.push(`<span style="display:inline-block;margin-top:4px;padding:2px 8px;background:${c.freeBg};color:${c.freeTxt};font-size:11px;font-weight:600;border-radius:8px;">Free</span>`)
         } else if (price) {
-          pills.push(`<span style="display:inline-block;margin-top:4px;padding:2px 8px;background:${c.background};color:${c.textSecondary};font-size:0.68rem;font-weight:600;border-radius:8px;border:1px solid ${c.border};">${price.label}</span>`)
+          pills.push(`<span style="display:inline-block;margin-top:4px;padding:2px 8px;background:${c.background};color:${c.textSecondary};font-size:11px;font-weight:600;border-radius:8px;border:1px solid ${c.border};">${price.label}</span>`)
         }
 
-        html += `
-  <a href="${eventUrl}" style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid ${c.border};text-decoration:none;color:inherit;align-items:center;">
-    <div style="flex-shrink:0;">${imageBlock(event, { width: '56px', height: '56px', radius: '8px' })}</div>
-    <div style="flex:1;min-width:0;">
-      <div style="font-family:${f.display};font-size:0.92rem;font-weight:700;color:${c.textPrimary};margin-bottom:2px;line-height:1.3;">${event.title}</div>
-      <div style="font-size:0.78rem;color:${c.textSecondary};">${meta}</div>
-      ${pills.length > 0 ? `<div>${pills.join('')}</div>` : ''}
-    </div>
-  </a>
+        content += `
+    <tr>
+      <td width="68" valign="middle" style="padding:10px 12px 10px 0;border-bottom:1px solid ${c.border};">
+        <a href="${eventUrl}" style="display:block;text-decoration:none;">${imageBlock(event, { width: '56px', height: '56px', radius: '8px' })}</a>
+      </td>
+      <td valign="middle" style="padding:10px 0;border-bottom:1px solid ${c.border};">
+        <a href="${eventUrl}" style="display:block;text-decoration:none;color:inherit;">
+          <div style="font-family:${f.display};font-size:15px;font-weight:700;color:${c.textPrimary};margin-bottom:2px;line-height:1.3;">${escapeHtml(event.title)}</div>
+          <div style="font-size:12px;color:${c.textSecondary};">${meta}</div>
+          ${pills.length > 0 ? `<div>${pills.join('')}</div>` : ''}
+        </a>
+      </td>
+    </tr>
 `
       }
     }
+    content += `
+  </table>
+`
   }
 
   // "Also coming up" — tail of plain-text event links. No images,
   // no metadata clutter; just titles + dates so the reader feels
   // depth without scrolling through more cards.
   if (tailEvents.length > 0) {
-    html += `
-  <div style="margin-top:28px;padding-top:20px;border-top:1px solid ${c.border};">
-    <div style="font-family:${f.display};font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:${c.textMuted};margin-bottom:10px;">Also coming up</div>
+    content += `
+  <div style="margin-top:26px;padding-top:18px;border-top:1px solid ${c.border};">
+    <div style="font-family:${f.display};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:${c.textMuted};margin-bottom:10px;">Also coming up</div>
 `
     for (const event of tailEvents) {
       const eventUrl = `${BASE_URL}/events/${event.id}`
       const date = new Date(event.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-      html += `
-    <a href="${eventUrl}" style="display:block;padding:6px 0;text-decoration:none;color:${c.textSecondary};font-size:0.85rem;line-height:1.4;">
+      content += `
+    <a href="${eventUrl}" style="display:block;padding:6px 0;text-decoration:none;color:${c.textSecondary};font-size:14px;line-height:1.4;">
       <span style="color:${c.primary};font-weight:600;">${date}</span>
-      <span style="color:${c.textMuted};"> · </span>
-      <span style="color:${c.textPrimary};">${event.title}</span>
+      <span style="color:${c.textMuted};"> &middot; </span>
+      <span style="color:${c.textPrimary};">${escapeHtml(event.title)}</span>
     </a>
 `
     }
-    html += `  </div>
+    content += `  </div>
 `
   }
 
-  // See all link
+  // See-all CTA — "find your reason to go out" moment.
   if (totalMatchCount > events.length) {
-    html += `
-  <div style="text-align:center;margin:24px 0;">
-    <a href="${BASE_URL}" style="display:inline-block;padding:12px 28px;background:${c.dark};color:${c.white};text-decoration:none;border-radius:10px;font-family:${f.display};font-size:0.85rem;font-weight:700;">
-      See all ${totalMatchCount} events &rarr;
-    </a>
+    content += `
+  <div style="margin:26px 0 4px;">
+    <div style="text-align:center;font-family:${f.display};font-size:13px;font-weight:600;color:${c.textSecondary};margin-bottom:10px;">Find your reason to go out.</div>
+    ${button(BASE_URL, `See all ${totalMatchCount} events &rarr;`, { bg: c.dark })}
   </div>
 `
   }
 
-  // Footer
-  html += `
-  <div style="text-align:center;padding-top:24px;border-top:1px solid ${c.border};margin-top:24px;">
-    <a href="${prefsUrl}" style="color:${c.primary};font-size:0.78rem;font-weight:600;text-decoration:underline;text-underline-offset:2px;">Manage preferences</a>
-    <span style="color:${c.border};margin:0 10px;">·</span>
-    <a href="${unsubUrl}" style="color:${c.textMuted};font-size:0.78rem;text-decoration:underline;text-underline-offset:2px;">Unsubscribe</a>
-    <div style="margin-top:14px;font-size:0.68rem;color:${c.textMuted};">
-      &copy; ${new Date().getFullYear()} ${THEME.copyrightHolder} · ${THEME.location}
-    </div>
-  </div>
+  return renderEmailShell({
+    preheader,
+    content,
+    footer: { prefsUrl, unsubUrl, showMission: true },
+  })
+}
 
-</div>
-</body></html>`
+// ── Build plain-text alternative ──────────────────────────────────
+// Multipart text/plain part: a deliverability best practice (spam
+// filters distrust HTML-only mail) and what screen-reader and
+// text-mode clients actually read.
+function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: number, tailEvents: Event[] = []): string {
+  const lines: string[] = [
+    `${THEME.brandName} — ${THEME.tagline}`,
+    `Here's what's happening ${windowLabel(sub)}, before it happens.`,
+    '',
+  ]
 
-  return html
+  const hero = events.find(e => e.featured)
+  const picks = events.filter(e => e !== hero)
+
+  if (hero) {
+    const venue = hero.venues[0]
+    const heroDate = new Date(hero.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    lines.push(`FEATURED: ${hero.title}`)
+    lines.push(`  ${heroDate}${venue ? ` · ${venue.name}` : ''}`)
+    lines.push(`  ${BASE_URL}/events/${hero.id}`, '')
+  }
+
+  for (const group of groupByDay(picks)) {
+    lines.push(group.label.toUpperCase())
+    for (const event of group.events) {
+      const venue = event.venues[0]
+      const meta = [formatTimeOnly(event.start_at), venue?.name].filter(Boolean).join(' · ')
+      const price = priceLabel(event)
+      lines.push(`- ${event.title}${price ? ` (${price.label})` : ''}`)
+      lines.push(`  ${meta}`)
+      lines.push(`  ${BASE_URL}/events/${event.id}`)
+    }
+    lines.push('')
+  }
+
+  if (tailEvents.length > 0) {
+    lines.push('ALSO COMING UP')
+    for (const event of tailEvents) {
+      const date = new Date(event.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+      lines.push(`- ${date} · ${event.title} — ${BASE_URL}/events/${event.id}`)
+    }
+    lines.push('')
+  }
+
+  if (totalMatchCount > events.length) {
+    lines.push(`See all ${totalMatchCount} events: ${BASE_URL}`, '')
+  }
+
+  lines.push(
+    'So you learn about events a week early, not a day late.',
+    'Free forever. No ads, ever.',
+    '',
+    `Manage preferences: ${BASE_URL}/subscribe/preferences?token=${sub.token}`,
+    `Unsubscribe: ${BASE_URL}/unsubscribe?token=${sub.token}`,
+  )
+
+  return lines.join('\n')
 }
 
 // ── Subject line builder ──
-function buildSubject(frequency: string, eventCount: number): string {
+// Keyed off the subscriber's event WINDOW (monthly calendar window or
+// lookahead_days), not their send frequency — a daily subscriber with
+// a 7-day lookahead was getting "Tomorrow in Akron" over a week of
+// events.
+function buildSubject(sub: Subscriber, eventCount: number): string {
   if (eventCount === 0) return 'No new events this time — we\'ll keep looking!'
 
   const loc = THEME.location.split(',')[0] // "Akron"
   const s = eventCount !== 1 ? 's' : ''
 
-  switch (frequency) {
-    case 'daily':
+  if (sub.frequency === 'monthly') {
+    const month = new Date().toLocaleDateString('en-US', { month: 'long' })
+    return `${month} in ${loc}: ${eventCount} event${s} for you`
+  }
+
+  switch (sub.lookahead_days) {
+    case 1:
       return `Tomorrow in ${loc}: ${eventCount} event${s} for you`
-    case 'monthly': {
-      const month = new Date().toLocaleDateString('en-US', { month: 'long' })
-      return `${month} in ${loc}: ${eventCount} event${s} for you`
-    }
+    case 30:
+      return `Your month in ${loc}: ${eventCount} event${s} for you`
     default:
       return `Your week in ${loc}: ${eventCount} event${s} for you`
   }
@@ -670,7 +728,7 @@ Deno.serve(async (req) => {
     console.log(`[send-digest] ${flatEvents.length} events in 30-day window`)
 
     // ── Step 3+4+5: Filter → Render → Batch send ──
-    const emailBatch: { from: string; to: string[]; reply_to: string; subject: string; html: string; headers: Record<string, string> }[] = []
+    const emailBatch: { from: string; to: string[]; reply_to: string; subject: string; html: string; text: string; headers: Record<string, string> }[] = []
     const sendLog: { subscriber_id: string; event_count: number; status: string; error_message?: string }[] = []
 
     for (const sub of subscribers as Subscriber[]) {
@@ -689,7 +747,8 @@ Deno.serve(async (req) => {
         }
 
         const html = buildDigestHtml(events, sub, allMatching.length, tail)
-        const subject = buildSubject(sub.frequency, events.length)
+        const text = buildDigestText(events, sub, allMatching.length, tail)
+        const subject = buildSubject(sub, events.length)
 
         emailBatch.push({
           from: THEME.from,
@@ -697,6 +756,7 @@ Deno.serve(async (req) => {
           reply_to: THEME.replyTo,
           subject,
           html,
+          text,
           headers: {
             'List-Unsubscribe': `<${BASE_URL}/unsubscribe?token=${sub.token}>`,
             'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',

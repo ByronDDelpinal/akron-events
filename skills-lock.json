@@ -11,6 +11,18 @@
       "sourceType": "github",
       "computedHash": "8984234c4a261c45edb6290155b058f29cc7fb1c995e898c3143f6d5b6d9a3ae"
     },
+    "emails": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "skillPath": "skills/emails/SKILL.md",
+      "computedHash": "261d986c2a1f1f5f823f8c889e16db723edb8a9d0fa5ede8412f981594715c49"
+    },
+    "product-marketing": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "skillPath": "skills/product-marketing/SKILL.md",
+      "computedHash": "2fe9e9093e385345d17e0e77d032d68015417c37ceffeb5fb34fc761c46c94a0"
+    },
     "react-email": {
       "source": "resend/resend-skills",
       "sourceType": "github",

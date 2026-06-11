@@ -128,6 +128,31 @@ function conditionalContentSignals(text, tLow) {
 }
 
 const FAMILY_RE = /\b(story ?time|story hour|kids?|children'?s?|family[- ]friendly|toddlers?|preschool|for kids|kid[- ]friendly|children'?s museum|family game night|family day|all[- ]ages family|grade[- ]schoolers|grades? [k0-9]|ages \d+ ?(to|-|–) ?\d+|little (explorers|ones)|baby|babies)\b/
+
+// Family false-positive contexts, stripped from the text BEFORE FAMILY_RE
+// runs. All three shipped to production before being caught (2026-06-11):
+//   1. Negated admission — "we regret that we cannot admit infants or
+//      children under age 12" (Akron Symphony Lakes Tour) flagged an event
+//      that explicitly EXCLUDES kids.
+//   2. "kids of all ages" — marketing idiom meaning "everyone", not kid
+//      programming ("Original Acoustifunk for kids of all ages", a band
+//      tagline in the Dreadlock Dave artist bio).
+//   3. Counted possessive in performer bios — "her time to their two
+//      children, Johnny and Olivia" (Five for Fighting). The count is what
+//      separates bio phrasing from programming copy: "parents and their
+//      children" (no count) must keep matching.
+const _FAMILY_EXCLUSIONS = [
+  /\b(?:cannot|can ?not|can't|may not|do not|don't|won't|unable to|no)\s+(?:admit|allow|accommodate|permit|bring)[^.!?]{0,80}/g,
+  /\b(?:for\s+)?kids of all ages\b/g,
+  /\b(?:his|her|their|my|our)\s+(?:two|three|four|five|six|seven|eight|nine|ten|\d+)\s+(?:young\s+)?(?:children|kids|grandchildren)\b/g,
+]
+
+/** Strip known family false-positive contexts (input is already lowercase). */
+function _familySubject(text) {
+  let t = text
+  for (const re of _FAMILY_EXCLUSIONS) t = t.replace(re, ' ')
+  return t
+}
 // High-bar: the EVENT itself is a fundraiser/benefit/service event. Excludes the
 // bare word "nonprofit"/"non-profit", which fires on artist/org BIOS rather than
 // the event (e.g. a concert whose performer "supports artists through her
@@ -151,7 +176,7 @@ export function scoreCategories(title = '', description = '') {
 export function inferFacets(title = '', description = '') {
   const text = `${title || ''} ${description || ''}`.toLowerCase()
   return {
-    family: FAMILY_RE.test(text),
+    family: FAMILY_RE.test(_familySubject(text)),
     fundraiser: FUNDRAISER_RE.test(text),
   }
 }

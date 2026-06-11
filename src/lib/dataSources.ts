@@ -384,6 +384,15 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
   },
 
   {
+    key:         'akron_rec_parks',
+    method:      'HTML scrape',
+    methodDetail:'RecDesk — Puppeteer-rendered POST /Community/Program/FilterPrograms',
+    venue:       'Akron Recreation & Parks community centers citywide',
+    notes:       'City of Akron Recreation & Parks manages programs through RecDesk SaaS. The /Community/Program listing is an AJAX table rendered by a POST to FilterPrograms; Puppeteer loads the page, sets ResultsPerPage=100, paginates as needed, and extracts title, programId, date range, days of week, and age requirements. Each program becomes one event row (start_at = program start at 9 AM ET, end_at = program end date at 5 PM ET). Covers summer camps, art classes, gymnastics, dance, STEM, adult programming, and aquatics across all city community centers. Programs already ended or more than 365 days out are skipped. Description fetch from individual detail pages is deferred to a future pass.',
+    status:      'active',
+  },
+
+  {
     key:         'city_of_akron_lock3',
     method:      'REST API',
     methodDetail:'Revize Calendar JSON feed — calendar_data_handler.php',
@@ -830,6 +839,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   akron_library:       'communico',
   rubberducks:         'mlb',
   akron_zips:          'sidearm',
+  akron_rec_parks:     'recdesk',
   city_of_akron_lock3: 'revize',
   killbox_comedy:      'seatengine',
   akron_marathon:      'html',

@@ -235,6 +235,31 @@ function pickRealImageUrl(imgTagHtml) {
  * graph that's the most reliable source of clean copy. Returns null when
  * no Event JSON-LD is present or its description is empty.
  */
+// Browser UA for the Eventbrite description/image fallback fetch ONLY.
+// The museum's own site is fetched with the honest bot UA (it doesn't block
+// bots); Eventbrite serves a shell or a 4xx to non-browser UAs.
+const EB_FALLBACK_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+
+/**
+ * og:description / twitter:description / meta description, in that order.
+ * Eventbrite server-renders these even when JSON-LD parsing fails, so they
+ * make a reliable second tier for the description fallback. Exported for tests.
+ */
+export function extractMetaDescription(html) {
+  const patterns = [
+    /<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']/i,
+    /<meta[^>]+name=["']twitter:description["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i,
+  ]
+  for (const re of patterns) {
+    const m = html.match(re)
+    if (m?.[1]?.trim()) return stripHtml(m[1]).trim() || null
+  }
+  return null
+}
+
 function extractJsonLdDescription(html) {
   const scriptRe = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
   let scriptMatch
@@ -370,20 +395,34 @@ async function fetchEventDetail(href) {
       && ticketUrl && /eventbrite\.com/i.test(ticketUrl)
     if (needsEventbriteFallback) {
       try {
+        // Eventbrite rejects bot User-Agents (scrape-eventbrite.js maintains a
+        // whole browser-UA pool for this reason). Fetching here with the
+        // "The330-bot" UA silently returned nothing for months and left every
+        // AAM event with an empty description — which in turn cost AAM rows
+        // their dedupe data-quality tier. Use a browser UA and LOG failures.
         const ebRes = await fetch(ticketUrl, {
           headers: {
             'Accept': 'text/html',
-            'User-Agent': 'Mozilla/5.0 (compatible; The330-bot/1.0)',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'User-Agent': EB_FALLBACK_UA,
           },
           redirect: 'follow',
         })
         if (ebRes.ok) {
           const ebHtml = await ebRes.text()
           if (!imageUrl)     imageUrl     = extractPageImage(ebHtml)
-          if (!description)  description  = extractJsonLdDescription(ebHtml)
+          if (!description) {
+            description = extractJsonLdDescription(ebHtml)
+              ?? extractMetaDescription(ebHtml)
+          }
+          if (!description) {
+            console.warn(`  ⚠ EB fallback: page fetched but no description found (${ticketUrl.slice(0, 80)})`)
+          }
+        } else {
+          console.warn(`  ⚠ EB fallback: HTTP ${ebRes.status} for ${ticketUrl.slice(0, 80)}`)
         }
-      } catch {
-        // EventBrite fetch failed — no image / description, not fatal
+      } catch (err) {
+        console.warn(`  ⚠ EB fallback fetch failed (${err.message}) for ${ticketUrl.slice(0, 80)}`)
       }
     }
 

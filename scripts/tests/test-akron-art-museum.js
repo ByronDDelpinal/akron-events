@@ -96,3 +96,33 @@ describe('Art Museum: Batch Invariants', () => {
     }
   })
 })
+
+// ── EB-fallback description extraction (2026-06-11 fix) ─────────────────────
+// Every AAM event delegated its copy to Eventbrite, and the fallback fetch
+// silently failed for months (bot UA + swallowed errors) — all descriptions
+// stored empty. These cover the new meta-tag extraction tier.
+
+import { extractMetaDescription } from '../scrape-akron-art-museum.js'
+
+describe('AAM: extractMetaDescription', () => {
+  it('reads og:description (content-after-property order)', () => {
+    const html = `<meta property="og:description" content="A free docent-led tour of the galleries." />`
+    assert.equal(extractMetaDescription(html), 'A free docent-led tour of the galleries.')
+  })
+
+  it('reads og:description (content-before-property order)', () => {
+    const html = `<meta content="Screen print your own t-shirt at Downtown@Dusk." property="og:description"/>`
+    assert.equal(extractMetaDescription(html), 'Screen print your own t-shirt at Downtown@Dusk.')
+  })
+
+  it('falls back to twitter:description, then meta description', () => {
+    const tw = `<meta name="twitter:description" content="Yoga in the galleries, mats provided.">`
+    assert.equal(extractMetaDescription(tw), 'Yoga in the galleries, mats provided.')
+    const plain = `<meta name="description" content="Member evening preview of the 1899 renovation.">`
+    assert.equal(extractMetaDescription(plain), 'Member evening preview of the 1899 renovation.')
+  })
+
+  it('returns null when no description meta exists', () => {
+    assert.equal(extractMetaDescription('<html><head><title>x</title></head></html>'), null)
+  })
+})

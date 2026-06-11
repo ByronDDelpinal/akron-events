@@ -129,6 +129,35 @@ function mapCategory(title = '') {
   return inferCategory(title, '')
 }
 
+// ── Venue aliasing ───────────────────────────────────────────────────────────
+// The CDC's location strings are free text and often a bare street address.
+// That minted a junk venue literally NAMED "1000 Kenmore Blvd" (no address),
+// and since dedupe buckets by location, a Rialto show the CDC republished
+// could never group with the rialto scraper's copy — it showed twice on the
+// site (2026-06-11). Map known Boulevard addresses/names to the canonical
+// venue record instead. NOTE: we alias rather than SKIP these events, because
+// the CDC also runs unique events AT these addresses (Kenmore Cowbell 7K
+// starts at the Rialto's address) — dedupe deletes the true duplicates and
+// the unique events survive with a correct venue.
+const VENUE_ALIASES = [
+  {
+    re: /\brialto\b|^1000 kenmore blvd\.?$/i,
+    name: 'The Rialto Theatre',
+    details: { address: '1000 Kenmore Blvd', city: 'Akron', state: 'OH' },
+  },
+]
+
+/** Resolve a CDC location string to a canonical venue, or null when the
+ *  location is not a known alias. Exported for tests. */
+export function resolveVenueAlias(location = '') {
+  const loc = (location || '').trim()
+  if (!loc) return null
+  for (const alias of VENUE_ALIASES) {
+    if (alias.re.test(loc)) return { name: alias.name, details: alias.details }
+  }
+  return null
+}
+
 // ── List parse ────────────────────────────────────────────────────────────────
 
 export function parseEvents(html) {
@@ -276,11 +305,15 @@ async function main() {
         const imageUrl = ev.imageUrl || detail.image || null
 
         let venueId = null
-        const venueName = ev.location || 'Kenmore Boulevard'
+        const alias = resolveVenueAlias(ev.location)
+        const venueName = alias?.name ?? (ev.location || 'Kenmore Boulevard')
+        if (alias) {
+          console.log(`  ⇒ Venue alias: "${ev.location}" → ${alias.name}`)
+        }
         if (venueCache.has(venueName)) {
           venueId = venueCache.get(venueName)
         } else {
-          venueId = await ensureVenue(venueName, { city: 'Akron', state: 'OH' })
+          venueId = await ensureVenue(venueName, alias?.details ?? { city: 'Akron', state: 'OH' })
           venueCache.set(venueName, venueId)
         }
         if (organizerId && venueId) await linkOrganizationVenue(organizerId, venueId)

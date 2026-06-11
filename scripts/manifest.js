@@ -87,6 +87,7 @@ export const SCRAPERS = [
   { key: 'visit_akron_cvb',      script: 'scripts/scrape-visit-akron-cvb.js',         label: 'Visit Akron CVB',             group: 'custom',         active: true  },
 
   // ── City calendars (CivicPlus) ─────────────────────────────────────────
+  { key: 'akron_rec_parks',      script: 'scripts/scrape-akron-rec-parks.js',         label: 'Akron Recreation & Parks',     group: 'recdesk',        active: true  },
   { key: 'city_of_akron_lock3',  script: 'scripts/scrape-city-of-akron-lock3.js',     label: 'City of Akron (Lock 3)',       group: 'civicplus',      active: true  },
   { key: 'city_of_green',        script: 'scripts/scrape-city-of-green.js',           label: 'City of Green',                group: 'ics',            active: true  },
   { key: 'city_of_stow',         script: 'scripts/scrape-city-of-stow.js',            label: 'City of Stow',                 group: 'civicplus',      active: true  },

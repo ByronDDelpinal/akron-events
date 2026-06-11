@@ -7,9 +7,11 @@
  * download attachments, so image-only event flyers are invisible to it.
  *
  * What this does, every 10 minutes:
- *   1. Finds unread inbox messages with image/PDF attachments that have not
- *      been OCR'd yet (no "ocr-done" label).
- *   2. Runs each attachment through Google Drive's built-in OCR
+ *   1. Finds unread inbox messages that have not been OCR'd yet (no "ocr-done"
+ *      label) and carry image/PDF attachments OR large remote images in the
+ *      HTML body (newsletter platforms like Constant Contact host flyers at a
+ *      URL instead of attaching them — they are invisible to getAttachments()).
+ *   2. Runs each image through Google Drive's built-in OCR
  *      (image -> temporary Google Doc -> extract text -> delete temp Doc).
  *   3. Sends a new email to intake@akronpulse.com with subject "OCR: <orig>"
  *      containing the original metadata, original body text, and the OCR text.
@@ -52,6 +54,7 @@ var OCR_MIME_TYPES = [
 ];
 var IN_RUN_OCR_TRIES = 4;        // per-attachment tries within one run (3s/9s/27s backoff)
 var GIVE_UP_AFTER_ATTEMPTS = 30; // cross-run retries (~5 hours at a 10-min trigger)
+var MAX_REMOTE_IMAGES = 5;       // cap remote-image OCR per message (quota protection)
 
 function processImageEmails() {
   var label = getOrCreateLabel_(OCR_LABEL_NAME);
@@ -75,20 +78,30 @@ function processImageEmails() {
           );
         });
 
-      if (attachments.length === 0) return; // text-only email: nightly task handles it
+      // Newsletter flyers are usually hosted remotely (<img src>), not attached.
+      var remoteImages = fetchRemoteImages_(message.getBody());
+
+      if (attachments.length === 0 && remoteImages.length === 0) return; // text-only: nightly task handles it
 
       var anyFailed = false;
-      var ocrSections = attachments.map(function (a, i) {
+      var blobs = attachments
+        .map(function (a, i) {
+          return { blob: a.copyBlob(), label: (a.getName() || 'unnamed') + ', ' + a.getContentType() + ', attached' };
+        })
+        .concat(remoteImages.map(function (r) {
+          return { blob: r.blob, label: r.url + ', remote' };
+        }));
+
+      var ocrSections = blobs.map(function (item, i) {
         var text = '';
         try {
-          text = ocrWithBackoff_(a.copyBlob(), a.getName() || 'attachment-' + (i + 1));
+          text = ocrWithBackoff_(item.blob, 'image-' + (i + 1));
         } catch (e) {
           anyFailed = true;
           text = '[OCR FAILED: ' + e.message + ']';
         }
         return (
-          '--- ATTACHMENT ' + (i + 1) + ' of ' + attachments.length +
-          ' (' + (a.getName() || 'unnamed') + ', ' + a.getContentType() + ') ---\n' +
+          '--- IMAGE ' + (i + 1) + ' of ' + blobs.length + ' (' + item.label + ') ---\n' +
           (text.trim() || '[No text detected in image]')
         );
       });
@@ -168,4 +181,40 @@ function ocrBlob_(blob, name) {
 
 function getOrCreateLabel_(name) {
   return GmailApp.getUserLabelByName(name) || GmailApp.createLabel(name);
+}
+
+/**
+ * Extract large remote images referenced in the HTML body and download them
+ * for OCR. Newsletter platforms (Constant Contact, Mailchimp) host flyer
+ * images at a URL rather than attaching them. Filters out platform chrome
+ * (spacers, social icons, footer logos, tracking pixels) by URL pattern, then
+ * by downloaded size (MIN_ATTACHMENT_BYTES). Caps at MAX_REMOTE_IMAGES.
+ * Fetch failures are skipped silently — they don't count as OCR failures.
+ */
+function fetchRemoteImages_(html) {
+  if (!html) return [];
+  var results = [];
+  var seen = {};
+  var re = /<img[^>]+src=["']([^"']+)["']/gi;
+  var m;
+  while ((m = re.exec(html)) !== null && results.length < MAX_REMOTE_IMAGES) {
+    var url = m[1].replace(/&amp;/g, '&');
+    if (!/^https?:\/\//i.test(url)) continue;                                  // skip cid:/data: refs (handled as attachments)
+    if (seen[url]) continue;
+    seen[url] = true;
+    if (/imgssl\.constantcontact\.com\/letters\//i.test(url)) continue;        // CC spacers/icons/footer chrome
+    if (/SocialIcons|referralLogos|\/on\.jsp|\.gif(\?|$)/i.test(url)) continue; // icons + tracking pixels
+    try {
+      var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true });
+      if (resp.getResponseCode() !== 200) continue;
+      var blob = resp.getBlob();
+      var type = String(blob.getContentType() || '').toLowerCase();
+      if (type.indexOf('image/') !== 0 && type !== 'application/pdf') continue;
+      if (blob.getBytes().length < MIN_ATTACHMENT_BYTES) continue;
+      results.push({ url: url.split('?')[0], blob: blob });
+    } catch (e) {
+      // Unreachable image — skip; body text still goes to the nightly task.
+    }
+  }
+  return results;
 }

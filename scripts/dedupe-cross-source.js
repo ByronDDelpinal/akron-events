@@ -33,15 +33,22 @@
  */
 
 import 'dotenv/config'
+import { pathToFileURL } from 'node:url'
 import { supabaseAdmin } from './lib/supabase-admin.js'
 
 const APPLY = process.argv.includes('--apply')
 
 // Lower index = higher priority (kept as canonical).
 // Direct primary-source scrapers first, then aggregators / republishers last.
+//
+// 2026-06-11: ticketmaster/eventbrite moved from the TOP to the aggregator
+// block at the bottom — they are republishers, and having them first
+// contradicted this comment and let an Eventbrite copy beat the first-party
+// scraper on priority ties. (Data-quality tiers still outrank priority, so a
+// first-party row with no image and no description can still lose — fix the
+// scraper's data gap in that case, e.g. akron_art_museum's empty
+// descriptions, rather than this list.)
 const SOURCE_PRIORITY = [
-  'ticketmaster',
-  'eventbrite',
   'akron_civic',
   'akronym',
   'akron_symphony',
@@ -67,7 +74,9 @@ const SOURCE_PRIORITY = [
   'torchbearers',
   'uakron_calendar',
   'weathervane',
-  'visit_akron_cvb',         // CVB aggregator — between first-party sources and akron_life
+  'ticketmaster',            // aggregator — authoritative ticketing, but republisher
+  'eventbrite',              // aggregator — republisher
+  'visit_akron_cvb',         // CVB aggregator — between ticketing aggregators and akron_life
   'akron_life',              // aggregator — last
 ]
 
@@ -133,7 +142,7 @@ function tokenOverlap(tokensA, tokensB) {
  * Only fires when both titles carry at least MIN_MEANINGFUL_TOKENS keywords,
  * preventing single-word titles ("Jazz") from over-matching.
  */
-function fuzzyTitlesMatch(a, b) {
+export function fuzzyTitlesMatch(a, b) {
   const ta = tokenizeTitle(a)
   const tb = tokenizeTitle(b)
   if (ta.length < MIN_MEANINGFUL_TOKENS || tb.length < MIN_MEANINGFUL_TOKENS) return false
@@ -148,6 +157,52 @@ function fuzzyTitlesMatch(a, b) {
  *   "Martell School Of Dance - Afternoon of Dance"
  * → both become "martell school of dance afternoon of dance"
  */
+/**
+ * Normalize a street address for location bucketing: lowercase, fold
+ * punctuation, and collapse common suffix variants (Boulevard/Blvd …) so
+ * "1000 Kenmore Blvd." and "1000 Kenmore Boulevard" share a key.
+ * Exported for tests.
+ */
+export function normalizeAddress(s) {
+  if (!s || typeof s !== 'string') return null
+  const t = s.toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\b(boulevard|blvd)\b/g, 'blvd')
+    .replace(/\b(street|str?)\b/g, 'st')
+    .replace(/\b(avenue|ave?)\b/g, 'ave')
+    .replace(/\b(road|rd)\b/g, 'rd')
+    .replace(/\b(drive|dr)\b/g, 'dr')
+    .replace(/\b(parkway|pkwy)\b/g, 'pkwy')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return t || null
+}
+
+/**
+ * Bucketing key for duplicate grouping. Venue-id bucketing alone misses
+ * duplicates when two sources mint DIFFERENT venue records for the same
+ * building — e.g. better_kenmore once stored a venue literally named
+ * "1000 Kenmore Blvd" (no address) for a show The Rialto Theatre (address:
+ * 1000 Kenmore Blvd) also published, and the pair could never group
+ * (2026-06-11). Key precedence:
+ *   1. the venue's normalized street address,
+ *   2. the venue NAME when it looks like a bare street address (starts with
+ *      a number) — covers junk venues that store the address as the name,
+ *   3. the venue_id (original behavior).
+ * Same-address-different-venue collisions are still gated by the fuzzy-title
+ * and time-window checks before anything groups. Exported for tests.
+ */
+export function locationKey(e) {
+  const ev = e.event_venues?.[0]
+  if (!ev?.venue_id) return null
+  const v = ev.venues ?? {}
+  const addr = normalizeAddress(v.address)
+  if (addr) return `addr:${addr}`
+  const nameAsAddr = normalizeAddress(v.name)
+  if (nameAsAddr && /^\d/.test(nameAsAddr)) return `addr:${nameAsAddr}`
+  return `venue:${ev.venue_id}`
+}
+
 function normalizeTitle(title) {
   return (title || '')
     .toLowerCase()
@@ -216,7 +271,7 @@ async function main() {
   for (;;) {
     const { data, error } = await supabaseAdmin
       .from('events')
-      .select('id, title, description, image_url, start_at, source, source_id, ticket_url, manual_overrides, event_venues(venue_id)')
+      .select('id, title, description, image_url, start_at, source, source_id, ticket_url, manual_overrides, event_venues(venue_id, venues(name, address))')
       .order('start_at', { ascending: true })
       .range(from, from + pageSize - 1)
     if (error) {
@@ -261,14 +316,14 @@ async function main() {
   // Both passes produce the same Group shape fed into the canonical-selection
   // and delete logic below.
 
-  const byVenue = new Map()   // venueId → event[]
+  const byVenue = new Map()   // location key → event[]
   let withoutVenue = 0
   for (const e of unique) {
-    const venueId = e.event_venues?.[0]?.venue_id
-    if (!venueId) { withoutVenue++; continue }
+    const key = locationKey(e)
+    if (!key) { withoutVenue++; continue }
     if (!e.title) continue
-    if (!byVenue.has(venueId)) byVenue.set(venueId, [])
-    byVenue.get(venueId).push({ ...e, _titleKey: normalizeTitle(e.title) })
+    if (!byVenue.has(key)) byVenue.set(key, [])
+    byVenue.get(key).push({ ...e, _titleKey: normalizeTitle(e.title) })
   }
   console.log(`Excluded ${withoutVenue} events with no linked venue`)
   console.log('')
@@ -446,7 +501,12 @@ async function main() {
   console.log(`✅  Deleted ${deleted} events. Junction-table rows cascaded.`)
 }
 
-main().catch(err => {
-  console.error('Dedupe failed:', err)
-  process.exit(1)
-})
+// Run only when invoked directly (`node scripts/dedupe-cross-source.js`);
+// importing the module (tests) must never trigger a live dedupe — the same
+// import-safety contract every scraper follows.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch(err => {
+    console.error('Dedupe failed:', err)
+    process.exit(1)
+  })
+}
