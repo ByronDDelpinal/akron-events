@@ -72,11 +72,15 @@ function buildEmbedParams(state: BuilderState): URLSearchParams {
   if (state.date) p.set('date', state.date)
   if (state.family) p.set('family', '1')
 
-  // Features: only emit if any are disabled (default = all on)
+  // Features: omitting the param means "all on", so we only emit when at least
+  // one feature is off. When EVERY feature is off the allowlist is empty — we
+  // still must emit the param (as the `none` sentinel), otherwise an all-off
+  // config would serialize identically to an unconfigured one and parse back as
+  // all-on. parseEmbedConfig treats any present-but-empty allowlist as all-off.
   const allOn = Object.values(state.features).every(Boolean)
   if (!allOn) {
     const enabled = ALL_FEATURES.filter((f) => state.features[f.key]).map((f) => f.key)
-    if (enabled.length) p.set('features', enabled.join(','))
+    p.set('features', enabled.length ? enabled.join(',') : 'none')
   }
 
   if (state.view !== 'list') p.set('view', state.view)

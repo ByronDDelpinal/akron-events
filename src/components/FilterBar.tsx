@@ -45,6 +45,7 @@ interface FilterBarProps {
   onCardViewMode?: (v: string) => void
   onClearAll?: () => void
   lockedDimensions?: LockedDimensions
+  lockedCategories?: string[]
   showFilterButton?: boolean
 }
 
@@ -66,6 +67,7 @@ export default function FilterBar({
   cardViewMode,    onCardViewMode,
   onClearAll,
   lockedDimensions = {},
+  lockedCategories = [],
   showFilterButton = true,
 }: FilterBarProps) {
   const [trayOpen, setTrayOpen] = useState(false)
@@ -204,6 +206,7 @@ export default function FilterBar({
         sort={sort}                     onSort={onSort}
         total={total}
         lockedDimensions={lockedDimensions}
+        lockedCategories={lockedCategories}
       />
     </>
   )

@@ -21,8 +21,12 @@
  *   target=inline|blank        event click-through (default: inline)
  *
  * A filter that is present in the URL is treated as LOCKED — the visitor can
- * filter further within the embed but can never remove the partner's
- * constraint (see lockedDimensions below + FilterBar locked-pill handling).
+ * never remove the partner's constraint (see lockedDimensions below + FilterBar
+ * locked-pill handling). For a locked CATEGORY set the visitor may still narrow
+ * WITHIN the set (e.g. a music+arts embed lets a visitor view just music) but
+ * can never reach outside it; clearing resets to the full locked set. Locked
+ * price/date are single presets with nothing to narrow, so their tray sections
+ * stay hidden.
  */
 
 import { isValidTheme, DEFAULT_THEME } from '@/lib/themes'
@@ -91,7 +95,10 @@ export function parseEmbedConfig(
   const date = oneOf(params.get('date'), VALID_DATE, null)
   const family = params.get('family') === '1' || params.get('family') === 'true'
 
-  // features: omitted → all on; present → explicit allowlist.
+  // features: OMITTED (param absent) → all on. PRESENT → explicit allowlist of
+  // the named features; any unknown token (e.g. the `none` sentinel the builder
+  // emits for an all-off config, or an empty string) simply contributes nothing,
+  // so a present-but-empty allowlist correctly turns every feature off.
   const featureParam = params.get('features')
   const enabled = featureParam == null
     ? new Set<string>(EMBED_FEATURES)
@@ -116,8 +123,12 @@ export function parseEmbedConfig(
   }
 
   // Which FILTER_PARAM_KEYS clearFilters must preserve (the locked presets).
+  // Categories are intentionally NOT preserved here: the category lock is
+  // enforced by `categories` (the locked set) being passed to useEventFilters as
+  // `lockedCategories`, which clamps the effective query and resets to the full
+  // set on clear. Preserving the param would instead pin the visitor's narrowed
+  // subset, which is the opposite of "Clear filters".
   const lockedKeys: string[] = []
-  if (categories.length > 0) lockedKeys.push('categories')
   if (price) lockedKeys.push('price')
   if (date) lockedKeys.push('date')
 

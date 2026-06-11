@@ -27,6 +27,21 @@ interface FilterTrayProps {
   onSort: (v: string) => void
   total: number
   lockedDimensions?: LockedDimensions
+  /**
+   * The partner's locked category set (embed only). When present, the Category
+   * section stays visible but offers ONLY these chips, so the visitor can narrow
+   * within the lock (e.g. view just "music" inside a music+arts embed) without
+   * ever escaping it.
+   */
+  lockedCategories?: string[]
+}
+
+// Label lookup for raw category slugs, e.g. "music" → "🎵 Music".
+const RAW_CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
+  CATEGORY_OPTIONS.filter((o) => o.kind === 'raw').map((o) => [o.value, o.label])
+)
+function rawCategoryLabel(slug: string): string {
+  return RAW_CATEGORY_LABELS[slug] ?? slug.charAt(0).toUpperCase() + slug.slice(1)
 }
 
 /**
@@ -45,7 +60,26 @@ export default function FilterTray({
   sort,           onSort,
   total,
   lockedDimensions = {},
+  lockedCategories = [],
 }: FilterTrayProps) {
+  const hasLockedCategories = lockedCategories.length > 0
+  // Which locked chips read as active: the visitor's narrowing, or — when they
+  // haven't narrowed — the full locked set (since that's what's being shown).
+  const selectedLockedCategories = (() => {
+    const narrowed = rawCategories.filter((c) => lockedCategories.includes(c))
+    return narrowed.length > 0 ? narrowed : lockedCategories
+  })()
+
+  // Toggle a chip within the locked set. Selecting all (or none) means "no
+  // narrowing", which we store as an empty param so the hook falls back to the
+  // full locked set and the URL stays clean.
+  function toggleLockedCategory(slug: string) {
+    const current = selectedLockedCategories
+    const next = current.includes(slug)
+      ? current.filter((c) => c !== slug)
+      : [...current, slug]
+    onRawCategories(next.length === 0 || next.length === lockedCategories.length ? [] : next)
+  }
   // Lock body scroll while tray is open
   useEffect(() => {
     if (open) {
@@ -128,10 +162,11 @@ export default function FilterTray({
 
   function clearAll() {
     onIntentId(null)
+    // In the embed an empty categories param resets to the full locked set, so
+    // this never escapes the lock. Locked price/date are left untouched.
     onRawCategories([])
-    onPriceFilter(null)
-    onDateFrom(null)
-    onDateTo(null)
+    if (!lockedDimensions.price) onPriceFilter(null)
+    if (!lockedDimensions.dateRange) { onDateFrom(null); onDateTo(null) }
     onSort('soonest')
   }
 
@@ -182,8 +217,24 @@ export default function FilterTray({
           </div>
         </TraySection>
 
-        {/* ── Category (intents + raw categories, unified) ── */}
-        {!lockedDimensions.category && (
+        {/* ── Category ── */}
+        {/* Locked embed: offer only the partner's set so the visitor can narrow
+            within it. Unlocked: the full intents + raw categories picker. */}
+        {hasLockedCategories ? (
+          <TraySection label="Category">
+            <div className="tray-chips">
+              {lockedCategories.map((slug) => (
+                <button
+                  key={slug}
+                  className={`tray-chip ${selectedLockedCategories.includes(slug) ? 'active' : ''}`}
+                  onClick={() => toggleLockedCategory(slug)}
+                >
+                  {rawCategoryLabel(slug)}
+                </button>
+              ))}
+            </div>
+          </TraySection>
+        ) : !lockedDimensions.category && (
           <TraySection label="Category">
             <div className="tray-chips">
               {CATEGORY_OPTIONS.map((opt) => (

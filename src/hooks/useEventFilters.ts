@@ -28,11 +28,19 @@ export interface UseEventFiltersOptions {
   /**
    * Filter param keys that clearFilters() must NOT remove. Used by the embed
    * so a visitor's "Clear filters" can never escape the partner's locked
-   * constraint (e.g. a music-only embed). Homepage passes none.
+   * constraint (e.g. a free-only embed). Homepage passes none.
    */
   lockedKeys?: string[]
   /** Facet flags (family, fundraiser) with no dedicated filter param. */
   preset?: FilterPreset
+  /**
+   * The partner's locked category set (embed only). When non-empty the visitor
+   * may narrow WITHIN this set but never outside it: the effective query is
+   * clamped to the intersection of the visitor's selection and the locked set,
+   * and falls back to the full set when the visitor has cleared their narrowing.
+   * Homepage passes none.
+   */
+  lockedCategories?: string[]
 }
 
 /** The derived, validated arguments handed to useEvents. */
@@ -56,8 +64,9 @@ export const FILTER_PARAM_KEYS = ['intent', 'date', 'from', 'to', 'categories', 
 
 type ParamValue = string | string[] | null | undefined
 
-export function useEventFilters({ lockedKeys = [], preset = {} }: UseEventFiltersOptions = {}) {
+export function useEventFilters({ lockedKeys = [], preset = {}, lockedCategories = [] }: UseEventFiltersOptions = {}) {
   const [searchParams, setSearchParams] = useSearchParams()
+  const hasLockedCategories = lockedCategories.length > 0
 
   // Single helper that writes one param key → value into the URL.
   // Passing null/empty removes the key so the URL stays clean.
@@ -124,10 +133,16 @@ export function useEventFilters({ lockedKeys = [], preset = {} }: UseEventFilter
   // ── Derived "effective" args for useEvents ────────────────────────────
   const activeIntent = INTENTS.find((i) => i.id === activeIntentId) ?? null
   const intentFacets: string[] = activeIntent?.facets ?? []
-  // Tray raw categories narrow; if empty, fall back to intent's categories.
-  const effectiveCategories = rawCategories.length > 0
-    ? rawCategories
-    : (activeIntent?.categories ?? [])
+  // When the partner locked a category set, the visitor narrows within it: clamp
+  // the selection to the intersection with the locked set (so a hand-edited URL
+  // can't escape it) and fall back to the full locked set once narrowing clears.
+  // Otherwise tray raw categories narrow; if empty, fall back to the intent's.
+  const effectiveCategories = hasLockedCategories
+    ? (() => {
+        const narrowed = rawCategories.filter((c) => lockedCategories.includes(c))
+        return narrowed.length > 0 ? narrowed : lockedCategories
+      })()
+    : (rawCategories.length > 0 ? rawCategories : (activeIntent?.categories ?? []))
   const effectiveFamily = intentFacets.includes('family') || !!preset.family
   const effectiveFundraiser = intentFacets.includes('fundraiser') || !!preset.fundraiser
   const effectiveFreeOnly = intentFacets.includes('free') || priceFilter === 'free'

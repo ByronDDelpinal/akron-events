@@ -36,6 +36,8 @@ interface EventsBrowserProps {
   onDensity: (v: string) => void
   features?: Features
   lockedDimensions?: LockedDimensions
+  /** Partner's locked category set (embed) — enables narrow-within in the tray. */
+  lockedCategories?: string[]
   renderPromoMid?: () => ReactNode
   renderPromoEnd?: () => ReactNode
   onFirstPageLoad?: () => void
@@ -55,6 +57,7 @@ export default function EventsBrowser({
   onDensity,
   features = ALL_FEATURES_ON,
   lockedDimensions = {},
+  lockedCategories = [],
   renderPromoMid,
   renderPromoEnd,
   onFirstPageLoad,
@@ -207,6 +210,7 @@ export default function EventsBrowser({
           onCardViewMode={features.density ? onDensity : undefined}
           onClearAll={filters.clearFilters}
           lockedDimensions={lockedDimensions}
+          lockedCategories={lockedCategories}
           showFilterButton={features.filter}
         />
       )}

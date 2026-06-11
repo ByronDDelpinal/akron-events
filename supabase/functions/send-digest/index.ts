@@ -11,6 +11,12 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend@4'
 import { THEME, escapeHtml, button, renderEmailShell } from '../_shared/email.ts'
+import {
+  type Event,
+  type Subscriber,
+  filterEventsForSubscriber,
+  selectDigestEvents,
+} from './select.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -20,207 +26,13 @@ const resend = new Resend(Deno.env.get('RESEND_API_KEY')!)
 
 const BASE_URL = Deno.env.get('PUBLIC_SITE_URL') || 'https://akronpulse.com'
 const BATCH_SIZE = 100
-// Top-of-email picks rendered as full image cards. Bumped from 10 to
-// 14 after the row-density redesign — events now use a 56px thumb
-// instead of 72px and combine date+venue into one meta line, so the
-// extra 4 events fit in the same visual budget.
-const MAX_EVENTS_PER_EMAIL = 14
-// Plain-text "also coming up" list rendered after the picks. Quick
-// scroll past the rich-card section gives the reader a sense of depth
-// without bloating the email.
-const TAIL_EVENT_COUNT = 8
 
 // Brand theme, masthead/footer shell, and button/escape helpers all
 // live in ../_shared/email.ts so every subscriber-facing email renders
-// the same brand system. CATEGORY_GRADIENT / CATEGORY_LABEL stay in
-// this file: they're digest-specific and test-send-digest-schema.js
-// statically asserts they cover every category slug.
-
-// Haversine distance in miles (no API calls)
-function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 3959 // Earth radius in miles
-  const dLat = (lat2 - lat1) * Math.PI / 180
-  const dLng = (lng2 - lng1) * Math.PI / 180
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
-
-// Get last day of a month
-function lastDayOfMonth(year: number, month: number): number {
-  return new Date(year, month + 1, 0).getDate()
-}
-
-interface Event {
-  id: string
-  title: string
-  description: string | null
-  start_at: string
-  end_at: string | null
-  category: string        // primary content category (shim; = categories[0])
-  categories: string[]    // 1–2 content categories from event_categories
-  tags: string[]
-  price_min: number | null
-  price_max: number | null
-  age_restriction: string
-  image_url: string | null
-  ticket_url: string | null
-  featured: boolean
-  // Venue/org now carry image_url so the email's image-resolution
-  // helper can walk event → venue → organizer when the event itself
-  // has no image of its own. Mirrors the app's `imageUrlForEvent`.
-  venues: { name: string; address: string | null; lat: number | null; lng: number | null; image_url: string | null }[]
-  organizations: { id: string; name: string; image_url: string | null }[]
-}
-
-interface Subscriber {
-  id: string
-  email: string
-  frequency: string
-  lookahead_days: number
-  preferences: {
-    intents: string[]
-    categories: string[]
-    venue_ids: string[]
-    org_ids: string[]
-    price_max: number | null
-    age_restriction: string | null
-    event_days: number[]
-    location: {
-      mode: string
-      // New format: multiple areas
-      areas?: { lat: number; lng: number; label: string }[]
-      // Legacy format: single area (kept for backward compat)
-      lat?: number
-      lng?: number
-      radius_miles: number
-      label?: string
-    } | null
-    keywords: string[]
-    keywords_title_only: boolean
-  }
-  token: string
-}
-
-// ── Per-subscriber event filtering (all in-memory) ──
-function filterEventsForSubscriber(allEvents: Event[], sub: Subscriber, now: Date): Event[] {
-  const prefs = sub.preferences
-  const startWindow = now
-  let endWindow: Date
-
-  if (sub.frequency === 'monthly') {
-    // Monthly: include through last day of current month
-    endWindow = new Date(now.getFullYear(), now.getMonth(), lastDayOfMonth(now.getFullYear(), now.getMonth()), 23, 59, 59)
-  } else {
-    endWindow = new Date(now.getTime() + sub.lookahead_days * 86400000)
-  }
-
-  // Events matching structured preferences
-  const preferenceMatched = allEvents.filter(event => {
-    const eventStart = new Date(event.start_at)
-
-    // Date window
-    if (eventStart < startWindow || eventStart > endWindow) return false
-
-    // Event day-of-week filter
-    const eventDay = eventStart.getDay()
-    if (!prefs.event_days.includes(eventDay)) return false
-
-    // Intents/categories (skip if "all"). Events now carry 1–2 content
-    // categories (event.categories); match if ANY overlaps the prefs.
-    if (!prefs.intents.includes('all') && prefs.categories.length > 0) {
-      const cats = event.categories ?? []
-      if (!cats.some((c) => prefs.categories.includes(c))) return false
-    }
-
-    // Venue filter (empty = all venues)
-    if (prefs.venue_ids.length > 0) {
-      const eventVenueIds = event.venues.map((v: any) => v.id).filter(Boolean)
-      if (!eventVenueIds.some((vid: string) => prefs.venue_ids.includes(vid))) return false
-    }
-
-    // Organization filter (empty = all orgs)
-    if (prefs.org_ids.length > 0) {
-      const eventOrgIds = event.organizations.map((o: any) => o.id).filter(Boolean)
-      if (!eventOrgIds.some((oid: string) => prefs.org_ids.includes(oid))) return false
-    }
-
-    // Price filter
-    if (prefs.price_max !== null) {
-      if (event.price_min > prefs.price_max) return false
-    }
-
-    // Age restriction filter
-    if (prefs.age_restriction) {
-      if (prefs.age_restriction === 'all_ages' && event.age_restriction !== 'all_ages' && event.age_restriction !== 'not_specified') return false
-    }
-
-    // Location filter (haversine, no API)
-    if (prefs.location) {
-      const venue = event.venues[0]
-      if (venue?.lat && venue?.lng) {
-        const r = prefs.location.radius_miles
-        // New format: include if within radius of ANY selected area
-        if (prefs.location.areas && prefs.location.areas.length > 0) {
-          const nearAny = prefs.location.areas.some(
-            (a) => haversine(a.lat, a.lng, venue.lat, venue.lng) <= r
-          )
-          if (!nearAny) return false
-        } else if (prefs.location.lat != null && prefs.location.lng != null) {
-          // Legacy single-area format
-          if (haversine(prefs.location.lat, prefs.location.lng, venue.lat, venue.lng) > r) return false
-        }
-      }
-      // If venue has no coords, include it (don't penalize missing data)
-    }
-
-    return true
-  })
-
-  // Keyword matches — BYPASS all other filters (except date window)
-  const keywordMatched: Event[] = []
-  if (prefs.keywords.length > 0) {
-    for (const event of allEvents) {
-      const eventStart = new Date(event.start_at)
-      if (eventStart < startWindow || eventStart > endWindow) continue
-
-      // Skip events already matched by preferences
-      if (preferenceMatched.some(pe => pe.id === event.id)) continue
-
-      const titleLower = event.title.toLowerCase()
-      const descLower = (event.description || '').toLowerCase()
-
-      for (const keyword of prefs.keywords) {
-        const kw = keyword.toLowerCase()
-        // Whole-word match using word boundary regex
-        const re = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
-
-        if (re.test(event.title)) {
-          keywordMatched.push(event)
-          break
-        }
-        if (!prefs.keywords_title_only && event.description && re.test(event.description)) {
-          keywordMatched.push(event)
-          break
-        }
-      }
-    }
-  }
-
-  // Combine: preference matches + keyword matches
-  const combined = [...preferenceMatched, ...keywordMatched]
-
-  // Sort: featured first (max 1), then by start_at
-  combined.sort((a, b) => {
-    if (a.featured && !b.featured) return -1
-    if (!a.featured && b.featured) return 1
-    return new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
-  })
-
-  // Cap at MAX_EVENTS_PER_EMAIL
-  return combined.slice(0, MAX_EVENTS_PER_EMAIL)
-}
+// the same brand system. The matcher + windowed, diversity-aware pick
+// live in ./select.ts (pure + unit-tested). CATEGORY_GRADIENT /
+// CATEGORY_LABEL stay in this file: they're digest-specific and
+// test-send-digest-schema.js statically asserts they cover every slug.
 
 // ── Email template helpers ───────────────────────────────────────
 
@@ -785,12 +597,11 @@ Deno.serve(async (req) => {
 
     for (const sub of subscribers as Subscriber[]) {
       try {
-        // Get ALL matching events (for count), then split into the
-        // rich-card "picks" section and the plain-text "also coming
-        // up" tail. Both render in buildDigestHtml.
+        // Match ALL events in the window (allMatching.length is the true
+        // "N events" count), then pick the windowed, diversity-aware set
+        // for the rich cards plus a plain-text "also coming up" tail.
         const allMatching = filterEventsForSubscriber(flatEvents, sub, now)
-        const events = allMatching.slice(0, MAX_EVENTS_PER_EMAIL)
-        const tail   = allMatching.slice(MAX_EVENTS_PER_EMAIL, MAX_EVENTS_PER_EMAIL + TAIL_EVENT_COUNT)
+        const { picks: events, tail } = selectDigestEvents(allMatching, sub, now)
 
         if (events.length === 0) {
           // Skip — don't send empty digests

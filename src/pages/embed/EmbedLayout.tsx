@@ -16,7 +16,14 @@ const REQUEST_MESSAGE_TYPE  = 'akron-pulse-embed:request'  // iframe → parent
  */
 export default function EmbedLayout() {
   const location = useLocation()
-  const config = useMemo(() => parseEmbedConfig(location.search), [location.search])
+  // The partner's config (theme, locked filters, features, defaults) is fixed at
+  // embed time — it is whatever the iframe `src` carried. We capture the INITIAL
+  // search once and parse the config from that, never from the live query string.
+  // This matters for the locked-category set: once a visitor narrows within it,
+  // their selection is written back to the `categories` param, and re-parsing the
+  // live URL would silently shrink the partner's lock to the visitor's narrowing.
+  const initialSearch = useRef(location.search).current
+  const config = useMemo(() => parseEmbedConfig(initialSearch), [initialSearch])
   const rootRef = useRef<HTMLDivElement>(null)
 
   // ── Auto-height: tell the parent how tall we are ──────────────────────

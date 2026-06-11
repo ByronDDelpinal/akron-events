@@ -15,6 +15,7 @@ export default function EmbedHomePage() {
   const filters = useEventFilters({
     lockedKeys: config?.lockedKeys,
     preset: { family: config?.family },
+    lockedCategories: config?.categories,
   })
 
   // View + density are seeded from config and then user-controllable.
@@ -41,6 +42,7 @@ export default function EmbedHomePage() {
         density={density}  onDensity={setDensity}
         features={config.features}
         lockedDimensions={config.lockedDimensions}
+        lockedCategories={config.categories}
       />
     </>
   )
