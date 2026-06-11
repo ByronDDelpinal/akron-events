@@ -89,17 +89,20 @@ function parseCategory(ev) {
   const has = (kw) => all.some(s => s.includes(kw))
   const hasWord = (kw) => all.some(s => new RegExp(`\\b${kw}\\b`).test(s))
 
-  if (group.includes('ej thomas') || group.includes('performing arts')) return 'art'
+  // EJ Thomas Hall / School of Performing Arts host staged shows — theater,
+  // not visual-art (the old v1 'art' slug conflated the two).
+  if (group.includes('ej thomas') || group.includes('performing arts')) return 'theater'
   if (group.includes('music') || group.includes('school of music')) return 'music'
-  if (group.includes('art') || group.includes('school of art')) return 'art'
+  if (group.includes('school of art') || group.includes('myers')) return 'visual-art'
+  if (group.includes('art')) return 'visual-art'
   if (has('athletic') || hasWord('sport')) return 'sports'
   if (has('recreation')) return 'fitness'
-  if (has('lecture') || has('seminar') || has('workshop') || hasWord('class')) return 'education'
+  if (has('lecture') || has('seminar') || has('workshop') || hasWord('class')) return 'learning'
   if (has('performance') || has('recital') || has('concert')) {
     if (group.includes('music') || group.includes('school of music')) return 'music'
-    return 'art'
+    return 'theater'
   }
-  return 'education'
+  return 'learning' // University default: talks, info sessions, academic events
 }
 
 function parseTags(ev) {

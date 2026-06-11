@@ -120,9 +120,9 @@ const CALENDAR_LANDING_URL_BY_CAL = {
 // holiday, civic, and miscellaneous content, so 'other' is a more honest
 // answer than a guess.
 const CATEGORY_FALLBACK_BY_CAL = {
-  '5':  'community',  // Parks & Rec — community / nature programming
+  '5':  'outdoors',   // Parks & Rec — park / nature programming
   '6':  'music',      // Lock 3 — concerts / Lock 4 Blues / Gospel Sundays
-  '13': 'community',  // Great Streets Akron — neighborhood / street fests
+  '13': 'festival',   // Great Streets Akron — neighborhood / street fests
 }
 
 // 1 day of grace so same-day events stay visible until midnight ET.

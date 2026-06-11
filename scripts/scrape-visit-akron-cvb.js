@@ -188,19 +188,25 @@ async function fetchAllEvents() {
 // ── Field mapping ──────────────────────────────────────────────────────────
 
 const CATEGORY_OVERRIDES = {
-  // Simpleview top-level catNames → our taxonomy.
+  // Simpleview top-level catNames → v2 slugs.
   // We prefer text-based inferCategory(); these are fallbacks when nothing
-  // matches the title.
+  // matches the title. 'family' is an audience, not content — it feeds the
+  // is_family facet (pickIsFamily) instead of a category.
   'eat':            'food',
   'drink':          'food',
-  'annual events':  'community',
+  'annual events':  'festival',      // CVB's bucket for recurring signature events
   'to do':          null,            // too generic — defer to text inference
   'stay':           null,            // hotel packages, not really events
-  'arts & culture': 'art',
+  'arts & culture': 'visual-art',
   'music':          'music',
-  'family':         'community',
-  'outdoors':       'nature',
+  'family':         null,
+  'outdoors':       'outdoors',
   'sports':         'sports',
+}
+
+/** is_family facet from Simpleview catNames; undefined (not false) when absent. */
+function pickIsFamily(doc) {
+  return (doc.categories || []).some((c) => /family/i.test(c.catName || '')) || undefined
 }
 
 function pickCategory(doc) {
@@ -430,6 +436,7 @@ async function processEvents(docs, orgId) {
         start_at,
         end_at,
         category:        pickCategory(doc),
+        is_family:       pickIsFamily(doc),
         tags:            buildTags(doc),
         price_min,
         price_max,

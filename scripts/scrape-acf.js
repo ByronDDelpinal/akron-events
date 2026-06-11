@@ -89,11 +89,23 @@ function firstMatch(html, re) {
   return m ? m[1] : null
 }
 
+/**
+ * ACF events split into two shapes: convenings (meetings, info sessions,
+ * partner breakfasts -> civic) and benefit-style celebrations (galas,
+ * receptions, award nights -> inference picks content; the is_fundraiser
+ * facet carries the give-back signal). The old map returned v1 'nonprofit'
+ * for everything, which left 100% of ACF events in the Other bucket.
+ */
 function parseCategory(title = '', desc = '') {
   const t = `${title} ${desc}`.toLowerCase()
-  if (/celebration|anniversary|gala|reception|awards?\b|polsky/.test(t)) return 'nonprofit'
-  if (/meeting|session|partner|breakfast|luncheon/.test(t))             return 'nonprofit'
-  return 'nonprofit'
+  if (/meeting|session|partner|breakfast|luncheon/.test(t)) return 'civic'
+  return null // celebrations/galas — let inference pick the content category
+}
+
+/** A community foundation's public events are fundraiser-adjacent by design. */
+function parseIsFundraiser(title = '', desc = '') {
+  const t = `${title} ${desc}`.toLowerCase()
+  return /celebration|anniversary|gala|reception|awards?\b|polsky|fundrais|benefit|giving/.test(t) || undefined
 }
 
 function slugify(str) {
@@ -225,6 +237,7 @@ async function main() {
           start_at:        startAt,
           end_at:          null,
           category:        parseCategory(ev.title, ev.description || ''),
+          is_fundraiser:   parseIsFundraiser(ev.title, ev.description || ''),
           tags,
           price_min:       null,
           price_max:       null,

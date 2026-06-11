@@ -121,10 +121,11 @@ function parseCategory(categories = []) {
     (typeof c === 'string' ? c : c.slug ?? c.name ?? '').toLowerCase()
   )
   if (slugs.some(s => s.includes('music') || s.includes('concert') || s.includes('live'))) return 'music'
-  if (slugs.some(s => s.includes('trivia') || s.includes('game') || s.includes('bingo'))) return 'community'
-  if (slugs.some(s => s.includes('art') || s.includes('comedy') || s.includes('show'))) return 'art'
+  if (slugs.some(s => s.includes('trivia') || s.includes('game') || s.includes('bingo'))) return 'other'
+  if (slugs.some(s => s.includes('comedy'))) return 'comedy'
+  if (slugs.some(s => s.includes('art') || s.includes('show'))) return 'visual-art'
   if (slugs.some(s => s.includes('food') || s.includes('tasting') || s.includes('pairing'))) return 'food'
-  return 'community' // Brewery default
+  return 'other' // Brewery default — taproom events without a clearer signal
 }
 
 function parseImage(post) {

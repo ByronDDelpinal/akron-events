@@ -262,7 +262,8 @@ export function parseCost(costStr) {
 export function mapCategory(categoryStr, title = '') {
   const text = `${categoryStr || ''} ${title || ''}`.toLowerCase()
 
-  // Fundraisers always slot to community regardless of other signals.
+  // Fundraisers: content stays 'other'; the is_fundraiser facet (set via
+  // text inference on 'fundrais…') carries the give-back signal.
   if (text.includes('fundrais')) return 'other'
 
   // Instructional keywords — kept tight on purpose. \b boundaries
@@ -297,7 +298,7 @@ export function normaliseEvent(parsed) {
 
   const tags = ['akron', 'children', 'family', 'museum']
   if (parsed.repeat) tags.push('recurring')
-  if (category === 'education') tags.push('education')
+  if (category === 'learning') tags.push('education')
 
   // Build a stable source_id from the detail URL path or title
   const sourceId = parsed.detailUrl
@@ -310,6 +311,8 @@ export function normaliseEvent(parsed) {
     start_at:        startAt,
     end_at:          endAt,
     category,
+    // A children's museum: every public program is family programming.
+    is_family:       true,
     tags:            [...new Set(tags)],
     price_min,
     price_max,

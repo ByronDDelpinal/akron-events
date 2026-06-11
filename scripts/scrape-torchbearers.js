@@ -53,26 +53,32 @@ function parseImage(imageObj, descriptionHtml = '') {
   return match?.[1] ?? null
 }
 
-/** Map Tribe category slugs to our category enum */
+/** Map Tribe category slugs to a v2 category. */
 function parseCategory(categories = []) {
   const slugs = categories.map(c => (c.slug ?? c.name ?? '').toLowerCase())
   const has = (kw) => slugs.some(s => s.includes(kw))
   const hasWord = (kw) => slugs.some(s => new RegExp(`\\b${kw}\\b`).test(s))
 
   if (has('music') || has('concert'))         return 'music'
-  if (has('art') || has('gallery'))           return 'art'
+  if (has('art') || has('gallery'))           return 'visual-art'
   if (has('food') || has('culinary'))         return 'food'
   if (has('fitness'))                         return 'fitness'
   if (hasWord('sport'))                       return 'sports'
-  if (has('educat') || has('workshop'))       return 'education'
-  if (has('nonprofit') || has('fundrais'))    return 'nonprofit'
-  if (has('social') || has('happy-hour'))     return 'community'
-  if (has('volunteer') || has('service'))     return 'nonprofit'
-  if (has('committee') || has('meeting'))     return 'community'
-  if (has('gmm') || has('general-member'))    return 'community'
+  if (has('educat') || has('workshop'))       return 'learning'
+  if (has('committee') || has('meeting'))     return 'civic'
+  if (has('gmm') || has('general-member'))    return 'civic'
 
-  // Torchbearers is a leadership/community org — default to 'community'
-  return 'community'
+  // Torchbearers is a young-professionals leadership org: membership,
+  // networking, and service programming fits the civic axis. Volunteer /
+  // fundraiser slugs keep this default too — the is_fundraiser facet
+  // (parseIsFundraiser below + text inference) carries the give-back signal.
+  return 'civic'
+}
+
+/** is_fundraiser facet from Tribe slugs; undefined (not false) when absent. */
+function parseIsFundraiser(categories = []) {
+  const slugs = categories.map(c => (c.slug ?? c.name ?? '').toLowerCase())
+  return slugs.some(s => /nonprofit|fundrais|volunteer|service/.test(s)) || undefined
 }
 
 // ── Venue cache ──────────────────────────────────────────────────────────
@@ -177,6 +183,7 @@ async function processEvents(rawEvents, organizerId) {
         start_at:        ev.utc_start_date ? ev.utc_start_date.replace(' ', 'T') + 'Z' : null,
         end_at:          ev.utc_end_date   ? ev.utc_end_date.replace(' ', 'T') + 'Z'   : null,
         category,
+        is_fundraiser:   parseIsFundraiser(ev.categories),
         tags,
         price_min,
         price_max,

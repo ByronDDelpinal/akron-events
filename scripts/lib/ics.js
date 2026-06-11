@@ -287,7 +287,7 @@ export function parseIcs(icsText) {
  * @param {object} ev      — Raw VEVENT from parseIcs()
  * @param {object} config  — Per-source configuration:
  *   @param {string}   config.source             — scraper source key (e.g. 'akron_symphony')
- *   @param {Function} [config.mapCategory]      — (ev) → category string (default 'community')
+ *   @param {Function} [config.mapCategory]      — (ev) → v2 category or null (default null → inference)
  *   @param {Function} [config.mapTags]          — (ev) → string[] (default [])
  *   @param {number}   [config.defaultPriceMin]  — default price_min (default 0)
  *   @param {number|null} [config.defaultPriceMax] — default price_max (default null)
@@ -323,7 +323,7 @@ export function absolutiseIcsUrl(url, linkBaseUrl) {
 export function normaliseIcsEvent(ev, config = {}) {
   const {
     source,
-    mapCategory      = () => 'community',
+    mapCategory      = () => null,   // no hint by default — inference decides
     mapTags          = () => [],
     defaultPriceMin  = null,
     defaultPriceMax  = null,

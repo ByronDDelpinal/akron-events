@@ -187,8 +187,8 @@ function parseCategory(title = '') {
   // titles (kids' camps, classes, programs) are still nature in spirit,
   // and the May 2026 Nature backfill treated this source's would-be
   // community/education events as nature. Mirror that here.
-  if (has('camp') || hasWord('class') || has('program') || has('education') || has('learn')) return 'nature'
-  return 'nature'
+  if (has('camp') || hasWord('class') || has('program') || has('education') || has('learn')) return 'outdoors'
+  return 'outdoors'
 }
 
 function parseTags(title = '') {

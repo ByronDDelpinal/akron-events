@@ -45,7 +45,8 @@ const SOURCE_KEY = 'leadership_akron'
 
 // ── Category / tag mapping ────────────────────────────────────────────────
 
-// Category is always 'other' — Leadership Akron events are professional/community.
+// Leadership Akron runs civic-leadership programming (LOM sessions,
+// convenings) — 'civic' is the honest default for this source.
 
 function mapTags(item) {
   const tags = ['leadership', 'networking', 'professional-development', 'akron']
@@ -92,7 +93,7 @@ async function processEvents(rawEvents, organizerId) {
     try {
       const row = normaliseSquarespaceEvent(item, {
         source:      SOURCE_KEY,
-        mapCategory: () => 'other',
+        mapCategory: () => 'civic',
         mapTags,
         defaultPriceMin: null,
         defaultPriceMax: null,

@@ -50,15 +50,16 @@ function parseCategory(categories = [], title = '') {
   const hasWord = (kw) => slugs.some(s => new RegExp(`\\b${kw}\\b`).test(s))
 
   if (has('music') || has('concert') || has('live')) return 'music'
-  if (has('trivia') || has('game') || has('bingo')) return 'community'
-  if (has('art') || has('comedy') || has('show')) return 'art'
+  if (has('trivia') || has('game') || has('bingo')) return 'other'
+  if (has('comedy')) return 'comedy'
+  if (has('art') || has('show')) return 'visual-art'
   if (has('food') || has('tasting') || has('pairing')) return 'food'
   if (has('fitness') || hasWord('run')) return 'fitness'
   if (hasWord('sport')) return 'sports'
-  if (t.includes('trivia') || t.includes('bingo') || t.includes('game night')) return 'community'
+  if (t.includes('trivia') || t.includes('bingo') || t.includes('game night')) return 'other'
   if (t.includes('live') || t.includes('music') || t.includes('band') || t.includes('dj')) return 'music'
-  // Brewery events default to community
-  return 'community'
+  // Brewery events without a clearer signal: taproom hangs are honestly 'other'
+  return 'other'
 }
 
 // ── Fetch ─────────────────────────────────────────────────────────────────

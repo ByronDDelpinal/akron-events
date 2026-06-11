@@ -99,14 +99,18 @@ export function isPublicCivicPlusEvent(summary) {
 export function defaultMapCategory(ev) {
   const text = `${ev.SUMMARY || ''} ${ev.DESCRIPTION || ''}`.toLowerCase()
   if (/\b(concert|band|music|jazz|bandstand|symphony)\b/.test(text))                 return 'music'
-  if (/\b(movie|movies|film|screen on the green|flix)\b/.test(text))                 return 'art'
-  if (/\b(art|paint|craft|gallery|exhibit)\b/.test(text))                            return 'art'
-  if (/\b(market|farmers market|vendor|craft fair)\b/.test(text))                    return 'community'
+  if (/\b(movie|movies|film|screen on the green|flix)\b/.test(text))                 return 'film'
+  if (/\b(festival|parade|block party|fireworks|tree lighting)\b/.test(text))        return 'festival'
+  if (/\b(art|paint|craft|gallery|exhibit)\b/.test(text))                            return 'visual-art'
+  if (/\b(market|farmers market|vendor|craft fair)\b/.test(text))                    return 'market'
   if (/\b(food|tasting|brew|biergarten|oktoberfest|wine|culinary|breakfast)\b/.test(text)) return 'food'
   if (/\b(5k|10k|run|race|walk|tournament|derby|fitness|yoga)\b/.test(text))         return 'fitness'
-  if (/\b(class|lesson|workshop|camp|education|training)\b/.test(text))              return 'education'
-  if (/\b(nature|trail|park clean|earth day|arbor day|recycling)\b/.test(text))      return 'nature'
-  return 'community'
+  if (/\b(class|lesson|workshop|camp|education|training)\b/.test(text))              return 'learning'
+  if (/\b(nature|trail|park clean|earth day|arbor day|recycling)\b/.test(text))      return 'outdoors'
+  if (/\b(council|commission|board of|public hearing|town hall|ward meeting)\b/.test(text)) return 'civic'
+  // No keyword hit — let text inference decide (municipal calendars mix
+  // civic meetings with rec programming; a blanket guess helps neither).
+  return null
 }
 
 function buildTags(ev, extraTags = []) {

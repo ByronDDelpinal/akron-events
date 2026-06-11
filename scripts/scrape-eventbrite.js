@@ -767,11 +767,25 @@ function normaliseEvent(ev) {
   //      the detail-fetch pass attaches these as ev._categoryName /
   //      ev._subcategoryName when found.
   //   3. Text inference over title + description.
-  //   4. 'other' as a last resort.
-  const category =
+  //   4. For a bare "Performing & Visual Arts" top-level (no subcategory,
+  //      inference empty), fall back to visual-art rather than 'other'.
+  // Audit-recommended logging: record (category_id, category_string) pairs so
+  // EVENTBRITE_CATEGORY_MAP assignments can be confirmed empirically.
+  if (ev.category_id && (ev._categoryName || ev._subcategoryName)) {
+    console.log(`  [category-id-pair] ${ev.category_id} → "${ev._categoryName ?? ''}" / "${ev._subcategoryName ?? ''}"`)
+  }
+  let category =
        EVENTBRITE_CATEGORY_MAP[ev.category_id]
     ?? categoryFromEventbriteNames(ev._categoryName, ev._subcategoryName)
     ?? inferCategory(title, description)
+  if (category === 'other' && /performing & visual arts/i.test(ev._categoryName ?? '')) {
+    category = 'visual-art'
+  }
+
+  // Facet-shaped Eventbrite categories: not content, but authoritative flags.
+  const facetText = `${ev._categoryName ?? ''} ${ev._subcategoryName ?? ''}`.toLowerCase()
+  const is_fundraiser = /charity|fundrais/.test(facetText) || undefined
+  const is_family     = /family/.test(facetText) || undefined
 
   const rawImg =
     pickBestImageUrl(ev.image) ??
@@ -785,6 +799,10 @@ function normaliseEvent(ev) {
     start_at,
     end_at,
     category,
+    // undefined (not false) when no signal — upsertEventSafe's `??` then
+    // lets text inference decide the facet.
+    is_fundraiser,
+    is_family,
     tags:            [],
     price_min,
     price_max,

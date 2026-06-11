@@ -128,7 +128,8 @@ describe('ICS: normaliseIcsEvent', () => {
     const [raw] = parseIcs(ALL_DAY_FEED)
     const row = normaliseIcsEvent(raw, { source: 'test' })
     assert.ok(row)
-    assert.equal(row.category, 'community')
+    // Default is no category hint — upsert-time text inference decides.
+    assert.equal(row.category, null)
     assert.deepEqual(row.tags, [])
     assert.equal(row.price_min, null)
     assert.equal(row.price_max, null)

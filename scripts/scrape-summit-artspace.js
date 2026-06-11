@@ -39,23 +39,24 @@ function parseImage(imageObj, descriptionHtml = '') {
   return match?.[1] ?? null
 }
 
-/** Map Tribe category slugs → our category enum */
+/** Map Tribe category slugs → v2 category. Audience/purpose slugs
+ *  (family, nonprofit/fundrais) are facet territory — text inference
+ *  flags those; content stays on the arts default. */
 function parseCategory(categories = []) {
   const slugs = categories.map(c => c.slug?.toLowerCase() ?? '')
   const has = (kw) => slugs.some(s => s.includes(kw))
   const hasWord = (kw) => slugs.some(s => new RegExp(`\\b${kw}\\b`).test(s))
 
   if (has('music') || has('concert') || has('perform')) return 'music'
-  if (has('art') || has('exhibit') || has('gallery')) return 'art'
-  if (has('food') || has('market') || has('culinary')) return 'food'
+  if (has('art') || has('exhibit') || has('gallery')) return 'visual-art'
+  if (has('market')) return 'market'
+  if (has('food') || has('culinary')) return 'food'
   if (has('fitness') || hasWord('run')) return 'fitness'
   if (hasWord('sport')) return 'sports'
-  if (has('educat') || has('workshop') || hasWord('class')) return 'education'
-  if (has('nonprofit') || has('fundrais') || has('benefit')) return 'nonprofit'
-  if (has('communit') || has('family')) return 'community'
+  if (has('educat') || has('workshop') || hasWord('class')) return 'visual-art' // art classes at an art org
 
-  // Summit Artspace is primarily an arts org — default to 'art'
-  return 'art'
+  // Summit Artspace is primarily an arts org — default to visual-art
+  return 'visual-art'
 }
 
 // ── Fetch all pages ───────────────────────────────────────────────────────

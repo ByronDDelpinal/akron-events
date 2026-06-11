@@ -75,49 +75,66 @@ function sanitizeUrl(url) {
 
 // ── Category mapping ──────────────────────────────────────────────────────
 
+// The library publishes a CONTROLLED tag vocabulary (Communico event types —
+// "storytime and play time", "art & crafts", "job skills & career", …), so
+// exact phrases are mapped first and generic keywords are fallbacks. Insertion
+// order matters: first matching pattern wins. Values are v2 slugs.
+//
+// Deliberately unmapped (they are audiences/purposes, not content — facets and
+// inference handle them): family/kids/teen/senior, volunteer/fundrais (the
+// fundraiser facet regex catches these), games & gaming / bingo (honestly
+// 'other'). See docs/tagging-audit-2026-06.md (library section).
 const LIBRARY_CATEGORY_MAP = {
-  'arts & crafts':        'art',
-  'art':                  'art',
+  // Controlled tag vocabulary, most specific first
+  'storytime and play time':      'learning',
+  'art & crafts':                 'visual-art',
+  'arts & crafts':                'visual-art',
+  'maker & diy':                  'visual-art',
+  'books & writing':              'learning',
+  'summer reading':               'learning',
+  'job skills & career':          'learning',
+  'computers & technology':       'learning',
+  'stem & steam':                 'learning',
+  'exercise & wellness':          'fitness',
+  'nature & outdoors':            'outdoors',
+  'food & cooking':               'food',
+  'business & personal finance':  'learning',
+  'law & legal':                  'learning',
+  'community discussion':         'civic',
+  'live performance':             'music',
+  'book sale':                    'market',
+  // Generic keyword fallbacks (tag fragments + title words)
+  'storytime':            'learning',
+  'story time':           'learning',
+  'art':                  'visual-art',
   'music':                'music',
   'concert':              'music',
   'performance':          'music',
-  'film':                 'art',
-  'movie':                'art',
-  'storytime':            'community',
-  'story time':           'community',
-  'games & gaming':       'community',
-  'gaming':               'community',
-  'book':                 'education',
-  'book sale':            'community',
-  'education':            'education',
-  'computer':             'education',
-  'technology':           'education',
-  'stem':                 'education',
-  'science':              'education',
-  'financial':            'education',
-  'job':                  'education',
-  'career':               'education',
-  'scam':                 'education',
-  'fraud':                'education',
-  'safety':               'education',
-  'digital literacy':     'education',
-  'internet':             'education',
-  'cybersecurity':        'education',
-  'orientation':          'education',
-  'information session':  'education',
-  'workshop':             'education',
-  'health':               'community',
-  'wellness':             'community',
-  'yoga':                 'community',
+  'film':                 'film',
+  'movie':                'film',
+  'movies':               'film',
+  'book':                 'learning',
+  'education':            'learning',
+  'computer':             'learning',
+  'technology':           'learning',
+  'stem':                 'learning',
+  'science':              'learning',
+  'history':              'learning',
+  'financial':            'learning',
+  'job':                  'learning',
+  'career':               'learning',
+  'scam':                 'learning',
+  'fraud':                'learning',
+  'safety':               'learning',
+  'digital literacy':     'learning',
+  'internet':             'learning',
+  'cybersecurity':        'learning',
+  'orientation':          'learning',
+  'information session':  'learning',
+  'workshop':             'learning',
+  'yoga':                 'fitness',
+  'tai chi':              'fitness',
   'fitness':              'fitness',
-  'volunteer':            'nonprofit',
-  'fundrais':             'nonprofit',
-  'nonprofit':            'nonprofit',
-  'family':               'community',
-  'kids':                 'community',
-  'teen':                 'community',
-  'senior':               'community',
-  'community':            'community',
   'food':                 'food',
   'cooking':              'food',
 }
@@ -135,7 +152,21 @@ function parseCategory(tagStr = '', title = '') {
   for (const [pattern, cat] of _LIBRARY_CATEGORY_PATTERNS) {
     if (pattern.test(combined)) return cat
   }
-  return 'community' // Library default
+  // No hint — text inference decides; genuinely unclassifiable library
+  // programs (bingo, Pokémon club) are honestly 'other'.
+  return null
+}
+
+/**
+ * The library's Ages field is an authoritative audience signal — far better
+ * than title regexes. Family = explicitly kid-programmed (baby through
+ * grade-school, or "family"); teen-only and adult programs are not.
+ * Returns true or undefined (never false) so inference can still flag
+ * family events the Ages field misses.
+ */
+export function parseIsFamily(ageStr = '', tagStr = '') {
+  const t = `${ageStr} ${tagStr}`.toLowerCase()
+  return /\b(bab(y|ies)|toddlers?|preschool|kids?|child(ren)?|family|families|grades? [k0-9]|tweens?)\b/.test(t) || undefined
 }
 
 function parseTags(tagStr = '', ageStr = '') {
@@ -258,6 +289,9 @@ async function processEvents(rawEvents, organizerId) {
         start_at:        startAt,
         end_at:          endAt,
         category,
+        // Authoritative audience signal from the library's Ages field;
+        // undefined (not false) when absent so inference still decides.
+        is_family:       parseIsFamily(ev.age, ev.tags),
         tags,
         price_min:       0,
         price_max:       null,

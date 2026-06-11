@@ -234,39 +234,43 @@ function findCoveringScraper(rawEvent) {
 
 // ── Category mapping ──────────────────────────────────────────────────────
 
-// Evvnt's human-readable category_name maps cleanly to our taxonomy for the
-// common cases. Falls through to text-based inference when there's no match.
+// Evvnt's human-readable category_name maps cleanly to our v2 taxonomy for
+// the common cases. Facet-shaped names ('charity', 'family') and low-signal
+// ones ('lifestyle', 'community') are deliberately ABSENT — inference picks
+// the content category and EVVNT_FACET_MAP carries the flag instead.
 const EVVNT_CATEGORY_MAP = {
   'music':              'music',
-  'performing arts':    'art',
-  'visual arts':        'art',
-  'film':               'art',
+  'performing arts':    'theater',
+  'visual arts':        'visual-art',
+  'exhibitions':        'visual-art',
+  'film':               'film',
   'food / drink':       'food',
   'food and drink':     'food',
   'food':               'food',
-  'sports':             'fitness',
+  'sports':             'sports',
   'sports / fitness':   'fitness',
   'health':             'fitness',
   'health / wellbeing': 'fitness',
-  'education':          'education',
-  'classes':            'education',
-  'classes / workshops':'education',
-  'lifestyle':          'community',
-  'community':          'community',
-  'festivals':          'community',
-  'charity':            'community',
-  'family':             'community',
-  'exhibitions':        'art',
-  'pets / animals':     'nature',
-  'nature':             'nature',
-  'outdoor':            'nature',
+  'education':          'learning',
+  'classes':            'learning',
+  'classes / workshops':'learning',
+  'festivals':          'festival',
+  'pets / animals':     'outdoors',
+  'nature':             'outdoors',
+  'outdoor':            'outdoors',
+}
+
+// Audience/purpose flags carried by Evvnt's category_name.
+const EVVNT_FACET_MAP = {
+  'charity': 'is_fundraiser',
+  'family':  'is_family',
 }
 
 // Categories where Evvnt's tag is low-signal and text-based inference
-// should be trusted over the source value. 'education' and 'community' are
-// the two most frequently wrong values from the Evvnt backfill — concerts
-// at Blossom, festivals, etc. often arrive tagged as one of these.
-const EVVNT_OVERRIDABLE_CATEGORIES = new Set(['education', 'community'])
+// should be trusted over the source value. 'learning' (Evvnt 'education')
+// is the most frequently wrong value from the Evvnt backfill — concerts
+// at Blossom, festivals, etc. often arrive tagged as education.
+const EVVNT_OVERRIDABLE_CATEGORIES = new Set(['learning'])
 
 function mapCategory(evvntCategoryName, title, description) {
   const mapped = EVVNT_CATEGORY_MAP[(evvntCategoryName || '').toLowerCase().trim()]
@@ -274,8 +278,6 @@ function mapCategory(evvntCategoryName, title, description) {
   if (mapped) {
     // For low-signal source categories, run text inference as a sanity check.
     // If inference returns something more specific, trust it over Evvnt's tag.
-    // This catches cases like a Hardy concert at Blossom arriving tagged
-    // 'education' from the Evvnt backfill.
     if (EVVNT_OVERRIDABLE_CATEGORIES.has(mapped)) {
       const inferred = inferCategory(title, description)
       if (inferred !== 'other' && inferred !== mapped) {
@@ -285,15 +287,18 @@ function mapCategory(evvntCategoryName, title, description) {
     return mapped
   }
 
-  // No map entry at all — fall through to text inference, defaulting to
-  // 'community' since this is a community-magazine publisher.
-  const inferred = inferCategory(title, description)
-  return inferred === 'other' ? 'community' : inferred
+  // No map entry — text inference decides (may legitimately be 'other').
+  return inferCategory(title, description)
+}
+
+/** Facet flag (is_family / is_fundraiser) implied by Evvnt's category_name, if any. */
+function mapFacet(evvntCategoryName) {
+  return EVVNT_FACET_MAP[(evvntCategoryName || '').toLowerCase().trim()] ?? null
 }
 
 function buildTags(category, evvntCategoryName) {
   const tags = ['akron']
-  if (category !== 'community') tags.push(category)
+  if (category !== 'other') tags.push(category)
   if (evvntCategoryName) {
     const slug = evvntCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
     if (slug && !tags.includes(slug)) tags.push(slug)
@@ -576,6 +581,7 @@ async function main() {
         }
 
         const category = mapCategory(raw.category_name, raw.title, description)
+        const facet    = mapFacet(raw.category_name)
         const tags     = buildTags(category, raw.category_name)
         const image    = pickImage(raw.images)
         const { price_min, price_max } = parseEvvntPrices(raw.prices)
@@ -586,6 +592,10 @@ async function main() {
           start_at,
           end_at,
           category,
+          // Facet flags from Evvnt's category_name ('charity'/'family').
+          // undefined when absent so text inference still decides.
+          is_fundraiser:   facet === 'is_fundraiser' || undefined,
+          is_family:       facet === 'is_family' || undefined,
           tags,
           price_min,
           price_max,

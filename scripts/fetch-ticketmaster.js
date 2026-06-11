@@ -33,14 +33,32 @@ const PAGE_SIZE    = 50   // TM max per page
 const AKRON_LAT = 41.0814
 const AKRON_LNG = -81.5190
 
-// ── Ticketmaster segment/genre → our category ─────────────────────
+// ── Ticketmaster classifications → our category ────────────────────
+// Genre beats segment: TM files comedians, plays, and dance under the
+// "Arts & Theatre" segment, where only the genre distinguishes a stand-up
+// show from a gallery night. Segment is the fallback; "Miscellaneous" and
+// "Family" map to NO content hint (text inference decides) — the Family
+// segment instead sets the is_family facet. See docs/tagging-audit-2026-06.md.
+const TM_GENRE_MAP = {
+  'comedy':                  'comedy',
+  'theatre':                 'theater',
+  'musical':                 'theater',
+  'dance':                   'theater',
+  'magic & illusion':        'theater',
+  'circus & specialty acts': 'theater',
+  'opera':                   'theater',
+  'fine art':                'visual-art',
+  'visual arts':             'visual-art',
+  'fairs & festivals':       'festival',
+  'food & drink':            'food',
+  'film':                    'film',
+}
+
 const TM_SEGMENT_MAP = {
-  'Music':                'music',
-  'Sports':               'sports',
-  'Arts & Theatre':       'art',
-  'Film':                 'art',
-  'Miscellaneous':        'community',
-  'Family':               'community',
+  'Music':         'music',
+  'Sports':        'sports',
+  'Arts & Theatre':'theater',
+  'Film':          'film',
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -91,9 +109,25 @@ function parsePrice(priceRanges = []) {
   }
 }
 
+/**
+ * Resolve a v2 category from TM classifications: genre → subGenre → segment.
+ * Returns null (no hint) for Miscellaneous/Family/unknown so text inference
+ * decides — passing a hint that maps to 'other' was how TM events used to
+ * land with an Other primary badge.
+ */
 function parseCategory(classifications = []) {
-  const segment = classifications[0]?.segment?.name
-  return TM_SEGMENT_MAP[segment] ?? 'other'
+  const c = classifications[0]
+  const genre    = (c?.genre?.name    ?? '').toLowerCase()
+  const subGenre = (c?.subGenre?.name ?? '').toLowerCase()
+  return TM_GENRE_MAP[genre]
+      ?? TM_GENRE_MAP[subGenre]
+      ?? TM_SEGMENT_MAP[c?.segment?.name]
+      ?? null
+}
+
+/** The TM "Family" segment is an audience flag, not a content category. */
+function parseIsFamily(classifications = []) {
+  return classifications[0]?.segment?.name === 'Family' || undefined
 }
 
 function parseTags(classifications = []) {
@@ -263,6 +297,7 @@ async function processEvents(rawEvents) {
         start_at:        ev.dates?.start?.dateTime ?? null,
         end_at:          null,   // TM rarely provides end times
         category,
+        is_family:       parseIsFamily(ev.classifications),
         tags,
         price_min,
         price_max,

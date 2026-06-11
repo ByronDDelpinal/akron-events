@@ -65,8 +65,8 @@ function parseCategory(classList = []) {
   const classes = classList.join(' ').toLowerCase()
   if (classes.includes('event_type-music')) return 'music'
   if (classes.includes('event_type-food'))  return 'food'
-  if (classes.includes('event_type-class') || classes.includes('event_type-workshop')) return 'education'
-  if (classes.includes('event_type-community')) return 'community'
+  if (classes.includes('event_type-class') || classes.includes('event_type-workshop')) return 'learning'
+  if (classes.includes('event_type-comedy')) return 'comedy'
   return 'music'  // Jilly's is primarily a live music venue
 }
 

@@ -80,15 +80,23 @@ function parseTime(raw) {
   return '12:00:00'
 }
 
+/**
+ * Title keywords → v2 category, or null to let text inference decide.
+ * Audience (family/kids) and purpose (gala/benefit) words are NOT mapped —
+ * the shared facet inference handles both, and mapping them to a content
+ * category was how storytimes and galas landed in the Other bucket.
+ */
 function parseCategory(title = '') {
   const lower = title.toLowerCase()
-  if (/concert|music|jazz|band|festival|symphony|orchestra/.test(lower)) return 'music'
-  if (/art|exhibit|gallery|film|movie|theatre|play|performance|ballet|dance/.test(lower)) return 'art'
-  if (/food|tasting|market|brew|wine|culinary/.test(lower)) return 'food'
+  if (/festival|block party|porch/.test(lower)) return 'festival'
+  if (/concert|music|jazz|band|symphony|orchestra/.test(lower)) return 'music'
+  if (/film|movie|cinema/.test(lower)) return 'film'
+  if (/theatre|theater|play\b|ballet|dance/.test(lower)) return 'theater'
+  if (/\bart\b|exhibit|gallery/.test(lower)) return 'visual-art'
+  if (/market/.test(lower)) return 'market'
+  if (/food|tasting|brew|wine|culinary/.test(lower)) return 'food'
   if (/run|race|walk|bike|5k|marathon/.test(lower)) return 'fitness'
-  if (/storytime|story time|family|kids|children/.test(lower)) return 'community'
-  if (/gala|benefit|fundrais|nonprofit|charity/.test(lower)) return 'nonprofit'
-  return 'community'
+  return null
 }
 
 // ── Venue cache ────────────────────────────────────────────────────────────

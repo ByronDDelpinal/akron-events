@@ -96,21 +96,28 @@ export function htmlToText(html = '') {
 // EVENTBRITE HELPERS
 // ════════════════════════════════════════════════════════════════════════════
 
+// Numeric category_id → v2 slug. The search JSON rarely exposes category_id
+// (the detail-page name map below is the workhorse), and several of the old
+// entries disagreed with Eventbrite's published v3 taxonomy (104 = Film,
+// Media & Entertainment; 109 = Travel & Outdoor; 111 = Charity & Causes;
+// 112 = Government & Politics; 115 = Family & Education). Only IDs with an
+// unambiguous v2 home are mapped; the rest fall through to the name map /
+// inference. See docs/tagging-audit-2026-06.md (eventbrite section) — confirm
+// assignments from logged (category_id, category_string) pairs before adding
+// entries back.
 export const EVENTBRITE_CATEGORY_MAP = {
-  '103': 'music',
-  '105': 'art',
-  '110': 'food',
-  '113': 'community',
-  '115': 'nonprofit',
-  '107': 'fitness',
-  '102': 'education',
-  '101': 'education',
-  '108': 'fitness',
-  '104': 'art',
-  '109': 'community',
-  '111': 'community',
-  '112': 'education',
-  '114': 'community',
+  '101': 'learning',   // Business & Professional
+  '102': 'learning',   // Science & Technology
+  '103': 'music',      // Music
+  '104': 'film',       // Film, Media & Entertainment
+  '107': 'fitness',    // Health & Wellness
+  '108': 'sports',     // Sports & Fitness
+  '110': 'food',       // Food & Drink
+  '112': 'civic',      // Government & Politics
+  '115': 'learning',   // Family & Education
+  // 105 (Performing & Visual Arts), 109 (Travel & Outdoor), 111 (Charity &
+  // Causes), 113 (Community & Culture), 114 (Religion & Spirituality):
+  // ambiguous or facet-shaped — defer to the name map and text inference.
 }
 
 /**
@@ -121,28 +128,29 @@ export const EVENTBRITE_CATEGORY_MAP = {
  * first since it's more specific.
  */
 export const EVENTBRITE_CATEGORY_NAME_MAP = {
-  // Top-level
+  // Top-level. 'performing & visual arts' is deliberately ABSENT: it spans
+  // theater, dance, opera, galleries — the subcategory (tried first) or text
+  // inference decides; scrape-eventbrite falls back to visual-art only when
+  // both come up empty. 'charity & causes' and 'community' are facet-shaped
+  // rather than content categories: scrape-eventbrite derives is_fundraiser /
+  // is_family from the raw strings and lets inference pick the content.
   'music':                     'music',
-  'performing & visual arts':  'art',
-  'film, media & entertainment': 'art',
+  'film, media & entertainment': 'film',
   'food & drink':              'food',
   'health':                    'fitness',
-  'sports & fitness':          'fitness',
-  'family & education':        'education',
-  'science & technology':      'education',
-  'business':                  'education',
-  'travel & outdoor':          'nature',
-  'community':                 'community',
-  'charity & causes':          'nonprofit',
-  'religion & spirituality':   'community',
-  'government':                'community',
+  'sports & fitness':          'sports',
+  'family & education':        'learning',
+  'science & technology':      'learning',
+  'business':                  'learning',
+  'travel & outdoor':          'outdoors',
+  'government':                'civic',
   // A few common subcategories that disambiguate when top-level is generic
   'concerts':                  'music',
-  'theatre':                   'art',
-  'comedy':                    'art',
-  'visual arts':               'art',
-  'fine art':                  'art',
-  'dance':                     'art',
+  'theatre':                   'theater',
+  'comedy':                    'comedy',
+  'visual arts':               'visual-art',
+  'fine art':                  'visual-art',
+  'dance':                     'theater',
   'metal':                     'music',
   'rock':                      'music',
   'jazz':                      'music',
@@ -155,13 +163,13 @@ export const EVENTBRITE_CATEGORY_NAME_MAP = {
   'folk':                      'music',
   'blues':                     'music',
   'pop':                       'music',
-  'opera':                     'art',
+  'opera':                     'theater',
   'fitness':                   'fitness',
   'yoga':                      'fitness',
   'running':                   'fitness',
   'cycling':                   'fitness',
-  'outdoor & nature':          'nature',
-  'hiking':                    'nature',
+  'outdoor & nature':          'outdoors',
+  'hiking':                    'outdoors',
 }
 
 /**

@@ -36,15 +36,15 @@ function parseCategory(categories = [], tags = []) {
   const hasWord = (kw) => names.some(n => new RegExp(`\\b${kw}\\b`).test(n))
 
   if (has('music') || has('concert') || has('performance')) return 'music'
-  if (has('art') || has('photo')) return 'art'
+  if (has('art') || has('photo')) return 'visual-art'
   if (has('fitness') || hasWord('run') || hasWord('bike') || has('paddle') || has('kayak')) return 'fitness'
   if (hasWord('sport')) return 'sports'
   // CVNP events that aren't a specific music/art/sports/fitness type
   // are conservation, trails, naturalist programs, plant removal, etc.
   // The education branch and generic fallback both became 'nature' in
   // the May 2026 backfill; mirror that here so re-scrapes stay aligned.
-  if (has('educat') || has('workshop') || has('program') || hasWord('class')) return 'nature'
-  return 'nature'
+  if (has('educat') || has('workshop') || has('program') || hasWord('class')) return 'outdoors'
+  return 'outdoors'
 }
 
 // ── Venue cache ────────────────────────────────────────────────────────────

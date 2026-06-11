@@ -45,8 +45,8 @@ function parseCategory(categories = [], tags = []) {
   // generic fallback used to return 'community' / 'education' — both
   // were re-tagged to 'nature' by the May 2026 backfill, so future
   // scrapes match that decision.
-  if (has('educat') || has('program') || hasWord('class') || has('workshop') || has('learn')) return 'nature'
-  return 'nature'
+  if (has('educat') || has('program') || hasWord('class') || has('workshop') || has('learn')) return 'outdoors'
+  return 'outdoors'
 }
 
 // ── Venue cache ────────────────────────────────────────────────────────────

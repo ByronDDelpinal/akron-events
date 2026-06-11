@@ -394,17 +394,24 @@ async function fetchEventDetail(href) {
 }
 
 /**
- * Map event type strings to our category enum.
+ * Map event type strings to a v2 category. Family days, camps, and member
+ * events at an ART MUSEUM are visual-art content — the family/audience
+ * dimension is the is_family facet (parseIsFamilyAam), not a category.
+ * The old map sent family/member events to v1 'community' (= v2 'other'),
+ * which left "Free Family Day" and "Camp Creative" unclassified.
  */
 function parseCategory(types = [], title = '') {
   const t = types.join(' ').toLowerCase() + ' ' + title.toLowerCase()
-  if (/music|concert|perform/i.test(t)) return 'music'
-  if (/lecture|workshop|class|education|program/i.test(t)) return 'education'
-  if (/film|cinema|screening/i.test(t)) return 'art'
-  if (/family|children|kids/i.test(t)) return 'community'
-  if (/tour|exhibit|gallery/i.test(t)) return 'art'
-  if (/member/i.test(t)) return 'community'
-  return 'art' // Museum default
+  if (/music|concert|dance party/i.test(t)) return 'music'
+  if (/film|cinema|screening/i.test(t)) return 'film'
+  if (/lecture|talk\b|lunch and learn/i.test(t)) return 'learning'
+  return 'visual-art' // Museum default: workshops, camps, tours, member events
+}
+
+/** Family facet from AAM event types/titles (camps + family days). */
+function parseIsFamilyAam(types = [], title = '') {
+  const t = types.join(' ').toLowerCase() + ' ' + title.toLowerCase()
+  return /family|children|kids|camp creative/i.test(t) || undefined
 }
 
 // ── Venue / Organizer ─────────────────────────────────────────────────────
@@ -534,6 +541,7 @@ async function processEvents(items, venueId, organizerId) {
         start_at:        startAt,
         end_at:          endAt,
         category,
+        is_family:       parseIsFamilyAam(item.types, item.title),
         tags,
         price_min:       priceMin,
         price_max:       priceMax,

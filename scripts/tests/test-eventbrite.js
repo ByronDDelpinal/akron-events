@@ -44,6 +44,7 @@ import {
 
 // ── Import shared utilities (pure functions) ─────────────────────────────────
 import { stripHtml, parseEventbritePrice, EVENTBRITE_CATEGORY_MAP } from '../lib/normalize.js'
+import { CATEGORY_SLUGS } from '../../src/lib/categories.js'
 
 // ════════════════════════════════════════════════════════════════════════════
 // RE-IMPLEMENT SCRAPER LOGIC FOR TESTABILITY
@@ -139,9 +140,13 @@ describe('Eventbrite: Category Mapping', () => {
     assert.equal(row.category, 'music')
   })
 
-  it('maps category_id 105 to art', () => {
+  it('leaves category_id 105 (Performing & Visual Arts) to names/inference', () => {
+    // 105 spans theater, dance, opera, and galleries — too ambiguous for the
+    // numeric map (see docs/tagging-audit-2026-06.md). With no detail-page
+    // strings and no text signal, the fixture falls through to inference.
+    assert.equal(EVENTBRITE_CATEGORY_MAP['105'], undefined)
     const row = normaliseEvent({ ...CATEGORY_ART, id: '114a' })
-    assert.equal(row.category, 'art')
+    assert.equal(row.category, 'other')
   })
 
   it('maps known category IDs correctly', () => {
@@ -151,12 +156,17 @@ describe('Eventbrite: Category Mapping', () => {
     //   107 = Health & Wellness (→ fitness, per migration 018 which split
     //   fitness from sports), 102 = Science & Technology.
     assert.equal(EVENTBRITE_CATEGORY_MAP['103'], 'music')
-    assert.equal(EVENTBRITE_CATEGORY_MAP['105'], 'art')
+    assert.equal(EVENTBRITE_CATEGORY_MAP['104'], 'film')
     assert.equal(EVENTBRITE_CATEGORY_MAP['110'], 'food')
-    assert.equal(EVENTBRITE_CATEGORY_MAP['113'], 'community')
-    assert.equal(EVENTBRITE_CATEGORY_MAP['115'], 'nonprofit')
+    assert.equal(EVENTBRITE_CATEGORY_MAP['115'], 'learning')
     assert.equal(EVENTBRITE_CATEGORY_MAP['107'], 'fitness')
-    assert.equal(EVENTBRITE_CATEGORY_MAP['102'], 'education')
+    assert.equal(EVENTBRITE_CATEGORY_MAP['108'], 'sports')
+    assert.equal(EVENTBRITE_CATEGORY_MAP['102'], 'learning')
+    assert.equal(EVENTBRITE_CATEGORY_MAP['112'], 'civic')
+    // Ambiguous / facet-shaped IDs deliberately unmapped — names + inference decide
+    for (const id of ['105', '109', '111', '113', '114']) {
+      assert.equal(EVENTBRITE_CATEGORY_MAP[id], undefined, `id ${id} should be unmapped`)
+    }
   })
 
   it('defaults to "other" for unknown category_id', () => {
@@ -497,7 +507,7 @@ describe('Eventbrite: Full Event Normalization', () => {
     assert.ok(row)
     assert.equal(row.price_min, 0)
     assert.equal(row.price_max, 0)
-    assert.equal(row.category, 'community')
+    assert.equal(row.category, 'other') // no category signal — inference decides
   })
 
   it('normalizes JSON-LD fallback format', () => {
@@ -561,11 +571,9 @@ describe('Eventbrite: Batch Processing', () => {
     }
   })
 
-  it('category is always one of the allowed or "other"', () => {
-    // Canonical category set from supabase/migrations/018_fitness_category.sql:
-    //   check (category in ('music','art','community','nonprofit',
-    //                       'food','sports','fitness','education','other'))
-    const ALLOWED = ['music', 'art', 'community', 'nonprofit', 'food', 'sports', 'fitness', 'education', 'other']
+  it('category is always a valid v2 slug', () => {
+    // Canonical v2 taxonomy — single source of truth in src/lib/categories.js.
+    const ALLOWED = CATEGORY_SLUGS
     for (const fixture of ALL_FIXTURES) {
       const row = normaliseEvent(fixture)
       if (!row) continue

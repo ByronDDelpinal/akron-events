@@ -109,7 +109,7 @@ export function parseSquarespaceLocation(loc) {
  * @param {object} item    — Raw item from fetchSquarespaceEvents()
  * @param {object} config  — Per-org configuration:
  *   @param {string}   config.source       — scraper source key (e.g. 'leadership_akron')
- *   @param {Function} [config.mapCategory]— (item) → category string  (default: 'community')
+ *   @param {Function} [config.mapCategory]— (item) → v2 category or null (default: null → inference)
  *   @param {Function} [config.mapTags]    — (item) → string[]          (default: [])
  *   @param {number}   [config.defaultPriceMin] — fallback price_min   (default: 0)
  *   @param {number|null} [config.defaultPriceMax] — fallback price_max (default: null)
@@ -119,7 +119,7 @@ export function parseSquarespaceLocation(loc) {
 export function normaliseSquarespaceEvent(item, config = {}) {
   const {
     source            = 'squarespace',
-    mapCategory       = () => 'community',
+    mapCategory       = () => null,  // no hint by default — inference decides
     mapTags           = () => [],
     defaultPriceMin   = null,
     defaultPriceMax   = null,
