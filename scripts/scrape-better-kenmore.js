@@ -134,11 +134,19 @@ function mapCategory(title = '') {
 // That minted a junk venue literally NAMED "1000 Kenmore Blvd" (no address),
 // and since dedupe buckets by location, a Rialto show the CDC republished
 // could never group with the rialto scraper's copy — it showed twice on the
-// site (2026-06-11). Map known Boulevard addresses/names to the canonical
-// venue record instead. NOTE: we alias rather than SKIP these events, because
-// the CDC also runs unique events AT these addresses (Kenmore Cowbell 7K
-// starts at the Rialto's address) — dedupe deletes the true duplicates and
-// the unique events survive with a correct venue.
+// site (2026-06-11). This alias maps the Rialto's known name/address strings to
+// the canonical venue record (with correct address details).
+//
+// Defense in depth: even when a Boulevard address ISN'T aliased here, the
+// shared ingest layer now refuses to mint a venue whose NAME is a bare street
+// address — ensureVenue routes it to an existing venue by matching the
+// normalized `address` column, or skips creation. See normalizeStreetAddress /
+// resolveVenueByAddress in lib/normalize.js. So this list only needs entries
+// for informal NAMES that address-matching can't catch ("The Rialto").
+//
+// We alias rather than SKIP, because the CDC also runs unique events AT these
+// addresses (the Kenmore Cowbell 7K starts at the Rialto's address) — dedupe
+// deletes the true duplicates and the unique events survive with a correct venue.
 const VENUE_ALIASES = [
   {
     re: /\brialto\b|^1000 kenmore blvd\.?$/i,

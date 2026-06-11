@@ -243,6 +243,7 @@ const CATEGORY_GRADIENT: Record<string, [string, string]> = {
   festival:     ['#1A0808', '#602018'],
   market:       ['#0A1818', '#186060'],
   civic:        ['#082010', '#186030'],
+  games:        ['#330000', '#690000'],
   other:        ['#1D2B1F', '#3A6B4A'],
 }
 
@@ -252,7 +253,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   music: 'Music', theater: 'Theater', film: 'Film', comedy: 'Comedy',
   'visual-art': 'Art', food: 'Food', sports: 'Sports', fitness: 'Fitness',
   outdoors: 'Outdoors', learning: 'Learning', festival: 'Festival',
-  market: 'Market', civic: 'Civic', other: 'Event',
+  market: 'Market', civic: 'Civic', games: 'Games', other: 'Event',
 }
 
 /**

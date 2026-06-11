@@ -375,14 +375,14 @@ h6 { font-size: var(--text-h6); }
 .gradient-music, .gradient-theater, .gradient-film, .gradient-comedy,
 .gradient-visual-art, .gradient-food, .gradient-sports, .gradient-fitness,
 .gradient-outdoors, .gradient-learning, .gradient-festival, .gradient-market,
-.gradient-civic {
+.gradient-civic, .gradient-games {
   position: relative;
 }
 .gradient-music::after, .gradient-theater::after, .gradient-film::after,
 .gradient-comedy::after, .gradient-visual-art::after, .gradient-food::after,
 .gradient-sports::after, .gradient-fitness::after, .gradient-outdoors::after,
 .gradient-learning::after, .gradient-festival::after, .gradient-market::after,
-.gradient-civic::after {
+.gradient-civic::after, .gradient-games::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -436,6 +436,9 @@ h6 { font-size: var(--text-h6); }
 
 .gradient-civic      { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-civic) 40%, black) 0%, color-mix(in srgb, var(--cat-civic) 82%, black) 100%); }
 .gradient-civic::after      { -webkit-mask-image: url('/city-block.svg');   mask-image: url('/city-block.svg'); }
+
+.gradient-games      { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-games) 40%, black) 0%, color-mix(in srgb, var(--cat-games) 82%, black) 100%); }
+.gradient-games::after      { -webkit-mask-image: url('/dice.svg');         mask-image: url('/dice.svg'); }
 
 /* other / fallback — grey with the generic quiet two-dot scatter */
 .gradient-default {
@@ -498,6 +501,7 @@ h6 { font-size: var(--text-h6); }
   --cat-festival:   #f032e6;
   --cat-market:     #808000;
   --cat-civic:      #000075;
+  --cat-games:      #800000;
   --cat-other:      #808080;
   --facet-family:     #fabebe;
   --facet-fundraiser: #ffe119;
@@ -518,6 +522,7 @@ h6 { font-size: var(--text-h6); }
 .tag-festival   { background: color-mix(in srgb, var(--cat-festival) 20%, white);   color: color-mix(in srgb, var(--cat-festival) 80%, black); }
 .tag-market     { background: color-mix(in srgb, var(--cat-market) 22%, white);     color: color-mix(in srgb, var(--cat-market) 82%, black); }
 .tag-civic      { background: color-mix(in srgb, var(--cat-civic) 16%, white);      color: color-mix(in srgb, var(--cat-civic) 85%, black); }
+.tag-games      { background: color-mix(in srgb, var(--cat-games) 18%, white);      color: color-mix(in srgb, var(--cat-games) 82%, black); }
 .tag-other      { background: color-mix(in srgb, var(--cat-other) 16%, white);      color: color-mix(in srgb, var(--cat-other) 82%, black); }
 
 /* Secondary content category on cards — de-emphasized so the primary reads first. */

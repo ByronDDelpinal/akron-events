@@ -35,6 +35,7 @@
 import 'dotenv/config'
 import { pathToFileURL } from 'node:url'
 import { supabaseAdmin } from './lib/supabase-admin.js'
+import { normalizeStreetAddress } from './lib/normalize.js'
 
 const APPLY = process.argv.includes('--apply')
 
@@ -158,27 +159,6 @@ export function fuzzyTitlesMatch(a, b) {
  * → both become "martell school of dance afternoon of dance"
  */
 /**
- * Normalize a street address for location bucketing: lowercase, fold
- * punctuation, and collapse common suffix variants (Boulevard/Blvd …) so
- * "1000 Kenmore Blvd." and "1000 Kenmore Boulevard" share a key.
- * Exported for tests.
- */
-export function normalizeAddress(s) {
-  if (!s || typeof s !== 'string') return null
-  const t = s.toLowerCase()
-    .replace(/[^a-z0-9 ]/g, ' ')
-    .replace(/\b(boulevard|blvd)\b/g, 'blvd')
-    .replace(/\b(street|str?)\b/g, 'st')
-    .replace(/\b(avenue|ave?)\b/g, 'ave')
-    .replace(/\b(road|rd)\b/g, 'rd')
-    .replace(/\b(drive|dr)\b/g, 'dr')
-    .replace(/\b(parkway|pkwy)\b/g, 'pkwy')
-    .replace(/\s+/g, ' ')
-    .trim()
-  return t || null
-}
-
-/**
  * Bucketing key for duplicate grouping. Venue-id bucketing alone misses
  * duplicates when two sources mint DIFFERENT venue records for the same
  * building — e.g. better_kenmore once stored a venue literally named
@@ -196,9 +176,9 @@ export function locationKey(e) {
   const ev = e.event_venues?.[0]
   if (!ev?.venue_id) return null
   const v = ev.venues ?? {}
-  const addr = normalizeAddress(v.address)
+  const addr = normalizeStreetAddress(v.address)
   if (addr) return `addr:${addr}`
-  const nameAsAddr = normalizeAddress(v.name)
+  const nameAsAddr = normalizeStreetAddress(v.name)
   if (nameAsAddr && /^\d/.test(nameAsAddr)) return `addr:${nameAsAddr}`
   return `venue:${ev.venue_id}`
 }

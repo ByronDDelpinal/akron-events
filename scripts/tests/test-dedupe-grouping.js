@@ -11,19 +11,23 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { normalizeAddress, locationKey, fuzzyTitlesMatch } from '../dedupe-cross-source.js'
+import { locationKey, fuzzyTitlesMatch } from '../dedupe-cross-source.js'
+import { normalizeStreetAddress } from '../lib/normalize.js'
 import { resolveVenueAlias } from '../scrape-better-kenmore.js'
 
-describe('dedupe: normalizeAddress', () => {
+// normalizeStreetAddress is the shared SSOT (lib/normalize.js); locationKey
+// below consumes it for bucketing. These cases pin the folding behavior the
+// dedupe pass relies on.
+describe('dedupe: normalizeStreetAddress', () => {
   it('folds suffix variants and punctuation', () => {
-    assert.equal(normalizeAddress('1000 Kenmore Blvd.'), '1000 kenmore blvd')
-    assert.equal(normalizeAddress('1000 Kenmore Boulevard'), '1000 kenmore blvd')
-    assert.equal(normalizeAddress('  220 South Balch Street '), '220 south balch st')
+    assert.equal(normalizeStreetAddress('1000 Kenmore Blvd.'), '1000 kenmore blvd')
+    assert.equal(normalizeStreetAddress('1000 Kenmore Boulevard'), '1000 kenmore blvd')
+    assert.equal(normalizeStreetAddress('  220 South Balch Street '), '220 south balch st')
   })
 
   it('returns null for empty/non-string input', () => {
-    assert.equal(normalizeAddress(''), null)
-    assert.equal(normalizeAddress(null), null)
+    assert.equal(normalizeStreetAddress(''), null)
+    assert.equal(normalizeStreetAddress(null), null)
   })
 })
 

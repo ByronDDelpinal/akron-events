@@ -23,7 +23,7 @@ const WEAK = 25
 
 const PRIORITY = [
   'music', 'comedy', 'theater', 'film', 'visual-art', 'sports', 'fitness',
-  'food', 'learning', 'outdoors', 'festival', 'market', 'civic', 'other',
+  'food', 'learning', 'outdoors', 'festival', 'market', 'games', 'civic', 'other',
 ]
 
 // A secondary category is kept when it's at least SECONDARY_MIN_SCORE on its own
@@ -113,6 +113,13 @@ const SIGNALS = [
   // show at those rooms as a civic event. Match genuine civic-ACTIVITY phrasing
   // instead (civic engagement/association/etc.), plus the explicit meeting words.
   { cat: 'civic', w: STRONG, re: /\b(town hall|city council|civic (engagement|association|league|forum|duty|action|commission|club)|ward meeting|neighborhood meeting|community meeting|public hearing|community gathering|senior expo|(committee|board|membership|annual|business) meeting|board of directors)\b/ },
+
+  // Games & Hobbies — tabletop, social, and video gaming, plus pub-game nights.
+  // DECISIVE terms are unambiguous game events; the STRONG single words ride a
+  // little lower so a more specific signal (e.g. comedy "drag bingo") still wins
+  // the tie via PRIORITY. Pairs with the family facet for kid/teen game programs.
+  { cat: 'games', w: DECISIVE, re: /\b(dungeons (and|&) dragons|d ?& ?d\b|magic:? the gathering|board games?|tabletop|role[- ]?playing game|\brpg\b|mahjong|trivia night|pub quiz|games? night|game day|video game tournament|e[- ]?sports|mario kart|super smash|warhammer|euchre|bunco|cribbage|dominoes)\b/ },
+  { cat: 'games', w: STRONG,   re: /\b(trivia|chess|cornhole|darts|pinball|arcade|cosplay|jigsaw|puzzles?|bingo|card games?|gaming|questing club|magic the gathering|pok[eé]mon)\b/ },
 ]
 
 function conditionalContentSignals(text, tLow) {

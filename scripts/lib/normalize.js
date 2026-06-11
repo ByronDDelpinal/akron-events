@@ -562,6 +562,128 @@ export async function ensureOrganization(name, details = {}) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// ADDRESS NORMALIZATION & VENUE-BY-ADDRESS RESOLUTION
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Several feeds (Better Kenmore's Events Manager, Tribe Events, etc.) expose a
+// venue as a free-text location string that is often a bare street address —
+// "943 Kenmore Blvd.", "1000 Kenmore Blvd". When such a string didn't match an
+// existing venue NAME, ensureVenue used to mint a new venue literally NAMED
+// after the address (address column left null). Those junk rows can never
+// dedupe against the real, named venue at that address (First Glance, The
+// Rialto Theatre), so the same place showed up twice on the site. The helpers
+// below let ensureVenue recognize an address-shaped string and route it to the
+// canonical venue by matching on the normalized `address` column instead.
+
+/** Recognized US street-type suffixes (normalized to their abbreviation). */
+const STREET_SUFFIX_MAP = {
+  boulevard: 'blvd', blvd: 'blvd',
+  street: 'st', st: 'st', str: 'st',
+  avenue: 'ave', ave: 'ave', av: 'ave',
+  road: 'rd', rd: 'rd',
+  drive: 'dr', dr: 'dr',
+  lane: 'ln', ln: 'ln',
+  court: 'ct', ct: 'ct',
+  place: 'pl', pl: 'pl',
+  parkway: 'pkwy', pkwy: 'pkwy',
+  highway: 'hwy', hwy: 'hwy',
+  terrace: 'ter', ter: 'ter',
+  circle: 'cir', cir: 'cir',
+  square: 'sq', sq: 'sq',
+  trail: 'trl', trl: 'trl',
+  way: 'way',
+}
+const STREET_SUFFIXES = new Set(Object.values(STREET_SUFFIX_MAP))
+
+/**
+ * Canonicalize a street-address string for equality comparison. Takes only the
+ * street line (text before the first comma — drops any ", Akron, OH 44314" tail
+ * that free-text location fields carry), lowercases, strips punctuation,
+ * collapses whitespace, and maps street suffixes to a single abbreviation
+ * ("Boulevard"/"Blvd." → "blvd"). Returns null for empty input.
+ *
+ *   "943 Kenmore Blvd."            → "943 kenmore blvd"
+ *   "1000 Kenmore Boulevard, Akron"→ "1000 kenmore blvd"
+ *
+ * Single source of truth for address canonicalization across BOTH ingestion
+ * (this file's ensureVenue / resolveVenueByAddress) and the post-ingest
+ * dedupe pass (dedupe-cross-source.js imports this). Exported for tests and
+ * reuse by any scraper with free-text location fields.
+ */
+export function normalizeStreetAddress(value) {
+  if (!value || typeof value !== 'string') return null
+  const streetLine = decodeEntities(value).split(',')[0]
+  const cleaned = streetLine.toLowerCase().replace(/[^a-z0-9\s]/g, ' ')
+  const words = cleaned.split(/\s+/).filter(Boolean).map((w) => STREET_SUFFIX_MAP[w] ?? w)
+  const out = words.join(' ').trim()
+  return out || null
+}
+
+/**
+ * Heuristic: does this string look like a bare street address rather than a
+ * venue name? Requires BOTH a leading house number AND a recognized street-type
+ * suffix token, so legitimate number-led venue names ("1865 Brewing", "16-Bit
+ * Bar+Arcade") are NOT misclassified. Exported for tests.
+ */
+export function looksLikeStreetAddress(value) {
+  const n = normalizeStreetAddress(value)
+  if (!n) return false
+  const words = n.split(' ')
+  if (words.length < 2) return false
+  if (!/^\d+[a-z]?$/.test(words[0])) return false
+  return words.some((w) => STREET_SUFFIXES.has(w))
+}
+
+// normalizedAddress → venueId, built once per process from the venues table.
+let _venueAddressIndex = null
+
+/**
+ * Build (once) and return a Map of every venue's normalized address → id.
+ * Loaded lazily on first use so env-less test imports never touch the DB. On a
+ * lookup error the index stays empty and cached, which makes
+ * resolveVenueByAddress fail safe (returns null → caller skips, never dupes).
+ */
+async function _getVenueAddressIndex() {
+  if (_venueAddressIndex) return _venueAddressIndex
+  _venueAddressIndex = new Map()
+  const { data, error } = await supabaseAdmin
+    .from('venues')
+    .select('id, address')
+    .not('address', 'is', null)
+  if (error) {
+    console.warn(`  ⚠ Could not load venue address index: ${error.message}`)
+    return _venueAddressIndex
+  }
+  for (const v of data) {
+    const key = normalizeStreetAddress(v.address)
+    // First writer wins — venues are ordered by the DB's default; an exact
+    // address collision across two venues is itself a data-quality issue, but
+    // we don't want this index to be the thing that picks between them.
+    if (key && !_venueAddressIndex.has(key)) _venueAddressIndex.set(key, v.id)
+  }
+  return _venueAddressIndex
+}
+
+/**
+ * Resolve a free-text location string to an existing venue by matching its
+ * normalized street address. Returns the venue id, or null when the string
+ * isn't address-shaped or no venue carries that address. Exported so any
+ * scraper with free-text location fields can reuse it.
+ */
+export async function resolveVenueByAddress(location) {
+  if (!looksLikeStreetAddress(location)) return null
+  const key = normalizeStreetAddress(location)
+  if (!key) return null
+  const index = await _getVenueAddressIndex()
+  return index.get(key) ?? null
+}
+
+/** Test-only: reset the cached address index between cases. */
+export function _resetVenueAddressIndex() {
+  _venueAddressIndex = null
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // SHARED VENUE LOOKUP / CREATION
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -623,6 +745,28 @@ export async function ensureVenue(name, details = {}) {
   }
 
   if (_venueNameCache.has(trimmed)) return _venueNameCache.get(trimmed)
+
+  // Guard: never mint a venue whose NAME is a bare street address. These come
+  // from feeds that expose location as free text (e.g. Better Kenmore's "943
+  // Kenmore Blvd."). Inserting them creates junk rows that can never dedupe
+  // against the real, named venue at that address. Instead, route the string
+  // to the canonical venue by matching on the normalized `address` column. If
+  // no venue carries that address, SKIP creation and return null — a missing
+  // venue link for one event is recoverable; a duplicate venue row is not (see
+  // the Canton Civic Center runaway noted below).
+  if (looksLikeStreetAddress(trimmed)) {
+    const byAddress = await resolveVenueByAddress(trimmed)
+    if (byAddress) {
+      _venueNameCache.set(trimmed, byAddress)
+      return byAddress
+    }
+    console.warn(
+      `  ⚠ Refusing to create address-named venue "${trimmed}" — no existing venue has this address. ` +
+      `Event left venue-less; add a named venue with this address to capture it.`,
+    )
+    _venueNameCache.set(trimmed, null)
+    return null
+  }
 
   // neighborhood_slug is pulled into the existing-venue query so we
   // can decide whether to backfill it without overwriting a manual

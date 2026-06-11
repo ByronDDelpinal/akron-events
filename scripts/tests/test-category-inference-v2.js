@@ -35,6 +35,12 @@ const ORACLE = [
   ['Independence Day Fireworks Festival', '', ['festival'], {}],
   ['Neighborhood Block Party', '', ['festival'], {}],
 
+  // games & hobbies — tabletop, social, and video gaming
+  ['Dungeons & Dragons', 'Players of all experience levels welcome', ['games'], {}],
+  ['Trivia Night', '', ['games'], {}],
+  ['Magic: The Gathering', '', ['games'], {}],
+  ['Play Mahjong', '', ['games'], {}],
+
   // multi-category (up to 2)
   ['Summer Music Festival', 'Live bands all weekend', ['music', 'festival'], {}],
   ['Sunday Drag Brunch', '', ['comedy', 'food'], {}],
@@ -46,7 +52,7 @@ const ORACLE = [
   // facet: family high-bar
   ["Children's Art Workshop", '', ['visual-art'], { family: true }],
   ['Storytime at the Library', '', ['other'], { family: true }],
-  ['Family Game Night', '', ['other'], { family: true }],
+  ['Family Game Night', '', ['games'], { family: true }],
 
   // fallback
   ['Community Networking Mixer', 'Meet local folks', ['other'], {}],

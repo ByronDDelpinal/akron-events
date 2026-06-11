@@ -38,6 +38,7 @@ export const CATEGORIES = Object.freeze([
   { slug: 'festival',   label: 'Festivals',    short: 'festival',  emoji: '🎪', gradient: 'gradient-festival',   tagClass: 'tag-festival',   adminSelectable: true, filterable: true  },
   { slug: 'market',     label: 'Markets',      short: 'market',    emoji: '🛍', gradient: 'gradient-market',     tagClass: 'tag-market',     adminSelectable: true, filterable: true  },
   { slug: 'civic',      label: 'Civic',        short: 'civic',     emoji: '🏛', gradient: 'gradient-civic',      tagClass: 'tag-civic',      adminSelectable: true, filterable: true  },
+  { slug: 'games',      label: 'Games & Hobbies', short: 'games',  emoji: '🎲', gradient: 'gradient-games',      tagClass: 'tag-games',      adminSelectable: true, filterable: true  },
   { slug: 'other',      label: 'Other',        short: 'other',     emoji: '✨', gradient: 'gradient-default',    tagClass: 'tag-other',      adminSelectable: true, filterable: false },
 ])
 
