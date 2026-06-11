@@ -42,6 +42,12 @@ const SIGNALS = [
   // Music
   { cat: 'music', w: DECISIVE, re: /\b(concert|symphony|orchestra|recital|live music|live bands?|open mic|karaoke|sing[- ]along|songwriter night|jazz night|blues night|dj set|album release|ep release|single release|musical guest|tribute (band|act|show|to)|on spotify)\b/ },
   { cat: 'music', w: STRONG,   re: /\bdj\b/, scope: 'title' },
+  // Dance parties / club nights are music events. The title rarely says
+  // "music" or "concert" ("Circa Pop: 80s Dance Party", "Silent Disco"), so
+  // match the format words directly, and let a DJ mentioned anywhere in the
+  // text (not just the title) contribute.
+  { cat: 'music', w: DECISIVE, re: /\b(dance party|silent disco|disco party|sock hop|throwback (party|night)|decades? (party|night)|club night)\b/ },
+  { cat: 'music', w: SOFT,     re: /\b(dj|deejay)\b/ },
   { cat: 'music', w: DECISIVE, re: /\btribute\b/ },
   { cat: 'music', w: WEAK,     re: /\bmusic\b/, scope: 'title' },
   { cat: 'music', w: STRONG,   re: /\b(singer[-/ ]songwriter|guitarist|drummer|bassist|saxophonist|pianist|trumpeter|cellist|violinist|multi[- ]?instrumentalist|frontman|frontwoman)\b/ },

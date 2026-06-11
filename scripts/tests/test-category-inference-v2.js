@@ -41,6 +41,10 @@ const ORACLE = [
   ['Magic: The Gathering', '', ['games'], {}],
   ['Play Mahjong', '', ['games'], {}],
 
+  // dance parties / club nights are music (title carries no "music"/"concert")
+  ['Circa Pop: 80s Dance Party at the Museum', 'Get into the groove with a live DJ spinning iconic hits', ['music'], {}],
+  ['Silent Disco', '', ['music'], {}],
+
   // multi-category (up to 2)
   ['Summer Music Festival', 'Live bands all weekend', ['music', 'festival'], {}],
   ['Sunday Drag Brunch', '', ['comedy', 'food'], {}],

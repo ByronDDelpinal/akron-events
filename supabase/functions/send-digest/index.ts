@@ -342,20 +342,57 @@ function formatTimeOnly(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 }
 
+// Short, human category words for the subscription-aware headline,
+// keyed off the taxonomy slugs in src/lib/categories.js. Edge functions
+// can't import from src/, so the words live here — keep in sync if the
+// taxonomy slugs change.
+const CATEGORY_WORD: Record<string, string> = {
+  music: 'music',
+  theater: 'theater',
+  film: 'film',
+  comedy: 'comedy',
+  'visual-art': 'art',
+  food: 'food & drink',
+  sports: 'sports',
+  fitness: 'fitness',
+  outdoors: 'outdoors',
+  learning: 'learning',
+  festival: 'festival',
+  market: 'market',
+  civic: 'civic',
+  games: 'games',
+}
+
 /**
- * Human label for the subscriber's event window. Frequency (when the
- * email arrives) and lookahead (how far ahead it covers) are
- * configured independently, so copy must describe the WINDOW, never
- * the cadence: a daily subscriber can have a 30-day lookahead.
- * Mirrors the window logic in filterEventsForSubscriber.
+ * Subscription-aware headline. Combines the subscriber's event WINDOW
+ * (today / this week / this month / upcoming) with their content focus
+ * (a single chosen category, or "free" when they filter to free events)
+ * so the line reflects what they actually signed up for:
+ *   "This month's music events", "Today's free events", "Upcoming events".
+ *
+ * Frequency (when the email arrives) and lookahead (how far ahead it
+ * covers) are configured independently — the frame describes the WINDOW,
+ * never the send cadence, so a daily subscriber with a 30-day lookahead
+ * reads "This month's…", not "Today's…".
  */
-function windowLabel(sub: Subscriber): string {
-  if (sub.frequency === 'monthly') {
-    const month = new Date().toLocaleDateString('en-US', { month: 'long' })
-    return `through the end of ${month}`
-  }
-  if (sub.lookahead_days === 1) return 'tomorrow'
-  return `over the next ${sub.lookahead_days} days`
+function headlineLabel(sub: Subscriber): string {
+  const prefs = sub.preferences
+
+  let frame: string
+  if (sub.frequency === 'monthly') frame = "This month's"
+  else if (sub.lookahead_days <= 1) frame = "Today's"
+  else if (sub.lookahead_days <= 7) frame = "This week's"
+  else if (sub.lookahead_days <= 31) frame = "This month's"
+  else frame = 'Upcoming'
+
+  // Content focus: a "free" price filter wins; otherwise a single chosen
+  // category. Multiple categories or "all" stay generic.
+  let focus = ''
+  const filteringCats = !prefs.intents?.includes('all') && (prefs.categories?.length ?? 0) > 0
+  if (prefs.price_max === 0) focus = 'free'
+  else if (filteringCats && prefs.categories.length === 1) focus = CATEGORY_WORD[prefs.categories[0]] ?? ''
+
+  return `${frame} ${focus ? `${focus} ` : ''}events`
 }
 
 // ── Build email HTML ──────────────────────────────────────────────
@@ -383,12 +420,16 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
   if (firstFree && firstFree !== hero) preheaderBits.push(`free: ${firstFree.title}`)
   const preheader = escapeHtml(preheaderBits.join(' · ').slice(0, 110))
 
-  // Greeting — brand voice, one line, describing the subscriber's
-  // actual event window (not their send cadence — frequency and
-  // lookahead are configured independently).
+  // Headline — subscription-aware: the subscriber's window + content
+  // focus ("This month's music events"), with a generic supporting line.
+  // Keyed off prefs, never the raw 30-day lookahead, so the copy matches
+  // what they signed up for.
   let content = `
+  <div style="font-family:${f.display};font-size:20px;font-weight:700;color:${c.primary};line-height:1.25;letter-spacing:-0.01em;margin:0 0 5px;">
+    ${headlineLabel(sub)}
+  </div>
   <div style="font-family:${f.body};font-size:14px;color:${c.textSecondary};line-height:1.5;margin:0 0 20px;">
-    Here&rsquo;s what&rsquo;s happening ${windowLabel(sub)}, before it happens.
+    Here&rsquo;s what we lined up for you, before it happens.
   </div>
 `
 
@@ -516,8 +557,9 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
 // text-mode clients actually read.
 function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: number, tailEvents: Event[] = []): string {
   const lines: string[] = [
-    `${THEME.brandName} — ${THEME.tagline}`,
-    `Here's what's happening ${windowLabel(sub)}, before it happens.`,
+    `${THEME.brandName}: Never miss a beat`,
+    headlineLabel(sub),
+    "Here's what we lined up for you, before it happens.",
     '',
   ]
 
@@ -559,8 +601,9 @@ function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: numb
   }
 
   lines.push(
-    'So you learn about events a week early, not a day late.',
-    'Free forever. No ads, ever.',
+    'Never miss a beat.',
+    'Thanks for checking Akron Pulse, your free, easy, go-to regional events calendar, courtesy of your friendly neighborhood Summit County residents.',
+    `Have an event? Submit it here, see it live in 24 hours: ${BASE_URL}/submit`,
     '',
     `Manage preferences: ${BASE_URL}/subscribe/preferences?token=${sub.token}`,
     `Unsubscribe: ${BASE_URL}/unsubscribe?token=${sub.token}`,

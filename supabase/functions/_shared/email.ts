@@ -122,38 +122,50 @@ export interface ShellOptions {
 }
 
 /**
- * Brand shell: warm cream canvas, dark-teal masthead with wordmark +
- * tagline, white content card, mission-forward footer.
+ * Brand shell: dark-teal canvas matching the masthead, white content
+ * card floating on it, light-on-teal mission footer. The canvas color
+ * (THEME.colors.dark) and the masthead share one tone so the brand
+ * reads as a single full-bleed teal field framing the white card.
  */
 export function renderEmailShell({ preheader, content, footer }: ShellOptions): string {
   const c = THEME.colors
   const f = THEME.fonts
 
+  // Footer + canvas text colors: the footer sits directly on the teal
+  // canvas (no white card behind it), so every footer color must be a
+  // light-on-dark tone, not the dark-on-cream tones used in the card.
+  const onCanvasSoft = c.primaryPale            // #D6E8EE — body text on teal
+  const onCanvasMuted = '#8FB6C2'               // dimmer teal-tint for fine print
+
   const footerLinks = footer.prefsUrl && footer.unsubUrl
     ? `
-      <a href="${footer.prefsUrl}" style="color:${c.primary};font-size:12px;font-weight:600;text-decoration:underline;text-underline-offset:2px;">Manage preferences</a>
-      <span style="color:${c.border};">&nbsp;&middot;&nbsp;</span>
-      <a href="${footer.unsubUrl}" style="color:${c.textMuted};font-size:12px;text-decoration:underline;text-underline-offset:2px;">Unsubscribe</a>`
+      <a href="${footer.prefsUrl}" style="color:${c.white};font-size:12px;font-weight:600;text-decoration:underline;text-underline-offset:2px;">Manage preferences</a>
+      <span style="color:${onCanvasMuted};">&nbsp;&middot;&nbsp;</span>
+      <a href="${footer.unsubUrl}" style="color:${onCanvasMuted};font-size:12px;text-decoration:underline;text-underline-offset:2px;">Unsubscribe</a>`
     : footer.transactionalNote
-      ? `<span style="color:${c.textMuted};font-size:12px;">${footer.transactionalNote}</span>`
+      ? `<span style="color:${onCanvasMuted};font-size:12px;">${footer.transactionalNote}</span>`
       : ''
 
   const mission = footer.showMission
     ? `
     <tr>
-      <td align="center" style="padding:0 8px 14px;">
-        <div style="font-family:${f.display};font-size:13px;font-weight:600;color:${c.primary};line-height:1.5;">
-          So you learn about events a week early, not a day late.
+      <td align="center" style="padding:0 8px 12px;">
+        <div style="font-family:${f.display};font-size:21px;font-weight:700;color:${c.white};line-height:1.2;letter-spacing:-0.01em;">
+          Never miss a beat
         </div>
-        <div style="font-family:${f.body};font-size:12px;color:${c.textMuted};margin-top:4px;">
-          Free forever. No ads, ever. Built by neighbors in Summit County.
+      </td>
+    </tr>
+    <tr>
+      <td align="center" style="padding:0 14px 14px;">
+        <div style="font-family:${f.body};font-size:13px;color:${onCanvasSoft};line-height:1.6;max-width:420px;margin:0 auto;">
+          Thanks for checking Akron Pulse, your free, easy, go-to regional events calendar, courtesy of your friendly neighborhood Summit County residents.
         </div>
       </td>
     </tr>
     <tr>
       <td align="center" style="padding:0 8px 14px;">
-        <span style="font-family:${f.body};font-size:12px;color:${c.textMuted};">
-          Have an event? <a href="https://akronpulse.com/submit" style="color:${c.primary};font-weight:600;text-decoration:underline;text-underline-offset:2px;">Submit it</a> and it's live within 24 hours.
+        <span style="font-family:${f.body};font-size:12px;color:${onCanvasSoft};">
+          Have an event? <a href="https://akronpulse.com/submit" style="color:${c.white};font-weight:600;text-decoration:underline;text-underline-offset:2px;">Submit it here</a>, see it live in 24 hours.
         </span>
       </td>
     </tr>`
@@ -167,14 +179,14 @@ export function renderEmailShell({ preheader, content, footer }: ShellOptions): 
   <meta name="color-scheme" content="light">
   <title>${THEME.brandName}</title>
 </head>
-<body style="margin:0;padding:0;background:${c.background};font-family:${f.body};">
+<body style="margin:0;padding:0;background:${c.dark};font-family:${f.body};">
 
 <!-- Preheader (inbox snippet, hidden in the rendered body) -->
-<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${c.background};">
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${c.dark};">
   ${preheader}
 </div>
 
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${c.background};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${c.dark}" style="background:${c.dark};">
   <tr>
     <td align="center" style="padding:28px 12px;">
 
@@ -193,8 +205,8 @@ export function renderEmailShell({ preheader, content, footer }: ShellOptions): 
                 </td>
               </tr>
             </table>
-            <div style="font-family:${f.body};font-size:12px;color:${c.primaryPale};margin-top:9px;letter-spacing:0.02em;">
-              ${THEME.tagline}
+            <div style="font-family:${f.body};font-size:13px;color:${c.primaryPale};margin-top:9px;letter-spacing:0.04em;">
+              Never miss a beat
             </div>
           </td>
         </tr>
@@ -224,7 +236,7 @@ export function renderEmailShell({ preheader, content, footer }: ShellOptions): 
         </tr>
         <tr>
           <td align="center" style="padding:0 8px;">
-            <div style="font-family:${f.body};font-size:11px;color:${c.textMuted};">
+            <div style="font-family:${f.body};font-size:11px;color:${onCanvasMuted};">
               &copy; ${new Date().getFullYear()} ${THEME.copyrightHolder} &middot; ${THEME.location}
             </div>
           </td>
