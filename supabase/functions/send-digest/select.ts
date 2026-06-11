@@ -246,6 +246,48 @@ export function orgKey(e: Event): string {
   return e.organizations?.[0]?.id || e.venues?.[0]?.name || e.title
 }
 
+// ── Event URL ────────────────────────────────────────────────────────
+// Canonical event path is /events/{slug}/{id} (see src/lib/slug.js). The
+// digest can't import from src/ (Deno + date-fns), so the slug logic is
+// mirrored here and guarded by a drift test against slug.js. The id is
+// the source of truth — EventPage 301-redirects a stale slug — but the
+// slug SEGMENT must be present: a bare /events/{id} hits the slug-only
+// router and errors. The date suffix uses Eastern time (the audience TZ)
+// to match the links the app itself generates.
+const RESERVED_SLUGS = new Set(['submit', 'new', 'edit', 'featured'])
+
+export function makeEventSlug(e: { title?: string | null; start_at?: string | null }): string {
+  let titlePart = String(e?.title || 'event')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .trim()
+    .replace(/[\s-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80)
+    .replace(/-+$/g, '')
+
+  if (!titlePart) titlePart = 'event'
+  if (RESERVED_SLUGS.has(titlePart)) titlePart = `evt-${titlePart}`
+
+  const start = e?.start_at ? new Date(e.start_at) : null
+  if (start && !Number.isNaN(start.getTime())) {
+    const datePart = start
+      .toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' })
+      .toLowerCase()
+      .replace(/\s+/g, '-') // "may 28" → "may-28"
+    return `${titlePart}-${datePart}`
+  }
+  return titlePart
+}
+
+export function eventPath(e: { id?: string | null; title?: string | null; start_at?: string | null }): string {
+  if (!e?.id) return '/'
+  return `/events/${makeEventSlug(e)}/${e.id}`
+}
+
 // Pick n elements spread evenly across an array (inclusive of both ends),
 // preserving order and de-duping any rounding collisions.
 function evenSample<T>(arr: T[], n: number): T[] {

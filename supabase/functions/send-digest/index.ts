@@ -16,6 +16,7 @@ import {
   type Subscriber,
   filterEventsForSubscriber,
   selectDigestEvents,
+  eventPath,
 } from './select.ts'
 
 const supabase = createClient(
@@ -257,7 +258,7 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
   // Hero event — full-width image (or gradient) on top, content below.
   if (hero) {
     const venue = hero.venues[0]
-    const heroUrl = `${BASE_URL}/events/${hero.id}`
+    const heroUrl = `${BASE_URL}${eventPath(hero)}`
     const heroDate = new Date(hero.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     const price = priceLabel(hero)
     content += `
@@ -298,7 +299,7 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
 `
       for (const event of group.events) {
         const venue = event.venues[0]
-        const eventUrl = `${BASE_URL}/events/${event.id}`
+        const eventUrl = `${BASE_URL}${eventPath(event)}`
         const meta = [formatTimeOnly(event.start_at), venue ? escapeHtml(venue.name) : null].filter(Boolean).join(' &middot; ')
         const price = priceLabel(event)
         const pills: string[] = []
@@ -341,7 +342,7 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
     <div style="font-family:${f.display};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:${c.textMuted};margin-bottom:10px;">Also coming up</div>
 `
     for (const event of tailEvents) {
-      const eventUrl = `${BASE_URL}/events/${event.id}`
+      const eventUrl = `${BASE_URL}${eventPath(event)}`
       const date = new Date(event.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
       content += `
     <a href="${eventUrl}" style="display:block;padding:6px 0;text-decoration:none;color:${c.textSecondary};font-size:14px;line-height:1.4;">
@@ -391,7 +392,7 @@ function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: numb
     const heroDate = new Date(hero.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     lines.push(`FEATURED: ${hero.title}`)
     lines.push(`  ${heroDate}${venue ? ` · ${venue.name}` : ''}`)
-    lines.push(`  ${BASE_URL}/events/${hero.id}`, '')
+    lines.push(`  ${BASE_URL}${eventPath(hero)}`, '')
   }
 
   for (const group of groupByDay(picks)) {
@@ -402,7 +403,7 @@ function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: numb
       const price = priceLabel(event)
       lines.push(`- ${event.title}${price ? ` (${price.label})` : ''}`)
       lines.push(`  ${meta}`)
-      lines.push(`  ${BASE_URL}/events/${event.id}`)
+      lines.push(`  ${BASE_URL}${eventPath(event)}`)
     }
     lines.push('')
   }
@@ -411,7 +412,7 @@ function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: numb
     lines.push('ALSO COMING UP')
     for (const event of tailEvents) {
       const date = new Date(event.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-      lines.push(`- ${date} · ${event.title} — ${BASE_URL}/events/${event.id}`)
+      lines.push(`- ${date} · ${event.title} — ${BASE_URL}${eventPath(event)}`)
     }
     lines.push('')
   }

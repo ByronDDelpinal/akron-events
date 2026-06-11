@@ -11,10 +11,16 @@
  * Run:  node --test scripts/tests/test-digest-selection.js
  */
 
+// Pin Eastern time so the date suffix in slugs is deterministic and
+// matches what the digest emits (it formats slug dates in ET, the
+// audience TZ). Must run before any date formatting.
+process.env.TZ = 'America/New_York'
+
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { eventPath as appEventPath } from '../../src/lib/slug.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const SELECT = join(__dirname, '..', '..', 'supabase', 'functions', 'send-digest', 'select.ts')
@@ -25,6 +31,7 @@ const {
   MAX_PER_ORG,
   TAIL_EVENT_COUNT,
   orgKey,
+  eventPath,
 } = await import(SELECT)
 
 const NOW = new Date('2026-06-15T08:00:00Z')
@@ -161,5 +168,33 @@ describe('digest selection', () => {
     const { picks } = selectDigestEvents(events, sub(), NOW)
     const times = picks.map(e => new Date(e.start_at).getTime())
     assert.deepEqual(times, times.slice().sort((a, b) => a - b))
+  })
+})
+
+describe('digest event URLs', () => {
+  // Regression for the broken "/events/{id}" links: every link must carry
+  // a slug SEGMENT plus the id, or it hits the slug-only router and errors.
+  it('builds /events/{slug}/{id} with a non-empty slug ending in the id', () => {
+    const e = { id: 'abc-123', title: 'Riverfront Cruise In', start_at: '2026-06-11T22:00:00Z' }
+    const path = eventPath(e)
+    const parts = path.split('/') // ['', 'events', slug, id]
+    assert.equal(parts.length, 4)
+    assert.equal(parts[1], 'events')
+    assert.ok(parts[2].length > 0, 'slug segment must not be empty')
+    assert.equal(parts[3], 'abc-123')
+  })
+
+  it('matches the app slug.js for representative events (drift guard)', () => {
+    // Noon-ET (16:00Z) start times so the date suffix is unambiguous.
+    const samples = [
+      { id: 'u1', title: 'Café Música & Friends!', start_at: '2026-05-28T16:00:00Z' },
+      { id: 'u2', title: 'Submit', start_at: '2026-06-05T16:00:00Z' },       // reserved-word title
+      { id: 'u3', title: '   ', start_at: '2026-06-09T16:00:00Z' },          // empty after strip
+      { id: 'u4', title: 'The Black Keys — Homecoming', start_at: '2026-06-19T16:00:00Z' },
+      { id: 'u5', title: 'No Date Event', start_at: null },
+    ]
+    for (const e of samples) {
+      assert.equal(eventPath(e), appEventPath(e), `slug drift for "${e.title}"`)
+    }
   })
 })

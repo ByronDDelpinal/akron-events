@@ -245,19 +245,39 @@ function parseAdmission(admission) {
 }
 
 /**
- * Combine the event's local calendar date (`doc.date` is ET-midnight UTC)
+ * Resolve a Simpleview date field to its **Eastern calendar date** (yyyy-mm-dd).
+ *
+ * The rest_v2 feed mixes two timestamp conventions for the same calendar day
+ * (verified live against recid 1231 on 2026-06-11):
+ *
+ *   • `startDate`              — midnight ET at the START of the day:
+ *                                 "2026-06-20T04:00:00.000Z"  (= Jun 20 00:00 EDT)
+ *   • `date`/`nextDate`/`endDate` — one second before midnight at the END of
+ *                                 the day: "2026-06-21T03:59:59.000Z"
+ *                                 (= Jun 20 23:59:59 EDT — still June 20!)
+ *
+ * A naive `iso.slice(0, 10)` on the end-of-day shape reads the *UTC* date and
+ * lands one calendar day late — that bug shifted every visit_akron_cvb event
+ * +1 day. Converting the instant to Eastern time first yields the correct
+ * calendar date for BOTH shapes, in both EDT and EST.
+ */
+function etCalendarDate(iso) {
+  if (!iso || typeof iso !== 'string') return null
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return null
+  const offsetHrs = isEDT(d) ? 4 : 5
+  return new Date(d.getTime() - offsetHrs * 3600_000).toISOString().slice(0, 10)
+}
+
+/**
+ * Combine the event occurrence's Eastern calendar date (see etCalendarDate)
  * with `doc.startTime`/`doc.endTime` (local HH:MM:SS) into proper UTC ISO
  * timestamps for storage.
  */
 function buildStartEnd(doc) {
   const occurrenceIso = doc.date || doc.nextDate || doc.startDate
-  if (!occurrenceIso) return { start_at: null, end_at: null }
-
-  // Pull the calendar date portion (yyyy-mm-dd) from the ET-midnight UTC string.
-  // The string is "2026-06-15T04:00:00.000Z" during EDT — the date part there
-  // already matches the local ET date.  During EST the time portion is 05:00,
-  // still on the same ET calendar date, so a slice(0,10) is always safe.
-  const datePart = occurrenceIso.slice(0, 10)
+  const datePart = etCalendarDate(occurrenceIso)
+  if (!datePart) return { start_at: null, end_at: null }
 
   const startTime = /^\d{2}:\d{2}:\d{2}$/.test(doc.startTime || '') ? doc.startTime : '09:00:00'
   const endTime   = /^\d{2}:\d{2}:\d{2}$/.test(doc.endTime   || '') ? doc.endTime   : null
@@ -272,12 +292,11 @@ function buildStartEnd(doc) {
 /**
  * Multi-day events have `endDate` set; use that as the end-side date so the
  * stored end_at reflects the final day's endTime rather than wrapping back.
+ * `endDate` uses the end-of-day timestamp shape, so it goes through
+ * etCalendarDate like everything else.
  */
 function useEndDatePart(doc, fallbackDate) {
-  if (doc.endDate && typeof doc.endDate === 'string') {
-    return doc.endDate.slice(0, 10)
-  }
-  return fallbackDate
+  return etCalendarDate(doc.endDate) || fallbackDate
 }
 
 /**
@@ -497,6 +516,18 @@ async function main() {
     await logScraperError(SOURCE_KEY, err, start)
     process.exit(1)
   }
+}
+
+// Pure parsers exported for unit tests (scripts/tests/test-visit-akron-cvb.js).
+export {
+  etCalendarDate,
+  buildStartEnd,
+  useEndDatePart,
+  easternLocalToUtcIso,
+  easternMidnightUtcIso,
+  normalizeCvbTitle,
+  parseAdmission,
+  isEDT,
 }
 
 // Run only when invoked directly (`node scripts/scrape-visit-akron-cvb.js`); importing the module
