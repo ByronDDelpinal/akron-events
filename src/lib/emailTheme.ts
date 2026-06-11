@@ -29,7 +29,7 @@ export const EMAIL_THEME: EmailTheme = {
 
   // URLs (update when domain changes)
   baseUrl: 'https://akronpulse.com',     // production domain (May 2026 rebrand from events.supportlocalakron.com)
-  logoUrl: 'https://akronpulse.com/theme-logos/AkronPulse_Civic-Teal.png', // transparent pulse logomark (masthead pairs it with a text wordmark)
+  logoUrl: 'https://akronpulse.com/theme-logos/AkronPulse_Pulse-OnLight.png', // teal-on-transparent pulse mark for the white masthead (pairs with a text wordmark)
 
   // Colors — synced with the Civic Teal palette in globals.css :root
   colors: {

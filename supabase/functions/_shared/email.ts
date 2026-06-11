@@ -27,12 +27,14 @@ export const THEME = {
   from: Deno.env.get('RESEND_FROM') || 'Akron Pulse <digest@akronpulse.com>',
   replyTo: Deno.env.get('RESEND_REPLY_TO') || 'byron@akronpulse.com',
 
-  // Masthead logomark: the transparent pulse-line PNG already hosted
-  // from public/theme-logos/ (email clients can't load SVG/WEBP, so
-  // PNG it stays). Rendered next to a live-text wordmark — the
-  // horizontal banner lockup, but the text survives image blocking
-  // and needs no background matching. null = text wordmark only.
-  logoUrl: (Deno.env.get('PUBLIC_SITE_URL') || 'https://akronpulse.com') + '/theme-logos/AkronPulse_Civic-Teal.png' as string | null,
+  // Masthead logomark: the transparent pulse-line PNG hosted from
+  // public/theme-logos/ (email clients can't load SVG/WEBP, so PNG it
+  // stays). The masthead is white, so we use the teal-on-transparent
+  // "OnLight" mark (brand teal #0E5163 filled into the original pulse
+  // shape, keeping its left-side fade-in) rather than the light Civic-
+  // Teal mark, which is built for dark backgrounds. Paired with a live-
+  // text wordmark so the brand survives image blocking. null = text only.
+  logoUrl: (Deno.env.get('PUBLIC_SITE_URL') || 'https://akronpulse.com') + '/theme-logos/AkronPulse_Pulse-OnLight.png' as string | null,
 
   // Teal of the logomark's end dot (#59AEC0, sampled from the PNG) —
   // used for the "Pulse" half of the wordmark so text matches the art.
@@ -95,14 +97,16 @@ export function button(
 }
 
 /**
- * Two-tone text wordmark matching the banner lockup: first word in
- * white, the rest in the logomark's teal ("Akron <Pulse>"). Generic
- * split so a forked city brand ("Canton Beat") gets the same effect.
+ * Two-tone text wordmark for the white masthead: first word in the dark
+ * brand navy (set by the masthead cell), the rest in the mid teal
+ * ("Akron <Pulse>") — a deeper teal than the on-dark accent so it stays
+ * legible on white. Generic split so a forked city brand ("Canton
+ * Beat") gets the same effect.
  */
 function wordmark(): string {
   const [first, ...rest] = THEME.brandName.split(' ')
   if (rest.length === 0) return first
-  return `${first} <span style="color:${THEME.wordmarkAccent};">${rest.join(' ')}</span>`
+  return `${first} <span style="color:${THEME.colors.greenMid};">${rest.join(' ')}</span>`
 }
 
 export interface ShellOptions {
@@ -192,20 +196,23 @@ export function renderEmailShell({ preheader, content, footer }: ShellOptions): 
 
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
 
-        <!-- Masthead: horizontal lockup — pulse logomark + live-text wordmark -->
+        <!-- Masthead: white card with rounded top corners, sitting on
+             the teal canvas. The pulse logomark art is light (built for
+             dark backgrounds), so on white we lead with the live-text
+             wordmark, which also survives image blocking. -->
         <tr>
-          <td align="center" style="background:${c.dark};border-radius:14px 14px 0 0;padding:22px 28px 18px;">
+          <td align="center" style="background:${c.card};border-radius:14px 14px 0 0;padding:24px 28px 20px;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;">
               <tr>
-                ${THEME.logoUrl ? `<td valign="middle" style="padding-right:11px;">
-                  <img src="${THEME.logoUrl}" alt="" width="56" height="38" style="display:block;border:0;">
+                ${THEME.logoUrl ? `<td valign="middle" style="padding-right:12px;">
+                  <img src="${THEME.logoUrl}" alt="" width="58" height="40" style="display:block;border:0;">
                 </td>` : ''}
-                <td valign="middle" style="font-family:${f.display};font-size:23px;font-weight:700;letter-spacing:-0.02em;line-height:1;color:${c.white};">
+                <td valign="middle" style="font-family:${f.display};font-size:24px;font-weight:700;letter-spacing:-0.02em;line-height:1;color:${c.dark};">
                   ${wordmark()}
                 </td>
               </tr>
             </table>
-            <div style="font-family:${f.body};font-size:13px;color:${c.primaryPale};margin-top:9px;letter-spacing:0.04em;">
+            <div style="font-family:${f.body};font-size:13px;color:${c.textMuted};margin-top:9px;letter-spacing:0.04em;">
               Never miss a beat
             </div>
           </td>

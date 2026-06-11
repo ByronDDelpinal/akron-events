@@ -363,27 +363,29 @@ const CATEGORY_WORD: Record<string, string> = {
   games: 'games',
 }
 
+const CADENCE_WORD: Record<string, string> = { daily: 'daily', weekly: 'weekly', monthly: 'monthly' }
+
 /**
- * Subscription-aware headline. Combines the subscriber's event WINDOW
- * (today / this week / this month / upcoming) with their content focus
- * (a single chosen category, or "free" when they filter to free events)
- * so the line reflects what they actually signed up for:
- *   "This month's music events", "Today's free events", "Upcoming events".
- *
- * Frequency (when the email arrives) and lookahead (how far ahead it
- * covers) are configured independently — the frame describes the WINDOW,
- * never the send cadence, so a daily subscriber with a 30-day lookahead
- * reads "This month's…", not "Today's…".
+ * Subscription-aware headline. Expresses the subscriber's send CADENCE
+ * (daily/weekly/monthly) and their event WINDOW (today / this week /
+ * this month / upcoming) plus content focus (a single chosen category,
+ * or "free"). Cadence and window are configured independently:
+ *   - when they line up, we show just the window:
+ *       "This week's music events", "Today's free events"
+ *   - when they differ, we name both so the reach is clear:
+ *       "Here's your daily look at this month's events"
  */
 function headlineLabel(sub: Subscriber): string {
   const prefs = sub.preferences
 
+  // Event window → a Capitalized frame and a lowercase form for mid-sentence.
   let frame: string
-  if (sub.frequency === 'monthly') frame = "This month's"
-  else if (sub.lookahead_days <= 1) frame = "Today's"
-  else if (sub.lookahead_days <= 7) frame = "This week's"
-  else if (sub.lookahead_days <= 31) frame = "This month's"
-  else frame = 'Upcoming'
+  let frameLower: string
+  if (sub.frequency === 'monthly') { frame = 'This month’s'; frameLower = 'this month’s' }
+  else if (sub.lookahead_days <= 1) { frame = 'Today’s'; frameLower = 'today’s' }
+  else if (sub.lookahead_days <= 7) { frame = 'This week’s'; frameLower = 'this week’s' }
+  else if (sub.lookahead_days <= 31) { frame = 'This month’s'; frameLower = 'this month’s' }
+  else { frame = 'Upcoming'; frameLower = 'upcoming' }
 
   // Content focus: a "free" price filter wins; otherwise a single chosen
   // category. Multiple categories or "all" stay generic.
@@ -391,8 +393,18 @@ function headlineLabel(sub: Subscriber): string {
   const filteringCats = !prefs.intents?.includes('all') && (prefs.categories?.length ?? 0) > 0
   if (prefs.price_max === 0) focus = 'free'
   else if (filteringCats && prefs.categories.length === 1) focus = CATEGORY_WORD[prefs.categories[0]] ?? ''
+  const focusPart = focus ? `${focus} ` : ''
 
-  return `${frame} ${focus ? `${focus} ` : ''}events`
+  // Does the cadence already line up with the window? (daily↔today,
+  // weekly↔this week, monthly↔this month) — if so, naming both is redundant.
+  const cadence = CADENCE_WORD[sub.frequency] ?? ''
+  const aligned =
+    (sub.frequency === 'daily' && frame === 'Today’s') ||
+    (sub.frequency === 'weekly' && frame === 'This week’s') ||
+    (sub.frequency === 'monthly' && frame === 'This month’s')
+
+  if (aligned || !cadence) return `${frame} ${focusPart}events`
+  return `Here’s your ${cadence} look at ${frameLower} ${focusPart}events`
 }
 
 // ── Build email HTML ──────────────────────────────────────────────
@@ -420,16 +432,13 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
   if (firstFree && firstFree !== hero) preheaderBits.push(`free: ${firstFree.title}`)
   const preheader = escapeHtml(preheaderBits.join(' · ').slice(0, 110))
 
-  // Headline — subscription-aware: the subscriber's window + content
-  // focus ("This month's music events"), with a generic supporting line.
-  // Keyed off prefs, never the raw 30-day lookahead, so the copy matches
-  // what they signed up for.
+  // Headline — subscription-aware: names the subscriber's cadence and/or
+  // window + content focus ("This week's music events", "Here's your
+  // daily look at this month's events"). Keyed off prefs, never the raw
+  // 30-day lookahead, so the copy matches what they signed up for.
   let content = `
-  <div style="font-family:${f.display};font-size:20px;font-weight:700;color:${c.primary};line-height:1.25;letter-spacing:-0.01em;margin:0 0 5px;">
+  <div style="font-family:${f.display};font-size:20px;font-weight:700;color:${c.primary};line-height:1.25;letter-spacing:-0.01em;margin:0 0 20px;">
     ${headlineLabel(sub)}
-  </div>
-  <div style="font-family:${f.body};font-size:14px;color:${c.textSecondary};line-height:1.5;margin:0 0 20px;">
-    Here&rsquo;s what we lined up for you, before it happens.
   </div>
 `
 
@@ -559,7 +568,6 @@ function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: numb
   const lines: string[] = [
     `${THEME.brandName}: Never miss a beat`,
     headlineLabel(sub),
-    "Here's what we lined up for you, before it happens.",
     '',
   ]
 
