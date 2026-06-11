@@ -659,6 +659,53 @@
 .result-ok { color: var(--green-mid); }
 .result-err { color: var(--coral); }
 
+/* Targeted test send */
+.email-test-send {
+  margin-top: var(--space-xl);
+  padding-top: var(--space-xl);
+  border-top: var(--border-width-thin) solid var(--border);
+}
+.email-test-label {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--space-sm);
+}
+.email-test-row {
+  display: flex;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+.email-test-input {
+  flex: 1 1 280px;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--bg-card);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+.email-test-input:focus {
+  outline: none;
+  border-color: var(--amber);
+}
+.email-test-btn {
+  padding: var(--space-md) var(--space-xl);
+  background: var(--bg-card);
+  color: var(--amber);
+  border: var(--border-width-thin) solid var(--amber);
+  border-radius: var(--radius-md);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--transition-medium);
+}
+.email-test-btn:hover:not(:disabled) { background: var(--amber-pale); }
+.email-test-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .email-sends-section { margin-top: var(--space-sm); }
 
 .email-status-badge {

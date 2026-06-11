@@ -489,11 +489,22 @@ Deno.serve(async (req) => {
     return new Response('Unauthorized', { status: 401 })
   }
 
-  // Check for force mode (admin manual trigger sends to ALL active subscribers)
+  // Body modes:
+  //   { force: true }        → send to ALL active subscribers now (admin trigger)
+  //   { only: ["a@b.com"] }  → targeted test: send only to these subscribers,
+  //                            regardless of their frequency/scheduled day
+  //   (neither)              → scheduled mode (subscribers due today)
   let forceAll = false
+  let only: string[] | null = null
   try {
     const body = await req.json()
     forceAll = body?.force === true
+    if (Array.isArray(body?.only)) {
+      const list = body.only
+        .map((e: unknown) => String(e).trim().toLowerCase())
+        .filter((e: string) => e.includes('@'))
+      if (list.length > 0) only = [...new Set(list)].slice(0, 25) // de-dupe + safety cap
+    }
   } catch {
     // No body or invalid JSON — that's fine, default to scheduled mode
   }
@@ -518,9 +529,10 @@ Deno.serve(async (req) => {
   // hit when redeploying the email layout). Date.now() per request is
   // sufficient — within a single force run, the chunk index keeps the
   // batches distinct.
-  const sessionTag = forceAll ? `force-${Date.now()}` : 'scheduled'
+  const ephemeral = forceAll || !!only
+  const sessionTag = ephemeral ? `force-${Date.now()}` : 'scheduled'
 
-  console.log(`[send-digest] Starting for ${dateStr}, DOW=${todayDow}, 1st=${isFirstOfMonth}, force=${forceAll}, session=${sessionTag}`)
+  console.log(`[send-digest] Starting for ${dateStr}, DOW=${todayDow}, 1st=${isFirstOfMonth}, force=${forceAll}, only=${only ? only.length : 0}, session=${sessionTag}`)
 
   try {
     // ── Step 1: WHO gets emailed? ──
@@ -530,7 +542,11 @@ Deno.serve(async (req) => {
       .eq('confirmed', true)
       .is('unsubscribed_at', null)
 
-    if (!forceAll) {
+    if (only) {
+      // Targeted test send: just these subscribers, ignoring schedule.
+      // Still gated to confirmed + not-unsubscribed above.
+      query = query.in('email', only)
+    } else if (!forceAll) {
       // Scheduled mode: only subscribers due today
       // Daily subscribers: always due
       // Weekly subscribers: due if send_day matches today

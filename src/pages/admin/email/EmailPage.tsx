@@ -68,6 +68,7 @@ export default function EmailPage() {
   // ── Send digest ──
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState<SendResult | null>(null)
+  const [testEmails, setTestEmails] = useState('')
 
   // ── Recent sends ──
   const [recentSends, setRecentSends] = useState<Row[]>([])
@@ -186,16 +187,12 @@ export default function EmailPage() {
   }, [fetchStats, fetchSends])
 
   // ── Manual send ──
-  const handleSendDigest = async () => {
-    if (!confirm('This will send a digest email to ALL active subscribers right now. Continue?')) return
-
+  const runSend = async (body: { force?: true; only?: string[] }, label: string) => {
     setSending(true)
     setSendResult(null)
 
     try {
-      const { data, error } = await supabase.functions.invoke('send-digest', {
-        body: { force: true },
-      })
+      const { data, error } = await supabase.functions.invoke('send-digest', { body })
 
       if (error) throw error
 
@@ -207,8 +204,8 @@ export default function EmailPage() {
       setSendResult({
         ok: failed === 0,
         message: failed === 0
-          ? `Sent ${sent} of ${due} subscribers (${skipped} skipped — no matching events)`
-          : `Sent ${sent}, skipped ${skipped}, FAILED ${failed} of ${due} subscribers — check function logs`,
+          ? `${label}: sent ${sent} of ${due} (${skipped} skipped — no matching events)`
+          : `${label}: sent ${sent}, skipped ${skipped}, FAILED ${failed} of ${due} — check function logs`,
       })
 
       // Refresh stats and sends after a short delay
@@ -225,6 +222,29 @@ export default function EmailPage() {
     } finally {
       setSending(false)
     }
+  }
+
+  const handleSendDigest = async () => {
+    if (!confirm('This will send a digest email to ALL active subscribers right now. Continue?')) return
+    await runSend({ force: true }, 'All subscribers')
+  }
+
+  // Targeted test: send the real digest to only the entered subscriber
+  // emails, regardless of their schedule. They must be confirmed subscribers.
+  const handleSendTest = async () => {
+    const list = testEmails
+      .split(/[\s,;]+/)
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.includes('@'))
+    if (list.length === 0) {
+      setSendResult({ ok: false, message: 'Enter at least one subscriber email to test.' })
+      return
+    }
+    if (list.length > 25) {
+      setSendResult({ ok: false, message: 'Test send is capped at 25 addresses.' })
+      return
+    }
+    await runSend({ only: list }, `Test send (${list.length})`)
   }
 
   return (
@@ -276,6 +296,37 @@ export default function EmailPage() {
         >
           {sending ? 'Sending…' : 'Send digest now'}
         </button>
+
+        {/* ── Targeted test send ── */}
+        <div className="email-test-send">
+          <label className="email-test-label" htmlFor="email-test-input">
+            Test send to specific people
+          </label>
+          <p className="email-trigger-desc">
+            Send the real digest to only these subscribers (comma or space separated),
+            regardless of their schedule. They must already be confirmed subscribers,
+            each gets the digest built for their own preferences.
+          </p>
+          <div className="email-test-row">
+            <input
+              id="email-test-input"
+              type="text"
+              className="email-test-input"
+              placeholder="you@example.com, teammate@example.com"
+              value={testEmails}
+              onChange={(e) => setTestEmails(e.target.value)}
+              disabled={sending}
+            />
+            <button
+              className="email-test-btn"
+              onClick={handleSendTest}
+              disabled={sending || testEmails.trim() === ''}
+            >
+              {sending ? 'Sending…' : 'Send test'}
+            </button>
+          </div>
+        </div>
+
         {sendResult && (
           <p className={`email-trigger-result ${sendResult.ok ? 'result-ok' : 'result-err'}`}>
             {sendResult.message}
