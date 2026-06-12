@@ -31,7 +31,7 @@ interface InstallState {
   installed: boolean
 }
 
-function isStandalone(): boolean {
+export function isStandalone(): boolean {
   if (typeof window === 'undefined') return false
   return (
     window.matchMedia('(display-mode: standalone)').matches ||

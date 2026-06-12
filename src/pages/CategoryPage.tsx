@@ -42,6 +42,7 @@ import {
 import { NEIGHBORHOOD_SLUGS } from '@/lib/neighborhoods'
 import { AKRON_SLUG, AKRON_LABEL } from '@/lib/cities'
 import { eventPath } from '@/lib/slug'
+import { rememberMyHub } from '@/lib/myHub'
 import './CategoryPage.css'
 
 type Row = LooseRow
@@ -103,6 +104,14 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
   const isAkronCity    = isCity && hub.slug === AKRON_SLUG
 
   const lockedDimensions = useMemo(() => getLockedDimensions(hub, isCategory), [hub, isCategory])
+
+  // Remember the most recent locality hub (neighborhood or suburb) so
+  // the PWA's "My Neighborhood" app shortcut (/go/neighborhood) can
+  // deep-link straight back here. Akron-the-city is excluded: it's the
+  // site's default scope, not a personal neighborhood.
+  useEffect(() => {
+    if ((isNeighborhood || isCity) && !isAkronCity) rememberMyHub(hub.slug)
+  }, [isNeighborhood, isCity, isAkronCity, hub.slug])
 
   // ── URL-backed user filters ───────────────────────────────────────
   const [searchParams, setSearchParams] = useSearchParams()

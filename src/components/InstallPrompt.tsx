@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { usePwaInstall, promptInstall, isMobileDevice } from '@/hooks/usePwaInstall'
+import { ShareIcon } from '@/components/icons'
 import { trackEvent } from '@/lib/analytics'
 import './InstallPrompt.css'
 
@@ -154,26 +155,6 @@ export function InstallFooterLink() {
 
 // ── iOS instruction sheet ───────────────────────────────────────────────────
 
-function ShareIcon() {
-  return (
-    <svg
-      width="15"
-      height="15"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 3v13" />
-      <path d="m8 7 4-4 4 4" />
-      <path d="M4 11v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-    </svg>
-  )
-}
-
 function IosInstallSheet({ onClose }: { onClose: () => void }) {
   // Close on Escape for keyboard users.
   useEffect(() => {
@@ -193,7 +174,7 @@ function IosInstallSheet({ onClose }: { onClose: () => void }) {
       >
         <p className="ios-sheet-title">Add Akron Pulse to your home screen</p>
         <ol className="ios-sheet-steps">
-          <li>Tap the <strong>Share</strong> button <span className="ios-sheet-icon"><ShareIcon /></span> in your browser's toolbar</li>
+          <li>Tap the <strong>Share</strong> button <span className="ios-sheet-icon"><ShareIcon size={15} /></span> in your browser's toolbar</li>
           <li>Scroll down and tap <strong>Add to Home Screen</strong></li>
           <li>Tap <strong>Add</strong></li>
         </ol>

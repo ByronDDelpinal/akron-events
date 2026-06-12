@@ -125,15 +125,27 @@ interface ShapeFeature {
 interface SummitCountyMapProps {
   activeSlug?: string | null
   className?: string
+  /**
+   * Picker mode (e.g. the app-onboarding modal): clicking a city
+   * reports the slug via onPick instead of arming the internal
+   * selection + "View events" flow. Selection highlight is controlled
+   * by pickedSlug, and all navigation affordances (double-click, panel,
+   * hint) are suppressed.
+   */
+  pickedSlug?: string | null
+  onPick?: (slug: string) => void
 }
 
 // ── Component ──────────────────────────────────────────────────────
 
-export default function SummitCountyMap({ activeSlug, className }: SummitCountyMapProps) {
+export default function SummitCountyMap({ activeSlug, className, pickedSlug, onPick }: SummitCountyMapProps) {
   const navigate = useNavigate()
   const [data, setData] = useState<FeatureCollection | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null)
+  const [internalSelected, setInternalSelected] = useState<string | null>(null)
+
+  const isPicker = onPick !== undefined
+  const selectedSlug = isPicker ? (pickedSlug ?? null) : internalSelected
 
   useEffect(() => {
     let cancelled = false
@@ -144,7 +156,7 @@ export default function SummitCountyMap({ activeSlug, className }: SummitCountyM
   }, [])
 
   // Reset selection whenever the active hub changes.
-  useEffect(() => { setSelectedSlug(null) }, [activeSlug])
+  useEffect(() => { setInternalSelected(null) }, [activeSlug])
 
   const features = useMemo<ShapeFeature[] | null>(() => {
     if (!data) return null
@@ -203,12 +215,17 @@ export default function SummitCountyMap({ activeSlug, className }: SummitCountyM
   const handlePolygonClick = (e: MouseEvent, slug: string) => {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
     e.preventDefault()
-    setSelectedSlug(slug)
+    if (isPicker) {
+      onPick!(slug)
+      return
+    }
+    setInternalSelected(slug)
   }
 
   const handlePolygonDoubleClick = (e: MouseEvent, slug: string) => {
     if (e.metaKey || e.ctrlKey || e.shiftKey) return
     e.preventDefault()
+    if (isPicker) return // picker mode never navigates
     goToSlug(slug)
   }
 
@@ -253,6 +270,7 @@ export default function SummitCountyMap({ activeSlug, className }: SummitCountyM
         })}
       </svg>
 
+      {!isPicker && (
       <div className="summit-county-map-panel">
         <div className="summit-county-map-panel-text">
           <p className="summit-county-map-panel-eyebrow">
@@ -282,8 +300,9 @@ export default function SummitCountyMap({ activeSlug, className }: SummitCountyM
           </button>
         )}
       </div>
+      )}
 
-      {!hasSelection && (
+      {!isPicker && !hasSelection && (
         <p className="summit-county-map-panel-hint">
           Tap a city to select it
         </p>

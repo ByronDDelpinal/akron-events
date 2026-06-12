@@ -137,15 +137,21 @@ interface NeighborhoodMapProps {
   activeSlug?: string | null
   activeLabelOverride?: string | null
   className?: string
+  /** Picker mode — see SummitCountyMap: controlled selection, no navigation. */
+  pickedSlug?: string | null
+  onPick?: (slug: string) => void
 }
 
 // ── Component ──────────────────────────────────────────────────────
 
-export default function NeighborhoodMap({ activeSlug, activeLabelOverride, className }: NeighborhoodMapProps) {
+export default function NeighborhoodMap({ activeSlug, activeLabelOverride, className, pickedSlug, onPick }: NeighborhoodMapProps) {
   const navigate = useNavigate()
   const [data, setData] = useState<FeatureCollection | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null)
+  const [internalSelected, setInternalSelected] = useState<string | null>(null)
+
+  const isPicker = onPick !== undefined
+  const selectedSlug = isPicker ? (pickedSlug ?? null) : internalSelected
 
   useEffect(() => {
     let cancelled = false
@@ -156,7 +162,7 @@ export default function NeighborhoodMap({ activeSlug, activeLabelOverride, class
   }, [])
 
   // Reset selection whenever the active hub changes.
-  useEffect(() => { setSelectedSlug(null) }, [activeSlug])
+  useEffect(() => { setInternalSelected(null) }, [activeSlug])
 
   // Pre-compute SVG paths once per dataset.
   const features = useMemo<ShapeFeature[] | null>(() => {
@@ -213,12 +219,17 @@ export default function NeighborhoodMap({ activeSlug, activeLabelOverride, class
     // Modified clicks fall through to the native <a> for new-tab behavior.
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
     e.preventDefault()
-    setSelectedSlug(slug)
+    if (isPicker) {
+      onPick!(slug)
+      return
+    }
+    setInternalSelected(slug)
   }
 
   const handlePolygonDoubleClick = (e: MouseEvent, slug: string) => {
     if (e.metaKey || e.ctrlKey || e.shiftKey) return
     e.preventDefault()
+    if (isPicker) return // picker mode never navigates
     goToSlug(slug)
   }
 
@@ -264,6 +275,7 @@ export default function NeighborhoodMap({ activeSlug, activeLabelOverride, class
       </svg>
 
       {/* Sticky panel */}
+      {!isPicker && (
       <div className="neighborhood-map-panel">
         <div className="neighborhood-map-panel-text">
           <p className="neighborhood-map-panel-eyebrow">
@@ -293,9 +305,10 @@ export default function NeighborhoodMap({ activeSlug, activeLabelOverride, class
           </button>
         )}
       </div>
+      )}
 
       {/* One-line affordance hint, shown only when nothing is selected. */}
-      {!hasSelection && (
+      {!isPicker && !hasSelection && (
         <p className="neighborhood-map-panel-hint">
           Tap a neighborhood to select it
         </p>

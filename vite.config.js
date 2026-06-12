@@ -65,6 +65,38 @@ export default defineConfig({
             purpose: 'maskable',
           },
         ],
+        // Long-press menu on the installed app icon (Android; also
+        // desktop taskbar). Shortcuts are static per spec — the
+        // "My Neighborhood" entry personalizes through the
+        // /go/neighborhood indirection route (see src/lib/myHub.ts).
+        shortcuts: [
+          {
+            name: 'My Neighborhood',
+            short_name: 'My Hub',
+            description: 'Events in the neighborhood you visit most',
+            url: '/go/neighborhood',
+            icons: [{ src: '/shortcut-neighborhood.png', sizes: '192x192', type: 'image/png' }],
+          },
+          {
+            name: 'This Weekend',
+            description: 'Everything happening this weekend',
+            url: '/?date=this_weekend',
+            icons: [{ src: '/shortcut-weekend.png', sizes: '192x192', type: 'image/png' }],
+          },
+          {
+            name: 'Free Events',
+            description: 'Events that cost nothing',
+            url: '/?price=free',
+            icons: [{ src: '/shortcut-free.png', sizes: '192x192', type: 'image/png' }],
+          },
+          {
+            name: 'Submit an Event',
+            short_name: 'Submit',
+            description: 'Add your event to Akron Pulse',
+            url: '/submit',
+            icons: [{ src: '/shortcut-submit.png', sizes: '192x192', type: 'image/png' }],
+          },
+        ],
       },
       workbox: {
         // App shell only. Deliberately excludes the large static payloads
@@ -76,6 +108,7 @@ export default defineConfig({
           '**/*.{js,css,html,svg,ico,woff2}',
           'pwa-*.png',
           'maskable-icon-*.png',
+          'shortcut-*.png',
           'apple-touch-icon.png',
         ],
         // mapbox-gl makes the main chunk large; default cap is 2 MiB.

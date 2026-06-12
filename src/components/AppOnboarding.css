@@ -1,0 +1,132 @@
+/* ── First-launch onboarding (installed app only) ─────────────────────
+ * Map picker + copy/dropdown pane over a dimmed backdrop. Above
+ * everything, including the install pill (90) and iOS sheet (200):
+ * onboarding is the first thing a new app user should see. */
+.onboard-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  overflow-y: auto;
+}
+
+.onboard-card {
+  width: min(680px, 100%);
+  max-height: calc(100vh - var(--space-3xl));
+  overflow-y: auto;
+  padding: var(--space-2xl);
+  background: var(--bg-card);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-xxl);
+  box-shadow: var(--shadow-hover);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2xl);
+  align-items: center;
+}
+
+/* Stack on phone-width screens — which is most standalone launches. */
+@media (max-width: 560px) {
+  .onboard-card {
+    grid-template-columns: 1fr;
+    gap: var(--space-lg);
+    padding: var(--space-xl);
+  }
+  /* Content reads first on small screens; map follows. */
+  .onboard-map-pane { order: 2; }
+  .onboard-content  { order: 1; }
+}
+
+/* ── Map pane ──────────────────────────────────────────────────────── */
+.onboard-map-pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+/* The embedded hub-page maps size themselves to the container. */
+.onboard-map { width: 100%; }
+
+.onboard-map-back {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: var(--space-xs) 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--amber);
+  cursor: pointer;
+}
+.onboard-map-back:hover { text-decoration: underline; }
+
+/* ── Content pane ──────────────────────────────────────────────────── */
+.onboard-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  text-align: center;
+  min-width: 0;
+}
+
+.onboard-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-lg);
+  margin: 0 auto;
+}
+
+.onboard-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.onboard-sub {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.onboard-select {
+  width: 100%;
+  padding: var(--space-md);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--bg-page);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.onboard-save {
+  width: 100%;
+  padding: var(--space-md);
+  background: var(--amber);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter var(--transition-medium), opacity var(--transition-medium);
+}
+.onboard-save:hover:not(:disabled) { filter: brightness(1.12); }
+.onboard-save:disabled { opacity: 0.45; cursor: default; }
+
+.onboard-skip {
+  background: none;
+  border: none;
+  padding: var(--space-xs);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.onboard-skip:hover { color: var(--text-primary); }

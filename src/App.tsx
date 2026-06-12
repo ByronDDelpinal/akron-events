@@ -3,6 +3,8 @@ import { useEffect } from 'react'
 import Header   from '@/components/Header'
 import Footer   from '@/components/Footer'
 import InstallPrompt from '@/components/InstallPrompt'
+import AppOnboarding from '@/components/AppOnboarding'
+import { getMyHubSlug } from '@/lib/myHub'
 import EmbedLayout   from '@/pages/embed/EmbedLayout'
 import EmbedHomePage from '@/pages/embed/EmbedHomePage'
 import HomePage  from '@/pages/HomePage'
@@ -131,6 +133,7 @@ function AppInner() {
         <Route path="/"                    element={<HomePage />} />
           <Route path="/events/:slug/:id"    element={<EventPage />} />
           <Route path="/events/:slug"        element={<EventsSlugRouter />} />
+          <Route path="/go/neighborhood"     element={<GoNeighborhood />} />
           <Route path="/submit"              element={<SubmitPage />} />
           <Route path="/about"               element={<AboutPage />} />
           <Route path="/organizers"          element={<OrganizersPage />} />
@@ -189,6 +192,7 @@ function SiteChrome() {
       </main>
       <Footer />
       <InstallPrompt />
+      <AppOnboarding />
     </>
   )
 }
@@ -203,6 +207,18 @@ function NotFound() {
 }
 
 // Matches a v4 UUID-shaped string — used to decide whether a single-segment
+/**
+ * /go/neighborhood — indirection target for the PWA's "My Neighborhood"
+ * app shortcut. Manifest shortcuts can't vary per user, so the shortcut
+ * points here and we redirect to the locality hub the visitor most
+ * recently viewed (written by CategoryPage via rememberMyHub). First-time
+ * users land on the homepage, where the location picker lives.
+ */
+function GoNeighborhood() {
+  const slug = getMyHubSlug()
+  return <Navigate to={slug ? `/events/${slug}` : '/'} replace />
+}
+
 // /events/:slug is a legacy event UUID or a known category/neighborhood hub.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
