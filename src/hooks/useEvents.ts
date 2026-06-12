@@ -1,6 +1,7 @@
 import type { LooseRow, LooseQuery } from '@/types'
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
+import { EVENT_LIST_COLUMNS } from '@/lib/firstPageQuery'
 import { useAsync } from './useAsync'
 
 /**
@@ -153,9 +154,44 @@ export function useEvents({
     let cancelled = false
     const categories = categoriesStable, hiddenSources = hiddenSourcesStable, venueCities = venueCitiesStable
 
+    // The pristine homepage request (page one, no filters, default
+    // sort) is byte-identical for every visitor, so it's served from
+    // /api/events-first-page — cached at Vercel's edge (s-maxage=300 +
+    // a day of stale-while-revalidate), answering in ~50 ms worldwide
+    // instead of paying PostgREST latency. Any failure falls through
+    // to the normal live query.
+    const isDefaultFirstPage =
+      categories.length === 0 && !family && !fundraiser &&
+      !dateRange && !dateFrom && !dateTo &&
+      (!search || search.trim().length === 0) &&
+      !freeOnly && !priceMax &&
+      hiddenSources.length === 0 && !neighborhoodSlug &&
+      venueCities.length === 0 &&
+      sort === 'soonest' && offset === 0 && limit === PAGE_SIZE
+
     async function fetchEvents() {
       setLoading(true)
       setError(null)
+
+      if (isDefaultFirstPage) {
+        try {
+          const res = await fetch('/api/events-first-page')
+          if (res.ok) {
+            const { events: rows, total: cachedTotal } = await res.json()
+            if (Array.isArray(rows)) {
+              if (!cancelled) {
+                setEvents(rows.map((r: RawRow) => normalizeEventJoins(r) as AppEvent))
+                setTotal(cachedTotal ?? 0)
+                setLoading(false)
+              }
+              return
+            }
+          }
+        } catch {
+          // CDN/function unavailable (or vite dev, where /api doesn't
+          // exist) — fall through to the live PostgREST query.
+        }
+      }
 
       try {
         // The venue embed is an inner join only when neighborhoodSlug is
@@ -165,10 +201,16 @@ export function useEvents({
         const venueJoin = useInnerVenue ? 'event_venues!inner' : 'event_venues'
         const venueTbl  = useInnerVenue ? 'venues!inner'      : 'venues'
 
+        // Explicit column list (shared with api/events-first-page.js),
+        // NOT `*`: the list surfaces never render event descriptions,
+        // and the *_normalized columns are server-side search
+        // artifacts. Dropping them halves the page payload (~48 kB →
+        // ~26 kB measured 2026-06). Detail pages (useEvent) still
+        // select * for the full record.
         let query: LooseQuery = supabase
           .from('events')
           .select(`
-            *,
+            ${EVENT_LIST_COLUMNS},
             ${categorySelectFragment(categories)}
             ${venueJoin} ( venue:${venueTbl} ( id, name, address, city, state, zip, lat, lng, parking_type, parking_notes, website, image_url, neighborhood_slug ) ),
             event_organizations ( organization:organizations ( id, name, website, description, image_url ) )

@@ -101,6 +101,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const root = document.documentElement
     THEMES.forEach((t) => root.classList.remove(`theme-${t.id}`))
     root.classList.add(`theme-${theme}`)
+    // The index.html boot script sets an inline background on <html>
+    // (pre-CSS anti-flash). Once React owns theming, clear it so the
+    // stylesheet's --bg-page wins on later theme switches.
+    root.style.background = ''
     // Don't persist inside the embed — the partner's theme is request-scoped.
     if (!isEmbedPath()) window.localStorage.setItem(THEME_STORAGE_KEY, theme)
     // Lazy-load the active theme's Google Fonts. The pre-bundle boot

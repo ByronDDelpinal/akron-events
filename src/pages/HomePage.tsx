@@ -92,6 +92,21 @@ export default function HomePage() {
     return () => document.removeEventListener('mousedown', onDown)
   }, [searchFocused])
 
+  // ── Popular-searches pill order ────────────────────────────────────────
+  // Homepage-only reorder: "Free Events" is deliberately demoted a few
+  // slots (3rd → 7th). Price-data confidence is mixed across sources, so
+  // it shouldn't be one of the first pills people see. The canonical hub
+  // order in seo/categories.js is unchanged (footer, sitemaps, etc.).
+  const popularSearchHubs = useMemo(() => {
+    const hubs = [...ENABLED_CATEGORY_HUBS]
+    const i = hubs.findIndex((h) => h.slug === 'free')
+    if (i !== -1) {
+      const [free] = hubs.splice(i, 1)
+      hubs.splice(Math.min(i + 4, hubs.length), 0, free)
+    }
+    return hubs
+  }, [])
+
   // ── Hub slug resolver ─────────────────────────────────────────────────
   const ALL_HUB_ENTRIES = useMemo(() => [
     ...NEIGHBORHOODS,
@@ -280,7 +295,7 @@ export default function HomePage() {
           <p className="home-hub-strip-label">Popular searches</p>
           <div className="home-hub-strip-scroll-wrap">
           <ul className="home-hub-strip-list">
-            {ENABLED_CATEGORY_HUBS.map((h) => (
+            {popularSearchHubs.map((h) => (
               <li key={`cat-${h.slug}`}>
                 <Link to={`/events/${h.slug}`}>{h.label}</Link>
               </li>

@@ -4,6 +4,7 @@ import { useTheme } from '@/hooks/useTheme'
 import { SITE_THEMES, DEFAULT_THEME, THEME_STORAGE_KEY, LEGACY_THEME_STORAGE_KEY, getThemeLogo } from '@/lib/themes'
 import { ENABLED_CATEGORY_HUBS, ENABLED_NEIGHBORHOOD_HUBS } from '@/lib/seo'
 import { InstallFooterLink } from '@/components/InstallPrompt'
+import { INTAKE_MAILTO } from '@/lib/intakeEmail'
 import './Footer.css'
 
 // All localStorage keys that count as "preferences"
@@ -175,7 +176,7 @@ export default function Footer() {
             <div className="footer-col">
               <p className="footer-col-title">Contribute</p>
               <Link to="/submit">Submit an Event</Link>
-              <a href="mailto:intake@akronpulse.com">Email Your Event</a>
+              <a href={INTAKE_MAILTO}>Email Your Event</a>
               <Link to="/embed-builder">Embed the Calendar</Link>
               <Link to="/organizers">Organizers &amp; Partners</Link>
             </div>

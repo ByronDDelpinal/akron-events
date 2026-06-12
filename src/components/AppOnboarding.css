@@ -73,10 +73,9 @@
   min-width: 0;
 }
 
-.onboard-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-lg);
+.onboard-hint-graphic {
+  width: min(220px, 100%);
+  display: block;
   margin: 0 auto;
 }
 

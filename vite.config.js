@@ -2,9 +2,31 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+/**
+ * Dev-only: strip the static boot shell out of index.html.
+ *
+ * The shell exists so production first paint (where the extracted CSS
+ * bundle is render-blocking) shows the styled hero before React boots.
+ * `vite dev` has no extracted CSS — styles arrive via JS modules — so
+ * the same markup flashes completely unstyled for the whole JS load.
+ * Removing it in dev restores the standard blank-until-mount behavior
+ * without touching what users get.
+ */
+const stripBootShellInDev = () => ({
+  name: 'strip-boot-shell-in-dev',
+  apply: 'serve',
+  transformIndexHtml(html) {
+    return html.replace(
+      /<!-- boot-shell:start -->[\s\S]*?<!-- boot-shell:end -->/,
+      '<!-- boot shell stripped in dev (see stripBootShellInDev) -->',
+    )
+  },
+})
+
 export default defineConfig({
   plugins: [
     react(),
+    stripBootShellInDev(),
 
     /**
      * PWA: makes the site installable (Android/desktop install prompt,
@@ -84,12 +106,6 @@ export default defineConfig({
             icons: [{ src: '/shortcut-weekend.png', sizes: '192x192', type: 'image/png' }],
           },
           {
-            name: 'Free Events',
-            description: 'Events that cost nothing',
-            url: '/?price=free',
-            icons: [{ src: '/shortcut-free.png', sizes: '192x192', type: 'image/png' }],
-          },
-          {
             name: 'Submit an Event',
             short_name: 'Submit',
             description: 'Add your event to Akron Pulse',
@@ -122,6 +138,19 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//, /^\/feed\.xml$/, /^\/sitemap\.xml$/],
         runtimeCaching: [
           {
+            // Edge-cached first page of events (see api/events-first-page.js).
+            // Same NetworkFirst posture as the Supabase route so repeat
+            // visitors get an offline/flaky-network fallback.
+            urlPattern: /\/api\/events-first-page$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'first-page',
+              networkTimeoutSeconds: 2.5,
+              expiration: { maxEntries: 1, maxAgeSeconds: 60 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             // Event/venue/org reads. NetworkFirst: always try the network,
             // fall back to a recent cached copy only when offline or the
             // request times out. Short TTL keeps any fallback honest.
@@ -129,7 +158,9 @@ export default defineConfig({
             handler: 'NetworkFirst',
             options: {
               cacheName: 'supabase-api',
-              networkTimeoutSeconds: 4,
+              // Fall back to cached data after 2.5s rather than 4 —
+              // on flaky mobile, waiting longer just feels broken.
+              networkTimeoutSeconds: 2.5,
               expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 },
               cacheableResponse: { statuses: [0, 200] },
             },

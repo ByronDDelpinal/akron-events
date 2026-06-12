@@ -108,3 +108,22 @@
 .submit-chip:hover:not(:disabled) { border-color: var(--amber); color: var(--text-primary); }
 .submit-chip.active { background: var(--amber); border-color: var(--amber); color: #fff; }
 .submit-chip:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Email intake shortcut ────────────────────────────────────────────
+ * One-tap alternative to the form: opens a pre-filled email to
+ * intake@akronpulse.com. Styled as a quiet card so it reads as an
+ * option, not the primary path. */
+.submit-email-option {
+  display: block;
+  margin: var(--space-lg) 0 var(--space-2xl);
+  padding: var(--space-md) var(--space-lg);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+.submit-email-option strong { color: var(--text-primary); }
+.submit-email-option:hover { border-color: var(--amber); color: var(--text-primary); }

@@ -42,6 +42,61 @@ function markOnboarded(): void {
   } catch { /* ignore */ }
 }
 
+/**
+ * Illustration of the Android long-press shortcut menu. Most users
+ * never discover long-press on their own, so the modal SHOWS the
+ * gesture instead of only describing it: the app icon with a press
+ * ring, and the shortcut popup it reveals. Glyphs mirror the real
+ * shortcut icons (public/shortcut-*.png); popup uses --bg-nav and the
+ * accent uses --amber so every theme renders it on-brand.
+ */
+function ShortcutHintGraphic() {
+  return (
+    <svg
+      viewBox="0 0 220 178"
+      className="onboard-hint-graphic"
+      role="img"
+      aria-label="Tip: press and hold the Akron Pulse app icon to reveal shortcuts like My Neighborhood"
+    >
+      <rect x="24" y="6" width="190" height="104" rx="14" fill="var(--bg-nav)" />
+      <path d="M44 110 L56 110 L44 124 Z" fill="var(--bg-nav)" />
+      <g>
+        <circle cx="48" cy="28" r="12" fill="#FFFFFF" />
+        <g fill="none" stroke="var(--amber)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" transform="translate(40 20) scale(0.5)">
+          <path d="M16 27 C16 27 25 19.5 25 13 C25 8 21 4.5 16 4.5 C11 4.5 7 8 7 13 C7 19.5 16 27 16 27 Z" />
+          <circle cx="16" cy="13" r="3.4" />
+        </g>
+        <text x="70" y="33" fontSize="13" fontWeight="600" fill="#FFFFFF" opacity="0.95">My Neighborhood</text>
+      </g>
+      <g>
+        <circle cx="48" cy="58" r="12" fill="#FFFFFF" />
+        <g fill="none" stroke="var(--amber)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" transform="translate(40 50) scale(0.5)">
+          <rect x="6" y="8" width="20" height="18" rx="2" />
+          <path d="M6 14 H26 M11.5 4.5 V9.5 M20.5 4.5 V9.5" />
+        </g>
+        <text x="70" y="63" fontSize="13" fontWeight="600" fill="#FFFFFF" opacity="0.95">This Weekend</text>
+      </g>
+      <g>
+        <circle cx="48" cy="88" r="12" fill="#FFFFFF" />
+        <g fill="none" stroke="var(--amber)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" transform="translate(40 80) scale(0.5)">
+          <path d="M16 8.5 V23.5 M8.5 16 H23.5" />
+        </g>
+        <text x="70" y="93" fontSize="13" fontWeight="600" fill="#FFFFFF" opacity="0.95">Submit an Event</text>
+      </g>
+      <g>
+        <rect x="28" y="130" width="40" height="40" rx="9" fill="#0E5163" />
+        <path
+          d="M35 150 L42 150 L45.5 142.5 L48 159 L51.5 136 L55.5 152.5 L59 150 L61 150"
+          fill="none" stroke="#FFFFFF" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"
+        />
+        <circle cx="48" cy="150" r="27" fill="none" stroke="var(--amber)" strokeWidth="2" strokeDasharray="4 5" opacity="0.85" />
+        <text x="84" y="148" fontSize="12" fill="var(--text-muted)">Press and hold the</text>
+        <text x="84" y="163" fontSize="12" fill="var(--text-muted)">app icon to try it</text>
+      </g>
+    </svg>
+  )
+}
+
 export default function AppOnboarding() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
@@ -115,7 +170,7 @@ export default function AppOnboarding() {
         </div>
 
         <div className="onboard-content">
-          <img src="/pwa-192x192.png" alt="" className="onboard-icon" aria-hidden="true" />
+          <ShortcutHintGraphic />
           <p className="onboard-title">Check your Pulse</p>
           <p className="onboard-sub">
             Select your city for a more personal view around you. We'll

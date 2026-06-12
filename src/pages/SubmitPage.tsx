@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { supabase } from '@/lib/supabase'
 import { SEO } from '@/lib/seo'
 import { ADMIN_CATEGORIES as CATEGORIES } from '@/lib/categories'
+import { INTAKE_MAILTO } from '@/lib/intakeEmail'
 import './SubmitPage.css'
 
 interface SubmitForm {
@@ -131,6 +132,13 @@ export default function SubmitPage() {
       <div className="notice-box">
         All submissions are reviewed before going live, usually within 24 hours. We'll reach out if we have questions.
       </div>
+
+      {/* Low-effort alternative to the full form: a pre-filled email.
+          Pairs with the intake@ pipeline — a link, flyer photo, or a
+          sentence is enough for us to take it from there. */}
+      <a className="submit-email-option" href={INTAKE_MAILTO}>
+        <strong>In a hurry?</strong> Email us a link or flyer instead, and we'll fill in the details →
+      </a>
 
       <form onSubmit={handleSubmit}>
 

@@ -2,6 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- Pre-CSS background: until the (render-blocking) CSS bundle
+         arrives, the browser paints its default white — a hard flash
+         against the page that follows. This zero-network rule makes
+         the blank window brand cream instead. Matches --bg-page in
+         globals.css (default theme); the boot script below overrides
+         it per stored theme before first paint. -->
+    <style>html { background: #FCFAF4; }</style>
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -20,6 +27,11 @@
     <title>Akron Pulse — Akron & Summit County Events</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Warm the Supabase connection (DNS + TCP + TLS) while the JS
+         bundle is still downloading — the first events query otherwise
+         pays the full handshake after React mounts. %VITE_SUPABASE_URL%
+         is substituted by Vite's HTML env replacement at build time. -->
+    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
     <!-- Preload the hero poster so it can be the LCP element on cold
          loads of the homepage. The video that fades in over it is
          lazy-attached after the first events page lands (see
@@ -68,6 +80,26 @@
       // class still applies even if the font href is missing, so the
       // worst case for a forgotten entry is fallback fonts.)
       (function () {
+        // Per-theme --bg-page values, duplicated from src/styles/themes.css
+        // for the same reason as FONT_HREFS below: this runs pre-bundle.
+        // Keeps the pre-CSS background flash-free for non-default themes
+        // too. Worst case for a missing entry is the default cream from
+        // the inline <style> above — close enough for every light theme.
+        var THEME_BGS = {
+          'civic-classic': '#FAF6EF',
+          'grand-piano':   '#FAFAF8',
+          'pulse-red':     '#FBF8F2',
+          'twilight-plum': '#FBF8F2',
+          'forest-amber':  '#FAF6EC',
+          'harbor-civic':  '#F2EEE8',
+          'violet-hour':   '#F3EEF0',
+          'boardwalk':     '#FAF2E8',
+          'olive-grove':   '#F5EEDA',
+          'arcade-night':  '#FDF2F8',
+          'stargazer':     '#F5F2F7',
+          'prime-time':    '#F9F4EC',
+          'postcard':      '#F4FBFC',
+        };
         var FONT_HREFS = {
           'civic-classic':  'https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Lato:wght@400;700&display=swap',
           'grand-piano':    'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,700&family=Source+Sans+3:wght@400;500;700&display=swap',
@@ -93,6 +125,8 @@
                || localStorage.getItem('turnout.theme'));
           if (t && /^[a-z-]+$/.test(t) && t !== 'akron-pulse') {
             document.documentElement.classList.add('theme-' + t);
+            var bg = THEME_BGS[t];
+            if (bg) document.documentElement.style.background = bg;
             var href = FONT_HREFS[t];
             if (href) {
               var link = document.getElementById('theme-fonts');
@@ -105,12 +139,19 @@
   </head>
   <body>
     <div id="root">
+      <!-- boot-shell:start -->
       <!-- ── Boot shell ─────────────────────────────────────────────
            Static copy of the header + homepage hero, painted as soon
            as the (render-blocking) CSS bundle arrives instead of
            after React mounts. This is what fixes FCP/LCP on mobile:
            the LCP element is the hero poster, and without this shell
            its "element render delay" was ~2s of JS boot time.
+
+           PRODUCTION ONLY: the stripBootShellInDev plugin in
+           vite.config.js removes everything between the
+           boot-shell:start/end marker comments during `vite dev`,
+           where CSS arrives via JS modules and the shell would flash
+           unstyled. Don't remove the markers.
 
            Rules for editing:
            - Markup MUST mirror the hero in src/pages/HomePage.tsx and
@@ -154,9 +195,11 @@
           </div>
         </main>
       </div>
+      <!-- boot-shell:end -->
     </div>
     <script>
       // Boot-shell gating, runs before first paint:
+      // (no-ops in dev, where the plugin strips the shell entirely)
       //  - non-home paths get no shell (they'd flash the wrong page)
       //  - non-default themes hide the (default) logo image rather than
       //    show the wrong one; React mounts the correct logo moments later
