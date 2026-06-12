@@ -24,7 +24,10 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 // Shared base rules (parity with the old .eslintrc.cjs)
 const baseRules = {
   'no-debugger': 'error',
-  'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+  // ignoreRestSiblings: a `const { drop, ...rest } = obj` that omits keys via
+  // rest spread must not flag the extracted-then-discarded siblings (their names
+  // document what's being omitted).
+  'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true }],
   'prefer-const': 'warn',
   eqeqeq: ['error', 'always', { null: 'ignore' }],
   // Empty catch is an established pattern here: best-effort cleanup and
@@ -105,7 +108,7 @@ export default tseslint.config(
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': [
         'warn',
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
       ],
       '@typescript-eslint/no-explicit-any': 'warn', // ratchet toward error
 
