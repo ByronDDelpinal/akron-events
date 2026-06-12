@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { isStandalone } from '@/hooks/usePwaInstall'
-import { rememberMyHub } from '@/lib/myHub'
+import { rememberMyHub, getMyHubSlug } from '@/lib/myHub'
 import { NEIGHBORHOODS, NEIGHBORHOOD_SLUGS } from '@/lib/neighborhoods'
 import { CITIES } from '@/lib/cities'
 import { trackEvent } from '@/lib/analytics'
@@ -46,7 +46,10 @@ export default function AppOnboarding() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
-  const [slug, setSlug] = useState('')
+  // Prefill with the hub they've already shown us (visited hub page or
+  // shortcut use, written via rememberMyHub) — existing installs get the
+  // modal pre-set to their place; true first-timers start empty.
+  const [slug, setSlug] = useState(() => getMyHubSlug() ?? '')
 
   // Evaluated once on mount: standalone launches land on '/' (the
   // manifest start_url) or a shortcut deep link; the modal may appear
