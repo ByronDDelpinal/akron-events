@@ -104,6 +104,56 @@ if (includesDedupe) {
   }
 }
 
+// ── Edge-cache invalidation ───────────────────────────────────────────────────
+// The homepage's first page of events is CDN-cached by Vercel under the
+// cache tag set in api/events-first-page.js. Invalidating it here means
+// fresh scrape results reach visitors on the very next request instead
+// of waiting out the (up to 5 min) s-maxage window.
+//
+// Deliberately non-fatal: the cache self-heals via its TTL, so a purge
+// hiccup should never mark a successful scrape run as failed. Skipped
+// silently when the Vercel env vars aren't present (local dev, CI).
+//
+// Requires in .env:
+//   VERCEL_TOKEN        — access token with cache-purge permission
+//   VERCEL_PROJECT_ID   — project id (or name) on Vercel
+//   VERCEL_TEAM_ID      — only if the project lives under a team
+
+async function invalidateFirstPageCache() {
+  const token   = process.env.VERCEL_TOKEN
+  const project = process.env.VERCEL_PROJECT_ID
+  if (!token || !project) {
+    console.log('\nℹ  Skipping CDN cache invalidation (VERCEL_TOKEN / VERCEL_PROJECT_ID not set)')
+    return
+  }
+
+  const params = new URLSearchParams({ projectIdOrName: project })
+  if (process.env.VERCEL_TEAM_ID) params.set('teamId', process.env.VERCEL_TEAM_ID)
+
+  try {
+    const res = await fetch(
+      `https://api.vercel.com/v1/edge-cache/invalidate-by-tags?${params}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization:  `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tags: 'events-first-page', target: 'production' }),
+      },
+    )
+    if (res.ok) {
+      console.log('\n🧹  CDN cache invalidated (events-first-page)')
+    } else {
+      console.warn(`\n⚠   CDN cache invalidation returned ${res.status} — cache will self-heal within 5 min`)
+    }
+  } catch (err) {
+    console.warn(`\n⚠   CDN cache invalidation failed (${err?.message}) — cache will self-heal within 5 min`)
+  }
+}
+
+await invalidateFirstPageCache()
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 const elapsed = ((Date.now() - start) / 1000 / 60).toFixed(1)

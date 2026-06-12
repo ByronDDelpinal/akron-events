@@ -10,11 +10,17 @@
  *
  * means a POP serves its cached copy (even a stale one) with zero
  * latency and refreshes from Supabase in the background. Worst-case
- * staleness after a scrape or an admin edit is ~5 minutes — chosen
- * over scrape-triggered purging because (a) Vercel has no per-path
- * purge outside a redeploy, and (b) the twice-daily scrape is NOT the
- * only writer: admin review-queue edits land at any time and should
- * also propagate without extra plumbing.
+ * staleness after a scrape or an admin edit is ~5 minutes without any
+ * purge plumbing — good enough that purging is optional, not required.
+ *
+ * On-demand purge: the response carries the cache tag below, so it can
+ * be busted at any time without a redeploy:
+ *   • dashboard — project → CDN → Caches → Purge → tag "events-first-page"
+ *   • CLI       — `vercel cache invalidate --tag events-first-page`
+ *   • REST API  — POST /v1/edge-cache/invalidate-by-tag (e.g. from the
+ *     end of scripts/run-all.js if scrape-triggered freshness is ever
+ *     wanted). Prefer Invalidate over Delete: stale-serve + background
+ *     refresh, no cache-stampede risk.
  *
  * The query itself lives in src/lib/firstPageQuery.js, shared with
  * useEvents so the shapes can't drift.
@@ -51,5 +57,8 @@ export default async function handler(req, res) {
     'Cache-Control',
     'public, s-maxage=300, stale-while-revalidate=86400',
   )
+  // Makes this response purgeable on demand (dashboard, CLI, or REST
+  // API) without a redeploy — see header comment.
+  res.setHeader('Vercel-Cache-Tag', 'events-first-page')
   res.status(200).json({ events: data ?? [], total: count ?? 0 })
 }
