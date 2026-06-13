@@ -87,6 +87,7 @@ export const SCRAPERS = [
   { key: 'better_kenmore',       script: 'scripts/scrape-better-kenmore.js',          label: 'Better Kenmore CDC',           group: 'wordpress',      active: true  },
   { key: 'life_gurukula',        script: 'scripts/scrape-life-gurukula.js',           label: 'Life Gurukula',                group: 'ics',            active: true  },
   { key: 'torchbearers',         script: 'scripts/scrape-torchbearers.js',            label: 'Torchbearers',        group: 'custom',         active: true, defaultCategory: 'civic' },
+  { key: 'indivisible_akron',    script: 'scripts/scrape-indivisible-akron.js',       label: 'Indivisible Akron',            group: 'tribe',          active: true, defaultCategory: 'civic' },
 
   // ── Education ──────────────────────────────────────────────────────────
   { key: 'akron_public_schools', script: 'scripts/scrape-akron-public-schools.js',    label: 'Akron Public Schools',         group: 'ics',            active: true  },

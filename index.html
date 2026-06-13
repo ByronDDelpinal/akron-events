@@ -29,9 +29,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Warm the Supabase connection (DNS + TCP + TLS) while the JS
          bundle is still downloading — the first events query otherwise
-         pays the full handshake after React mounts. %VITE_SUPABASE_URL%
-         is substituted by Vite's HTML env replacement at build time. -->
-    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
+         pays the full handshake after React mounts. The injectSupabase-
+         Preconnect plugin in vite.config.js replaces the placeholder
+         below with a <link rel="preconnect"> to the resolved Supabase
+         origin at build time, or with nothing when VITE_SUPABASE_URL is
+         unset (e.g. CI). Don't restore the raw %ENV% token here: an
+         unsubstituted value is a malformed URI that crashes the PWA
+         plugin's decodeURI pass. -->
+    <!-- supabase-preconnect -->
     <!-- Preload the hero poster so it can be the LCP element on cold
          loads of the homepage. The video that fades in over it is
          lazy-attached after the first events page lands (see

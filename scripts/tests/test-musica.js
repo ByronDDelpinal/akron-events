@@ -1,5 +1,5 @@
 /**
- * test-musica.js — Musica (Squarespace) venue scraper parsing.
+ * test-musica.js — Musica (DICE partner API) scraper parsing.
  *
  * Run:
  *   node --test scripts/tests/test-musica.js
@@ -11,90 +11,107 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL        = process.env.VITE_SUPABASE_URL        || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-const {
-  normaliseSquarespaceEvent,
-  parseSquarespaceLocation,
-  buildSquarespaceEventUrl,
-} = await import('../lib/squarespace.js')
-const { mapTags, SITE_BASE_URL, SOURCE_KEY } = await import('../scrape-musica.js')
+const { normaliseDiceEvent, diceDateToIso, diceVenue } = await import('../lib/dice.js')
+const { mapTags } = await import('../scrape-musica.js')
 
 import {
   MAC_SATURN,
   COMEDY_NIGHT,
-  NO_START_DATE,
-  NO_LOCATION,
+  NAIVE_TIME,
+  CANCELLED,
+  NO_DATE,
   ALL_FIXTURES,
 } from './fixtures/musica-events.js'
 
-const normalise = (item) => {
-  const row = normaliseSquarespaceEvent(item, {
-    source: SOURCE_KEY, mapCategory: () => 'music', mapTags,
-    defaultPriceMin: null, defaultPriceMax: null, ageRestriction: 'not_specified',
-  })
-  row.ticket_url = buildSquarespaceEventUrl(SITE_BASE_URL, item) || row.ticket_url
-  return row
-}
+const normalise = (ev) => normaliseDiceEvent(ev, { source: 'musica', category: 'music', mapTags })
 
-describe('Musica — category + tags', () => {
-  it('maps every show to music', () => {
-    for (const item of ALL_FIXTURES) assert.equal(normalise(item).category, 'music')
+describe('DICE — diceDateToIso', () => {
+  it('keeps a UTC "Z" instant as-is', () => {
+    assert.equal(diceDateToIso('2026-06-14T00:00:00Z'), '2026-06-14T00:00:00.000Z')
   })
-  it('includes the venue base tags', () => {
-    const tags = normalise(MAC_SATURN).tags
-    assert.ok(tags.includes('live-music'))
-    assert.ok(tags.includes('concert'))
-    assert.ok(tags.includes('musica'))
-    assert.ok(tags.includes('akron'))
+  it('converts an offset timestamp to UTC', () => {
+    // 8:00 PM EDT → 00:00 UTC next day
+    assert.equal(diceDateToIso('2026-06-20T20:00:00-04:00'), '2026-06-21T00:00:00.000Z')
   })
-  it('adds a comedy tag for comedy nights', () => {
+  it('treats a naive (offset-less) string as Eastern wall-clock, not UTC', () => {
+    // 7:30 PM ET (EDT) → 23:30 UTC — NOT 19:30 UTC
+    assert.equal(diceDateToIso('2026-06-25 19:30:00'), '2026-06-25T23:30:00.000Z')
+  })
+  it('returns null for empty/garbage', () => {
+    assert.equal(diceDateToIso(null), null)
+    assert.equal(diceDateToIso('not-a-date'), null)
+  })
+})
+
+describe('Musica — authoritative showtime', () => {
+  it('stores Mac Saturn at the real 8:00 PM ET (not a 9 AM placeholder)', () => {
+    const row = normalise(MAC_SATURN)
+    assert.equal(row.start_at, '2026-06-14T00:00:00.000Z')
+    assert.equal(
+      new Date(row.start_at).toLocaleString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false }),
+      '20:00',
+    )
+  })
+})
+
+describe('Musica — normalization', () => {
+  it('maps to music + venue base tags', () => {
+    const row = normalise(MAC_SATURN)
+    assert.equal(row.category, 'music')
+    assert.ok(row.tags.includes('live-music'))
+    assert.ok(row.tags.includes('musica'))
+    assert.ok(row.tags.includes('akron'))
+  })
+  it('adds DICE genre tags (gig:indierock → indierock)', () => {
+    assert.ok(normalise(MAC_SATURN).tags.includes('indierock'))
+  })
+  it('adds a comedy tag for comedy shows', () => {
     assert.ok(normalise(COMEDY_NIGHT).tags.includes('comedy'))
   })
-  it('never has duplicate tags', () => {
-    for (const item of ALL_FIXTURES) {
-      const tags = mapTags(item)
-      assert.equal(tags.length, new Set(tags).size)
-    }
-  })
-})
-
-describe('Musica — authoritative showtime (the whole point)', () => {
-  it('stores Mac Saturn at the real 7:00 PM ET, not a 9 AM placeholder', () => {
+  it('populates the image from event_images (the bug that left cards bare)', () => {
     const row = normalise(MAC_SATURN)
-    // 7:00 PM EDT = 23:00 UTC
-    assert.equal(row.start_at, '2026-06-13T23:00:00.000Z')
-    assert.equal(new Date(row.start_at).toLocaleString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false }), '19:00')
+    assert.ok(row.image_url, 'image_url should not be null')
+    assert.ok(row.image_url.includes('mac-saturn-landscape'))
   })
-})
-
-describe('Musica — venue resolution', () => {
-  it('parses the Musica address', () => {
-    const loc = parseSquarespaceLocation(MAC_SATURN.location)
-    assert.equal(loc.name, 'Musica')
-    assert.equal(loc.address, '51 E Market St')
-    assert.equal(loc.city, 'Akron')
-    assert.equal(loc.state, 'OH')
-    assert.equal(loc.zip, '44308')
+  it('maps "All ages" to all_ages', () => {
+    assert.equal(normalise(MAC_SATURN).age_restriction, 'all_ages')
   })
-  it('returns null for an item with no location', () => {
-    assert.equal(parseSquarespaceLocation(NO_LOCATION.location), null)
+  it('falls back to raw_description when description is empty', () => {
+    assert.equal(normalise(COMEDY_NIGHT).description, 'A night of stand-up comedy.')
   })
-})
-
-describe('Musica — normalization + invariants', () => {
-  it('sets source, source_id, status, and a full ticket_url', () => {
+  it('sets source, source_id, status, and ticket_url', () => {
     const row = normalise(MAC_SATURN)
     assert.equal(row.source, 'musica')
-    assert.equal(row.source_id, '69deec5f2423950001a6212b')
+    assert.equal(row.source_id, 'm75971a5058a')
     assert.equal(row.status, 'published')
-    assert.equal(row.ticket_url, 'https://www.theofficialmusica.com/upcoming-events-/2026/6/13/mac-saturn')
+    assert.equal(row.ticket_url, 'https://link.dice.fm/m75971a5058a')
   })
   it('strips HTML from the description', () => {
     assert.ok(!/<[a-z]/i.test(normalise(MAC_SATURN).description))
   })
-  it('yields null start_at for an item with no startDate', () => {
-    assert.equal(normalise(NO_START_DATE).start_at, null)
+  it('handles the naive-time fixture via Eastern conversion', () => {
+    assert.equal(normalise(NAIVE_TIME).start_at, '2026-06-25T23:30:00.000Z')
   })
-  it('every fixture normalises without throwing', () => {
-    for (const item of ALL_FIXTURES) assert.doesNotThrow(() => normalise(item))
+  it('returns null for an event with no start date', () => {
+    assert.equal(normalise(NO_DATE), null)
+  })
+})
+
+describe('DICE — diceVenue', () => {
+  it('flattens the first venue (DICE provides name + city, no street address)', () => {
+    const v = diceVenue(MAC_SATURN)
+    assert.equal(v.name, 'Musica')
+    assert.equal(v.city, 'Akron')
+    assert.equal(v.address, null) // DICE venue payload has no street address
+  })
+})
+
+describe('Musica — batch invariants', () => {
+  it('normalises every dated fixture without throwing; null only for no-date', () => {
+    for (const ev of ALL_FIXTURES) {
+      assert.doesNotThrow(() => normalise(ev))
+    }
+    assert.equal(normalise(NO_DATE), null)
+    assert.ok(normalise(CANCELLED)) // lib normalises; the scraper filters cancelled
   })
 })

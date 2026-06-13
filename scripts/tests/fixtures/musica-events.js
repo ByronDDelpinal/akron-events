@@ -1,59 +1,77 @@
 /**
- * Fixtures for the Musica scraper tests.
+ * Fixtures for the Musica (DICE) scraper tests.
  *
- * Shape mirrors real Squarespace Events collection items (?format=json):
- * epoch-ms startDate/endDate, HTML body, location object, fullUrl, assetUrl.
+ * Shape mirrors the real DICE partner API (partners-endpoint.dice.fm/api/v2/events)
+ * event objects, verified live: top-level `date`/`date_end`, `event_images`
+ * ({landscape,portrait,square,brand}), `description`/`raw_description`,
+ * `age_limit`, `genre_tags` (["gig:indierock", …]), `venues[]`.
  */
 
-const MUSICA_LOCATION = {
-  addressTitle: 'Musica',
-  addressLine1: '51 E Market St',
-  addressLine2: 'Akron, OH, 44308',
-  markerLat:    41.0840,
-  markerLng:    -81.5168,
-}
+const MUSICA_VENUE = [{ id: 11682, name: 'Musica', city: { name: 'Akron' } }]
 
-// The real Mac Saturn show — authoritative 7:00 PM start straight from the venue
-// (vs. the CVB feed's fabricated 9:00 AM placeholder).
 export const MAC_SATURN = {
-  id:        '69deec5f2423950001a6212b',
-  title:     'Mac Saturn w/ The Sweet Spot',
-  startDate: Date.parse('2026-06-13T23:00:00.000Z'), // 7:00 PM EDT
-  endDate:   Date.parse('2026-06-14T03:00:00.000Z'), // ~11:00 PM EDT
-  body:      '<p>The pride of Detroit, Mac Saturn, live at Musica.</p>',
-  assetUrl:  'http://static1.squarespace.com/static/5c6c98389b7d153fdee44225/t/mac-saturn.jpg',
-  fullUrl:   '/upcoming-events-/2026/6/13/mac-saturn',
-  location:  MUSICA_LOCATION,
-  starred:   false,
+  id:           'm75971a5058a',
+  name:         'Mac Saturn w/ The Sweet Spot',
+  type:         'linkout',
+  status:       'on-sale',
+  date:         '2026-06-14T00:00:00Z',   // 8:00 PM EDT
+  date_end:     '2026-06-14T04:00:00Z',
+  venues:       MUSICA_VENUE,
+  description:  '<p>The pride of Detroit, Mac Saturn, live at Musica.</p>',
+  event_images: {
+    brand:     null,
+    landscape: 'https://dice-media.imgix.net/attachments/mac-saturn-landscape.jpg',
+    portrait:  'https://dice-media.imgix.net/attachments/mac-saturn-portrait.jpg',
+    square:    'https://dice-media.imgix.net/attachments/mac-saturn-square.jpg',
+  },
+  images:       { 0: 'https://dice-media.imgix.net/attachments/mac-saturn-0.jpg' },
+  age_limit:    'All ages',
+  currency:     'USD',
+  price:        null,
+  genre_tags:   ['gig:indierock', 'gig:rocknroll'],
+  url:          'https://link.dice.fm/m75971a5058a',
 }
 
 export const COMEDY_NIGHT = {
-  id:        '6a10comedy0night00000001',
-  title:     'Comedy Night at Musica',
-  startDate: Date.parse('2026-06-20T00:00:00.000Z'), // 8:00 PM EDT (Jun 19)
-  endDate:   Date.parse('2026-06-20T02:00:00.000Z'),
-  body:      '<p>Stand-up comedy showcase.</p>',
-  fullUrl:   '/upcoming-events-/2026/6/19/comedy-night',
-  location:  MUSICA_LOCATION,
-  starred:   false,
+  id:          'cmdy001',
+  name:        'Comedy Night Stand-Up Showcase',
+  status:      'on-sale',
+  date:        '2026-06-20T20:00:00-04:00',
+  venues:      MUSICA_VENUE,
+  description: '',
+  raw_description: 'A night of stand-up comedy.',
+  age_limit:   '18+',
+  event_images: { landscape: 'https://dice-media.imgix.net/attachments/comedy.jpg' },
+  url:         'https://link.dice.fm/comedy',
 }
 
-export const NO_START_DATE = {
-  id:        'no0start0date0000000001',
-  title:     'TBA Show',
-  startDate: null,
-  body:      '<p>Date to be announced.</p>',
-  fullUrl:   '/upcoming-events-/tba',
-  location:  MUSICA_LOCATION,
+// Naive (offset-less) timestamp — must be treated as Eastern wall-clock, NOT UTC.
+export const NAIVE_TIME = {
+  id:          'naive001',
+  name:        'Local Bands Showcase',
+  status:      'on-sale',
+  date:        '2026-06-25 19:30:00',
+  venues:      MUSICA_VENUE,
+  description: 'Local bands.',
+  url:         'https://link.dice.fm/local-bands',
 }
 
-export const NO_LOCATION = {
-  id:        'no0location000000000001',
-  title:     'Local Showcase',
-  startDate: Date.parse('2026-07-02T23:30:00.000Z'),
-  body:      '<p>A night of local bands.</p>',
-  fullUrl:   '/upcoming-events-/2026/7/2/local-showcase',
-  location:  null,
+export const CANCELLED = {
+  id:     'cancel001',
+  name:   'Cancelled Show',
+  status: 'cancelled',
+  date:   '2026-07-01T23:00:00Z',
+  venues: MUSICA_VENUE,
+  url:    'https://link.dice.fm/cancelled',
 }
 
-export const ALL_FIXTURES = [MAC_SATURN, COMEDY_NIGHT, NO_START_DATE, NO_LOCATION]
+export const NO_DATE = {
+  id:     'nodate001',
+  name:   'TBA',
+  status: 'announced',
+  date:   null,
+  venues: MUSICA_VENUE,
+  url:    'https://link.dice.fm/tba',
+}
+
+export const ALL_FIXTURES = [MAC_SATURN, COMEDY_NIGHT, NAIVE_TIME, CANCELLED, NO_DATE]

@@ -28,6 +28,19 @@ const resend = new Resend(Deno.env.get('RESEND_API_KEY')!)
 const BASE_URL = Deno.env.get('PUBLIC_SITE_URL') || 'https://akronpulse.com'
 const BATCH_SIZE = 100
 
+/**
+ * Tag a link so GA4 can attribute email-driven sessions. utm_medium=email is
+ * what lands them in GA4's built-in Email channel; utm_campaign carries the
+ * subscriber's cadence (`weekly_digest`) so cadences can be compared; and
+ * utm_content marks which link in the email drove the click. Applied to event
+ * and CTA links only — never the preferences/unsubscribe links, which would
+ * pollute campaign data.
+ */
+function withUtm(url: string, campaign: string, content: string): string {
+  const sep = url.includes('?') ? '&' : '?'
+  return `${url}${sep}utm_source=newsletter&utm_medium=email&utm_campaign=${campaign}&utm_content=${content}`
+}
+
 // Brand theme, masthead/footer shell, and button/escape helpers all
 // live in ../_shared/email.ts so every subscriber-facing email renders
 // the same brand system. The matcher + windowed, diversity-aware pick
@@ -228,6 +241,7 @@ function headlineLabel(sub: Subscriber): string {
 function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: number, tailEvents: Event[] = []): string {
   const prefsUrl = `${BASE_URL}/subscribe/preferences?token=${sub.token}`
   const unsubUrl = `${BASE_URL}/unsubscribe?token=${sub.token}`
+  const campaign = `${sub.frequency}_digest`
   const c = THEME.colors
   const f = THEME.fonts
 
@@ -258,7 +272,7 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
   // Hero event — full-width image (or gradient) on top, content below.
   if (hero) {
     const venue = hero.venues[0]
-    const heroUrl = `${BASE_URL}${eventPath(hero)}`
+    const heroUrl = withUtm(`${BASE_URL}${eventPath(hero)}`, campaign, 'hero')
     const heroDate = new Date(hero.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     const price = priceLabel(hero)
     content += `
@@ -299,7 +313,7 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
 `
       for (const event of group.events) {
         const venue = event.venues[0]
-        const eventUrl = `${BASE_URL}${eventPath(event)}`
+        const eventUrl = withUtm(`${BASE_URL}${eventPath(event)}`, campaign, 'list')
         const meta = [formatTimeOnly(event.start_at), venue ? escapeHtml(venue.name) : null].filter(Boolean).join(' &middot; ')
         const price = priceLabel(event)
         const pills: string[] = []
@@ -342,7 +356,7 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
     <div style="font-family:${f.display};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:${c.textMuted};margin-bottom:10px;">Also coming up</div>
 `
     for (const event of tailEvents) {
-      const eventUrl = `${BASE_URL}${eventPath(event)}`
+      const eventUrl = withUtm(`${BASE_URL}${eventPath(event)}`, campaign, 'tail')
       const date = new Date(event.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
       content += `
     <a href="${eventUrl}" style="display:block;padding:6px 0;text-decoration:none;color:${c.textSecondary};font-size:14px;line-height:1.4;">
@@ -361,7 +375,7 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
     content += `
   <div style="margin:26px 0 4px;">
     <div style="text-align:center;font-family:${f.display};font-size:13px;font-weight:600;color:${c.textSecondary};margin-bottom:10px;">Find your reason to go out.</div>
-    ${button(BASE_URL, `See all ${totalMatchCount} events &rarr;`, { bg: c.dark })}
+    ${button(withUtm(BASE_URL, campaign, 'see_all'), `See all ${totalMatchCount} events &rarr;`, { bg: c.dark })}
   </div>
 `
   }
@@ -378,6 +392,7 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
 // filters distrust HTML-only mail) and what screen-reader and
 // text-mode clients actually read.
 function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: number, tailEvents: Event[] = []): string {
+  const campaign = `${sub.frequency}_digest`
   const lines: string[] = [
     `${THEME.brandName}: Never miss a beat`,
     headlineLabel(sub),
@@ -392,7 +407,7 @@ function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: numb
     const heroDate = new Date(hero.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     lines.push(`FEATURED: ${hero.title}`)
     lines.push(`  ${heroDate}${venue ? ` · ${venue.name}` : ''}`)
-    lines.push(`  ${BASE_URL}${eventPath(hero)}`, '')
+    lines.push(`  ${withUtm(`${BASE_URL}${eventPath(hero)}`, campaign, 'hero')}`, '')
   }
 
   for (const group of groupByDay(picks)) {
@@ -403,7 +418,7 @@ function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: numb
       const price = priceLabel(event)
       lines.push(`- ${event.title}${price ? ` (${price.label})` : ''}`)
       lines.push(`  ${meta}`)
-      lines.push(`  ${BASE_URL}${eventPath(event)}`)
+      lines.push(`  ${withUtm(`${BASE_URL}${eventPath(event)}`, campaign, 'list')}`)
     }
     lines.push('')
   }
@@ -412,19 +427,19 @@ function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: numb
     lines.push('ALSO COMING UP')
     for (const event of tailEvents) {
       const date = new Date(event.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-      lines.push(`- ${date} · ${event.title} — ${BASE_URL}${eventPath(event)}`)
+      lines.push(`- ${date} · ${event.title} — ${withUtm(`${BASE_URL}${eventPath(event)}`, campaign, 'tail')}`)
     }
     lines.push('')
   }
 
   if (totalMatchCount > events.length) {
-    lines.push(`See all ${totalMatchCount} events: ${BASE_URL}`, '')
+    lines.push(`See all ${totalMatchCount} events: ${withUtm(BASE_URL, campaign, 'see_all')}`, '')
   }
 
   lines.push(
     'Never miss a beat.',
     'Thanks for checking Akron Pulse, your free, easy, go-to regional events calendar, courtesy of your friendly neighborhood Summit County residents.',
-    `Have an event? Submit it here, see it live in 24 hours: ${BASE_URL}/submit`,
+    `Have an event? Submit it here, see it live in 24 hours: ${withUtm(`${BASE_URL}/submit`, campaign, 'submit')}`,
     '',
     `Manage preferences: ${BASE_URL}/subscribe/preferences?token=${sub.token}`,
     `Unsubscribe: ${BASE_URL}/unsubscribe?token=${sub.token}`,

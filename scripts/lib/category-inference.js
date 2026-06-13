@@ -90,10 +90,22 @@ const SIGNALS = [
   { cat: 'sports', w: STRONG,   re: /\b[a-z][a-z .'&]+ vs\.? [a-z][a-z .'&]+\b/, scope: 'title' },
 
   // Fitness
-  { cat: 'fitness', w: DECISIVE, re: /\b(\d+\.?\d*\s*k(?:m)?\b|half[- ]?marathon|marathon|fun run|trail run|color run|yoga|pilates|crossfit|spin class|hiit|cardio|paddleboard(ing)?|kayak(ing)?|canoe|stand[- ]up paddle|cycle class|cycling class|barre class)\b/i },
+  // "marathon" is gated: a real running marathon (e.g. "Akron Marathon", "Half
+  // Marathon") counts, but the common non-fitness "<X> marathon" uses do not —
+  // movie/film/reading/gaming/dance/binge marathons, etc. (e.g. "Jaws-A-Thon
+  // Movie Marathon" is a film event, not fitness).
+  { cat: 'fitness', w: DECISIVE, re: /\b(\d+\.?\d*\s*k(?:m)?\b|half[- ]?marathon|(?<!(?:movie|film|reading|book|gaming|game|binge|tv|series|music|word|prayer|coding|hack|art|craft|holiday|study|dance)[ -])marathon|fun run|trail run|color run|yoga|pilates|crossfit|spin class|hiit|cardio|paddleboard(ing)?|kayak(ing)?|canoe|stand[- ]up paddle|cycle class|cycling class|barre class)\b/i },
 
   // Outdoors
-  { cat: 'outdoors', w: STRONG, re: /\b(park|trail|nature walk|nature center|naturalist|garden|arboretum|zoo|wildlife|botanical|bird (walk|nerd)|birding|hike|hiking|conservation|outdoor adventure|metro park|towpath|fishing|camping|archery|kayak)\b/ },
+  // Specific outdoors ACTIVITIES / features score STRONG.
+  { cat: 'outdoors', w: STRONG, re: /\b(trail|nature walk|nature center|naturalist|arboretum|wildlife|botanical|bird (walk|nerd)|birding|hike|hiking|conservation|outdoor adventure|metro park|towpath|fishing|camping|archery|kayak)\b/ },
+  // Bare venue-name-prone nouns ("park", "zoo", "garden") only score SOFT: they
+  // routinely show up as proper-noun VENUE names inside a description
+  // ("Cuyahoga Valley National Park", "Akron Zoo", "Stan Hywet … Gardens") and
+  // must NOT override a decisive content category as a secondary (an artist talk
+  // held in a national-park gallery is visual-art, not outdoors). As a sole or
+  // primary signal they still classify the event as outdoors (e.g. "Park Cleanup").
+  { cat: 'outdoors', w: SOFT, re: /\b(park|zoo|garden)\b/ },
 
   // Learning
   { cat: 'learning', w: DECISIVE, re: /\b(certification|professional development|continuing education|sat prep|gre prep|esol classes|ged classes|lean six sigma|pmp|leadership training|sales training|management training|conflict resolution training|coding bootcamp|six sigma)\b/ },

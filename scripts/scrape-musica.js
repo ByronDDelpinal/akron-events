@@ -1,22 +1,22 @@
 /**
  * scrape-musica.js
  *
- * Fetches upcoming shows from Musica — the Akron live-music venue — via its
- * Squarespace Events Collection JSON endpoint. Scraping the venue directly
- * gives us authoritative show times (the CVB/aggregator feeds often drop them).
+ * Ingests upcoming shows at Musica (downtown Akron live-music venue) directly
+ * from the DICE partner API. Musica sells through DICE and embeds the DICE
+ * event-list widget rather than running a native calendar, so aggregator feeds
+ * (e.g. the CVB) often drop the show time. Pulling from DICE gives authoritative
+ * start times, prices, and ticket links.
  *
- * Platform: Squarespace (native Events collection — ?format=json&view=upcoming)
- *
- * NOTE: If this returns 0 events, the venue's events page is likely a
- * client-side embed (e.g. a Dice ticketing widget) rather than a native
- * Squarespace Events collection — in which case a Dice-based scraper is needed.
+ * Platform: DICE partner API (see scripts/lib/dice.js)
  *
  * Usage:
- *   node scripts/scrape-musica.js
+ *   DICE_API_KEY=… node scripts/scrape-musica.js
+ *   DICE_DEBUG=1 DICE_API_KEY=… node scripts/scrape-musica.js   # dump first raw event
  *
  * Required .env vars:
- *   VITE_SUPABASE_URL         — Supabase project URL
- *   SUPABASE_SERVICE_ROLE_KEY — Supabase service role key
+ *   VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ *   DICE_API_KEY  — the DICE widget's public x-api-key (copy from the venue
+ *                   widget's network request; not committed)
  */
 
 import { pathToFileURL } from 'node:url'
@@ -32,134 +32,101 @@ import {
   ensureOrganization,
   linkOrganizationVenue,
 } from './lib/normalize.js'
-import {
-  fetchSquarespaceEvents,
-  normaliseSquarespaceEvent,
-  parseSquarespaceLocation,
-  buildSquarespaceEventUrl,
-} from './lib/squarespace.js'
+import { fetchDiceEvents, normaliseDiceEvent } from './lib/dice.js'
 
-// ── Configuration ─────────────────────────────────────────────────────────
+const SOURCE_KEY = 'musica'
+const DICE_VENUE = 'Musica'          // the venue name DICE filters on
+const SITE_URL   = 'https://www.theofficialmusica.com'
 
-const SITE_BASE_URL   = 'https://www.theofficialmusica.com'
-const COLLECTION_URLS = [`${SITE_BASE_URL}/upcoming-events-`]
-const SOURCE_KEY      = 'musica'
+// Publicly available front-end API key from Musica's network request — the DICE
+// event-list widget ships this x-api-key to every browser that loads the venue
+// page, so it's not a secret. An env var overrides it if it ever rotates.
+const DICE_API_KEY = process.env.DICE_API_KEY || 'A1XgRsnir2auvJeoQrfgC3lU6Sk7qAM23c2Zgg1C'
 
-const VENUE_NAME     = 'Musica'
-const VENUE_FALLBACK = {
+const VENUE_DETAILS = {
   address: '51 E Market St',
   city:    'Akron',
   state:   'OH',
   zip:     '44308',
-  website: SITE_BASE_URL,
+  website: SITE_URL,
 }
 
 // ── Tag mapping ─────────────────────────────────────────────────────────────
 
-// Musica is a live-music venue; every listing is a show. Default the content
-// category to 'music' and let inference add a second facet when the title
-// clearly carries one (e.g. comedy nights).
-function mapTags(item) {
-  const t    = item.title || ''
+export function mapTags(ev) {
+  const t    = (ev?.name || '').toLowerCase()
   const tags = ['live-music', 'concert', 'music', 'akron', 'musica']
-  if (/\b(comedy|stand-?up)\b/i.test(t)) tags.push('comedy')
-  if (/\b(dj|dance|club)\b/i.test(t))    tags.push('dj')
+  if (/\b(comedy|stand-?up)\b/.test(t)) tags.push('comedy')
+  if (/\b(dj|dance party)\b/.test(t))   tags.push('dj')
+  // DICE genre tags like "gig:indierock" → "indierock"
+  for (const g of ev?.genre_tags ?? []) {
+    const slug = String(g).split(':').pop().trim().toLowerCase()
+    if (slug) tags.push(slug)
+  }
   return [...new Set(tags)]
 }
 
-// ── Venue ───────────────────────────────────────────────────────────────────
+// ── Process ─────────────────────────────────────────────────────────────────
 
-const venueCache = new Map()
-
-async function ensureEventVenue(item, organizerId) {
-  const loc  = parseSquarespaceLocation(item.location)
-  const name = loc?.name || VENUE_NAME
-  if (venueCache.has(name)) return venueCache.get(name)
-
-  const venueId = await ensureVenue(name, {
-    address: loc?.address ?? VENUE_FALLBACK.address,
-    city:    loc?.city    ?? VENUE_FALLBACK.city,
-    state:   loc?.state   ?? VENUE_FALLBACK.state,
-    zip:     loc?.zip     ?? VENUE_FALLBACK.zip,
-    lat:     loc?.lat     ?? null,
-    lng:     loc?.lng     ?? null,
-    website: SITE_BASE_URL,
-  })
-
-  if (venueId && organizerId) await linkOrganizationVenue(organizerId, venueId)
-  venueCache.set(name, venueId)
-  return venueId
-}
-
-// ── Process events ──────────────────────────────────────────────────────────
-
-async function processEvents(rawEvents, organizerId) {
+async function processEvents(rawEvents, venueId, organizerId) {
   let inserted = 0, skipped = 0
+  const now = Date.now()
 
-  for (const item of rawEvents) {
+  for (const ev of rawEvents) {
     try {
-      const row = normaliseSquarespaceEvent(item, {
-        source:          SOURCE_KEY,
-        mapCategory:     () => 'music',   // a live-music venue
-        mapTags,
-        defaultPriceMin: null,
-        defaultPriceMax: null,
-        ageRestriction:  'not_specified',
-      })
-      row.ticket_url = buildSquarespaceEventUrl(SITE_BASE_URL, item) || row.ticket_url
+      if (typeof ev?.status === 'string' && /cancel/i.test(ev.status)) { skipped++; continue }
 
-      if (!row.start_at) { skipped++; continue }
+      const row = normaliseDiceEvent(ev, { source: SOURCE_KEY, category: 'music', mapTags })
+      if (!row || !row.start_at) { skipped++; continue }
+      if (new Date(row.start_at).getTime() < now) { skipped++; continue } // past show
 
-      const venueId     = await ensureEventVenue(item, organizerId)
       const enrichedRow = await enrichWithImageDimensions(row)
       const { data: upserted, error } = await upsertEventSafe(enrichedRow)
-
       if (error) {
         console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)
         skipped++
       } else {
-        if (venueId) await linkEventVenue(upserted.id, venueId)
-        await linkEventOrganization(upserted.id, organizerId)
+        if (venueId)     await linkEventVenue(upserted.id, venueId)
+        if (organizerId) await linkEventOrganization(upserted.id, organizerId)
         inserted++
       }
     } catch (err) {
-      console.warn(`  ⚠ Error processing "${item.title}":`, err.message)
+      console.warn(`  ⚠ Error processing "${ev?.name}":`, err.message)
       skipped++
     }
   }
-
   return { inserted, skipped }
 }
 
 // ── Entry point ─────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('🚀  Starting Musica ingestion…')
+  console.log('🚀  Starting Musica (DICE) ingestion…')
   const start = Date.now()
 
   try {
-    const organizerId = await ensureOrganization('Musica', {
-      website:     SITE_BASE_URL,
-      description: 'Musica is an independent live-music venue and bar in downtown Akron hosting touring and local acts.',
-    })
+    const [venueId, organizerId] = await Promise.all([
+      ensureVenue('Musica', VENUE_DETAILS),
+      ensureOrganization('Musica', {
+        website:     SITE_URL,
+        description: 'Musica is an independent live-music venue and bar in downtown Akron hosting touring and local acts.',
+      }),
+    ])
+    if (venueId && organizerId) await linkOrganizationVenue(organizerId, venueId)
 
-    const allEvents = []
-    for (const collectionUrl of COLLECTION_URLS) {
-      console.log(`\n🔍  Fetching events from ${collectionUrl}…`)
-      const events = await fetchSquarespaceEvents(collectionUrl)
-      console.log(`  Found ${events.length} upcoming events`)
-      allEvents.push(...events)
+    console.log(`\n🔍  Fetching DICE events for venue "${DICE_VENUE}"…`)
+    const rawEvents = await fetchDiceEvents({ venue: DICE_VENUE, apiKey: DICE_API_KEY })
+    console.log(`  Found ${rawEvents.length} events`)
+
+    if (process.env.DICE_DEBUG && rawEvents.length) {
+      console.log('  DEBUG first raw event:\n', JSON.stringify(rawEvents[0], null, 2).slice(0, 4000))
     }
 
-    if (allEvents.length === 0) {
-      console.warn('  ⚠ 0 events — Musica may embed a Dice widget rather than a native Squarespace Events collection. Verify and consider a Dice-based scraper.')
-    }
-
-    console.log(`\n📥  Processing ${allEvents.length} events…`)
-    const { inserted, skipped } = await processEvents(allEvents, organizerId)
+    console.log(`\n📥  Processing ${rawEvents.length} events…`)
+    const { inserted, skipped } = await processEvents(rawEvents, venueId, organizerId)
 
     await logUpsertResult(SOURCE_KEY, inserted, 0, skipped, {
-      eventsFound: allEvents.length,
+      eventsFound: rawEvents.length,
       durationMs:  Date.now() - start,
     })
     console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s — ${inserted} inserted, ${skipped} skipped`)
@@ -173,4 +140,4 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   main()
 }
 
-export { mapTags, ensureEventVenue, SITE_BASE_URL, SOURCE_KEY }
+export { mapTags as _mapTags, SOURCE_KEY }

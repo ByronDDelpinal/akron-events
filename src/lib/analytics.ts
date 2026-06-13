@@ -66,12 +66,48 @@ export function initAnalytics(): void {
 }
 
 /**
+ * Map a path to a clean, human-readable Content Group. The page-title and
+ * page-path dimensions are either ambiguous (templated SEO titles collide) or
+ * high-cardinality (every event/venue is its own path). Content Group rolls
+ * pages into a stable, readable set you can actually read in a report:
+ * "Home", "Event Detail", "Embed Builder", etc. It populates GA4's built-in
+ * "Content group" dimension — no custom-dimension registration needed.
+ *
+ * Order matters: more specific prefixes (/embed-builder) come before broader
+ * ones (/embed).
+ */
+function contentGroup(path: string): string {
+  const p = path.split('?')[0]
+  if (p === '/') return 'Home'
+  if (p.startsWith('/events/')) {
+    // /events/:slug/:id is a detail page; /events/:slug is a hub.
+    return p.split('/').filter(Boolean).length >= 3 ? 'Event Detail' : 'Events Hub'
+  }
+  if (p.startsWith('/embed-builder')) return 'Embed Builder'
+  if (p === '/embed' || p.startsWith('/embed/')) return 'Embed'
+  if (p.startsWith('/admin')) return 'Admin'
+  if (p.startsWith('/venues')) return 'Venues'
+  if (p.startsWith('/organizations')) return 'Organizations'
+  if (p.startsWith('/subscribe')) return 'Subscribe'
+  if (p === '/unsubscribe') return 'Unsubscribe'
+  if (p === '/submit') return 'Submit'
+  if (p === '/about') return 'About'
+  if (p === '/organizers') return 'Organizers'
+  if (p === '/technical') return 'Technical'
+  if (p === '/feedback') return 'Feedback'
+  return 'Other'
+}
+
+/**
  * Track a page view. Call this on every route change.
- * @param path - e.g. "/events/123"
+ * @param path - e.g. "/events/jazz-night/123"
  * @param title - optional document title
  */
 export function trackPageView(path: string, title?: string): void {
   if (!enabled) return
+  // Set content_group first so it attaches to the page_view (and to custom
+  // events fired on this page until the next route change re-sets it).
+  ReactGA.set({ content_group: contentGroup(path) })
   ReactGA.send({ hitType: 'pageview', page: path, title })
 }
 

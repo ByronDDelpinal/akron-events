@@ -185,6 +185,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     notes:       'Young professionals leadership org. PAUSED: the public feed lists too many members-only internal events (committee meetings, board meetings, general membership meetings) as public, which crowd the calendar with items that are not open to the general public. Disabled in scrape:all until the feed can be filtered down to genuinely public-facing events (socials, volunteer projects, open community events).',
     status:      'paused',
   },
+  {
+    key:         'indivisible_akron',
+    method:      'REST API',
+    methodDetail:'The Events Calendar (Tribe Events) REST',
+    venue:       'Various venues across Akron (Mustard Seed Market, Akron-Summit Library, etc.)',
+    notes:       'Local pro-democracy / activism org. Public civic programming — workshops, book and movie clubs, and community meetups (including recurring series). Categorized civic by default; recurring occurrences get a per-date source_id so each instance is its own row.',
+    status:      'active',
+  },
 
   // ── WordPress APIs ─────────────────────────────────────────────────────
   {
@@ -826,6 +834,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   players_guild:      'tribe',
   missing_falls:      'tribe',
   torchbearers:       'tribe',
+  indivisible_akron:  'tribe',
 
   // iCalendar (ICS) feeds
   akron_symphony:      'ics',

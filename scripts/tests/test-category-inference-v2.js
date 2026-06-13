@@ -28,6 +28,10 @@ const ORACLE = [
   ['Brewery Tap Takeover', '', ['food'], {}],
   ['RubberDucks vs Erie SeaWolves', '', ['sports'], {}],
   ['Spring Half-Marathon', '', ['fitness'], {}],
+  // "marathon" is gated: a media/binge "marathon" is NOT fitness, but a real
+  // running marathon still is.
+  ['Jaws-A-Thon Movie Marathon', 'A Jaws (1975) movie screening double feature', ['film'], {}],
+  ['Akron Marathon', '', ['fitness'], {}],
   ['Guided Hike at Cuyahoga Valley', '', ['outdoors'], {}],
   ['PMP Certification Prep Course', '', ['learning'], {}],
   ['Highland Square Farmers Market', '', ['market'], {}],
@@ -74,6 +78,15 @@ const ORACLE = [
   ['Preschool Storytime', 'Register online, in person, or by phone.', ['other'], { family: true }],
   // Volunteer "service event" → fundraiser facet; content from the text.
   ['Service Event: Park Cleanup', 'Clean up the park and give it a refresh for the community', ['outdoors'], { fundraiser: true }],
+  // Bug: an indoor gallery artist talk hosted by a national-park org was tagged
+  // outdoors because the venue/org name ("Cuyahoga Valley National Park") in the
+  // description matched the bare "park" outdoors keyword. Venue-name nouns now
+  // score SOFT and can't ride along beside a decisive visual-art signal.
+  ['The Artist Talk | Spirit Wings: Tales Told in Color',
+    'Join us for an artist talk to hear from the artists in this exhibition, currently on exhibit at the Boston Gallery. Location: Cuyahoga Valley National Park (CVNP). Gallery parking is available at the Boston Trailhead.',
+    ['visual-art'], {}],
+  // Guard: a concert at a park-named venue stays music, not music+outdoors.
+  ['Summer Concert Series at Hardesty Park', 'Live bands every Friday', ['music'], {}],
 ]
 
 describe('inferCategories (v2 draft) — oracle', () => {

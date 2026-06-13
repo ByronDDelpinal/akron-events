@@ -150,6 +150,67 @@ export function fuzzyTitlesMatch(a, b) {
   return tokenOverlap(ta, tb) >= FUZZY_THRESHOLD
 }
 
+// ── Pass 3: placeholder-time matching (same venue + same Eastern day) ────────
+//
+// Re-syndicators (CVB, Akron Life) frequently drop the real time and emit a
+// placeholder — most notably the CVB's 09:00 ET "no time given" default. Such a
+// copy sits far (often 10+ h) from the real show time, so the 2-hour Pass 2
+// window can never reach it and the wrong-time duplicate survives. Pass 3
+// matches on the calendar DAY instead of clock proximity, but is gated hard so
+// it only ever collapses a placeholder aggregator copy onto a first-party copy.
+
+const PLACEHOLDER_SOURCES = new Set(['visit_akron_cvb', 'akron_life'])
+
+/** America/New_York calendar date (YYYY-MM-DD) for an ISO instant. */
+export function easternDay(iso) {
+  return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+}
+
+/** America/New_York wall-clock HH:MM for an ISO instant. */
+function easternHHMM(iso) {
+  return new Date(iso).toLocaleTimeString('en-US', {
+    timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false,
+  })
+}
+
+/**
+ * True when an event's start time is NOT trustworthy: it's from a known
+ * re-syndicator AND either sits at the tell-tale "no time given" default
+ * (09:00 ET — the CVB placeholder) or carries no end_at. Used both to gate the
+ * day-level Pass 3 and to keep such a copy from ever being chosen canonical
+ * (so the surviving row keeps the real time and merely inherits the
+ * placeholder copy's image/description).
+ */
+export function isLowConfidenceAggregatorTime(e) {
+  if (!PLACEHOLDER_SOURCES.has(e.source)) return false
+  return easternHHMM(e.start_at) === '09:00' || !e.end_at
+}
+
+/**
+ * Strict title match for the day-level pass — much tighter than
+ * fuzzyTitlesMatch. One normalized title must (near-)contain the other, OR
+ * token overlap ≥ 0.9 with both titles carrying ≥ MIN_MEANINGFUL_TOKENS
+ * keywords. This is what keeps a matinee and an evening show of the same act,
+ * or two different same-day shows, from collapsing.
+ */
+export function strongTitlesMatch(a, b) {
+  const na = normalizeTitle(a)
+  const nb = normalizeTitle(b)
+  if (!na || !nb) return false
+  if (na === nb) return true
+  const [short, long] = na.length <= nb.length ? [na, nb] : [nb, na]
+  if (long.startsWith(short + ' ') || long.endsWith(' ' + short) || long.includes(' ' + short + ' ')) return true
+  const ta = tokenizeTitle(a)
+  const tb = tokenizeTitle(b)
+  if (ta.length < MIN_MEANINGFUL_TOKENS || tb.length < MIN_MEANINGFUL_TOKENS) return false
+  if (tokenOverlap(ta, tb) >= 0.9) return true
+  // Shared headliner: identical first two meaningful tokens. Catches divergent
+  // suffixes like "Mac Saturn w/ The Sweet Spot" vs "Mac Saturn Live at Musica".
+  // Safe only because Pass 3 additionally requires same venue + same day + a
+  // placeholder aggregator copy — it never merges two trusted-time events.
+  return ta[0] === tb[0] && ta[1] === tb[1]
+}
+
 // ── Existing exact-match helpers ──────────────────────────────────────────────
 
 /**
@@ -238,6 +299,106 @@ function titlesMatch(a, b) {
   return false
 }
 
+/**
+ * Group events into cross-source duplicate clusters. Pure + exported for tests.
+ *
+ * Three passes, coarsest to finest, each only considering events not already
+ * matched by an earlier pass:
+ *   Pass 1 — same venue + exact start_at + flexible title.
+ *   Pass 2 — same venue + start_at within FUZZY_TIME_WINDOW_MS + fuzzy title.
+ *   Pass 3 — same venue + same Eastern calendar day + STRICT title, gated so it
+ *            only collapses a low-confidence placeholder aggregator copy onto a
+ *            first-party (trusted-time) copy of the same show.
+ *
+ * @param {object[]} events  rows with { id, title, start_at, end_at, source,
+ *                           event_venues:[{venue_id, venues:{name,address}}], … }
+ * @returns {{ groups: object[][], withoutVenue: number }}
+ */
+export function findDuplicateGroups(events) {
+  const byVenue = new Map()
+  let withoutVenue = 0
+  for (const e of events) {
+    const key = locationKey(e)
+    if (!key) { withoutVenue++; continue }
+    if (!e.title) continue
+    if (!byVenue.has(key)) byVenue.set(key, [])
+    byVenue.get(key).push({ ...e, _titleKey: normalizeTitle(e.title) })
+  }
+
+  const groups = []
+  const matchedIds = new Set()   // prevent an event appearing in two groups
+
+  // ── Pass 1: exact start_at ─────────────────────────────────────────────────
+  const byVenueTime = new Map()
+  for (const [venueKey, evs] of byVenue) {
+    for (const e of evs) {
+      const bucket = `${venueKey}|${e.start_at}`
+      if (!byVenueTime.has(bucket)) byVenueTime.set(bucket, [])
+      byVenueTime.get(bucket).push(e)
+    }
+  }
+  for (const bucket of byVenueTime.values()) {
+    const clusters = []
+    for (const e of bucket) {
+      const existing = clusters.find(c => titlesMatch(c[0]._titleKey, e._titleKey))
+      if (existing) existing.push(e)
+      else clusters.push([e])
+    }
+    for (const cluster of clusters) {
+      if (cluster.length > 1) { groups.push(cluster); cluster.forEach(e => matchedIds.add(e.id)) }
+    }
+  }
+
+  // ── Pass 2: fuzzy time window (doors vs. show start, aggregator lag) ────────
+  for (const evs of byVenue.values()) {
+    const unmatched = evs.filter(e => !matchedIds.has(e.id))
+    unmatched.sort((a, b) => new Date(a.start_at) - new Date(b.start_at))
+    for (let i = 0; i < unmatched.length; i++) {
+      const a = unmatched[i]
+      if (matchedIds.has(a.id)) continue
+      const cluster = [a]
+      for (let j = i + 1; j < unmatched.length; j++) {
+        const b = unmatched[j]
+        if (matchedIds.has(b.id)) continue
+        if (Math.abs(new Date(a.start_at) - new Date(b.start_at)) > FUZZY_TIME_WINDOW_MS) break
+        if (fuzzyTitlesMatch(a.title, b.title)) cluster.push(b)
+      }
+      if (cluster.length > 1) { groups.push(cluster); cluster.forEach(e => matchedIds.add(e.id)) }
+    }
+  }
+
+  // ── Pass 3: placeholder-time copies (same venue + same Eastern day) ─────────
+  // Anchor on a first-party (trusted-time) event and pull in low-confidence
+  // aggregator copies of the same show on the same day with a STRICT title
+  // match. Never anchors on an aggregator and never pulls in a trusted-time
+  // event, so two genuine same-day shows can't be merged here.
+  for (const evs of byVenue.values()) {
+    const unmatched = evs.filter(e => !matchedIds.has(e.id))
+    const byDay = new Map()
+    for (const e of unmatched) {
+      const day = easternDay(e.start_at)
+      if (!byDay.has(day)) byDay.set(day, [])
+      byDay.get(day).push(e)
+    }
+    for (const dayEvents of byDay.values()) {
+      if (dayEvents.length < 2) continue
+      for (const anchor of dayEvents) {
+        if (matchedIds.has(anchor.id)) continue
+        if (PLACEHOLDER_SOURCES.has(anchor.source)) continue          // anchor must be trusted-time
+        const cluster = [anchor]
+        for (const cand of dayEvents) {
+          if (cand.id === anchor.id || matchedIds.has(cand.id)) continue
+          if (!isLowConfidenceAggregatorTime(cand)) continue          // only pull in placeholder copies
+          if (strongTitlesMatch(anchor.title, cand.title)) cluster.push(cand)
+        }
+        if (cluster.length > 1) { groups.push(cluster); cluster.forEach(e => matchedIds.add(e.id)) }
+      }
+    }
+  }
+
+  return { groups: groups.filter(g => g.length > 1), withoutVenue }
+}
+
 async function main() {
   console.log(`🔍  ${APPLY ? 'APPLYING' : 'DRY RUN —'} cross-source duplicate cleanup`)
   console.log(`    Match rule: same venue + same start_at across different sources`)
@@ -278,96 +439,9 @@ async function main() {
   }
   console.log(`Loaded ${unique.length} unique events`)
 
-  // Bucket events by venue.  Events without a linked venue are excluded —
-  // we can't reliably dedup without a physical-location anchor.
-  //
-  // Matching strategy — three passes, coarsest to finest:
-  //
-  //   Pass 1 (exact-time)  — same venue + exact start_at second, fuzzy title.
-  //                          Catches the common case of the same event scraped
-  //                          by two sources that both record show-start time.
-  //
-  //   Pass 2 (fuzzy-time)  — same venue + start_at within FUZZY_TIME_WINDOW_MS,
-  //                          high token overlap in meaningful title keywords.
-  //                          Catches "BRUNCH with COLIN JOHN" (Jilly's, doors
-  //                          at 11 AM) matching "Colin John Music: Sunday Brunch
-  //                          Music" (Akron Life, show at 12 PM).
-  //
-  // Both passes produce the same Group shape fed into the canonical-selection
-  // and delete logic below.
-
-  const byVenue = new Map()   // location key → event[]
-  let withoutVenue = 0
-  for (const e of unique) {
-    const key = locationKey(e)
-    if (!key) { withoutVenue++; continue }
-    if (!e.title) continue
-    if (!byVenue.has(key)) byVenue.set(key, [])
-    byVenue.get(key).push({ ...e, _titleKey: normalizeTitle(e.title) })
-  }
+  const { groups: dupeGroups, withoutVenue } = findDuplicateGroups(unique)
   console.log(`Excluded ${withoutVenue} events with no linked venue`)
   console.log('')
-
-  const groups = []
-  const matchedIds = new Set()   // prevent an event appearing in two groups
-
-  // ── Pass 1: exact start_at ─────────────────────────────────────────────────
-  const byVenueTime = new Map()
-  for (const [venueId, events] of byVenue) {
-    for (const e of events) {
-      const bucket = `${venueId}|${e.start_at}`
-      if (!byVenueTime.has(bucket)) byVenueTime.set(bucket, [])
-      byVenueTime.get(bucket).push(e)
-    }
-  }
-  for (const bucket of byVenueTime.values()) {
-    const clusters = []
-    for (const e of bucket) {
-      const existing = clusters.find(c => titlesMatch(c[0]._titleKey, e._titleKey))
-      if (existing) existing.push(e)
-      else clusters.push([e])
-    }
-    for (const cluster of clusters) {
-      if (cluster.length > 1) {
-        groups.push(cluster)
-        cluster.forEach(e => matchedIds.add(e.id))
-      }
-    }
-  }
-
-  // ── Pass 2: fuzzy time window (doors vs. show start, aggregator lag) ────────
-  for (const events of byVenue.values()) {
-    // Only consider events not already matched in pass 1
-    const unmatched = events.filter(e => !matchedIds.has(e.id))
-    // Sort by start_at so the sliding-window comparison is O(n log n) not O(n²)
-    unmatched.sort((a, b) => new Date(a.start_at) - new Date(b.start_at))
-
-    for (let i = 0; i < unmatched.length; i++) {
-      const a = unmatched[i]
-      if (matchedIds.has(a.id)) continue
-
-      const cluster = [a]
-      for (let j = i + 1; j < unmatched.length; j++) {
-        const b = unmatched[j]
-        if (matchedIds.has(b.id)) continue
-
-        const timeDiff = Math.abs(new Date(a.start_at) - new Date(b.start_at))
-        if (timeDiff > FUZZY_TIME_WINDOW_MS) break   // sorted, so no point checking further
-
-        if (fuzzyTitlesMatch(a.title, b.title)) {
-          cluster.push(b)
-        }
-      }
-
-      if (cluster.length > 1) {
-        groups.push(cluster)
-        cluster.forEach(e => matchedIds.add(e.id))
-      }
-    }
-  }
-
-  // Keep only multi-event groups (pass 1 already filters, but be explicit)
-  const dupeGroups = groups.filter(g => g.length > 1)
   console.log(`Found ${dupeGroups.length} duplicate group(s)`)
   console.log('')
 
@@ -392,7 +466,13 @@ async function main() {
       if (hasImage || hasDesc) return 1
       return 2                            // worst
     }
+    // A placeholder-time copy (CVB 09:00 default, etc.) must never be chosen
+    // canonical when a trusted-time copy exists — otherwise the surviving row
+    // would carry the fabricated time. It still donates its image/description
+    // to the canonical via the merge step below.
     const sorted = [...group].sort((a, b) => {
+      const lcDiff = (isLowConfidenceAggregatorTime(a) ? 1 : 0) - (isLowConfidenceAggregatorTime(b) ? 1 : 0)
+      if (lcDiff !== 0) return lcDiff
       const scoreDiff = dataScore(a) - dataScore(b)
       if (scoreDiff !== 0) return scoreDiff
       return priority(a.source) - priority(b.source)

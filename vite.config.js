@@ -1,6 +1,14 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+
+// VITE_* vars from .env files / the host's process env (Vercel dashboard,
+// CI). loadEnv resolves them the same way Vite's %ENV% HTML tokens do, so
+// local prod builds (.env) and deploys behave identically. mode only
+// selects which .env.[mode] files layer on top; the base .env — where
+// VITE_SUPABASE_URL lives — loads for every mode, so a static default is
+// safe here at module scope where Vite's `mode` isn't yet available.
+const env = loadEnv(process.env.NODE_ENV || 'production', process.cwd(), '')
 
 /**
  * Dev-only: strip the static boot shell out of index.html.
@@ -23,10 +31,47 @@ const stripBootShellInDev = () => ({
   },
 })
 
+/**
+ * Inject the Supabase preconnect <link> at build time.
+ *
+ * We warm the Supabase connection (DNS + TCP + TLS) before the first
+ * events query (the <!-- supabase-preconnect --> placeholder in
+ * index.html marks the spot). This was previously a raw
+ * `%VITE_SUPABASE_URL%` token that relied on Vite's %ENV% substitution.
+ * The footgun: when the var is undefined — e.g. CI, which has no .env —
+ * the literal `%VITE_SUPABASE_URL%` survived into the HTML, and
+ * vite-plugin-pwa runs decodeURI() over every asset URL while building
+ * the service worker. `%VI` is not a valid escape, so the whole build
+ * died with "URI malformed".
+ *
+ * Resolving the env in JS and emitting only a well-formed tag (or
+ * nothing) removes that footgun entirely: the build is green with or
+ * without the var, and no malformed token can ever reach the PWA plugin.
+ */
+const injectSupabasePreconnect = (supabaseUrl) => ({
+  name: 'inject-supabase-preconnect',
+  transformIndexHtml: {
+    order: 'pre',
+    handler(html) {
+      let origin = null
+      try {
+        if (supabaseUrl) origin = new URL(supabaseUrl).origin
+      } catch {
+        origin = null // placeholder/malformed value: skip the hint
+      }
+      const tag = origin
+        ? `<link rel="preconnect" href="${origin}" crossorigin />`
+        : ''
+      return html.replace('<!-- supabase-preconnect -->', tag)
+    },
+  },
+})
+
 export default defineConfig({
   plugins: [
     react(),
     stripBootShellInDev(),
+    injectSupabasePreconnect(env.VITE_SUPABASE_URL),
 
     /**
      * PWA: makes the site installable (Android/desktop install prompt,
