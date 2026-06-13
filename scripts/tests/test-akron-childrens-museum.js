@@ -74,6 +74,30 @@ describe('ACM — parseDateString', () => {
     assert.equal(d.getUTCDay(), 6) // Saturday = 6
   })
 
+  // ── Regression: evening-Eastern run must not roll a weekday forward a day ───
+  // The reported bug: "Delight Nights - Every Thursday" showed on Friday. It was
+  // computed with local Date methods + toISOString() (UTC), so an evening-ET run
+  // (UTC already on the next day) wrote Thursday out as Friday. These pin the
+  // Akron-local result for a fixed instant, independent of the runner's timezone.
+  it('computes the correct Thursday from a Friday-evening ET instant (not Friday)', () => {
+    // 2026-06-13T01:00:00Z = Fri Jun 12, 9:00 PM ET.
+    const result = parseDateString(null, 'Every Thursday', new Date('2026-06-13T01:00:00Z'))
+    assert.equal(result, '2026-06-18') // the upcoming Thursday
+    assert.equal(new Date(result + 'T00:00:00Z').getUTCDay(), 4)
+  })
+
+  it('returns today when today IS the recurring weekday (Thursday)', () => {
+    // 2026-06-11T20:00:00Z = Thu Jun 11, 4:00 PM ET.
+    const result = parseDateString(null, 'Every Thursday', new Date('2026-06-11T20:00:00Z'))
+    assert.equal(result, '2026-06-11')
+  })
+
+  it('computes a specific date relative to Akron "today", not UTC', () => {
+    // Late-evening ET where UTC is already the next calendar day.
+    const now = new Date('2026-06-13T03:00:00Z') // Fri Jun 12, 11 PM ET
+    assert.equal(parseDateString('June 12', null, now), '2026-06-12') // still today in Akron
+  })
+
   it('returns null when both date and repeat are null', () => {
     const result = parseDateString(null, null)
     assert.equal(result, null)

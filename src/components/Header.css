@@ -157,6 +157,95 @@
 }
 .mobile-nav-feedback:hover { background: var(--coral-tint-25); }
 
+/* ── MY NEIGHBORHOOD (installed app only) ── */
+/* Desktop nav variant: a pinned link that reads the saved hub. */
+.nav-myhood {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--amber-on-dark);
+  font-weight: 600;
+}
+.nav-myhood:hover { color: var(--white); background: var(--overlay-light-05); }
+.myhood-pin {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+/* Mobile menu variant: a card at the top of the sheet. */
+.mobile-myhood {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding-bottom: var(--space-sm);
+  margin-bottom: var(--space-xs);
+  border-bottom: var(--border-width-thin) solid var(--overlay-light-05);
+}
+.mobile-myhood-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  background: var(--amber-tint-10);
+  border: var(--border-width-thin) solid var(--amber-tint-25);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  color: var(--white);
+  transition: background var(--transition-medium);
+}
+.mobile-myhood-main:hover { background: var(--amber-tint-25); }
+.mobile-myhood-main .myhood-pin {
+  width: 22px;
+  height: 22px;
+  color: var(--amber-on-dark);
+}
+.mobile-myhood-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.mobile-myhood-eyebrow {
+  font-family: var(--font-body);
+  font-size: var(--text-tiny);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--overlay-light-50);
+}
+.mobile-myhood-name {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--white);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobile-myhood-unset .mobile-myhood-name { color: var(--amber-on-dark); }
+.mobile-myhood-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding-left: var(--space-xs);
+}
+.mobile-myhood-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--overlay-light-70);
+  padding: var(--space-xs) 0;
+  transition: color var(--transition-medium);
+}
+.mobile-myhood-link:hover { color: var(--amber); }
+.mobile-myhood-sep { color: var(--overlay-light-50); }
+
 /* ── HAMBURGER ── */
 .btn-hamburger {
   display: none;

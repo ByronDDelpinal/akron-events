@@ -3,7 +3,8 @@ import { useEffect } from 'react'
 import Header   from '@/components/Header'
 import Footer   from '@/components/Footer'
 import InstallPrompt from '@/components/InstallPrompt'
-import AppOnboarding from '@/components/AppOnboarding'
+import NeighborhoodPickerModal from '@/components/NeighborhoodPickerModal'
+import { NeighborhoodProvider } from '@/hooks/useNeighborhood'
 import { getMyHubSlug } from '@/lib/myHub'
 import EmbedLayout   from '@/pages/embed/EmbedLayout'
 import EmbedHomePage from '@/pages/embed/EmbedHomePage'
@@ -184,7 +185,7 @@ function AppInner() {
 function SiteChrome() {
   const siteGraph = buildGraph(organizationSchema(), webSiteSchema())
   return (
-    <>
+    <NeighborhoodProvider>
       <SEO jsonLd={siteGraph} />
       <Header />
       <main>
@@ -192,8 +193,8 @@ function SiteChrome() {
       </main>
       <Footer />
       <InstallPrompt />
-      <AppOnboarding />
-    </>
+      <NeighborhoodPickerModal />
+    </NeighborhoodProvider>
   )
 }
 

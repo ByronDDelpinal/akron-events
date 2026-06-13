@@ -216,7 +216,8 @@ export function useEvents({
             event_organizations ( organization:organizations ( id, name, website, description, image_url ) )
           `, { count: 'exact' })
           .eq('status', 'published')
-          .gte('start_at', new Date(Date.now() - 3 * 3600_000).toISOString())
+          // Drop events the moment their start time passes — no in-progress grace window.
+          .gte('start_at', new Date().toISOString())
 
         if (neighborhoodSlug) {
           query = query.eq('event_venues.venues.neighborhood_slug', neighborhoodSlug)

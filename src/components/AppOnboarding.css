@@ -129,3 +129,15 @@
   cursor: pointer;
 }
 .onboard-skip:hover { color: var(--text-primary); }
+
+/* Shown only when a hub is already saved (reopened to change it). */
+.onboard-clear {
+  background: none;
+  border: none;
+  padding: var(--space-xs);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.onboard-clear:hover { color: var(--coral); text-decoration: underline; }

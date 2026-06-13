@@ -155,22 +155,46 @@ const MONTH_MAP = {
  *
  * Returns ISO date string or null.
  */
-export function parseDateString(dateStr, repeatStr) {
+// All date math below is anchored to Akron's wall-clock calendar date, NOT the
+// runtime's local zone or UTC. The previous implementation mixed local Date
+// methods (getDay/getDate) with toISOString() (UTC); run in the evening Eastern
+// (when UTC has already rolled to the next day) it produced a date one day late
+// — e.g. "Every Thursday" was written as a Friday. Computing the Eastern
+// calendar date explicitly makes the result correct regardless of where/when
+// the scraper runs.
+
+/** Akron-local calendar date (YYYY-MM-DD) for an instant. 'en-CA' → ISO date. */
+function easternYmd(date) {
+  return date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+}
+
+/** Day-of-week (0=Sun..6=Sat) of a YYYY-MM-DD, computed at UTC midnight (stable). */
+function ymdWeekday(ymd) {
+  return new Date(`${ymd}T00:00:00Z`).getUTCDay()
+}
+
+/** Add N days to a YYYY-MM-DD in pure-date space (no timezone rollover). */
+function addDaysToYmd(ymd, days) {
+  const d = new Date(`${ymd}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().split('T')[0]
+}
+
+export function parseDateString(dateStr, repeatStr, now = new Date()) {
+  const todayYmd = easternYmd(now) // Akron's "today", e.g. "2026-06-12"
+
   // Try specific dates first
   if (dateStr) {
     const dateMatch = dateStr.match(/([A-Za-z]+)\s+(\d{1,2})/)
     if (dateMatch) {
       const monthIdx = MONTH_MAP[dateMatch[1].toLowerCase()]
       if (monthIdx !== undefined) {
-        const day  = parseInt(dateMatch[2], 10)
-        const now  = new Date()
-        // Try current year, then next year
+        const day      = parseInt(dateMatch[2], 10)
+        const thisYear = parseInt(todayYmd.slice(0, 4), 10)
+        // Try current year, then next — first one that is today or later wins.
         for (let offset = 0; offset <= 1; offset++) {
-          const year = now.getFullYear() + offset
-          const d    = new Date(Date.UTC(year, monthIdx, day))
-          if (d >= new Date(now.toISOString().split('T')[0] + 'T00:00:00Z')) {
-            return d.toISOString().split('T')[0]
-          }
+          const ymd = `${thisYear + offset}-${String(monthIdx + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+          if (ymd >= todayYmd) return ymd // ISO dates compare correctly as strings
         }
       }
     }
@@ -183,13 +207,9 @@ export function parseDateString(dateStr, repeatStr) {
       const targetDay = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday']
         .indexOf(dayMatch[1].toLowerCase())
       if (targetDay >= 0) {
-        const now   = new Date()
-        const today = now.getDay()
-        let diff    = targetDay - today
-        if (diff <= 0) diff += 7
-        const next = new Date(now)
-        next.setDate(now.getDate() + diff)
-        return next.toISOString().split('T')[0]
+        let diff = targetDay - ymdWeekday(todayYmd)
+        if (diff < 0) diff += 7 // next occurrence; include today when today IS the day
+        return addDaysToYmd(todayYmd, diff)
       }
     }
   }
