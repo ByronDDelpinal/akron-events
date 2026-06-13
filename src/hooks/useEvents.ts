@@ -552,7 +552,8 @@ export function useMapEvents({
             event_venues ( venue:venues ( id, name, address, city, lat, lng ) )
           `, { count: 'exact' })
           .eq('status', 'published')
-          .gte('start_at', new Date(Date.now() - 3 * 3600_000).toISOString())
+          // Drop events the moment their start time passes — no in-progress grace window.
+          .gte('start_at', new Date().toISOString())
           .order('start_at', { ascending: true })
 
         query = applyCategoryFilter(query, categories)

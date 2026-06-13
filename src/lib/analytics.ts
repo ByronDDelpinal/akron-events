@@ -13,13 +13,50 @@ type UaEventOptions = Parameters<typeof ReactGA.event>[0]
 const MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID
 const enabled = Boolean(MEASUREMENT_ID)
 
+export type Surface = 'site' | 'embed'
+
+/**
+ * Which surface this document is: the main site, or a partner embed. A given
+ * document is exactly one surface for its whole life (the embed is always the
+ * iframe's own /embed document), so we detect it once at init from the initial
+ * path rather than per-navigation. Note: useEmbed()/EmbedContext is mounted
+ * inside the /embed route subtree and isn't in scope here, so we read the path.
+ */
+function detectSurface(): Surface {
+  if (typeof window === 'undefined') return 'site'
+  return window.location.pathname.startsWith('/embed') ? 'embed' : 'site'
+}
+
+/**
+ * For an embed, the hostname of the page hosting the iframe. ancestorOrigins is
+ * the reliable source (Chromium) and survives a stripped referrer; we fall back
+ * to document.referrer (Firefox/Safari) and finally to a sentinel.
+ */
+function detectEmbedHost(): string {
+  try {
+    const ao = window.location.ancestorOrigins
+    if (ao && ao.length > 0) return new URL(ao[0]).hostname
+  } catch { /* ancestorOrigins unsupported — fall through to referrer */ }
+  try {
+    return document.referrer ? new URL(document.referrer).hostname : '(direct)'
+  } catch { return '(unknown)' }
+}
+
 /**
  * Call once at app startup (main.tsx or App.tsx).
  * Safe to call even if the measurement ID is absent.
+ *
+ * Registers `surface` (and, for embeds, `embed_host`) as default gtag params on
+ * the config command so EVERY hit — pageviews and custom events — carries them.
+ * This keeps call sites untouched and lets GA4 segment all traffic by surface.
+ * Register both as event-scoped custom dimensions in GA4 Admin to use in reports.
  */
 export function initAnalytics(): void {
   if (!enabled || !MEASUREMENT_ID) return
-  ReactGA.initialize(MEASUREMENT_ID)
+  const surface = detectSurface()
+  const gtagOptions: Record<string, string> =
+    surface === 'embed' ? { surface, embed_host: detectEmbedHost() } : { surface }
+  ReactGA.initialize(MEASUREMENT_ID, { gtagOptions })
 }
 
 /**
