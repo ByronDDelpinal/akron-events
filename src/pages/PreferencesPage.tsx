@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { INTENTS } from '@/lib/intents'
 import SearchableMultiSelect from '@/components/SearchableMultiSelect'
 import { SEO } from '@/lib/seo'
-import { trackEvent } from '@/lib/analytics'
+import { trackEvent, EVENTS } from '@/lib/analytics'
 import './PreferencesPage.css'
 
 type Row = LooseRow
@@ -207,10 +207,8 @@ export default function PreferencesPage() {
         // GA4 event: fires exactly once — on the first load that flipped the
         // subscriber's `confirmed` flag. Pairs with `newsletter_subscribe`.
         if (prefsData.was_just_confirmed) {
-          trackEvent('newsletter_confirm', {
-            category: 'Subscribe',
-            label: prefsData.frequency || 'unknown',
-            frequency: prefsData.frequency,
+          trackEvent(EVENTS.NEWSLETTER_CONFIRMED, {
+            frequency: prefsData.frequency || 'unknown',
             lookahead_days: prefsData.lookahead_days,
           })
         }

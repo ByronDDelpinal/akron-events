@@ -16,6 +16,7 @@
  */
 
 import { useCallback, useMemo, useState, type FC, type SVGProps } from 'react'
+import { trackEvent, EVENTS } from '@/lib/analytics'
 import { SITE } from '@/lib/seo'
 import { ShareIcon } from '@/components/icons'
 import './ShareButtons.css'
@@ -102,6 +103,14 @@ export default function ShareButtons({ url, title, text = '', campaign = 'share'
 
   const [copied, setCopied] = useState(false)
 
+  // GA4 recommended `share` event. method = channel, content_type = the
+  // surface that hosted the button, item_id = the path being shared. This is
+  // the only way native Web Share is measurable — its outbound URL never
+  // returns through a UTM-tagged visit.
+  const trackShare = useCallback((method: string) => {
+    trackEvent(EVENTS.SHARE, { method, content_type: campaign, item_id: url })
+  }, [campaign, url])
+
   const onNativeShare = useCallback(async () => {
     try {
       await navigator.share({
@@ -109,13 +118,15 @@ export default function ShareButtons({ url, title, text = '', campaign = 'share'
         text: shareText,
         url: tagUrl(absoluteUrl, 'native', campaign),
       })
+      trackShare('native')
     } catch {
       // User cancelled or browser threw — no-op.
     }
-  }, [title, shareText, absoluteUrl, campaign])
+  }, [title, shareText, absoluteUrl, campaign, trackShare])
 
   const onCopy = useCallback(async () => {
     const tagged = tagUrl(absoluteUrl, 'copy', campaign)
+    trackShare('copy')
     try {
       await navigator.clipboard.writeText(tagged)
       setCopied(true)
@@ -131,7 +142,7 @@ export default function ShareButtons({ url, title, text = '', campaign = 'share'
       setCopied(true)
       setTimeout(() => setCopied(false), 1800)
     }
-  }, [absoluteUrl, campaign])
+  }, [absoluteUrl, campaign, trackShare])
 
   return (
     <div className="share-buttons" role="group" aria-label="Share this page">
@@ -158,6 +169,7 @@ export default function ShareButtons({ url, title, text = '', campaign = 'share'
                 rel="noopener noreferrer"
                 aria-label={label}
                 title={label}
+                onClick={() => trackShare(key)}
               >
                 <Icon />
               </a>

@@ -80,6 +80,8 @@ export const SCRAPERS = [
   { key: 'akron_childrens_museum', script: 'scripts/scrape-akron-childrens-museum.js', label: 'Akron Children\'s Museum',   group: 'drupal',         active: true  },
   { key: 'north_hill_cdc',       script: 'scripts/scrape-north-hill-cdc.js',          label: 'North Hill CDC',               group: 'ics',            active: true  },
   { key: 'leadership_akron',     script: 'scripts/scrape-leadership-akron.js',        label: 'Leadership Akron',             group: 'squarespace',    active: true  },
+  { key: 'artisan_coffee',       script: 'scripts/scrape-artisan-coffee.js',          label: 'Artisan Coffee',               group: 'squarespace',    active: true  },
+  { key: 'musica',               script: 'scripts/scrape-musica.js',                  label: 'Musica',                       group: 'dice',           active: true  },
   { key: 'akron_urban_league',   script: 'scripts/scrape-akron-urban-league.js',      label: 'Akron Urban League',           group: 'custom',         active: true  },
   { key: 'the_well_cdc',        script: 'scripts/scrape-the-well-cdc.js',             label: 'The Well CDC',                 group: 'custom',         active: true  },
   { key: 'better_kenmore',       script: 'scripts/scrape-better-kenmore.js',          label: 'Better Kenmore CDC',           group: 'wordpress',      active: true  },

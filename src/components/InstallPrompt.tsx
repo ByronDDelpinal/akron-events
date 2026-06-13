@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { usePwaInstall, promptInstall, isMobileDevice } from '@/hooks/usePwaInstall'
 import { ShareIcon } from '@/components/icons'
-import { trackEvent } from '@/lib/analytics'
+import { trackEvent, EVENTS } from '@/lib/analytics'
 import './InstallPrompt.css'
 
 /**
@@ -84,10 +84,10 @@ export default function InstallPrompt() {
   if (!show) return null
 
   const onInstall = async () => {
-    trackEvent('pwa_install_prompt_click', { category: 'PWA' })
+    trackEvent(EVENTS.PWA_INSTALL_CLICKED, { placement: 'pill' })
     const outcome = await promptInstall()
     if (outcome === 'accepted') {
-      trackEvent('pwa_install_accepted', { category: 'PWA', label: 'pill' })
+      trackEvent(EVENTS.PWA_INSTALL_ACCEPTED, { placement: 'pill' })
     } else {
       // Declined the native dialog: treat as a dismissal, don't nag.
       recordDismissal()
@@ -97,7 +97,7 @@ export default function InstallPrompt() {
 
   const onDismiss = () => {
     recordDismissal()
-    trackEvent('pwa_install_prompt_dismissed', { category: 'PWA' })
+    trackEvent(EVENTS.PWA_INSTALL_DISMISSED)
     setHidden(true)
   }
 
@@ -132,11 +132,11 @@ export function InstallFooterLink() {
   if (installed || platform === 'unavailable' || !isMobileDevice()) return null
 
   const onClick = async () => {
-    trackEvent('pwa_install_footer_click', { category: 'PWA' })
+    trackEvent(EVENTS.PWA_INSTALL_CLICKED, { placement: 'footer' })
     if (platform === 'native') {
       const outcome = await promptInstall()
       if (outcome === 'accepted') {
-        trackEvent('pwa_install_accepted', { category: 'PWA', label: 'footer' })
+        trackEvent(EVENTS.PWA_INSTALL_ACCEPTED, { placement: 'footer' })
       }
     } else {
       setSheetOpen(true)

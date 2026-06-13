@@ -222,6 +222,22 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'artisan_coffee',
+    method:      'REST API',
+    methodDetail:'Squarespace Events Collection JSON (?format=json&view=upcoming)',
+    venue:       'Artisan Coffee — 662 Canton Rd, Akron',
+    notes:       'Uses the shared Squarespace Events Collection module. Live music, open mic nights, and author talks at the Ellet-neighborhood coffee shop. Squarespace stores absolute (epoch-ms) timestamps.',
+    status:      'active',
+  },
+  {
+    key:         'musica',
+    method:      'REST API',
+    methodDetail:'Squarespace Events Collection JSON (?format=json&view=upcoming)',
+    venue:       'Musica — 51 E Market St, Akron',
+    notes:       'Downtown Akron live-music venue that sells through DICE and embeds its widget rather than a native calendar. We pull straight from the DICE partner API (partners-endpoint.dice.fm/api/v2/events, filter[venues][]=Musica) for authoritative show times, prices, and ticket links. Requires DICE_API_KEY.',
+    status:      'active',
+  },
+  {
     key:         'rialto',
     method:      'REST API',
     methodDetail:'Squarespace Events Collection JSON (?format=json&view=upcoming)',
@@ -758,6 +774,11 @@ export const SOURCE_GROUPS: SourceGroup[] = [
     description: "gozips.com runs on Sidearm Sports, which publishes a composite RFC 5545 iCalendar feed (calendar.ashx/calendar.ics?sport_id=0) covering every Zips sport. We parse it via scripts/lib/ics.js, then filter to upcoming home games at Akron venues — away games and BYE weeks drop out — and normalize titles to \"Akron Zips <Sport> vs <Opponent>\".",
   },
   {
+    id:    'dice',
+    title: 'DICE (Musica)',
+    description: "Some venues (e.g. Musica) sell exclusively through DICE and embed its event-list widget instead of running a native calendar — so aggregators that crawl them often drop the show time. We pull straight from the same DICE partner API the widget uses (partners-endpoint.dice.fm/api/v2/events, filtered by venue) for authoritative start times, prices, and ticket links. Requires a DICE_API_KEY (the widget's public client key).",
+  },
+  {
     id:    'revize',
     title: 'Revize (City of Akron)',
     description: 'The City of Akron runs on Revize CMS. Its events feed is the same JSON endpoint the on-page FullCalendar widget consumes (/_assets_/plugins/revizeCalendar/calendar_data_handler.php). We ingest four city-managed calendars — Events, Parks & Rec, Lock 3, and Great Streets Akron — and explicitly skip the meetings/HR/oversight calendars.',
@@ -796,6 +817,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   // Aggregators
   eventbrite:         'eventbrite',
   ticketmaster:       'ticketmaster',
+  musica:             'dice',
 
   // The Events Calendar (Tribe / WordPress)
   summit_artspace:    'tribe',
@@ -824,6 +846,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
 
   // Squarespace Events Collection
   leadership_akron:    'squarespace',
+  artisan_coffee:      'squarespace',
   rialto:              'squarespace',
   crown_point_ecology: 'squarespace',
   cascade_locks:       'squarespace',

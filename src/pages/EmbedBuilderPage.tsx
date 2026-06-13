@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
+import { trackEvent, EVENTS } from '@/lib/analytics'
 import { SEO } from '@/lib/seo'
 import { THEMES } from '@/lib/themes'
 import { FILTERABLE_CATEGORIES } from '@/lib/categories.js'
@@ -157,6 +158,16 @@ export default function EmbedBuilderPage() {
     return () => clearTimeout(id)
   }, [embedSrc])
 
+  // Engagement signal: fire once the first time the partner changes anything
+  // from the default config. `state` is the same reference as DEFAULT_STATE
+  // until the first setState, so an identity check cleanly detects first edit.
+  const customizedRef = useRef(false)
+  useEffect(() => {
+    if (customizedRef.current || state === DEFAULT_STATE) return
+    customizedRef.current = true
+    trackEvent(EVENTS.EMBED_BUILDER_CUSTOMIZED)
+  }, [state])
+
   const set = useCallback(<K extends keyof BuilderState>(key: K, value: BuilderState[K]) => {
     setState((prev) => ({ ...prev, [key]: value }))
   }, [])
@@ -181,6 +192,18 @@ export default function EmbedBuilderPage() {
   }, [])
 
   const handleCopy = useCallback(async () => {
+    // The partner conversion: capture the final config as event parameters.
+    // Fired on intent (the click) regardless of clipboard-API success.
+    trackEvent(EVENTS.EMBED_SNIPPET_COPIED, {
+      theme: state.theme,
+      target: state.target,
+      view: state.view,
+      density: state.density,
+      locked_category_count: state.categories.length,
+      price_locked: state.price !== '',
+      date_locked: state.date !== '',
+      family_only: state.family,
+    })
     try {
       await navigator.clipboard.writeText(snippet)
       setCopied(true)
@@ -190,7 +213,7 @@ export default function EmbedBuilderPage() {
       const ta = document.querySelector<HTMLTextAreaElement>('.builder-code-textarea')
       ta?.select()
     }
-  }, [snippet])
+  }, [snippet, state])
 
   const handleRefresh = useCallback(() => {
     setPreviewKey((k) => k + 1)

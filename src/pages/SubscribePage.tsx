@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { INTENTS } from '@/lib/intents'
 import { EMAIL_THEME } from '@/lib/emailTheme'
 import { SEO } from '@/lib/seo'
-import { trackEvent } from '@/lib/analytics'
+import { trackEvent, EVENTS } from '@/lib/analytics'
 import './SubscribePage.css'
 
 const FREQUENCIES = [
@@ -74,10 +74,12 @@ export default function SubscribePage() {
 
       // GA4 event: fires for every successful signup submission, BEFORE
       // confirmation. We don't include the email address — PII stays out.
-      trackEvent('newsletter_subscribe', {
-        category: 'Subscribe',
-        label: frequency,
+      // `placement` records which on-site CTA drove the signup (set as an
+      // internal ?placement= param, not UTM, so session attribution is intact).
+      const placement = new URLSearchParams(window.location.search).get('placement') || 'direct'
+      trackEvent(EVENTS.NEWSLETTER_SIGNUP, {
         frequency,
+        placement,
         lookahead_days: lookahead,
         intents: (selectedIntents || []).join(','),
       })

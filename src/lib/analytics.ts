@@ -6,9 +6,11 @@
  * work without any changes.
  */
 import ReactGA from 'react-ga4'
+import { EVENTS, type EventName, type EventParams } from './analyticsEvents'
 
-/** The UA-style options object accepted by ReactGA.event's object overload. */
-type UaEventOptions = Parameters<typeof ReactGA.event>[0]
+// Re-exported so call sites import the event registry and the tracker together.
+export { EVENTS }
+export type { EventName, EventParams }
 
 const MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID
 const enabled = Boolean(MEASUREMENT_ID)
@@ -24,7 +26,11 @@ export type Surface = 'site' | 'embed'
  */
 function detectSurface(): Surface {
   if (typeof window === 'undefined') return 'site'
-  return window.location.pathname.startsWith('/embed') ? 'embed' : 'site'
+  // Match the embed document exactly: `/embed` or `/embed/...`. A bare
+  // startsWith('/embed') also catches the site page `/embed-builder`, which
+  // would mislabel a normal site page as a partner embed.
+  const path = window.location.pathname
+  return path === '/embed' || path.startsWith('/embed/') ? 'embed' : 'site'
 }
 
 /**
@@ -70,17 +76,24 @@ export function trackPageView(path: string, title?: string): void {
 }
 
 /**
- * Track a custom event.
- * @param action - e.g. "click_event_card"
- * @param params - e.g. { category: "Events", label: "Jazz Night" }
+ * Track a custom event using GA4-native parameters.
+ *
+ * The signature is generic over the EVENTS registry: `name` must be a known
+ * event, and the params must match that event's contract in EventParams.
+ * Events whose contract is an empty object take no second argument.
+ *
+ *   trackEvent(EVENTS.NEIGHBORHOOD_CLEARED)
+ *   trackEvent(EVENTS.PWA_INSTALL_CLICKED, { placement: 'pill' })
+ *
+ * Parameters are sent as GA4 event parameters (not coerced into the legacy
+ * UA category/label/value fields). Register each parameter as an event-scoped
+ * custom dimension in GA4 Admin for it to appear in reports.
  */
-export function trackEvent(
-  action: string,
-  params: Record<string, unknown> = {}
+export function trackEvent<E extends EventName>(
+  name: E,
+  ...args: EventParams[E] extends Record<string, never> ? [] : [params: EventParams[E]]
 ): void {
   if (!enabled) return
-  // Preserve the original UA-style object form. Callers supply `category`
-  // (and usually `label`); the cast documents that contract without forcing
-  // every call site to satisfy the full UaEventOptions shape here.
-  ReactGA.event({ action, ...params } as unknown as UaEventOptions)
+  const params = (args[0] ?? {}) as Record<string, unknown>
+  ReactGA.event(name, params)
 }

@@ -6,8 +6,10 @@
  *
  * Props:
  *   variant — "event" or "hub". Adjusts copy to fit context. Defaults to "hub".
- *   surface — short identifier appended as ?utm_source so analytics can
- *             attribute which page drove the signup.
+ *   surface — short identifier passed as an internal ?placement= param so the
+ *             newsletter_signup event can attribute which page drove the signup.
+ *             Deliberately NOT a UTM tag: UTM on internal links resets GA4
+ *             session-source attribution and can spawn a new session.
  */
 
 import { Link } from 'react-router-dom'
@@ -46,7 +48,7 @@ interface NewsletterCTAProps {
 
 export default function NewsletterCTA({ variant = 'hub', surface = 'inline_cta' }: NewsletterCTAProps) {
   const copy = COPY[variant] || COPY.hub
-  const href = `/subscribe?utm_source=${encodeURIComponent(surface)}&utm_medium=inline_cta&utm_campaign=newsletter`
+  const href = `/subscribe?placement=${encodeURIComponent(surface)}`
 
   return (
     <aside className="newsletter-cta" aria-labelledby="newsletter-cta-heading">

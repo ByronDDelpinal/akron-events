@@ -8,7 +8,7 @@ import {
   clearMyHub as clearStoredHub,
   getHubLabel,
 } from '@/lib/myHub'
-import { trackEvent } from '@/lib/analytics'
+import { trackEvent, EVENTS } from '@/lib/analytics'
 
 /**
  * "My Neighborhood" state, shared across the app.
@@ -89,7 +89,7 @@ export function NeighborhoodProvider({ children }: { children: ReactNode }) {
   const closePicker = useCallback(() => {
     markOnboarded()
     if (onboardingOpenRef.current) {
-      trackEvent('app_onboarding_closed', { category: 'PWA', label: 'skipped' })
+      trackEvent(EVENTS.ONBOARDING_CLOSED, { outcome: 'skipped' })
       onboardingOpenRef.current = false
     }
     setPickerOpen(false)
@@ -100,10 +100,10 @@ export function NeighborhoodProvider({ children }: { children: ReactNode }) {
     setHubSlug(slug)
     markOnboarded()
     if (onboardingOpenRef.current) {
-      trackEvent('app_onboarding_closed', { category: 'PWA', label: 'saved' })
+      trackEvent(EVENTS.ONBOARDING_CLOSED, { outcome: 'saved' })
       onboardingOpenRef.current = false
     }
-    trackEvent('my_neighborhood_set', { category: 'PWA', label: slug })
+    trackEvent(EVENTS.NEIGHBORHOOD_SET, { neighborhood: slug })
     setPickerOpen(false)
     navigate(`/events/${slug}`)
   }, [navigate])
@@ -111,7 +111,7 @@ export function NeighborhoodProvider({ children }: { children: ReactNode }) {
   const clearHub = useCallback(() => {
     clearStoredHub()
     setHubSlug(null)
-    trackEvent('my_neighborhood_cleared', { category: 'PWA' })
+    trackEvent(EVENTS.NEIGHBORHOOD_CLEARED)
   }, [])
 
   // First-launch onboarding — installed app only, once, and never over

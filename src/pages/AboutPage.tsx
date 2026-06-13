@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { SEO, buildGraph, faqPageSchema, breadcrumbSchema } from '@/lib/seo'
+import { trackEvent, EVENTS } from '@/lib/analytics'
 import { INTENTS } from '@/lib/intents'
 import { DATA_SOURCES } from '@/lib/dataSources'
 import './AboutPage.css'
@@ -70,6 +71,7 @@ const FAQS: Faq[] = [
 // Discovery "vibes" derived from the canonical intent registry so they never
 // drift from the homepage Filter & Sort presets.
 const PERSONAS = INTENTS.map((intent) => ({
+  id:          intent.id,
   label:       intent.label,
   description: intent.tagline,
   href:        `/?intent=${intent.id}`,
@@ -140,8 +142,13 @@ export default function AboutPage() {
         </p>
 
         <div className="about-personas">
-          {PERSONAS.map(({ label, description, href, icon }) => (
-            <Link key={label} to={href} className="about-persona-card">
+          {PERSONAS.map(({ id, label, description, href, icon }) => (
+            <Link
+              key={label}
+              to={href}
+              className="about-persona-card"
+              onClick={() => trackEvent(EVENTS.SELECT_CONTENT, { content_type: 'persona', item_id: id })}
+            >
               <span className="persona-icon">{icon}</span>
               <div className="persona-text">
                 <p className="persona-label">{label}</p>
@@ -211,6 +218,16 @@ function TransparencySection() {
   }, [open])
 
   const q = query.trim().toLowerCase()
+
+  // GA4 recommended `search` event. Client-side search has no query-string for
+  // Enhanced Measurement to catch, so we fire it here, debounced 800ms so a
+  // single intent produces one event rather than one per keystroke.
+  useEffect(() => {
+    if (q.length < 2) return
+    const id = setTimeout(() => trackEvent(EVENTS.SEARCH, { search_term: q }), 800)
+    return () => clearTimeout(id)
+  }, [q])
+
   const results = q.length < 2 ? [] : DATA_SOURCES.filter((s) =>
     s.label.toLowerCase().includes(q) ||
     s.methodDetail.toLowerCase().includes(q) ||
