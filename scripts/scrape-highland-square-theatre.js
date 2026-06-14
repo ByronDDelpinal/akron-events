@@ -281,6 +281,22 @@ export function parseHomepage(html) {
 
 // ── Age restriction ───────────────────────────────────────────────────────
 
+/**
+ * The homepage is a bare showtimes grid — it carries no per-film synopsis, so
+ * there's nothing to scrape. Every entry is uniformly a $5 first-run screening
+ * at the same historic cinema, so we compose an honest description of the
+ * SCREENING (venue, format, runtime, rating) rather than leave it null. We do
+ * not invent plot copy. Exported for tests.
+ */
+export function buildDescription({ rating, runtimeMin } = {}) {
+  const facts = []
+  if (runtimeMin) facts.push(`${runtimeMin} min`)
+  if (rating) facts.push(`rated ${rating}`)
+  const meta = facts.length ? ` (${facts.join(', ')})` : ''
+  return `A first-run film screening at Highland Square Theatre, Akron's historic ` +
+    `neighborhood cinema in Highland Square${meta}. General admission $5.`
+}
+
 export function mapAgeRestriction(rating) {
   if (!rating) return 'not_specified'
   const r = String(rating).toUpperCase().trim()
@@ -342,7 +358,7 @@ async function main() {
 
           const row = {
             title:           movie.title,
-            description:     null,
+            description:     buildDescription(movie),
             start_at:        startAt,
             end_at:          endAt,
             category:        'film',

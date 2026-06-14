@@ -9,6 +9,11 @@
  *
  * Contract (all optional):
  *   theme=<id>                 theme id from lib/themes (default: brand)
+ *   place=<slug>               locked geographic scope — a city slug (e.g.
+ *                              cuyahoga-falls) or an Akron neighborhood slug
+ *                              (e.g. highland-square). Resolved to the same
+ *                              venue filters the hub pages use; visitors can't
+ *                              change it. Unknown slugs are ignored.
  *   categories=music,arts      locked content filter (any-match)
  *   price=free|under10|under25 locked price filter
  *   date=today|this_weekend|this_week|this_month   locked date preset
@@ -30,6 +35,8 @@
  */
 
 import { isValidTheme, DEFAULT_THEME } from '@/lib/themes'
+import { NEIGHBORHOOD_SLUGS, NEIGHBORHOOD_LABELS } from '@/lib/neighborhoods'
+import { getCityHub } from '@/lib/seo/categories'
 
 export const EMBED_FEATURES = ['filter', 'map', 'density', 'price', 'tags'] as const
 export type EmbedFeature = (typeof EMBED_FEATURES)[number]
@@ -45,6 +52,13 @@ export interface EmbedConfig {
   theme: string
   title: string | null
   categories: string[]
+  /** Raw locked place slug (city or Akron neighborhood), or null. */
+  place: string | null
+  /** Display label for the locked place (e.g. "Highland Square"), or null. */
+  placeLabel: string | null
+  /** Resolved geo filters handed to useEvents — mirrors the hub pages. */
+  neighborhoodSlug: string | null
+  venueCities: string[]
   price: EmbedPrice | null
   date: EmbedDate | null
   family: boolean
@@ -64,6 +78,49 @@ const VALID_TARGET = new Set<EmbedTarget>(['inline', 'blank', 'external'])
 
 function csv(value: string | null | undefined): string[] {
   return (value || '').split(',').map((s) => s.trim()).filter(Boolean)
+}
+
+interface ResolvedPlace {
+  place: string | null
+  placeLabel: string | null
+  neighborhoodSlug: string | null
+  venueCities: string[]
+}
+
+const NO_PLACE: ResolvedPlace = {
+  place: null, placeLabel: null, neighborhoodSlug: null, venueCities: [],
+}
+
+/**
+ * Resolve a locked `place` slug to the geo filters useEvents understands,
+ * matching CategoryPage's hub logic: Akron neighborhoods filter by
+ * venue.neighborhood_slug, cities by venue.city (via the hub's cityMatch set,
+ * the SSOT — e.g. "stow" matches both Stow and Silver Lake). An unknown or
+ * unresolvable slug yields no scope so a hand-edited URL can never break the embed.
+ */
+function resolvePlace(slug: string | null): ResolvedPlace {
+  if (!slug) return NO_PLACE
+
+  if (NEIGHBORHOOD_SLUGS.has(slug)) {
+    return {
+      place: slug,
+      placeLabel: NEIGHBORHOOD_LABELS[slug] ?? slug,
+      neighborhoodSlug: slug,
+      venueCities: [],
+    }
+  }
+
+  const cityHub = getCityHub(slug)
+  if (cityHub && Array.isArray(cityHub.cityMatch) && cityHub.cityMatch.length > 0) {
+    return {
+      place: slug,
+      placeLabel: cityHub.label ?? slug,
+      neighborhoodSlug: null,
+      venueCities: cityHub.cityMatch,
+    }
+  }
+
+  return NO_PLACE
 }
 
 /** Narrow a raw query value to a member of `valid`, else return `fallback`. */
@@ -91,6 +148,7 @@ export function parseEmbedConfig(
   const rawTitle = params.get('title')
   const title = rawTitle ? rawTitle.trim().slice(0, 120) || null : null
   const categories = csv(params.get('categories'))
+  const place = resolvePlace(params.get('place'))
   const price = oneOf(params.get('price'), VALID_PRICE, null)
   const date = oneOf(params.get('date'), VALID_DATE, null)
   const family = params.get('family') === '1' || params.get('family') === 'true'
@@ -137,6 +195,10 @@ export function parseEmbedConfig(
     theme: theme && isValidTheme(theme) ? theme : DEFAULT_THEME,
     title,
     categories,
+    place: place.place,
+    placeLabel: place.placeLabel,
+    neighborhoodSlug: place.neighborhoodSlug,
+    venueCities: place.venueCities,
     price,
     date,
     family,

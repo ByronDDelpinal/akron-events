@@ -25,8 +25,10 @@
  *     ...
  *   </tr>
  *
- * We produce ONE event row per program: start_at = program start at 9 AM ET,
- * end_at = program end date at 5 PM ET (null for single-day programs).
+ * We produce ONE event row per program. The list fragment only carries title /
+ * dates / ages, so each program's Detail page is fetched for the description,
+ * fees, and the real daily start/end times (falling back to a 9 AM–5 PM
+ * placeholder only when a program has no schedule table).
  *
  * Usage:
  *   node scripts/scrape-akron-rec-parks.js
@@ -43,7 +45,7 @@ import {
   logScraperError,
   enrichWithImageDimensions,
   upsertEventSafe,
-  linkEventVenue,
+  setEventVenue,
   linkEventOrganization,
   ensureOrganization,
   ensureVenue,
@@ -67,6 +69,65 @@ const VENUE_INFO = {
   state:   'OH',
   zip:     '44308',
   website: 'https://www.akronohio.gov/departments/recreation_and_parks',
+}
+
+// ── Community-center facilities ─────────────────────────────────────────────
+//
+// Programs are held at one of Akron's community centers, but the list fragment
+// only carries the department name — so historically EVERY program linked to
+// the single "Akron Recreation & Parks" venue at the downtown admin address
+// (217 S. High St, downtown-akron). That hid every program from its real
+// neighborhood hub (e.g. Kenmore CC camps never reached /events/kenmore).
+//
+// We now read the actual facility from the Detail page's schedule and map it to
+// its real address + neighborhood. Keyed by the facility name exactly as it
+// appears in the schedule's Location link. Addresses pulled from RecDesk's
+// facility pages (2026-06-14). neighborhood_slug is set explicitly — and is
+// REQUIRED here rather than relying on coordinates, because the polygon
+// resolver misclassifies the Kenmore Blvd corridor as 'summit-lake'. Two
+// centers whose neighborhood is genuinely ambiguous are left unset for admin
+// classification (the venue is still correct; it just won't hub yet).
+const KNOWN_FACILITIES = {
+  'Kenmore Community Center':           { address: '880 Kenmore Blvd',      zip: '44314', neighborhood_slug: 'kenmore' },
+  'Ellet Community Center':             { address: '2449 Wedgewood Dr',     zip: '44312', neighborhood_slug: 'ellet' },
+  'Firestone Park Community Center':    { address: '1480 Girard St',        zip: '44301', neighborhood_slug: 'firestone-park' },
+  'Summit Lake Community Center':       { address: '380 W Crosier St',      zip: '44311', neighborhood_slug: 'summit-lake' },
+  'Patterson Park Community Center':    { address: '800 Patterson Ave',     zip: '44310', neighborhood_slug: 'north-hill' },
+  'Joy Park Community Center':          { address: '825 Fuller Ave',        zip: '44306', neighborhood_slug: 'east-akron' },
+  'Reservoir Park Community Center':    { address: '1735 Hillside Terrace', zip: '44305', neighborhood_slug: 'goodyear-heights' },
+  'Ed Davis Community Center':          { address: '730 Perkins Park Dr',   zip: '44320', neighborhood_slug: 'west-akron' },
+  'Lawton Street Community Center':     { address: '1225 Lawton St',        zip: '44320', neighborhood_slug: 'west-akron' },
+  'Mason Park Community Center':        { address: '700 E Exchange St',     zip: '44306' },
+  'Northwest Family Recreation Center': { address: '1730 Shatto Ave',       zip: '44313' },
+}
+
+export { KNOWN_FACILITIES }
+
+const facilityVenueCache = new Map()
+
+/**
+ * Resolve a program's real community-center venue from its schedule Location.
+ * Returns a venue id, or null when the facility is unknown (caller falls back
+ * to the generic department venue).
+ */
+async function ensureFacilityVenue(locationName) {
+  if (!locationName) return null
+  if (facilityVenueCache.has(locationName)) return facilityVenueCache.get(locationName)
+
+  const f = KNOWN_FACILITIES[locationName]
+  if (!f) { facilityVenueCache.set(locationName, null); return null }
+
+  const id = await ensureVenue(locationName, {
+    address:           f.address,
+    city:              'Akron',
+    state:             'OH',
+    zip:               f.zip,
+    neighborhood_slug: f.neighborhood_slug,
+    website:           VENUE_INFO.website,
+    parking_type:      'lot',
+  })
+  facilityVenueCache.set(locationName, id)
+  return id
 }
 
 // ── Category mapping ──────────────────────────────────────────────────────
@@ -139,6 +200,144 @@ export function parseDateRange(raw) {
     return { startYmd: ymd, endYmd: ymd }
   }
   return null
+}
+
+/** "M/D/YYYY" or "MM/DD/YYYY" → "YYYY-MM-DD" | null. */
+export function mdyToYmd(mdy) {
+  const m = String(mdy || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (!m) return null
+  return `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`
+}
+
+/** "9:00 AM" / "3:00 PM" → "HH:MM:SS" (24h) | null. */
+export function to24h(timeStr) {
+  const m = String(timeStr || '').trim().match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/)
+  if (!m) return null
+  let h = parseInt(m[1], 10)
+  const min = m[2]
+  const pm = /p/i.test(m[3])
+  if (h === 12) h = pm ? 12 : 0
+  else if (pm) h += 12
+  return `${String(h).padStart(2, '0')}:${min}:00`
+}
+
+// ── Detail-page parsing ─────────────────────────────────────────────────────
+
+const _ENTITIES = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+  rsquo: '’', lsquo: '‘', ldquo: '“', rdquo: '”',
+  mdash: '—', ndash: '–', hellip: '…',
+}
+
+/** Decode the HTML entities RecDesk emits in attribute/body text. */
+export function decodeEntities(str) {
+  return String(str || '')
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+    .replace(/&([a-z]+);/gi, (m, name) => (name.toLowerCase() in _ENTITIES ? _ENTITIES[name.toLowerCase()] : m))
+}
+
+/**
+ * Description: prefer the og:description meta (a single stable attribute that
+ * can't be derailed by body markup nesting), fall back to the body .well block.
+ */
+export function parseDescription(html) {
+  const meta = String(html || '').match(/<meta[^>]*property=["']og:description["'][^>]*>/i)?.[0]
+  let raw = meta?.match(/content=["']([\s\S]*?)["']\s*\/?>/i)?.[1] ?? null
+
+  if (!raw) {
+    const well = String(html || '').match(/<div[^>]*class=["']well["'][^>]*>([\s\S]*?)<\/div>/i)?.[1]
+    if (well) raw = well.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')
+  }
+  if (!raw) return null
+
+  const text = decodeEntities(raw)
+    .replace(/\r/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ ?\n ?/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  return text || null
+}
+
+/**
+ * Fees: parse the FIRST table in #program-fees (the Standard Fee table; the
+ * second table, if present, is Addon Fees and is ignored). Returns the price
+ * a member of the public actually pays — the rows with NO membership
+ * restriction. Membership-gated discount tiers (AMHA, YES Fund) are excluded
+ * from the public price, falling back to all rows only if none are open.
+ */
+export function parseFees(html) {
+  const seg = String(html || '').match(/id=["']program-fees["']([\s\S]*?)(?:id=["']program-schedule["']|$)/i)?.[1]
+  if (!seg) return { min: null, max: null }
+  const firstTable = seg.match(/<table[\s\S]*?<\/table>/i)?.[0] ?? seg
+
+  const open = []
+  const all = []
+  for (const row of firstTable.match(/<tr[\s\S]*?<\/tr>/gi) ?? []) {
+    const amtM = row.match(/data-label=["']Amount["'][^>]*>\s*\$?([\d,]+\.\d{2})/i)
+    if (!amtM) continue
+    const amt = parseFloat(amtM[1].replace(/,/g, ''))
+    if (Number.isNaN(amt)) continue
+    all.push(amt)
+    const memCell = row.match(/data-label=["']Membership Restrictions["']([\s\S]*?)<\/td>/i)?.[1] ?? ''
+    if (!/<a[\s>]/i.test(memCell)) open.push(amt)
+  }
+
+  const pool = open.length ? open : all
+  if (!pool.length) return { min: null, max: null }
+  return { min: Math.min(...pool), max: Math.max(...pool) }
+}
+
+/**
+ * Schedule: first/last session dates + the daily start/end times from the
+ * #program-schedule table (authoritative, and holiday-aware — e.g. a camp that
+ * skips Juneteenth). Returns null when the program has no schedule table.
+ */
+export function parseSchedule(html) {
+  const seg = String(html || '').match(/id=["']program-schedule["']([\s\S]*?)$/i)?.[1]
+  if (!seg) return null
+  const rows = (seg.match(/<tr[\s\S]*?<\/tr>/gi) ?? []).filter(r => /data-label=["']Date["']/i.test(r))
+  if (!rows.length) return null
+
+  const cell = (row, label) =>
+    decodeEntities(row.match(new RegExp(`data-label=["']${label}["'][^>]*>\\s*([^<]+?)\\s*<`, 'i'))?.[1] ?? '').trim() || null
+
+  const first = rows[0]
+  const last = rows[rows.length - 1]
+
+  // The Location cell wraps the facility in an <a>, so pull the anchor text
+  // (or any inner text) rather than the bare-text cell() helper.
+  const locM = first.match(/data-label=["']Location["'][\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/i)
+    ?? first.match(/data-label=["']Location["'][^>]*>([\s\S]*?)<\/td>/i)
+  const location = locM ? decodeEntities(locM[1].replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim() || null : null
+
+  return {
+    firstDate: cell(first, 'Date'),
+    lastDate:  cell(last, 'Date'),
+    startTime: cell(first, 'Start Time'),
+    endTime:   cell(first, 'End Time'),
+    location,
+  }
+}
+
+/** Parse a RecDesk program Detail page into the fields the list view omits. */
+export function parseDetailHtml(html) {
+  return {
+    description: parseDescription(html),
+    fees:        parseFees(html),
+    schedule:    parseSchedule(html),
+  }
+}
+
+/** GET a program's Detail page HTML (public; cookie passed for session parity). */
+async function fetchProgramDetail(programId, cookie) {
+  const res = await fetch(`${DETAIL_BASE}${programId}`, {
+    headers: { 'User-Agent': USER_AGENT, ...(cookie ? { Cookie: cookie } : {}) },
+    redirect: 'follow',
+  })
+  if (!res.ok) throw new Error(`GET detail ${programId} → HTTP ${res.status}`)
+  return res.text()
 }
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────
@@ -286,8 +485,7 @@ export function parseFilterHtml(html) {
 
 // ── Fetch all pages ───────────────────────────────────────────────────────
 
-async function fetchAllPrograms() {
-  const cookie = await getSessionCookie()
+async function fetchAllPrograms(cookie) {
   const all    = []
   let   page   = 1
 
@@ -328,7 +526,8 @@ async function main() {
 
     if (organizerId && venueId) await linkOrganizationVenue(organizerId, venueId)
 
-    const rawPrograms = await fetchAllPrograms()
+    const cookie      = await getSessionCookie()
+    const rawPrograms = await fetchAllPrograms(cookie)
     console.log(`  Found ${rawPrograms.length} program(s)`)
 
     const now          = new Date()
@@ -337,29 +536,52 @@ async function main() {
 
     for (const prog of rawPrograms) {
       try {
-        const parsed = parseDateRange(prog.datesText)
-        if (!parsed) { skipped++; continue }
+        // ── Date window (list page) — cheap gate before fetching the detail.
+        const listDates = parseDateRange(prog.datesText)
+        if (!listDates) { skipped++; continue }
 
-        const { startYmd, endYmd } = parsed
+        if (new Date(listDates.endYmd + 'T23:59:59') < now)            { skipped++; continue }
+        if (new Date(listDates.startYmd + 'T00:00:00') > cutoffFuture) { skipped++; continue }
 
-        if (new Date(endYmd + 'T23:59:59') < now)            { skipped++; continue }
-        if (new Date(startYmd + 'T00:00:00') > cutoffFuture) { skipped++; continue }
+        // ── Detail page — description, fees, and authoritative session times.
+        // The list fragment carries none of these, so each program needs a GET.
+        let detail = {}
+        if (prog.programId) {
+          try {
+            detail = parseDetailHtml(await fetchProgramDetail(prog.programId, cookie))
+          } catch (err) {
+            console.warn(`  ⚠ Detail fetch failed for "${prog.title}": ${err.message}`)
+          }
+          await new Promise(r => setTimeout(r, 150))
+        }
 
-        const startAt = easternToIso(`${startYmd} 09:00:00`)
+        // Prefer the schedule's real dates/times; fall back to the list range
+        // with the legacy 9–5 placeholder when no schedule table is present.
+        const sched     = detail.schedule
+        const startYmd  = (sched?.firstDate && mdyToYmd(sched.firstDate)) || listDates.startYmd
+        const endYmd    = (sched?.lastDate  && mdyToYmd(sched.lastDate))  || listDates.endYmd
+        const startTime = (sched?.startTime && to24h(sched.startTime)) || '09:00:00'
+        const endTime   = (sched?.endTime   && to24h(sched.endTime))   || '17:00:00'
+
+        const startAt = easternToIso(`${startYmd} ${startTime}`)
         if (!startAt) { skipped++; continue }
 
-        const endAt = endYmd !== startYmd ? easternToIso(`${endYmd} 17:00:00`) : null
+        // Multi-day → end on the last day; single-day → only set an end when we
+        // actually have a real end time from the schedule (else leave null).
+        const endAt = endYmd !== startYmd
+          ? easternToIso(`${endYmd} ${endTime}`)
+          : (sched?.endTime ? easternToIso(`${startYmd} ${endTime}`) : null)
 
         const row = {
           title:           prog.title,
-          description:     null,
+          description:     detail.description ?? null,
           start_at:        startAt,
           end_at:          endAt,
           category:        mapCategory(prog.programType),
           is_family:       mapIsFamily(prog.programType),
           tags:            buildTags(prog.programType),
-          price_min:       null,
-          price_max:       null,
+          price_min:       detail.fees?.min ?? null,
+          price_max:       detail.fees?.max ?? null,
           age_restriction: mapAgeRestriction(prog.agesText),
           image_url:       null,
           ticket_url:      prog.programId ? `${DETAIL_BASE}${prog.programId}` : BASE_URL,
@@ -369,6 +591,11 @@ async function main() {
           featured:        false,
         }
 
+        // Prefer the program's real community-center venue (from the schedule
+        // Location); fall back to the generic department venue when unknown.
+        const facilityVenueId = await ensureFacilityVenue(sched?.location)
+        const eventVenueId    = facilityVenueId || venueId
+
         const enriched = await enrichWithImageDimensions(row)
         const { data: upserted, error } = await upsertEventSafe(enriched)
 
@@ -376,7 +603,9 @@ async function main() {
           console.warn(`  ⚠ Upsert failed for "${prog.title}": ${error.message}`)
           skipped++
         } else {
-          await linkEventVenue(upserted.id, venueId)
+          // setEventVenue (not linkEventVenue) so re-scrapes move existing
+          // programs OFF the old generic downtown venue onto their real center.
+          await setEventVenue(upserted.id, eventVenueId)
           await linkEventOrganization(upserted.id, organizerId)
           inserted++
         }

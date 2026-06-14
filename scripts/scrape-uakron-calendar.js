@@ -79,6 +79,22 @@ function classifySource(groupTitle = '') {
 
 export { classifySource, SUB_CALENDARS, DEFAULT_SOURCE }
 
+// ── All-day / academic-calendar filter ──────────────────────────────────────
+//
+// A university calendar is dominated by all-day informational markers that are
+// noise on a public "things to do" calendar: hour changes ("Summer Hours
+// Begin" — 69 instances in one pull), academic deadlines ("Classes Begin",
+// "Final Instructional Day", "Grades Due"), holiday closures (Juneteenth,
+// Labor Day, Thanksgiving Break), Convocation, Commencement, and student
+// orientation. LiveWhale flags every one of them with `is_all_day` and gives
+// them a midnight start with no end time — which is also exactly what trips
+// validateEvent's "midnight start, no end_at" contract warning. We drop them
+// all. (The feed's event_types/tags are null, so is_all_day is the only clean
+// signal available.)
+export function isAllDayEntry(ev) {
+  return Boolean(ev && ev.is_all_day)
+}
+
 // ── Category mapping ───────────────────────────────────────────────────────
 
 function parseCategory(ev) {
@@ -262,8 +278,16 @@ async function processEvents(rawEvents, organizerId) {
   }
   for (const sub of SUB_CALENDARS) resultsBySource[sub.source] = { inserted: 0, skipped: 0, total: 0 }
 
+  let allDayFiltered = 0
+
   for (const ev of rawEvents) {
     if (!ev.title || !ev.date_iso) continue
+
+    // Skip all-day academic-calendar / holiday / administrative markers — these
+    // are student-facing informational dates, not public events (see
+    // isAllDayEntry). Filtered before bucketing so they don't distort any
+    // source's found/skipped counts.
+    if (isAllDayEntry(ev)) { allDayFiltered++; continue }
 
     const source  = classifySource(ev.group_title)
     const results = resultsBySource[source]
@@ -325,6 +349,10 @@ async function processEvents(rawEvents, organizerId) {
       console.warn(`  ⚠ Error processing "${ev.title}":`, err.message)
       results.skipped++
     }
+  }
+
+  if (allDayFiltered) {
+    console.log(`  ⤷ Filtered ${allDayFiltered} all-day academic-calendar / holiday entr${allDayFiltered === 1 ? 'y' : 'ies'}`)
   }
 
   return resultsBySource

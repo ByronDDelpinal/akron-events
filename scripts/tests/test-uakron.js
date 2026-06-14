@@ -6,7 +6,7 @@ process.env.VITE_SUPABASE_URL = 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 
 import { stripHtml } from '../lib/normalize.js'
-import { classifySource } from '../scrape-uakron-calendar.js'
+import { classifySource, isAllDayEntry } from '../scrape-uakron-calendar.js'
 import { EJ_THOMAS_EVENT, GENERAL_UAKRON_EVENT, MISSING_TITLE, MISSING_DATE, PAID_EVENT, PERFORMANCE_CONCERT, MYERS_ART_EVENT, CHP_EVENT, NUMERIC_COST_EVENT, TIERED_COST_EVENT, OBJECT_COST_EVENT, ALL_FIXTURES } from './fixtures/uakron-events.js'
 
 function parseCategory(ev) {
@@ -235,6 +235,36 @@ describe('UAkron: Event Normalization', () => {
     const row = normalizeEvent(PERFORMANCE_CONCERT)
     assert.ok(row)
     assert.equal(row.category, 'music')
+  })
+})
+
+describe('UAkron: All-day academic-calendar filter', () => {
+  // Real shapes pulled from the LiveWhale feed (2026-06-14): these all carry
+  // is_all_day:1, a midnight start, and no end time.
+  const ALL_DAY_NOISE = [
+    { title: 'Summer Hours Begin: 8:00 am - 4:30 pm', date_iso: '2026-06-14T00:00:00-04:00', is_all_day: 1 },
+    { title: 'Juneteenth',                            date_iso: '2026-06-19T00:00:00-04:00', is_all_day: 1 },
+    { title: 'Day and Evening Classes Begin',         date_iso: '2026-08-24T00:00:00-04:00', is_all_day: 1 },
+    { title: 'Commencement',                          date_iso: '2026-08-15T00:00:00-04:00', is_all_day: 1 },
+    { title: 'BCAS Summer CORE', description: 'Orientation', location: 'Student Union', is_all_day: 1, date_iso: '2026-06-15T00:00:00-04:00' },
+  ]
+
+  it('flags every all-day entry, even one that carries a description', () => {
+    for (const ev of ALL_DAY_NOISE) {
+      assert.equal(isAllDayEntry(ev), true, `should filter "${ev.title}"`)
+    }
+  })
+
+  it('keeps timed events (is_all_day falsy)', () => {
+    assert.equal(isAllDayEntry({ title: 'Jazz Concert', date_iso: '2026-06-20T19:00:00-04:00', is_all_day: 0 }), false)
+    assert.equal(isAllDayEntry({ title: 'Lecture', date_iso: '2026-06-20T14:00:00-04:00' }), false)
+    assert.equal(isAllDayEntry(EJ_THOMAS_EVENT), false)
+  })
+
+  it('is null-safe', () => {
+    assert.equal(isAllDayEntry(null), false)
+    assert.equal(isAllDayEntry(undefined), false)
+    assert.equal(isAllDayEntry({}), false)
   })
 })
 

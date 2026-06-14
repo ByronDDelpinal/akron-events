@@ -3,6 +3,8 @@ import { trackEvent, EVENTS } from '@/lib/analytics'
 import { SEO } from '@/lib/seo'
 import { THEMES } from '@/lib/themes'
 import { FILTERABLE_CATEGORIES } from '@/lib/categories.js'
+import { CITIES } from '@/lib/cities'
+import { NEIGHBORHOODS } from '@/lib/neighborhoods'
 import type { EmbedFeature, EmbedPrice, EmbedDate, EmbedView, EmbedDensity, EmbedTarget } from '@/lib/embedConfig'
 import './EmbedBuilderPage.css'
 
@@ -11,6 +13,7 @@ import './EmbedBuilderPage.css'
 interface BuilderState {
   title: string
   theme: string
+  place: string
   categories: string[]
   price: EmbedPrice | ''
   date: EmbedDate | ''
@@ -52,6 +55,7 @@ const DATE_OPTIONS: { value: EmbedDate | ''; label: string }[] = [
 const DEFAULT_STATE: BuilderState = {
   title: '',
   theme: 'akron-pulse',
+  place: '',
   categories: [],
   price: '',
   date: '',
@@ -68,6 +72,7 @@ function buildEmbedParams(state: BuilderState): URLSearchParams {
   const p = new URLSearchParams()
   if (state.theme !== 'akron-pulse') p.set('theme', state.theme)
   if (state.title.trim()) p.set('title', state.title.trim())
+  if (state.place) p.set('place', state.place)
   if (state.categories.length) p.set('categories', state.categories.join(','))
   if (state.price) p.set('price', state.price)
   if (state.date) p.set('date', state.date)
@@ -273,6 +278,29 @@ export default function EmbedBuilderPage() {
           <section className="builder-section">
             <h2 className="builder-section-title">Locked Filters</h2>
             <p className="builder-section-desc">Visitors can filter <em>within</em> these, but can't clear them.</p>
+
+            <div className="builder-field">
+              <label className="builder-label" htmlFor="eb-place">Location</label>
+              <select
+                id="eb-place"
+                className="builder-select"
+                value={state.place}
+                onChange={(e) => set('place', e.target.value)}
+              >
+                <option value="">Everywhere (no lock)</option>
+                <optgroup label="Cities">
+                  {CITIES.map((c) => (
+                    <option key={c.slug} value={c.slug}>{c.label}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Akron Neighborhoods">
+                  {NEIGHBORHOODS.map((n) => (
+                    <option key={n.slug} value={n.slug}>{n.label}</option>
+                  ))}
+                </optgroup>
+              </select>
+              <span className="builder-hint">Scope the calendar to one city or Akron neighborhood. Visitors can't change it.</span>
+            </div>
 
             <div className="builder-field">
               <label className="builder-label">Categories</label>

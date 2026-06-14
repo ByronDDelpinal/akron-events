@@ -34,25 +34,25 @@ const DAYS_AHEAD = 180  // fetch 6 months at a time
 
 // ── Known branch library addresses ───────────────────────────────────────
 // Used to pre-populate venue records. Branches not listed here get name-only records.
-const BRANCH_INFO = {
+export const BRANCH_INFO = {
   'Main Library':                     { address: '60 S High St',            zip: '44326', lat: 41.0819, lng: -81.5188, parking_type: 'garage',  parking_notes: 'Parking garage adjacent to building on S High St.' },
   'Highland Square Branch Library':   { address: '807 W Market St',         zip: '44303', lat: 41.0808, lng: -81.5468, parking_type: 'lot',     parking_notes: 'Free surface lot behind building.' },
   'Kenmore Branch Library':           { address: '969 Kenmore Blvd',        zip: '44314', lat: 41.0510, lng: -81.5355, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
   'Firestone Park Branch Library':    { address: '1486 Aster Ave',          zip: '44301', lat: 41.0450, lng: -81.5093, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
   'Ellet Branch Library':             { address: '2470 E Market St',        zip: '44312', lat: 41.0808, lng: -81.4706, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
   'North Hill Branch Library':        { address: '183 E Cuyahoga Falls Ave', zip: '44310', lat: 41.1108, lng: -81.5143, parking_type: 'lot',    parking_notes: 'Free on-site parking lot.' },
-  'Green Branch Library':             { address: '4046 Massillon Rd',       zip: '44232', lat: 40.9478, lng: -81.4696, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  'Green Branch Library':             { address: '4046 Massillon Rd', city: 'Green',       zip: '44232', lat: 40.9478, lng: -81.4696, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
   'Goodyear Branch Library':          { address: '60 Goodyear Blvd',        zip: '44305', lat: 41.0680, lng: -81.4870, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
   'Northwest Akron Branch Library':   { address: '1720 Shatto Ave',         zip: '44313', lat: 41.1065, lng: -81.5665, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Fairlawn-Bath Branch Library':     { address: '3490 W Market St',        zip: '44333', lat: 41.1353, lng: -81.5927, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  'Fairlawn-Bath Branch Library':     { address: '3490 W Market St', city: 'Fairlawn',        zip: '44333', lat: 41.1353, lng: -81.5927, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
   'Portage Lakes Branch Library':     { address: '4261 Shriver Rd',         zip: '44319', lat: 40.9987, lng: -81.5346, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Mogadore Branch Library':          { address: '144 S Cleveland Ave',      zip: '44260', lat: 41.0593, lng: -81.4018, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  'Mogadore Branch Library':          { address: '144 S Cleveland Ave', city: 'Mogadore',      zip: '44260', lat: 41.0593, lng: -81.4018, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
   'Maple Valley Branch Library':      { address: '1187 Mogadore Rd',        zip: '44306', lat: 41.0588, lng: -81.4625, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Richfield Branch Library':         { address: '3761 S Park Dr',          zip: '44286', lat: 41.2304, lng: -81.6412, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Nordonia Hills Branch Library':    { address: '70 Olde Eight Rd',        zip: '44067', lat: 41.2112, lng: -81.5107, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Norton Branch Library':            { address: '3930 S Cleveland-Massillon Rd', zip: '44203', lat: 40.9892, lng: -81.6395, parking_type: 'lot', parking_notes: 'Free on-site parking lot.' },
-  'Springfield-Lakemore Branch Library': { address: '1100 Canton Rd',       zip: '44312', lat: 41.0169, lng: -81.4632, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Tallmadge Branch Library':         { address: '90 North Ave',            zip: '44278', lat: 41.0992, lng: -81.4426, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  'Richfield Branch Library':         { address: '3761 S Park Dr', city: 'Richfield',          zip: '44286', lat: 41.2304, lng: -81.6412, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  'Nordonia Hills Branch Library':    { address: '70 Olde Eight Rd', city: 'Northfield',        zip: '44067', lat: 41.2112, lng: -81.5107, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  'Norton Branch Library':            { address: '3930 S Cleveland-Massillon Rd', city: 'Norton', zip: '44203', lat: 40.9892, lng: -81.6395, parking_type: 'lot', parking_notes: 'Free on-site parking lot.' },
+  'Springfield-Lakemore Branch Library': { address: '1100 Canton Rd', city: 'Lakemore',       zip: '44312', lat: 41.0169, lng: -81.4632, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  'Tallmadge Branch Library':         { address: '90 North Ave', city: 'Tallmadge',            zip: '44278', lat: 41.0992, lng: -81.4426, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
   'Odom Boulevard Branch Library':    { address: '600 Vernon Odom Blvd',    zip: '44307', lat: 41.0631, lng: -81.5372, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
 }
 
@@ -199,7 +199,10 @@ async function ensureLibraryVenue(locationId, locationName, organizerId) {
     // Known library branch — create with full branch-specific details
     venueId = await ensureVenue(locationName, {
       address:       branchInfo.address,
-      city:          'Akron',
+      // Branches outside Akron proper carry their real municipality so they
+      // surface on the correct city / regional hub (Green, Tallmadge, Fairlawn,
+      // Norton, Mogadore, …) instead of being mis-filed under Akron.
+      city:          branchInfo.city ?? 'Akron',
       state:         'OH',
       zip:           branchInfo.zip,
       lat:           branchInfo.lat,

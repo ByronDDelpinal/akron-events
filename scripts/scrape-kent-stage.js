@@ -165,6 +165,21 @@ function extractEventJsonLd(html) {
 }
 
 /**
+ * Kent Stage's Event JSON-LD omits `description`, but every detail page carries
+ * the full show blurb in its <meta property="og:description"> (and the legacy
+ * name="description") tag. Read that as the description source. Exported for
+ * tests.
+ */
+export function parseMetaDescription(html) {
+  const tag = html.match(/<meta[^>]+property=["']og:description["'][^>]*>/i)
+    ?? html.match(/<meta[^>]+name=["']description["'][^>]*>/i)
+  const content = tag?.[0].match(/content=["']([\s\S]*?)["']\s*\/?>/i)?.[1]
+  if (!content) return null
+  const text = decodeEntities(content).replace(/\s+/g, ' ').trim()
+  return text || null
+}
+
+/**
  * First "$N" or "$N - $M" amount found in stripped body text. Used only as
  * a sanity-fallback when the JSON-LD offers.price is 0 (which Kent Stage
  * uses for "not specified in structured data" rather than actually free).
@@ -226,7 +241,10 @@ async function processEvents(detailPages, venueId, organizerId) {
       if (startMs < Date.now() - 86_400_000) { skipped++; continue }
       if (startMs > horizonMs)                { skipped++; continue }
 
+      // JSON-LD reliably omits description on Kent Stage; fall back to the
+      // page's og:description meta, which always carries the show blurb.
       const description = decodeEntities(typeof ld.description === 'string' ? ld.description : null)
+        || parseMetaDescription(html)
       const imageUrl    = typeof ld.image === 'string'
         ? ld.image
         : Array.isArray(ld.image) ? ld.image[0] : (ld.image?.url ?? null)

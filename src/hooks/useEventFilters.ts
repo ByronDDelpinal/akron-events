@@ -41,6 +41,14 @@ export interface UseEventFiltersOptions {
    * Homepage passes none.
    */
   lockedCategories?: string[]
+  /**
+   * Partner's locked geographic scope (embed only), already resolved from the
+   * `place` slug to the venue filters useEvents understands. These are hard
+   * locks with no visitor-facing control: they always flow into the effective
+   * query and are unaffected by filtering or clearing. Homepage passes none.
+   */
+  lockedNeighborhoodSlug?: string | null
+  lockedVenueCities?: string[]
 }
 
 /** The derived, validated arguments handed to useEvents. */
@@ -55,6 +63,9 @@ export interface EffectiveQuery {
   freeOnly: boolean
   priceMax: string | null
   sort: string
+  /** Locked geo scope (embed) — null/[] on the homepage and category hubs. */
+  neighborhoodSlug: string | null
+  venueCities: string[]
 }
 
 // All filter-owned query keys. clearFilters only ever touches these, so
@@ -64,7 +75,13 @@ export const FILTER_PARAM_KEYS = ['intent', 'date', 'from', 'to', 'categories', 
 
 type ParamValue = string | string[] | null | undefined
 
-export function useEventFilters({ lockedKeys = [], preset = {}, lockedCategories = [] }: UseEventFiltersOptions = {}) {
+export function useEventFilters({
+  lockedKeys = [],
+  preset = {},
+  lockedCategories = [],
+  lockedNeighborhoodSlug = null,
+  lockedVenueCities = [],
+}: UseEventFiltersOptions = {}) {
   const [searchParams, setSearchParams] = useSearchParams()
   const hasLockedCategories = lockedCategories.length > 0
 
@@ -159,6 +176,8 @@ export function useEventFilters({ lockedKeys = [], preset = {}, lockedCategories
     freeOnly: effectiveFreeOnly,
     priceMax: effectivePriceMax,
     sort,
+    neighborhoodSlug: lockedNeighborhoodSlug,
+    venueCities: lockedVenueCities,
   }
 
   // Stable signature string used by consumers to reset pagination on any
@@ -175,6 +194,8 @@ export function useEventFilters({ lockedKeys = [], preset = {}, lockedCategories
     effectiveFreeOnly,
     effectivePriceMax,
     sort,
+    lockedNeighborhoodSlug,
+    lockedVenueCities.join(','),
   ].join('|')
 
   return {

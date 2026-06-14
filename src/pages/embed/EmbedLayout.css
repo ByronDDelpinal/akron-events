@@ -38,6 +38,12 @@
   line-height: 1.1;
 }
 
+/* Locked-place scope indicator appended to the embed heading. */
+.embed-place {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
 /* "Powered by" attribution — subtle, links to the full site in a new tab.
    Keeps the embed honestly white-label while giving the source credit. */
 .embed-attribution {

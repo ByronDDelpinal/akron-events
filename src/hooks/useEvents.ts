@@ -504,6 +504,8 @@ export interface UseMapEventsOptions {
   freeOnly?: boolean
   priceMax?: string | null
   hiddenSources?: string[]
+  neighborhoodSlug?: string | null
+  venueCities?: string[]
 }
 
 /**
@@ -521,6 +523,8 @@ export function useMapEvents({
   freeOnly      = false,
   priceMax      = null,
   hiddenSources = [],
+  neighborhoodSlug = null,
+  venueCities      = [],
 }: UseMapEventsOptions = {}) {
   const [events,  setEvents]  = useState<RawRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -532,24 +536,32 @@ export function useMapEvents({
   // it. Values are slugs/keys (never contain commas), so join/split is safe.
   const categoriesKey    = categories.join(',')
   const hiddenSourcesKey = hiddenSources.join(',')
+  const venueCitiesKey   = venueCities.join(',')
   const categoriesStable    = useMemo(() => categoriesKey.split(',').filter(Boolean), [categoriesKey])
   const hiddenSourcesStable = useMemo(() => hiddenSourcesKey.split(',').filter(Boolean), [hiddenSourcesKey])
+  const venueCitiesStable   = useMemo(() => venueCitiesKey.split(',').filter(Boolean), [venueCitiesKey])
 
   useEffect(() => {
     let cancelled = false
-    const categories = categoriesStable, hiddenSources = hiddenSourcesStable
+    const categories = categoriesStable, hiddenSources = hiddenSourcesStable, venueCities = venueCitiesStable
 
     async function fetchMapEvents() {
       setLoading(true)
       setError(null)
 
       try {
+        // Geo scope forces an inner join so events without a matching venue
+        // drop out (mirrors useEvents / the hub pages).
+        const useInnerVenue = !!neighborhoodSlug || venueCities.length > 0
+        const venueJoin = useInnerVenue ? 'event_venues!inner' : 'event_venues'
+        const venueTbl  = useInnerVenue ? 'venues!inner'      : 'venues'
+
         let query: LooseQuery = supabase
           .from('events')
           .select(`
             id, title, start_at, price_min, price_max, is_family, is_fundraiser,
             ${categorySelectFragment(categories)}
-            event_venues ( venue:venues ( id, name, address, city, lat, lng ) )
+            ${venueJoin} ( venue:${venueTbl} ( id, name, address, city, lat, lng, neighborhood_slug ) )
           `, { count: 'exact' })
           .eq('status', 'published')
           // Drop events the moment their start time passes — no in-progress grace window.
@@ -559,6 +571,13 @@ export function useMapEvents({
         query = applyCategoryFilter(query, categories)
         if (family)     query = query.eq('is_family', true)
         if (fundraiser) query = query.eq('is_fundraiser', true)
+
+        if (neighborhoodSlug) {
+          query = query.eq('event_venues.venues.neighborhood_slug', neighborhoodSlug)
+        }
+        if (venueCities.length > 0) {
+          query = query.in('event_venues.venues.city', venueCities)
+        }
 
         if (hiddenSources.length > 0) {
           query = query.not('source', 'in', `(${hiddenSources.join(',')})`)
@@ -620,7 +639,7 @@ export function useMapEvents({
 
     fetchMapEvents()
     return () => { cancelled = true }
-  }, [categoriesStable, family, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSourcesStable])
+  }, [categoriesStable, family, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSourcesStable, neighborhoodSlug, venueCitiesStable])
 
   return { events, loading, error, total }
 }

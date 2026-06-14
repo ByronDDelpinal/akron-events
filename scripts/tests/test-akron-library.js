@@ -41,6 +41,48 @@ import {
 
 // ── Import shared utilities (pure functions) ─────────────────────────────────
 import { stripHtml, easternToIso } from '../lib/normalize.js'
+import { BRANCH_INFO as SCRAPER_BRANCH_INFO } from '../scrape-akron-library.js'
+
+// Recognized Summit County places that map to a city hub or a regional rollup
+// (mirror of CITIES labels in src/lib/cities.js + the region cityMatch arrays in
+// src/lib/seo/categories.js). A branch citied to anything outside this set
+// would silently fail to hub.
+const VALID_PLACES = new Set([
+  'Akron', 'Cuyahoga Falls', 'Stow', 'Hudson', 'Green', 'Fairlawn', 'Tallmadge',
+  'Barberton', 'New Franklin', 'Norton', 'Mogadore', 'Richfield', 'Northfield',
+  'Lakemore', 'Copley', 'Silver Lake', 'Munroe Falls', 'Bath', 'Peninsula',
+])
+
+describe('Library branch cities', () => {
+  it('cities the out-of-Akron branches to their real municipality', () => {
+    const expected = {
+      'Green Branch Library': 'Green',
+      'Fairlawn-Bath Branch Library': 'Fairlawn',
+      'Tallmadge Branch Library': 'Tallmadge',
+      'Norton Branch Library': 'Norton',
+      'Mogadore Branch Library': 'Mogadore',
+      'Richfield Branch Library': 'Richfield',
+      'Nordonia Hills Branch Library': 'Northfield',
+      'Springfield-Lakemore Branch Library': 'Lakemore',
+    }
+    for (const [branch, city] of Object.entries(expected)) {
+      assert.equal(SCRAPER_BRANCH_INFO[branch]?.city, city, `${branch} should be in ${city}`)
+    }
+  })
+
+  it('every explicit branch city is a hub-recognized place', () => {
+    for (const [branch, info] of Object.entries(SCRAPER_BRANCH_INFO)) {
+      if (info.city == null) continue // defaults to Akron
+      assert.ok(VALID_PLACES.has(info.city), `${branch} → "${info.city}" has no hub`)
+    }
+  })
+
+  it('Akron-proper branches stay defaulted (no override)', () => {
+    // A representative in-Akron branch must NOT carry a city override.
+    assert.equal(SCRAPER_BRANCH_INFO['Kenmore Branch Library'].city, undefined)
+    assert.equal(SCRAPER_BRANCH_INFO['Highland Square Branch Library'].city, undefined)
+  })
+})
 
 // ════════════════════════════════════════════════════════════════════════════
 // RE-IMPLEMENT SCRAPER LOGIC FOR TESTABILITY

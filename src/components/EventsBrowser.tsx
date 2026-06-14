@@ -105,6 +105,8 @@ export default function EventsBrowser({
     search: effective.search,
     freeOnly: effective.freeOnly,
     priceMax: effective.priceMax,
+    neighborhoodSlug: effective.neighborhoodSlug,
+    venueCities: effective.venueCities,
   })
 
   // Append each incoming page to the accumulated list.

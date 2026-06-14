@@ -16,6 +16,8 @@ export default function EmbedHomePage() {
     lockedKeys: config?.lockedKeys,
     preset: { family: config?.family },
     lockedCategories: config?.categories,
+    lockedNeighborhoodSlug: config?.neighborhoodSlug,
+    lockedVenueCities: config?.venueCities,
   })
 
   // View + density are seeded from config and then user-controllable.
@@ -27,7 +29,12 @@ export default function EmbedHomePage() {
   return (
     <>
       <div className="embed-header">
-        <h2 className="embed-title">{config.title ?? 'Upcoming Events'}</h2>
+        <h2 className="embed-title">
+          {config.title ?? 'Upcoming Events'}
+          {config.placeLabel && (
+            <span className="embed-place"> · {config.placeLabel}</span>
+          )}
+        </h2>
         <span className="embed-attribution">
           Powered by{' '}
           <a href={window.location.origin} target="_blank" rel="noopener noreferrer">

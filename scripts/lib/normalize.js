@@ -813,14 +813,20 @@ export async function ensureVenue(name, details = {}) {
     if (details.description)   updates.description   = details.description
     if (details.tags?.length)  updates.tags          = details.tags
 
-    // Resolve the polygon slug only when the venue isn't already
-    // classified AND we have coordinates to feed the resolver. This
-    // protects manual admin classifications — once an admin sets a
-    // slug, scrapers won't change it. New lat/lng on an unclassified
-    // venue means the polygon answer is now reachable.
-    if (!existing.neighborhood_slug && details.lat != null && details.lng != null) {
-      const slug = await resolveNeighborhoodSlug(details.lat, details.lng)
-      if (slug) updates.neighborhood_slug = slug
+    // Backfill the neighborhood slug only when the venue isn't already
+    // classified — this protects manual admin classifications (once an admin
+    // sets a slug, scrapers won't change it). An EXPLICIT slug from the caller
+    // (a curated KNOWN_VENUES entry) wins over the polygon resolver, which is
+    // necessary where the GeoJSON is wrong — e.g. the resolver places the
+    // entire Kenmore Blvd corridor in 'summit-lake'. Otherwise fall back to the
+    // polygon answer when fresh coordinates make it reachable.
+    if (!existing.neighborhood_slug) {
+      if (details.neighborhood_slug) {
+        updates.neighborhood_slug = details.neighborhood_slug
+      } else if (details.lat != null && details.lng != null) {
+        const slug = await resolveNeighborhoodSlug(details.lat, details.lng)
+        if (slug) updates.neighborhood_slug = slug
+      }
     }
 
     if (Object.keys(updates).length) {
@@ -828,6 +834,21 @@ export async function ensureVenue(name, details = {}) {
     }
     _venueNameCache.set(trimmed, existing.id)
     return existing.id
+  }
+
+  // Before minting a new venue, check whether one already exists at this street
+  // address under a DIFFERENT name. The exact-name lookup above matches on name
+  // only, so the same place arriving from two feeds with slightly different
+  // names ("The Posh" vs "Posh", "Lock 3" vs "Lock 3 Live", "Reservoir Park" vs
+  // "Reservoir Park Community Center") used to create duplicate rows. Reuse the
+  // canonical row instead. Fail-safe: resolveVenueByAddress returns null when
+  // the address index can't load (env-less tests), so behavior is unchanged.
+  if (details.address) {
+    const byAddress = await resolveVenueByAddress(details.address)
+    if (byAddress) {
+      _venueNameCache.set(trimmed, byAddress)
+      return byAddress
+    }
   }
 
   // Build insert payload, omitting null/undefined values so Postgres
@@ -845,11 +866,14 @@ export async function ensureVenue(name, details = {}) {
   if (details.description)   row.description   = details.description
   if (details.tags?.length)  row.tags          = details.tags
 
-  // Auto-classify by polygon at insert time when coordinates are
-  // present. Resolver returns null for venues outside Akron city
-  // limits (Cuyahoga Falls, Stow, etc.) — those rows leave the
-  // column null, which is the correct state for non-Akron venues.
-  if (details.lat != null && details.lng != null) {
+  // An explicit slug from a curated KNOWN_VENUES entry wins (and is required
+  // where the polygon GeoJSON is wrong — see the Kenmore Blvd corridor note
+  // above). Otherwise auto-classify by polygon when coordinates are present.
+  // The resolver returns null for venues outside Akron city limits (Cuyahoga
+  // Falls, Stow, etc.) — those rows correctly leave the column null.
+  if (details.neighborhood_slug) {
+    row.neighborhood_slug = details.neighborhood_slug
+  } else if (details.lat != null && details.lng != null) {
     const slug = await resolveNeighborhoodSlug(details.lat, details.lng)
     if (slug) row.neighborhood_slug = slug
   }
@@ -865,6 +889,12 @@ export async function ensureVenue(name, details = {}) {
 
   console.log(`  ✚ Created venue: ${trimmed}`)
   _venueNameCache.set(trimmed, data.id)
+  // Keep the address index fresh within a run so a later program at the same
+  // address dedupes onto this brand-new venue instead of minting another.
+  if (row.address && _venueAddressIndex) {
+    const key = normalizeStreetAddress(row.address)
+    if (key && !_venueAddressIndex.has(key)) _venueAddressIndex.set(key, data.id)
+  }
   return data.id
 }
 
@@ -1159,6 +1189,24 @@ export async function linkEventVenue(eventId, venueId) {
     .from('event_venues')
     .upsert({ event_id: eventId, venue_id: venueId }, { onConflict: 'event_id,venue_id', ignoreDuplicates: true })
   if (error) console.warn(`  ⚠ linkEventVenue failed: ${error.message}`)
+}
+
+/**
+ * Set an event's venue to EXACTLY `venueId`, removing any other venue links.
+ * linkEventVenue only ever adds rows, so a scraper that corrects an event's
+ * venue (e.g. rec-parks moving a program off the generic department address
+ * onto its real community center) would otherwise leave the event pointing at
+ * both. Use this for sources where one event has exactly one venue.
+ */
+export async function setEventVenue(eventId, venueId) {
+  if (!eventId || !venueId) return
+  const { error: delErr } = await supabaseAdmin
+    .from('event_venues')
+    .delete()
+    .eq('event_id', eventId)
+    .neq('venue_id', venueId)
+  if (delErr) console.warn(`  ⚠ setEventVenue cleanup failed: ${delErr.message}`)
+  await linkEventVenue(eventId, venueId)
 }
 
 /**
