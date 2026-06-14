@@ -33,6 +33,8 @@ export default function ReviewQueuePage() {
       .from('events')
       .select('id, title, start_at, source, source_id, manual_overrides, event_categories ( category )', { count: 'exact' })
       .eq('needs_review', true)
+      // Hide events whose start time has already passed — no point reviewing them.
+      .gte('start_at', new Date().toISOString())
       .order('start_at', { ascending: true })
       .range(from, from + PAGE_SIZE - 1)
 
