@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { usePwaInstall, promptInstall, isMobileDevice } from '@/hooks/usePwaInstall'
+import { hasInstallIntent } from '@/lib/engagement'
 import { ShareIcon } from '@/components/icons'
 import { trackEvent, EVENTS } from '@/lib/analytics'
 import './InstallPrompt.css'
@@ -9,10 +10,12 @@ import './InstallPrompt.css'
  * PWA install promotion, two entry points:
  *
  *   <InstallPrompt />     — dismissible pill above the slim footer bar.
- *                           Chromium-only (it needs the captured native
- *                           prompt), shown from the SECOND visit on, and
- *                           silenced for 60 days once dismissed. Mounted
- *                           once in SiteChrome.
+ *                           Serves both funnels: Chromium fires the native
+ *                           install dialog; iOS (no install API) opens the
+ *                           Share-sheet how-to. Shown from the SECOND visit
+ *                           on — or sooner for engaged visitors (see
+ *                           hasInstallIntent) — and silenced for 60 days
+ *                           once dismissed. Mounted once in SiteChrome.
  *   <InstallFooterLink /> — quiet "Add to Home Screen" link for the
  *                           footer. Works on Chromium (native dialog)
  *                           and iOS (instruction sheet). Intent-driven,
@@ -64,30 +67,46 @@ export default function InstallPrompt() {
   const { pathname } = useLocation()
   const [eligible, setEligible] = useState(false)
   const [hidden, setHidden] = useState(false)
+  const [iosSheetOpen, setIosSheetOpen] = useState(false)
 
   // Visit counting + gating run once on mount; `platform` flipping to
   // 'native' later (beforeinstallprompt can fire after mount) is picked
-  // up reactively through the hook.
+  // up reactively through the hook. Engaged visitors (set a neighborhood,
+  // read a few events) qualify ahead of the plain second-visit threshold.
   useEffect(() => {
     const visits = countVisit()
-    setEligible(visits >= 2 && !recentlyDismissed())
+    setEligible((visits >= 2 || hasInstallIntent()) && !recentlyDismissed())
   }, [])
+
+  // The pill now serves both funnels: Chromium's native dialog AND iOS,
+  // where there's no install API so the pill opens the Share-sheet how-to.
+  const isIosPlatform = platform === 'ios'
 
   const show =
     eligible &&
     !hidden &&
     !installed &&
-    platform === 'native' &&
+    (platform === 'native' || platform === 'ios') &&
     isMobileDevice() &&
     !pathname.startsWith('/admin')
 
   if (!show) return null
 
   const onInstall = async () => {
-    trackEvent(EVENTS.PWA_INSTALL_CLICKED, { placement: 'pill' })
+    if (isIosPlatform) {
+      // iOS can't be prompted programmatically — coach the gesture. Record a
+      // dismissal so we don't re-nag this device; a real install surfaces
+      // later as a pwa_standalone_launch instead.
+      trackEvent(EVENTS.PWA_INSTALL_CLICKED, { placement: 'pill', method: 'ios' })
+      trackEvent(EVENTS.PWA_INSTALL_INSTRUCTIONS_SHOWN, { placement: 'pill' })
+      recordDismissal()
+      setIosSheetOpen(true)
+      return
+    }
+    trackEvent(EVENTS.PWA_INSTALL_CLICKED, { placement: 'pill', method: 'native' })
     const outcome = await promptInstall()
     if (outcome === 'accepted') {
-      trackEvent(EVENTS.PWA_INSTALL_ACCEPTED, { placement: 'pill' })
+      trackEvent(EVENTS.PWA_INSTALL_ACCEPTED, { placement: 'pill', method: 'native' })
     } else {
       // Declined the native dialog: treat as a dismissal, don't nag.
       recordDismissal()
@@ -97,29 +116,46 @@ export default function InstallPrompt() {
 
   const onDismiss = () => {
     recordDismissal()
-    trackEvent(EVENTS.PWA_INSTALL_DISMISSED)
+    trackEvent(EVENTS.PWA_INSTALL_DISMISSED, {
+      placement: 'pill',
+      method: isIosPlatform ? 'ios' : 'native',
+    })
     setHidden(true)
   }
 
   return (
-    <div className="install-pill" role="dialog" aria-label="Install Akron Pulse">
-      <img src="/pwa-192x192.png" alt="" className="install-pill-icon" aria-hidden="true" />
-      <div className="install-pill-text">
-        <p className="install-pill-title">Get Akron Pulse on your home screen</p>
-        <p className="install-pill-sub">One tap to this weekend's events. No app store needed.</p>
+    <>
+      <div className="install-pill" role="dialog" aria-label="Install Akron Pulse">
+        <img src="/pwa-192x192.png" alt="" className="install-pill-icon" aria-hidden="true" />
+        <div className="install-pill-text">
+          <p className="install-pill-title">Get Akron Pulse on your home screen</p>
+          <p className="install-pill-sub">
+            {isIosPlatform
+              ? "Tap Share, then “Add to Home Screen.” No app store needed."
+              : "One tap to this weekend's events. No app store needed."}
+          </p>
+        </div>
+        <button type="button" className="install-pill-btn" onClick={onInstall}>
+          {isIosPlatform ? 'Show how' : 'Install'}
+        </button>
+        <button
+          type="button"
+          className="install-pill-close"
+          aria-label="Not now"
+          onClick={onDismiss}
+        >
+          ×
+        </button>
       </div>
-      <button type="button" className="install-pill-btn" onClick={onInstall}>
-        Install
-      </button>
-      <button
-        type="button"
-        className="install-pill-close"
-        aria-label="Not now"
-        onClick={onDismiss}
-      >
-        ×
-      </button>
-    </div>
+      {iosSheetOpen && (
+        <IosInstallSheet
+          onClose={() => {
+            setIosSheetOpen(false)
+            setHidden(true)
+          }}
+        />
+      )}
+    </>
   )
 }
 
@@ -132,13 +168,15 @@ export function InstallFooterLink() {
   if (installed || platform === 'unavailable' || !isMobileDevice()) return null
 
   const onClick = async () => {
-    trackEvent(EVENTS.PWA_INSTALL_CLICKED, { placement: 'footer' })
     if (platform === 'native') {
+      trackEvent(EVENTS.PWA_INSTALL_CLICKED, { placement: 'footer', method: 'native' })
       const outcome = await promptInstall()
       if (outcome === 'accepted') {
-        trackEvent(EVENTS.PWA_INSTALL_ACCEPTED, { placement: 'footer' })
+        trackEvent(EVENTS.PWA_INSTALL_ACCEPTED, { placement: 'footer', method: 'native' })
       }
     } else {
+      trackEvent(EVENTS.PWA_INSTALL_CLICKED, { placement: 'footer', method: 'ios' })
+      trackEvent(EVENTS.PWA_INSTALL_INSTRUCTIONS_SHOWN, { placement: 'footer' })
       setSheetOpen(true)
     }
   }

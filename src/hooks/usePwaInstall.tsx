@@ -40,7 +40,7 @@ export function isStandalone(): boolean {
   )
 }
 
-function isIos(): boolean {
+export function isIos(): boolean {
   if (typeof navigator === 'undefined') return false
   // iPadOS 13+ masquerades as macOS; the touch-point check unmasks it.
   return (

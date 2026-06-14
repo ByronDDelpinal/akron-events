@@ -88,6 +88,7 @@ export const SCRAPERS = [
   { key: 'life_gurukula',        script: 'scripts/scrape-life-gurukula.js',           label: 'Life Gurukula',                group: 'ics',            active: true  },
   { key: 'torchbearers',         script: 'scripts/scrape-torchbearers.js',            label: 'Torchbearers',        group: 'custom',         active: true, defaultCategory: 'civic' },
   { key: 'indivisible_akron',    script: 'scripts/scrape-indivisible-akron.js',       label: 'Indivisible Akron',            group: 'tribe',          active: true, defaultCategory: 'civic' },
+  { key: 'house_three_thirty',   script: 'scripts/scrape-house-three-thirty.js',      label: 'House Three Thirty',           group: 'lrmr',           active: true  },
 
   // ── Education ──────────────────────────────────────────────────────────
   { key: 'akron_public_schools', script: 'scripts/scrape-akron-public-schools.js',    label: 'Akron Public Schools',         group: 'ics',            active: true  },

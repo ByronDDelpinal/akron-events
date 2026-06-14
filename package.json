@@ -11,6 +11,7 @@
     "lint": "eslint scripts/ --max-warnings 0",
     "lint:src": "eslint src/ --max-warnings 0",
     "typecheck": "tsc --noEmit",
+    "gen:ios-splash": "node scripts/generate-ios-splash.js",
     "postinstall": "puppeteer browsers install chrome",
     "scrape:eventbrite": "node scripts/scrape-eventbrite.js",
     "scrape:eventbrite:force": "node scripts/scrape-eventbrite.js --force",

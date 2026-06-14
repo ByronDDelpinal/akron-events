@@ -193,6 +193,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     notes:       'Local pro-democracy / activism org. Public civic programming — workshops, book and movie clubs, and community meetups (including recurring series). Categorized civic by default; recurring occurrences get a per-date source_id so each instance is its own row.',
     status:      'active',
   },
+  {
+    key:         'house_three_thirty',
+    method:      'REST API',
+    methodDetail:"Venue's own VTL calendar API (GET /api/vtl/events)",
+    venue:       'House Three Thirty — 532 W Market St',
+    notes:       "The LeBron James Family Foundation's community arts/music/event space. Its Vue front end (LeBron's LRMR platform) renders an LrmrEvents component off an unauthenticated JSON feed. This direct scraper is the primary source for HTH's own calendar — it catches the free/community programming (e.g. the recurring \"Akron Knits\" needle-arts meetups) that never goes through Eventbrite. Ticketed shows still arrive in parallel via the citywide Eventbrite geo-feed (eb_house_three_thirty); cross-source dedup reconciles the overlap. The feed exposes only display date/time strings, so we parse them back to Eastern ISO and give recurring occurrences a per-date source_id.",
+    status:      'active',
+  },
 
   // ── WordPress APIs ─────────────────────────────────────────────────────
   {
@@ -624,7 +632,7 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     method: 'HTML scrape',
     methodDetail:'Routed through the Eventbrite citywide geo-feed (organizer 61445316323)',
     venue:  '532 W Market St — community arts, music & event space',
-    notes:  'All ticketed House Three Thirty events publish through Eventbrite and are geotagged 532 W Market St, so they flow into the citywide Eventbrite scraper. Pinning the organizer ID could serve as a fallback if the geo-feed ever misses an event.',
+    notes:  'Ticketed House Three Thirty events publish through Eventbrite and are geotagged 532 W Market St, so they flow into the citywide Eventbrite scraper. The free/community programming that never hits Eventbrite is covered by the dedicated `house_three_thirty` scraper (the venue\'s own VTL calendar API); cross-source dedup reconciles the overlap.',
     status: 'active',
   },
   {
@@ -816,6 +824,11 @@ export const SOURCE_GROUPS: SourceGroup[] = [
     title: 'Custom HTML Scrapers',
     description: "When a venue's CMS exposes no machine-readable feed, the scraper parses the rendered HTML directly. Each one is bespoke to its target site's structure. Most are stable for years; CMS redesigns are caught by the Scraper Health monitor below.",
   },
+  {
+    id:    'lrmr',
+    title: 'LRMR (House Three Thirty)',
+    description: "House Three Thirty runs on the LeBron James Family Foundation's in-house \"LRMR\" web platform — a Vue front end whose LrmrEvents component reads an unauthenticated JSON feed (GET /api/vtl/events). We hit that endpoint directly. It returns display-formatted date/time strings rather than ISO timestamps, so the scraper parses them back to Eastern time and assigns recurring occurrences a per-date source_id.",
+  },
 ]
 
 // Maps each DATA_SOURCES key to its SOURCE_GROUPS id. Kept separate from the
@@ -879,6 +892,9 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   // EventON / custom WordPress
   jillys_music_room: 'wp-hybrid',
   akronym_brewing:   'wp-hybrid',
+
+  // LRMR platform (House Three Thirty's own calendar API)
+  house_three_thirty: 'lrmr',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',

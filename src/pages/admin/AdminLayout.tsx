@@ -1,49 +1,84 @@
 import { useState, useEffect, type FormEvent } from 'react'
+import type { Session } from '@supabase/supabase-js'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { SEO } from '@/lib/seo'
 import './AdminLayout.css'
 
 // ── Auth ──────────────────────────────────────────────────────────────────
-const ADMIN_PW = 'turnoutforwhat?'
+// Real Supabase Auth (email + password). The session JWT carries the
+// `authenticated` role, which is what the admin RLS policies are scoped to
+// (see migration 038). There is NO public sign-up from this app — the single
+// admin user is created in the Supabase dashboard, and email sign-ups must be
+// disabled in the project's Auth settings so `authenticated` == the admin.
+
+type AuthState = 'loading' | 'signed-out' | 'signed-in'
 
 function useAdminAuth() {
-  const [authed, setAuthed] = useState(() => sessionStorage.getItem('admin_auth') === '1')
-  const login = (pw: string): boolean => {
-    if (pw === ADMIN_PW) {
-      sessionStorage.setItem('admin_auth', '1')
-      setAuthed(true)
-      return true
-    }
-    return false
+  const [state, setState] = useState<AuthState>('loading')
+
+  useEffect(() => {
+    let active = true
+    supabase.auth.getSession().then(({ data }) => {
+      if (active) setState(data.session ? 'signed-in' : 'signed-out')
+    })
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session: Session | null) => {
+      setState(session ? 'signed-in' : 'signed-out')
+    })
+    return () => { active = false; sub.subscription.unsubscribe() }
+  }, [])
+
+  const login = async (email: string, password: string): Promise<string | null> => {
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+    return error ? error.message : null
   }
-  const logout = () => { sessionStorage.removeItem('admin_auth'); setAuthed(false) }
-  return { authed, login, logout }
+  const logout = async () => { await supabase.auth.signOut() }
+
+  return { state, login, logout }
 }
 
-function LoginGate({ onLogin }: { onLogin: (pw: string) => boolean }) {
+function LoginGate({ onLogin }: { onLogin: (email: string, password: string) => Promise<string | null> }) {
+  const [email, setEmail] = useState('')
   const [pw, setPw] = useState('')
-  const [err, setErr] = useState(false)
-  const submit = (e: FormEvent) => {
+  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!onLogin(pw)) setErr(true)
+    setBusy(true)
+    setErr(null)
+    const message = await onLogin(email, pw)
+    if (message) setErr(message)
+    setBusy(false)
   }
+
   return (
     <div className="admin-login-wrap">
       <form className="admin-login-card" onSubmit={submit}>
         <div className="admin-login-icon">🔒</div>
         <h2 className="admin-login-title">Admin Dashboard</h2>
-        <p className="admin-login-sub">Enter the admin password to continue.</p>
-        {err && <p className="admin-login-err">Incorrect password</p>}
+        <p className="admin-login-sub">Sign in with your admin account to continue.</p>
+        {err && <p className="admin-login-err">{err}</p>}
+        <input
+          className="form-input"
+          type="email"
+          value={email}
+          onChange={(e) => { setEmail(e.target.value); setErr(null) }}
+          placeholder="Email"
+          autoComplete="username"
+          autoFocus
+        />
         <input
           className="form-input"
           type="password"
           value={pw}
-          onChange={(e) => { setPw(e.target.value); setErr(false) }}
+          onChange={(e) => { setPw(e.target.value); setErr(null) }}
           placeholder="Password"
-          autoFocus
+          autoComplete="current-password"
         />
-        <button className="btn-admin-primary" type="submit">Sign In</button>
+        <button className="btn-admin-primary" type="submit" disabled={busy}>
+          {busy ? 'Signing in…' : 'Sign In'}
+        </button>
       </form>
     </div>
   )
@@ -101,14 +136,17 @@ function adminSectionTitle(pathname: string): string {
 }
 
 export default function AdminLayout() {
-  const { authed, login, logout } = useAdminAuth()
+  const { state, login, logout } = useAdminAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const reviewCount = useReviewCount()
 
-  if (!authed) return <LoginGate onLogin={login} />
+  if (state === 'loading') {
+    return <div className="admin-login-wrap"><p className="admin-login-sub">Loading…</p></div>
+  }
+  if (state === 'signed-out') return <LoginGate onLogin={login} />
 
-  const handleLogout = () => { logout(); navigate('/') }
+  const handleLogout = async () => { await logout(); navigate('/') }
 
   return (
     <div className="admin-page">

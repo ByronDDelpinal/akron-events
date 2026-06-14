@@ -160,11 +160,12 @@ export default function FeedbackPage() {
         image_url,
       }
 
+      // No .select() here on purpose: a private post is not readable back under
+      // RLS (anon can only read published, non-private feedback — migration 038),
+      // so selecting the inserted row would fail. The list is re-fetched below.
       const { error } = await supabase
         .from('feedback_posts')
         .insert(payload as TablesInsert<'feedback_posts'>)
-        .select()
-        .single()
 
       if (error) {
         console.error('Feedback submit error:', error)

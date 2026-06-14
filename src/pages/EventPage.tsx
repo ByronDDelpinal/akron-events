@@ -19,6 +19,7 @@ import {
   eventDescription,
 } from '@/lib/seo'
 import { makeEventSlug, eventPath } from '@/lib/slug'
+import { recordEventView } from '@/lib/engagement'
 import {
   formatPrice,
   gradientForEvent,
@@ -89,6 +90,15 @@ export default function EventPage() {
     if (embed) navigate(`/embed${location.search}`)
     else navigate(-1)
   }, [embed, navigate, location.search])
+
+  // Count engaged event-detail views as a PWA-install intent signal. Site
+  // only — embeds are partner iframes, not install candidates — and deduped
+  // per session inside recordEventView so the canonical redirect below
+  // doesn't double-count.
+  useEffect(() => {
+    if (embed || !event || event.id !== id) return
+    recordEventView(event.id)
+  }, [embed, event, id])
 
   // Canonicalize the URL to /events/{slug}/{id}. The `event.id === id` guard
   // prevents rewriting to a stale event while a new one is still fetching.

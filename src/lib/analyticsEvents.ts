@@ -20,6 +20,21 @@ import type { EmbedView, EmbedDensity, EmbedTarget } from './embedConfig'
 /** Where a PWA-install affordance lives. */
 export type InstallPlacement = 'pill' | 'footer'
 
+/**
+ * How a user installs. 'native' is the Chromium beforeinstallprompt dialog;
+ * 'ios' is the manual Share -> Add to Home Screen flow we coach with the
+ * instruction sheet. Segmenting by this is the only way to read the two
+ * very different funnels apart.
+ */
+export type InstallMethod = 'native' | 'ios'
+
+/**
+ * Platform bucket for a standalone (installed-app) launch. iOS is called
+ * out because its install itself fires no event, so launches are the only
+ * way to measure iOS install success.
+ */
+export type StandalonePlatform = 'ios' | 'other'
+
 /** Final embed configuration captured at the moment a partner copies the snippet. */
 export interface EmbedSnippetParams {
   theme: string
@@ -37,9 +52,11 @@ export interface EmbedSnippetParams {
  * just ergonomic call-site references. Keep values in sync with EventParams.
  */
 export const EVENTS = {
-  PWA_INSTALL_CLICKED:      'pwa_install_clicked',
-  PWA_INSTALL_ACCEPTED:     'pwa_install_accepted',
-  PWA_INSTALL_DISMISSED:    'pwa_install_dismissed',
+  PWA_INSTALL_CLICKED:           'pwa_install_clicked',
+  PWA_INSTALL_ACCEPTED:          'pwa_install_accepted',
+  PWA_INSTALL_DISMISSED:         'pwa_install_dismissed',
+  PWA_INSTALL_INSTRUCTIONS_SHOWN: 'pwa_install_instructions_shown',
+  PWA_STANDALONE_LAUNCH:         'pwa_standalone_launch',
   ONBOARDING_CLOSED:        'onboarding_closed',
   NEIGHBORHOOD_SET:         'neighborhood_set',
   NEIGHBORHOOD_CLEARED:     'neighborhood_cleared',
@@ -60,9 +77,11 @@ export type EventName = (typeof EVENTS)[keyof typeof EVENTS]
  * object type, which trackEvent's signature turns into "pass no second arg".
  */
 export interface EventParams {
-  pwa_install_clicked:      { placement: InstallPlacement }
-  pwa_install_accepted:     { placement: InstallPlacement }
-  pwa_install_dismissed:    Record<string, never>
+  pwa_install_clicked:      { placement: InstallPlacement; method: InstallMethod }
+  pwa_install_accepted:     { placement: InstallPlacement; method: InstallMethod }
+  pwa_install_dismissed:    { placement: InstallPlacement; method: InstallMethod }
+  pwa_install_instructions_shown: { placement: InstallPlacement }
+  pwa_standalone_launch:    { platform: StandalonePlatform }
   onboarding_closed:        { outcome: 'saved' | 'skipped' }
   neighborhood_set:         { neighborhood: string }
   neighborhood_cleared:     Record<string, never>

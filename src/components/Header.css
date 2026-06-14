@@ -10,6 +10,10 @@
   position: sticky;
   top: 0;
   z-index: 100;
+  /* Reserve the iOS status-bar area so the (black-translucent) status bar
+     overlays the teal header instead of the page content. Zero on every
+     other platform, so this is inert off iOS standalone. */
+  padding-top: env(safe-area-inset-top, 0px);
   border-bottom: var(--border-width-thin) solid transparent;
   transition: background var(--transition-slowest) ease, border-color var(--transition-slowest) ease;
 }
@@ -275,10 +279,11 @@
 .mobile-menu {
   display: none;
   position: fixed;
-  top: 64px; left: 0; right: 0; bottom: 0;
+  /* Sits just under the header, whose height now includes the iOS inset. */
+  top: calc(64px + env(safe-area-inset-top, 0px)); left: 0; right: 0; bottom: 0;
   background: var(--bg-nav);
   border-top: var(--border-width-thin) solid var(--overlay-light-05);
-  padding: var(--space-sm) var(--space-xl) var(--space-lg);
+  padding: var(--space-sm) var(--space-xl) calc(var(--space-lg) + env(safe-area-inset-bottom, 0px));
   flex-direction: column;
   gap: var(--space-2xs);
   animation: menuDrop 0.2s ease;
