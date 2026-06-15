@@ -110,16 +110,21 @@ function AppInner() {
   // ── Scroll-to-top on PUSH/REPLACE ────────────────────────────────────
   // Skip for hash fragments and navigations tagged state.preserveScroll.
   // Only react to pathname changes, not search, so filter toggles don't jump.
+  //
+  // pathname is the ONLY dependency on purpose. navigationType and
+  // location.state are read for the guards but must NOT be deps: a search-only
+  // REPLACE (any in-page filter toggle, e.g. "Hide kids' events") flips
+  // navigationType PUSH→REPLACE while pathname is unchanged, and listing it
+  // here re-fired this effect and scrolled to top on the first toggle. Reading
+  // them without subscribing keeps the guards correct (the effect only runs on
+  // a real pathname change, where the current render's values are fresh).
   useEffect(() => {
     if (navigationType === 'POP') return
     if (location.hash) return
     if ((location.state as { preserveScroll?: boolean } | null)?.preserveScroll) return
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
-    // location.hash is read only by the early return. Reacting to hash-only
-    // changes would scroll-to-top when a hash clears on the same pathname,
-    // which this effect deliberately ignores (see comment above).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname, navigationType, location.state])
+  }, [location.pathname])
 
   return (
     <Routes>
