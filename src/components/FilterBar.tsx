@@ -42,6 +42,9 @@ interface FilterBarProps {
   onPriceFilter: (v: string | null) => void
   sort: string
   onSort: (v: string) => void
+  /** Committed search term + a clearer, for the active-filter pill. */
+  search?: string
+  onSearch?: (v: string) => void
   /** Audience toggle: hide events flagged is_family. */
   excludeFamily?: boolean
   onExcludeFamily?: (v: boolean) => void
@@ -72,6 +75,7 @@ export default function FilterBar({
   onCycleCategory,
   priceFilter,     onPriceFilter,
   sort,            onSort,
+  search = '',     onSearch,
   excludeFamily = false, onExcludeFamily,
   showAudienceToggle = false,
   view,            onView,
@@ -92,6 +96,8 @@ export default function FilterBar({
   const visibleCategories = lockedDimensions.category ? [] : rawCategories
   const visibleExcluded = lockedDimensions.category ? [] : excludedCategories
   const showPricePill = priceFilter && !lockedDimensions.price
+  const trimmedSearch = search.trim()
+  const hasSearch = trimmedSearch.length > 0 && !!onSearch
 
   const trayActiveCount = [
     activeIntentId !== null,
@@ -104,6 +110,7 @@ export default function FilterBar({
   ].filter(Boolean).length
 
   const hasAnyClearable =
+    hasSearch ||
     activeIntentId ||
     showDatePill ||
     visibleCategories.length > 0 ||
@@ -170,6 +177,19 @@ export default function FilterBar({
         {/* ── Active filter summary strip ── */}
         {hasAnyClearable && (
           <div className="filter-active-strip">
+            {hasSearch && (
+              <ActivePill
+                search
+                title={`Searching: ${trimmedSearch}`}
+                label={
+                  <>
+                    <SearchPillIcon />
+                    <span className="active-pill-label">“{truncate(trimmedSearch, SEARCH_PILL_MAX)}”</span>
+                  </>
+                }
+                onRemove={() => onSearch?.('')}
+              />
+            )}
             {activeIntent && (
               <ActivePill
                 label={`${activeIntent.emoji} ${activeIntent.label}`}
@@ -252,6 +272,14 @@ export default function FilterBar({
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Cap the search term shown in the pill so a long query can't blow out the
+// strip. The full term stays available via the pill's title (hover) tooltip.
+const SEARCH_PILL_MAX = 24
+function truncate(s: string, max: number): string {
+  return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s
+}
+
 function buildDateRangeLabel(from: string | null, to: string | null): string {
   const fmt = (d: string | null): string => {
     if (!d) return '…'
@@ -268,21 +296,35 @@ interface ActivePillProps {
   onRemove: () => void
   /** Exclusion pill (a hidden category) — rendered in the muted "minus" style. */
   exclude?: boolean
+  /** Search pill — accented so an active search reads at a glance. */
+  search?: boolean
+  /** Full text shown on hover (e.g. an untruncated search term). */
+  title?: string
 }
 
-function ActivePill({ label, onRemove, exclude = false }: ActivePillProps) {
+function ActivePill({ label, onRemove, exclude = false, search = false, title }: ActivePillProps) {
+  const variant = exclude ? ' active-pill--exclude' : search ? ' active-pill--search' : ''
   return (
-    <span className={`active-pill${exclude ? ' active-pill--exclude' : ''}`}>
+    <span className={`active-pill${variant}`} title={title}>
       {label}
       <span
         className="active-pill-x"
         role="button"
-        aria-label="Remove filter"
+        aria-label={search ? 'Clear search' : 'Remove filter'}
         onClick={onRemove}
       >
         ✕
       </span>
     </span>
+  )
+}
+
+function SearchPillIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" style={{ flexShrink: 0 }} aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
   )
 }
 

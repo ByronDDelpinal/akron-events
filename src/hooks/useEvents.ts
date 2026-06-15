@@ -2,6 +2,7 @@ import type { LooseRow, LooseQuery } from '@/types'
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { EVENT_LIST_COLUMNS } from '@/lib/firstPageQuery'
+import { dateRangeBounds } from '@/lib/dateRange'
 import { useAsync } from './useAsync'
 
 /**
@@ -311,39 +312,6 @@ export function useEvents({
   const hasMore = offset + limit < total
 
   return { events, loading, error, total, hasMore }
-}
-
-/**
- * Resolve a named date-range preset into [start, end] Date bounds. Shared by
- * useEvents and useMapEvents so the two stay in sync.
- */
-function dateRangeBounds(dateRange: string): { start: Date; end: Date } {
-  const now   = new Date()
-  const start = new Date(now)
-  const end   = new Date(now)
-
-  if (dateRange === 'today') {
-    start.setHours(0, 0, 0, 0)
-    end.setHours(23, 59, 59, 999)
-  } else if (dateRange === 'this_weekend') {
-    const dayOfWeek = now.getDay()
-    const daysToSat = (6 - dayOfWeek + 7) % 7 || 7
-    start.setDate(now.getDate() + daysToSat)
-    start.setHours(0, 0, 0, 0)
-    end.setDate(start.getDate() + 1)
-    end.setHours(23, 59, 59, 999)
-  } else if (dateRange === 'this_week') {
-    start.setHours(0, 0, 0, 0)
-    const daysToSun = (7 - now.getDay()) % 7 || 7
-    end.setDate(now.getDate() + daysToSun)
-    end.setHours(23, 59, 59, 999)
-  } else if (dateRange === 'this_month') {
-    start.setHours(0, 0, 0, 0)
-    end.setMonth(now.getMonth() + 1, 0)
-    end.setHours(23, 59, 59, 999)
-  }
-
-  return { start, end }
 }
 
 /**

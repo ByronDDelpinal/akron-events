@@ -344,12 +344,10 @@ export function normaliseIcsEvent(ev, config = {}) {
   const rawDesc = ev.DESCRIPTION ?? ''
   const description = rawDesc ? stripHtml(rawDesc).slice(0, 5000) || null : null
 
-  // Some feeds embed the image in a custom X-… property or an ATTACH
-  const imageUrl =
-    ev['X-ALT-IMAGE'] ??
-    ev['X-IMAGE']     ??
-    ev['X-APPLE-STRUCTURED-LOCATION'] ? null :  // ignore structured location
-    null
+  // Some feeds embed the image in a custom X-… property or an ATTACH.
+  // Prefer X-ALT-IMAGE, then X-IMAGE. X-APPLE-STRUCTURED-LOCATION is a geo
+  // payload (not an image), so it is deliberately never used as a fallback.
+  const imageUrl = ev['X-ALT-IMAGE'] ?? ev['X-IMAGE'] ?? null
 
   const attachImage = typeof ev.ATTACH === 'string' && /\.(png|jpe?g|gif|webp)(\?|$)/i.test(ev.ATTACH)
     ? ev.ATTACH

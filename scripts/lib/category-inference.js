@@ -181,6 +181,10 @@ const SIGNALS = [
 
   // Market
   { cat: 'market', w: DECISIVE, re: /\b(farmers? market|makers? market|street market|night market|flea market|holiday market|artisan market|craft (market|show|fair)|vendor (market|fair)|pop[- ]?up market|plant sale|farmstand)\b/ },
+  // Item swaps (clothing/book/toy/plant/…) are barter-style markets. Require an
+  // item noun before "swap" so we don't catch idioms ("swap stories", "house
+  // swap"); also accept explicit "swap meet"/"swap event".
+  { cat: 'market', w: DECISIVE, re: /\b(clothing|clothes|book|toy|toys|plant|seed|gear|vinyl|record|costume|craft|game|puzzle|jewelry|baby|kids?|children'?s|maternity|sneaker|shoe|coat|household)\s+swaps?\b|\bswap[- ]?meet\b|\bswap (?:event|day|party|shop|sale)\b/ },
 
   // Civic
   // NOTE: do NOT use a bare "civic" token here — it matches venue/building
@@ -274,9 +278,12 @@ function _familySubject(text) {
 // High-bar: the EVENT itself is a fundraiser/benefit/service event. Excludes the
 // bare word "nonprofit"/"non-profit", which fires on artist/org BIOS rather than
 // the event (e.g. a concert whose performer "supports artists through her
-// nonprofit"). Other give-back signals (charity, volunteers, cleanup) are kept
-// so the Give Back facet stays inclusive.
-const FUNDRAISER_RE = /\b(fundraiser|fund[- ]?raising|gala|benefit (dinner|concert|show|night|gala|auction)|silent auction|charity|proceeds (benefit|support|go to|will)|raise (money|funds)|volunteer(s|ing)?|service event|park cleanup|clean[- ]?up|food drive|blood drive|donation drive|in support of|golf outing)\b/
+// nonprofit"). "volunteer" only counts when it names a volunteering event
+// ("volunteer day/night/event…", "volunteers needed") — a bare incidental
+// mention ("a volunteer will help you check in") must NOT flag the whole event,
+// the way a single supporting-act mention doesn't make a show a comedy show.
+// Other give-back signals (charity, cleanup, drives) are kept inclusive.
+const FUNDRAISER_RE = /\b(fundraiser|fund[- ]?raising|gala|benefit (dinner|concert|show|night|gala|auction)|silent auction|charity|proceeds (benefit|support|go to|will)|raise (money|funds)|volunteers?\s+(?:needed|wanted)|volunteer\s+(?:day|night|event|week(?:end)?|month|opportunit(?:y|ies)|fair|drive|orientation|appreciation|meet[- ]?up|meeting|program|shift|sign[- ]?up)|service event|park cleanup|clean[- ]?up|food drive|blood drive|donation drive|in support of|golf outing)\b/
 
 export function scoreCategories(title = '', description = '') {
   const text = `${title || ''} ${description || ''}`.toLowerCase()

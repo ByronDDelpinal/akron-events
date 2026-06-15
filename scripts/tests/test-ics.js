@@ -14,6 +14,7 @@ import {
   ALL_DAY_FEED,
   FEED_WITH_ALARM,
   ESCAPED_FEED,
+  IMAGE_FEED,
   NOT_ICS,
 } from './fixtures/ics-feeds.js'
 
@@ -138,6 +139,30 @@ describe('ICS: normaliseIcsEvent', () => {
 
   it('applies defaultImageUrl when feed lacks an image', () => {
     const [raw] = parseIcs(SIMPLE_FEED)
+    const row = normaliseIcsEvent(raw, {
+      source: 'test',
+      defaultImageUrl: 'https://example.com/fallback.jpg',
+    })
+    assert.equal(row.image_url, 'https://example.com/fallback.jpg')
+  })
+
+  it('prefers X-ALT-IMAGE over X-IMAGE for the feed image', () => {
+    const [raw] = parseIcs(IMAGE_FEED)
+    const row = normaliseIcsEvent(raw, { source: 'test' })
+    assert.equal(row.image_url, 'https://cdn.example.com/alt.jpg')
+  })
+
+  it('falls back to X-IMAGE when X-ALT-IMAGE is absent', () => {
+    const [, raw] = parseIcs(IMAGE_FEED)
+    const row = normaliseIcsEvent(raw, { source: 'test' })
+    assert.equal(row.image_url, 'https://cdn.example.com/second.jpg')
+  })
+
+  it('never treats X-APPLE-STRUCTURED-LOCATION as an image', () => {
+    // Regression: an operator-precedence bug forced image_url to null for every
+    // ICS event. Here the only X-… property is a geo payload, so the image must
+    // resolve to the provided default rather than the geo string or null.
+    const [, , raw] = parseIcs(IMAGE_FEED)
     const row = normaliseIcsEvent(raw, {
       source: 'test',
       defaultImageUrl: 'https://example.com/fallback.jpg',

@@ -86,5 +86,38 @@ export const ESCAPED_FEED = [
   'END:VCALENDAR',
 ].join('\r\n')
 
+/**
+ * Feed exercising the custom X-… image properties. The first event carries both
+ * X-ALT-IMAGE (preferred) and X-IMAGE; the second only X-IMAGE; the third only
+ * X-APPLE-STRUCTURED-LOCATION, which is a geo payload and must never be treated
+ * as an image.
+ */
+export const IMAGE_FEED = [
+  'BEGIN:VCALENDAR',
+  'VERSION:2.0',
+  'BEGIN:VEVENT',
+  'UID:image-1',
+  'SUMMARY:Gallery Opening',
+  'DTSTART:20260301T180000Z',
+  'X-ALT-IMAGE:https://cdn.example.com/alt.jpg',
+  'X-IMAGE:https://cdn.example.com/main.jpg',
+  'X-APPLE-STRUCTURED-LOCATION:geo:41.08\\,-81.52',
+  'END:VEVENT',
+  'BEGIN:VEVENT',
+  'UID:image-2',
+  'SUMMARY:Second Gallery',
+  'DTSTART:20260302T180000Z',
+  'X-IMAGE:https://cdn.example.com/second.jpg',
+  'X-APPLE-STRUCTURED-LOCATION:geo:41.08\\,-81.52',
+  'END:VEVENT',
+  'BEGIN:VEVENT',
+  'UID:image-3',
+  'SUMMARY:Geo Only',
+  'DTSTART:20260303T180000Z',
+  'X-APPLE-STRUCTURED-LOCATION:geo:41.08\\,-81.52',
+  'END:VEVENT',
+  'END:VCALENDAR',
+].join('\r\n')
+
 /** A non-ICS body that should be rejected by the parser. */
 export const NOT_ICS = '<html><body>Sorry, this page has no calendar feed</body></html>'

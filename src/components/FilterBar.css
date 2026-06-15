@@ -225,6 +225,20 @@
   color: var(--coral);
 }
 
+/* Search pill — filled amber so an active search reads at a glance, distinct
+   from the pale include pills. */
+.active-pill--search {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: var(--chip-active-txt);
+  max-width: 100%;
+}
+.active-pill--search .active-pill-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .active-pill-x {
   display: inline-flex;
   align-items: center;

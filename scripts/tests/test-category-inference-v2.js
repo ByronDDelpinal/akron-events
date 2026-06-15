@@ -35,6 +35,13 @@ const ORACLE = [
   ['Guided Hike at Cuyahoga Valley', '', ['outdoors'], {}],
   ['PMP Certification Prep Course', '', ['learning'], {}],
   ['Highland Square Farmers Market', '', ['market'], {}],
+  // Item swaps are barter-style markets (clothing/book/toy/plant/…).
+  ['Summer Swap', 'Join us for an in-person clothing swap. A volunteer will help process your items.', ['market'], {}],
+  ['Community Book Swap', 'Bring books you have finished and take new-to-you reads', ['market'], {}],
+  ['Kids Toy Swap', 'Swap gently used toys with other families', ['market'], { family: true }],
+  ['Spring Plant Swap', 'Trade cuttings and seedlings with fellow gardeners', ['market'], {}],
+  // Guard: idiomatic "swap" without an item noun is NOT a market.
+  ['Story Swap Around the Fire', 'Neighbors swap tales and tall stories', ['other'], {}],
   ['Akron City Council Meeting', '', ['civic'], {}],
   ['Independence Day Fireworks Festival', '', ['festival'], {}],
   ['Neighborhood Block Party', '', ['festival'], {}],
@@ -95,6 +102,11 @@ const ORACLE = [
   ['Preschool Storytime', 'Register online, in person, or by phone.', ['other'], { family: true }],
   // Volunteer "service event" → fundraiser facet; content from the text.
   ['Service Event: Park Cleanup', 'Clean up the park and give it a refresh for the community', ['outdoors'], { fundraiser: true }],
+  // Volunteer that NAMES a volunteering event still flags fundraiser…
+  ['Trail Volunteer Day', 'Volunteers needed to clear and maintain the towpath', ['outdoors'], { fundraiser: true }],
+  // …but a bare incidental "volunteer" mention must NOT (regression: Summer
+  // Swap was wrongly flagged a fundraiser because a volunteer helps check-in).
+  ['Open Studio Night', 'Drop in and make art. A volunteer will greet you at the door.', ['visual-art'], {}],
   // Bug: an indoor gallery artist talk hosted by a national-park org was tagged
   // outdoors because the venue/org name ("Cuyahoga Valley National Park") in the
   // description matched the bare "park" outdoors keyword. Venue-name nouns now

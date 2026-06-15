@@ -97,6 +97,7 @@ export default function EventsBrowser({
   // Separate unpaginated fetch for the map — same filters, all results.
   const { events: mapEvents, loading: mapLoading } = useMapEvents({
     categories: effective.categories,
+    excludedCategories: effective.excludedCategories,
     family: effective.family,
     excludeFamily: effective.excludeFamily,
     fundraiser: effective.fundraiser,
@@ -210,6 +211,7 @@ export default function EventsBrowser({
           onCycleCategory={filters.cycleCategory}
           priceFilter={filters.priceFilter}        onPriceFilter={filters.setPriceFilter}
           sort={filters.sort}                      onSort={filters.setSort}
+          search={filters.search}                  onSearch={filters.setSearch}
           excludeFamily={filters.excludeFamily}    onExcludeFamily={filters.setExcludeFamily}
           showAudienceToggle={features.filter}
           view={effectiveView}                     onView={features.map ? onView : undefined}
