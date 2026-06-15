@@ -747,3 +747,59 @@
 
   --shadow-focus: 0 0 0 3px rgba(2, 122, 135, 0.2);
 }
+
+.theme-howard-street {
+  /* Partner palette — North Hill CDC (northhillcdc.org). Warm charcoal +
+     bold raspberry-magenta primary, with a bright spring-green secondary
+     (their #03ed96 modal accent). Condensed Oswald headings over Open Sans
+     body. All pulled from their live computed styles (charcoal #363738,
+     magenta #C12D79, green #03ed96).
+     The secondary green is the SECOND brand color (it also keeps the include
+     /exclude filter pills distinct). #03ed96 is a neon mint that fails text
+     contrast on light, so the exact value is used only in the translucent
+     accent washes (--coral-tint-*); the solid/text greens below are a darker
+     same-hue green so "Free" labels and exclude pills stay AA-readable. */
+  --font-display: 'Oswald', system-ui, sans-serif;
+  --font-body:    'Open Sans', system-ui, sans-serif;
+
+  --bg-page:       #FBF7F9;   /* faintest magenta-tinted white so white cards lift */
+  --bg-card:       #FFFFFF;
+  --bg-secondary:  #F3E9EE;
+  --bg-nav:        #363738;   /* their exact charcoal footer/nav */
+
+  --text-primary:   #363738;  /* partner's exact body/heading charcoal */
+  --text-secondary: #5D5D5D;
+  --text-muted:     #7C7C7E;
+
+  --amber:        #C12D79;    /* partner's signature raspberry as primary */
+  --amber-hover:  #A22563;
+  --amber-pale:   #FBE4EF;
+  --amber-border: rgba(193, 45, 121, 0.25);
+  --amber-on-dark: #F178AD;   /* brighter pink for text on --bg-nav charcoal */
+
+  --green-deep:   #0A5236;    /* dark green pairs with the bright accent */
+  --green-mid:    #0B7345;    /* "Free" price text — AA-readable spring green */
+
+  --coral:        #0C7A4D;    /* secondary accent: deep green (AA on light) */
+  --coral-hover:  #095E3B;
+  --coral-pale:   #D4F9E8;    /* light mint tint of #03ed96 */
+
+  --border:       #E5DCE0;
+  --border-mid:   #CBBFC5;
+
+  --chip-bg:         #F3E7EE;
+  --chip-text:       #5D5D5D;
+  --chip-active-bg:  #C12D79;
+  --chip-active-txt: #FFFFFF;
+
+  --amber-tint-10: rgba(193, 45, 121, 0.10);
+  --amber-tint-25: rgba(193, 45, 121, 0.25);
+  --amber-tint-50: rgba(193, 45, 121, 0.50);
+
+  /* Their exact #03ed96 lives here, as translucent green washes. */
+  --coral-tint-15: rgba(3, 237, 150, 0.15);
+  --coral-tint-25: rgba(3, 237, 150, 0.25);
+  --coral-tint-35: rgba(3, 237, 150, 0.35);
+
+  --shadow-focus: 0 0 0 3px rgba(193, 45, 121, 0.2);
+}

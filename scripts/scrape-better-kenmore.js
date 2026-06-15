@@ -166,6 +166,37 @@ export function resolveVenueAlias(location = '') {
   return null
 }
 
+// ── Direct-source suppression ─────────────────────────────────────────────────
+// Some venues the CDC re-lists are ones we already scrape DIRECTLY from the
+// venue's own site, which is the higher-fidelity source of truth. When a CDC
+// item is at such a venue we SKIP it entirely and let the direct scraper be
+// canonical.
+//
+// Why skip rather than alias+dedupe (the Rialto approach above)? Dedupe groups
+// by venue + date, so it only collapses copies that agree on the date. First
+// Glance is a case where the CDC's republished schedule DISAGREES with the
+// venue's own (e.g. the CDC lists Rec Night on Fridays while firstglance.org
+// lists it on Thursdays) and even republishes programs the venue has since
+// PAUSED (Hip Hop Night). Those never align, so dedupe can't catch them and
+// they surface as conflicting, sometimes-stale duplicates. Suppressing at the
+// source keeps First Glance's own site authoritative for its programming.
+//
+// Matched against the CDC location free text by name or street address.
+const DIRECTLY_SCRAPED_VENUES = [
+  { source: 'first_glance', re: /first\s*glance|\b943\s+kenmore\s+blvd/i },
+]
+
+/** If the CDC location is a venue we scrape directly, return that source key
+ *  (so the caller can skip it); otherwise null. Exported for tests. */
+export function directlyScrapedVenue(location = '') {
+  const loc = (location || '').trim()
+  if (!loc) return null
+  for (const v of DIRECTLY_SCRAPED_VENUES) {
+    if (v.re.test(loc)) return v.source
+  }
+  return null
+}
+
 // ── List parse ────────────────────────────────────────────────────────────────
 
 export function parseEvents(html) {
@@ -287,11 +318,20 @@ async function main() {
       description: "Better Kenmore CDC works to improve quality of life in Akron's Kenmore neighborhood — its second-largest — through cultural, artistic, recreational, and business revitalization along the historic Kenmore Boulevard. Hosts the BLVD Block Party, Kenmore First Friday Festival, the Rialto Living Room concert series, and recurring Kenmore Senior Community Center programming.",
     })
 
-    let inserted = 0, skipped = 0
+    let inserted = 0, skipped = 0, suppressed = 0
     const venueCache = new Map()
 
     for (const ev of future) {
       try {
+        // Skip events at venues we scrape directly — the venue's own site is
+        // canonical (see DIRECTLY_SCRAPED_VENUES).
+        const directSource = directlyScrapedVenue(ev.location)
+        if (directSource) {
+          console.log(`  ⤿ Skipping "${ev.sourceId}" — "${ev.location}" is scraped directly via ${directSource}`)
+          suppressed++
+          continue
+        }
+
         const startAt = easternToIso(`${ev.dateStr} ${ev.timeStr}`)
         if (!startAt) { skipped++; continue }
 
@@ -360,11 +400,11 @@ async function main() {
       }
     }
 
-    await logUpsertResult(SOURCE_KEY, inserted, 0, skipped, {
+    await logUpsertResult(SOURCE_KEY, inserted, 0, skipped + suppressed, {
       eventsFound: parsed.length,
       durationMs:  Date.now() - start,
     })
-    console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s — ${inserted} inserted, ${skipped} skipped`)
+    console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s — ${inserted} inserted, ${skipped} skipped, ${suppressed} suppressed (direct-source venues)`)
   } catch (err) {
     await logScraperError(SOURCE_KEY, err, start)
     process.exit(1)

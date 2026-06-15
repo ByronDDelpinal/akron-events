@@ -613,6 +613,38 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'full_grip_games',
+    method:      'iCal feed',
+    methodDetail:'Public Google Calendar iCal feed, with RRULE recurrence expansion',
+    venue:       'Full Grip Games — 121 E Market St, downtown Akron',
+    notes:       "A small downtown Akron tabletop and trading-card game store. Its programming is exactly the grassroots local calendar Akron Pulse exists to surface: weekly Magic: The Gathering and Pokémon nights, Commander, Friday Night Magic, drafts, and league play. The store publishes a public Google Calendar, which exposes a standard iCal feed. Google encodes the regular weekly/monthly schedule as recurring masters (RRULE) rather than one event per night, so we ingest it through the shared ICS pipeline with recurrence expansion turned on, materialising each occurrence into a concrete dated event over a rolling 120-day window. The feed also carries the store's full event history, so past events are dropped. Category is forced to 'games'; price is left null (entry fees vary and aren't in the feed).",
+    status:      'active',
+  },
+  {
+    key:         'mustard_seed',
+    method:      'Rendered calendar + WP REST',
+    methodDetail:'EventON (WordPress) — Puppeteer renders the calendar for dates, WP REST ajde_events?include= for metadata',
+    venue:       'Mustard Seed Market & Café — Highland Square (867 W Market St) & Montrose (3885 W Market St)',
+    notes:       "A beloved Akron natural-foods grocer and café whose Highland Square location has a stage hosting regular live music, plus in-store tastings, classes, and lectures. The site runs EventON 5, which renders its calendar client-side via Handlebars: the event dates are not in the server HTML and the EventON REST action needs the calendar's internal config, so a plain fetch can't see them. We render the calendar with Puppeteer to read each event's start/end (the .eventon_list_event blocks carry data-time=\"<startUnix>-<endUnix>\"), paging forward a few months, then enrich every event with its title, permalink, category, venue, and image from the clean WP REST endpoint (/wp-json/wp/v2/ajde_events?include=<ids>), joined on event id. EventON's event_location- class disambiguates the Highland Square café from the Montrose store; event_type- supplies a category hint where it maps cleanly, otherwise title inference decides. Price is left null (the feed carries none).",
+    status:      'active',
+  },
+  {
+    key:         'release_yoga',
+    method:      'MINDBODY enrollments (HTML)',
+    methodDetail:'Shopify app-proxy server-rendered MINDBODY widget — /apps/mindbody/enrollments',
+    venue:       'Release Yoga — 880 E Turkeyfoot Lake Rd, Green',
+    notes:       "A yoga & wellness studio in Green (southern Summit County). We ingest only its MINDBODY enrollments page — workshops, retreats, teacher trainings, sound baths, special events — and deliberately skip the daily drop-in class grid, which would flood the calendar with recurring classes. MINDBODY is surfaced via a Shopify app proxy that server-renders the list as HTML, so we fetch and parse it directly: each .enrollment_box yields title + price (.not_entire), instructor (.mb_le_staff_*), a date/time line (.bold_date), description, and image. The page exposes no per-event location, so events pin to the single studio venue. Category is left to text inference (yoga → fitness, workshops → learning) with a 'fitness' default; price comes from the '$NN' in the title, null when absent.",
+    status:      'active',
+  },
+  {
+    key:         'royal_palace',
+    method:      'Tribe REST API',
+    methodDetail:'WordPress + The Events Calendar — /wp-json/tribe/events/v1/events',
+    venue:       'Royal Palace Akron — 134 E Tallmadge Ave, North Hill',
+    notes:       "A North Hill banquet hall, bar, and lounge that hosts a steady run of public live shows — Latin bailazos and banda concerts, Nepali music nights, and cultural celebrations (its private wedding/party rentals never reach the public calendar). The site runs The Events Calendar, so we read the standard Tribe REST feed, the same shape as the Indivisible Akron and Summit Artspace scrapers. Single venue, pinned to the canonical North Hill record; price from the Tribe cost field, null when unstated. The venue also promotes shows on Eventbrite (which we already ingest), so overlaps are left to the shared cross-source dedupe rather than suppressing either source — unlike First Glance, the venue's own calendar isn't reliably ahead of the aggregator.",
+    status:      'active',
+  },
+  {
     key:         'highland_square_theatre',
     method:      'HTML scrape',
     methodDetail:'WordPress (server-rendered) — homepage showtime listing',
@@ -888,6 +920,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   missing_falls:      'tribe',
   torchbearers:       'tribe',
   indivisible_akron:  'tribe',
+  royal_palace:       'tribe',
 
   // iCalendar (ICS) feeds
   akron_symphony:      'ics',
@@ -929,10 +962,12 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   city_of_akron_lock3: 'revize',
   killbox_comedy:      'seatengine',
   akron_marathon:      'html',
+  release_yoga:        'html',
 
   // EventON / custom WordPress
   jillys_music_room: 'wp-hybrid',
   akronym_brewing:   'wp-hybrid',
+  mustard_seed:      'wp-hybrid',
 
   // LRMR platform (House Three Thirty's own calendar API)
   house_three_thirty: 'lrmr',
@@ -945,6 +980,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   the_well_cdc:           'html',
   better_kenmore:         'html',
   first_glance:           'html',
+  full_grip_games:        'ics',
   akron_makerspace:       'html',
   akron_soul_train:       'html',
   meetup:                 'ics',

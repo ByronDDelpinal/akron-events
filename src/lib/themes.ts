@@ -105,6 +105,12 @@ export const THEMES: ThemeOption[] = [
     description: 'Bright lagoon teal with magenta — greetings from the everyday.',
     partner: true,
   },
+  {
+    id: 'howard-street',
+    name: 'Howard Street',
+    description: "Marquee raspberry on warm charcoal — North Hill's heritage corridor.",
+    partner: true,
+  },
 ]
 
 /** Themes shown in the public site's pickers (partner palettes excluded). */
@@ -241,6 +247,13 @@ export const THEME_FONTS: Record<string, ThemeFonts> = {
     display: "'Open Sans', system-ui, sans-serif",
     body: "'Open Sans', system-ui, sans-serif",
     googleFontsHref: 'https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap',
+  },
+  'howard-street': {
+    // Partner match (North Hill CDC): condensed Oswald headings over Open Sans
+    // body, exactly as northhillcdc.org renders.
+    display: "'Oswald', system-ui, sans-serif",
+    body: "'Open Sans', system-ui, sans-serif",
+    googleFontsHref: 'https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Open+Sans:wght@400;500;700&display=swap',
   },
 }
 

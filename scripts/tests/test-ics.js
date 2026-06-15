@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL = 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 
-import { parseIcs, icsDateToIso, normaliseIcsEvent } from '../lib/ics.js'
+import { parseIcs, icsDateToIso, normaliseIcsEvent, expandRecurrence, parseRrule } from '../lib/ics.js'
 import {
   SIMPLE_FEED,
   FOLDED_FEED,
@@ -168,6 +168,132 @@ describe('ICS: normaliseIcsEvent', () => {
       defaultImageUrl: 'https://example.com/fallback.jpg',
     })
     assert.equal(row.image_url, 'https://example.com/fallback.jpg')
+  })
+})
+
+describe('ICS: parseRrule', () => {
+  it('parses a rule string into key→value pairs', () => {
+    const r = parseRrule('FREQ=WEEKLY;BYDAY=MO,WE;INTERVAL=2;UNTIL=20260301T000000Z')
+    assert.equal(r.FREQ, 'WEEKLY')
+    assert.equal(r.BYDAY, 'MO,WE')
+    assert.equal(r.INTERVAL, '2')
+    assert.equal(r.UNTIL, '20260301T000000Z')
+  })
+
+  it('returns {} for empty/invalid input', () => {
+    assert.deepEqual(parseRrule(''), {})
+    assert.deepEqual(parseRrule(null), {})
+  })
+})
+
+describe('ICS: parseIcs recurrence fields', () => {
+  const RECUR_FEED = [
+    'BEGIN:VCALENDAR',
+    'BEGIN:VEVENT',
+    'UID:weekly-1',
+    'SUMMARY:Friday Night Magic',
+    'DTSTART;TZID=America/New_York:20260102T180000',
+    'RRULE:FREQ=WEEKLY;BYDAY=FR',
+    'EXDATE;TZID=America/New_York:20260109T180000',
+    'EXDATE;TZID=America/New_York:20260116T180000',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n')
+
+  it('keeps RRULE as a raw string', () => {
+    const [ev] = parseIcs(RECUR_FEED)
+    assert.equal(ev.RRULE, 'FREQ=WEEKLY;BYDAY=FR')
+  })
+
+  it('accumulates multiple EXDATE lines into an array', () => {
+    const [ev] = parseIcs(RECUR_FEED)
+    assert.ok(Array.isArray(ev.EXDATE))
+    assert.equal(ev.EXDATE.length, 2)
+    assert.equal(ev.EXDATE[0].value, '20260109T180000')
+    assert.equal(ev.EXDATE[1].params.TZID, 'America/New_York')
+  })
+})
+
+describe('ICS: expandRecurrence', () => {
+  const JAN1 = Date.parse('2026-01-01T00:00:00Z')
+  const master = (over = {}) => ({
+    UID: 'm1',
+    SUMMARY: 'Game Night',
+    DTSTART: { value: '20260105T190000', params: {} },  // Mon Jan 5 2026, floating ET
+    ...over,
+  })
+  const starts = (occs) => occs.map(o => o.DTSTART.value)
+
+  it('passes a non-recurring event through unchanged', () => {
+    const ev = { UID: 'x', SUMMARY: 'One-off', DTSTART: { value: '20260105T190000', params: {} } }
+    const out = expandRecurrence(ev, { windowStartMs: JAN1, windowDays: 30 })
+    assert.equal(out.length, 1)
+    assert.equal(out[0], ev)
+  })
+
+  it('expands WEEKLY BYDAY across the window', () => {
+    const out = expandRecurrence(
+      master({ RRULE: 'FREQ=WEEKLY;BYDAY=MO,WE' }),
+      { windowStartMs: JAN1, windowDays: 18 },
+    )
+    assert.deepEqual(starts(out), [
+      '20260105T190000', '20260107T190000', '20260112T190000', '20260114T190000',
+    ])
+  })
+
+  it('honours INTERVAL (every other week)', () => {
+    const out = expandRecurrence(
+      master({ RRULE: 'FREQ=WEEKLY;BYDAY=MO;INTERVAL=2' }),
+      { windowStartMs: JAN1, windowDays: 35 },
+    )
+    assert.deepEqual(starts(out), ['20260105T190000', '20260119T190000', '20260202T190000'])
+  })
+
+  it('stops at UNTIL', () => {
+    const out = expandRecurrence(
+      master({ RRULE: 'FREQ=WEEKLY;BYDAY=MO;UNTIL=20260120' }),
+      { windowStartMs: JAN1, windowDays: 60 },
+    )
+    assert.deepEqual(starts(out), ['20260105T190000', '20260112T190000', '20260119T190000'])
+  })
+
+  it('excludes EXDATE occurrences', () => {
+    const out = expandRecurrence(
+      master({ RRULE: 'FREQ=WEEKLY;BYDAY=MO', EXDATE: [{ value: '20260112T190000', params: {} }] }),
+      { windowStartMs: JAN1, windowDays: 21 },
+    )
+    assert.deepEqual(starts(out), ['20260105T190000', '20260119T190000'])
+  })
+
+  it('expands MONTHLY with an ordinal BYDAY (3rd Saturday)', () => {
+    const out = expandRecurrence(
+      { UID: 'm2', SUMMARY: 'Pokémon League', DTSTART: { value: '20260117T140000', params: {} }, RRULE: 'FREQ=MONTHLY;BYDAY=3SA' },
+      { windowStartMs: JAN1, windowDays: 70 },
+    )
+    // Jan 17 (3rd Sat), Feb 21 (3rd Sat); Mar's 3rd Sat is past the 70-day window.
+    assert.deepEqual(starts(out), ['20260117T140000', '20260221T140000'])
+  })
+
+  it('gives each occurrence a unique date-suffixed UID and preserves duration', () => {
+    const out = expandRecurrence(
+      master({ RRULE: 'FREQ=WEEKLY;BYDAY=MO', DTEND: { value: '20260105T210000', params: {} } }),
+      { windowStartMs: JAN1, windowDays: 8 },
+    )
+    assert.equal(out.length, 1)
+    assert.equal(out[0].UID, 'm1_20260105')
+    // 19:00 ET → 00:00Z next day; +2h duration → 02:00Z.
+    assert.equal(out[0].DTEND.value, '20260106T020000Z')
+    // The materialised occurrence carries no RRULE.
+    assert.equal(out[0].RRULE, undefined)
+  })
+
+  it('excludes occurrences before the window start', () => {
+    // Master started in 2022; only future occurrences should surface.
+    const out = expandRecurrence(
+      { UID: 'old', SUMMARY: 'Weekly', DTSTART: { value: '20220103T190000', params: {} }, RRULE: 'FREQ=WEEKLY;BYDAY=MO' },
+      { windowStartMs: JAN1, windowDays: 14 },
+    )
+    assert.deepEqual(starts(out), ['20260105T190000', '20260112T190000'])
   })
 })
 

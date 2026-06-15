@@ -13,11 +13,12 @@
  *   • Date-time formats: floating local, UTC (suffixed "Z"), TZID, and all-day
  *   • TEXT escape sequences (\n \, \; \\)
  *
+ * RRULE recurrence (opt-in): set config.expandRecurring to materialise
+ *   recurring masters into per-occurrence events over a bounded future
+ *   window (see expandRecurrence). Off by default so feeds that already emit
+ *   each occurrence as its own VEVENT are unaffected.
+ *
  * NOT supported (yet — keep scope tight):
- *   • RRULE recurrence expansion — we assume published feeds materialise
- *     each occurrence as its own VEVENT. If a feed only emits a single
- *     event with RRULE, we ingest the series "start" date only and log a
- *     warning.
  *   • VTIMEZONE definitions — we map common TZIDs (America/New_York etc.)
  *     via native Intl and fall back to treating TZID as Eastern.
  *
@@ -213,6 +214,252 @@ function namedTzWallTimeToUtc(wallClock, tzid) {
   }
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// RRULE RECURRENCE EXPANSION
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Some publishers (notably Google Calendar) encode a venue's regular schedule
+// as a single VEVENT carrying an RRULE recurrence rather than materialising
+// every occurrence. The base parser ingests only the series start, so without
+// expansion a weekly game night or monthly meetup is invisible from its second
+// occurrence on. This expander turns one recurring master into concrete
+// per-occurrence events, bounded to a future window so we never run away.
+//
+// Supported (matched to what real feeds emit — deliberately not a full RFC
+// 5545 RRULE engine): FREQ=DAILY|WEEKLY|MONTHLY, INTERVAL, BYDAY (including
+// monthly ordinals like 3SA / -1SU), UNTIL, COUNT, and EXDATE exclusions.
+// Each occurrence is converted to UTC independently via icsDateToIso, so the
+// EST↔EDT boundary is resolved per-occurrence (a series spanning a DST change
+// keeps its wall-clock time correctly).
+
+const WEEKDAY_CODE = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 }
+const DAY_MS = 86_400_000
+
+/** Parse an `RRULE:` value string into a plain key→value object. */
+export function parseRrule(rruleStr) {
+  const out = {}
+  if (!rruleStr || typeof rruleStr !== 'string') return out
+  for (const part of rruleStr.split(';')) {
+    const eq = part.indexOf('=')
+    if (eq === -1) continue
+    out[part.slice(0, eq).trim().toUpperCase()] = part.slice(eq + 1).trim()
+  }
+  return out
+}
+
+/** Parse a DTSTART value into civil date-time parts + form flags. */
+function parseDtStartParts(value) {
+  if (!value) return null
+  if (value.length === 8 && !value.includes('T')) {
+    return {
+      y: +value.slice(0, 4), m: +value.slice(4, 6), d: +value.slice(6, 8),
+      h: 0, mi: 0, s: 0, allDay: true, utc: false,
+    }
+  }
+  const m = value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z?)$/)
+  if (!m) return null
+  return {
+    y: +m[1], m: +m[2], d: +m[3], h: +m[4], mi: +m[5], s: +m[6],
+    allDay: false, utc: m[7] === 'Z',
+  }
+}
+
+const pad = (n, len = 2) => String(n).padStart(len, '0')
+
+/** Build a compact ICS value string for a civil date using a DTSTART template. */
+function civilToIcsValue(y, m, d, dt) {
+  if (dt.allDay) return `${pad(y, 4)}${pad(m)}${pad(d)}`
+  return `${pad(y, 4)}${pad(m)}${pad(d)}T${pad(dt.h)}${pad(dt.mi)}${pad(dt.s)}${dt.utc ? 'Z' : ''}`
+}
+
+/** Compact UTC value (…Z) for an absolute instant — used for derived DTEND. */
+function msToIcsUtcValue(ms) {
+  const d = new Date(ms)
+  return `${pad(d.getUTCFullYear(), 4)}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}` +
+    `T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`
+}
+
+// A "civil cursor" is a Date pinned to UTC midnight used purely as a calendar
+// counter — getUTCDay()/setUTCDate() give DST-free date arithmetic. The actual
+// timezone conversion happens later, per occurrence, in icsDateToIso.
+const civilOf = (y, m, d) => new Date(Date.UTC(y, m - 1, d))
+const mondayOf = (cur) => {
+  const wd = cur.getUTCDay()             // 0=Sun … 6=Sat
+  const back = (wd + 6) % 7              // days since Monday
+  return new Date(cur.getTime() - back * DAY_MS)
+}
+
+/** nth weekday of a month (n<0 counts from the end). Returns a civil Date or null. */
+function nthWeekdayOfMonth(year, month, weekday, n) {
+  if (n > 0) {
+    const first = civilOf(year, month, 1)
+    const offset = (weekday - first.getUTCDay() + 7) % 7
+    const day = 1 + offset + (n - 1) * 7
+    const probe = civilOf(year, month, day)
+    return probe.getUTCMonth() === month - 1 ? probe : null
+  }
+  // n < 0: count back from the last day of the month
+  const last = new Date(Date.UTC(year, month, 0))   // day 0 of next month
+  const offset = (last.getUTCDay() - weekday + 7) % 7
+  const day = last.getUTCDate() - offset - (-n - 1) * 7
+  return day >= 1 ? civilOf(year, month, day) : null
+}
+
+/**
+ * Expand a single parsed VEVENT into concrete occurrences.
+ *
+ * Non-recurring events (no RRULE) pass straight through as `[ev]`. Recurring
+ * masters return a sorted array of cloned VEVENTs, each with a materialised
+ * DTSTART/DTEND, a per-occurrence UID (so source_id stays unique), and no
+ * RRULE. Only occurrences whose start falls in [windowStartMs, windowEndMs]
+ * and are not excluded by EXDATE survive.
+ *
+ * @param {object} ev   — raw VEVENT from parseIcs()
+ * @param {object} opts
+ *   @param {number} [opts.windowStartMs=Date.now()] — earliest occurrence kept
+ *   @param {number} [opts.windowDays=120]           — window length forward
+ *   @param {number} [opts.maxOccurrences=200]       — hard safety cap per series
+ */
+export function expandRecurrence(ev, opts = {}) {
+  if (!ev || !ev.RRULE || !ev.DTSTART) return ev ? [ev] : []
+
+  const {
+    windowStartMs  = Date.now(),
+    windowDays     = 120,
+    maxOccurrences = 200,
+  } = opts
+  const windowEndMs = windowStartMs + windowDays * DAY_MS
+
+  const rule = parseRrule(ev.RRULE)
+  const freq = (rule.FREQ || '').toUpperCase()
+  if (!['DAILY', 'WEEKLY', 'MONTHLY'].includes(freq)) return [ev]
+
+  const dt = parseDtStartParts(ev.DTSTART.value)
+  if (!dt) return [ev]
+  const startParams = dt.utc ? {} : (ev.DTSTART.params || {})
+
+  // Convert a civil (y,m,d) occurrence to its UTC instant using the DTSTART
+  // template (preserves time-of-day + timezone semantics per occurrence).
+  const occToMs = (y, m, d) => {
+    const iso = icsDateToIso(civilToIcsValue(y, m, d, dt), startParams)
+    return iso ? Date.parse(iso) : null
+  }
+
+  const interval = Math.max(1, parseInt(rule.INTERVAL || '1', 10) || 1)
+  const countCap = rule.COUNT ? parseInt(rule.COUNT, 10) : null
+  // UNTIL is UTC (…Z) or a date per RFC 5545; icsDateToIso handles both forms.
+  const untilIso = rule.UNTIL ? icsDateToIso(rule.UNTIL, {}) : null
+  const untilMs  = untilIso ? Date.parse(untilIso) : null
+
+  // EXDATE exclusion set keyed by ISO-UTC instant.
+  const exSet = new Set()
+  for (const ex of (ev.EXDATE || [])) {
+    for (const v of (ex.value || '').split(',')) {
+      const iso = icsDateToIso(v.trim(), ex.params || {})
+      if (iso) exSet.add(iso)
+    }
+  }
+
+  // Duration carried from DTSTART→DTEND, reapplied to each occurrence.
+  let durationMs = null
+  if (ev.DTEND) {
+    const sIso = icsDateToIso(ev.DTSTART.value, ev.DTSTART.params || {})
+    const eIso = icsDateToIso(ev.DTEND.value, ev.DTEND.params || {})
+    if (sIso && eIso) durationMs = Date.parse(eIso) - Date.parse(sIso)
+  }
+
+  const startCivil = civilOf(dt.y, dt.m, dt.d)
+  const occurrences = []   // { y, m, d, ms }
+  let seen = 0             // counts toward COUNT (every generated occurrence)
+
+  const pushOcc = (y, m, d) => {
+    const ms = occToMs(y, m, d)
+    if (ms == null) return true
+    if (untilMs != null && ms > untilMs) return false       // series ended
+    seen++
+    if (ms >= windowStartMs && ms <= windowEndMs) {
+      const iso = new Date(ms).toISOString()
+      if (!exSet.has(iso)) occurrences.push({ y, m, d, ms })
+    }
+    return true   // keep going
+  }
+
+  if (freq === 'DAILY') {
+    let cur = startCivil
+    for (let i = 0; i < 4000; i++) {
+      if (countCap != null && seen >= countCap) break
+      const cont = pushOcc(cur.getUTCFullYear(), cur.getUTCMonth() + 1, cur.getUTCDate())
+      if (!cont) break
+      if (cur.getTime() > windowEndMs) break
+      cur = new Date(cur.getTime() + interval * DAY_MS)
+    }
+  } else if (freq === 'WEEKLY') {
+    const days = (rule.BYDAY || '')
+      .split(',').map(s => WEEKDAY_CODE[s.trim().replace(/^[+-]?\d+/, '')]).filter(n => n != null)
+    const targetDows = days.length ? days : [startCivil.getUTCDay()]
+    const anchorMonday = mondayOf(startCivil).getTime()
+    let cur = startCivil
+    for (let i = 0; i < 4000; i++) {
+      if (countCap != null && seen >= countCap) break
+      if (cur.getTime() > windowEndMs && cur.getTime() > startCivil.getTime()) break
+      if (targetDows.includes(cur.getUTCDay())) {
+        const weekIdx = Math.round((mondayOf(cur).getTime() - anchorMonday) / (7 * DAY_MS))
+        if (weekIdx >= 0 && weekIdx % interval === 0) {
+          const cont = pushOcc(cur.getUTCFullYear(), cur.getUTCMonth() + 1, cur.getUTCDate())
+          if (!cont) break
+        }
+      }
+      cur = new Date(cur.getTime() + DAY_MS)
+    }
+  } else if (freq === 'MONTHLY') {
+    const byday = (rule.BYDAY || '').split(',').map(s => s.trim()).filter(Boolean)
+    let y = dt.y, m = dt.m
+    for (let step = 0; step < 120; step++) {           // up to 10 years of months
+      if (countCap != null && seen >= countCap) break
+      const firstOfMonthMs = occToMs(y, m, 1)
+      if (firstOfMonthMs != null && firstOfMonthMs > windowEndMs && (y > dt.y || (y === dt.y && m > dt.m))) break
+      if ((step % interval) === 0) {
+        const tokens = byday.length ? byday : null
+        if (tokens) {
+          let ended = false
+          for (const tok of tokens) {
+            const mt = tok.match(/^([+-]?\d+)?([A-Z]{2})$/)
+            if (!mt) continue
+            const ord = mt[1] ? parseInt(mt[1], 10) : 1
+            const wd = WEEKDAY_CODE[mt[2]]
+            if (wd == null) continue
+            const date = nthWeekdayOfMonth(y, m, wd, ord)
+            if (date) {
+              const cont = pushOcc(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate())
+              if (!cont) { ended = true; break }
+            }
+          }
+          if (ended) break
+        } else {
+          const cont = pushOcc(y, m, dt.d)             // BYMONTHDAY-less: same day each month
+          if (!cont) break
+        }
+      }
+      m++; if (m > 12) { m = 1; y++ }
+    }
+  }
+
+  occurrences.sort((a, b) => a.ms - b.ms)
+  const baseUid = (ev.UID || '').trim()
+  return occurrences.slice(0, maxOccurrences).map(({ y, m, d, ms }) => {
+    const clone = { ...ev }
+    delete clone.RRULE
+    delete clone.EXDATE
+    delete clone.RDATE
+    clone.DTSTART = { value: civilToIcsValue(y, m, d, dt), params: startParams }
+    clone.DTEND = durationMs != null
+      ? { value: msToIcsUtcValue(ms + durationMs), params: {} }
+      : undefined
+    clone.UID = baseUid ? `${baseUid}_${pad(y, 4)}${pad(m)}${pad(d)}` : baseUid
+    return clone
+  })
+}
+
 // ── VEVENT extraction ──────────────────────────────────────────────────────
 
 /**
@@ -267,9 +514,14 @@ export function parseIcs(icsText) {
     if (!parsed) continue
 
     const { name, params, value } = parsed
-    const isDateProp = ['DTSTART', 'DTEND', 'DTSTAMP', 'LAST-MODIFIED', 'CREATED', 'EXDATE', 'RDATE'].includes(name)
+    // EXDATE/RDATE may appear on multiple lines (or carry a comma-separated
+    // value list), so accumulate them into an array rather than overwriting.
+    const isMultiDateProp = name === 'EXDATE' || name === 'RDATE'
+    const isDateProp = ['DTSTART', 'DTEND', 'DTSTAMP', 'LAST-MODIFIED', 'CREATED'].includes(name)
 
-    if (isDateProp) {
+    if (isMultiDateProp) {
+      ;(current[name] ||= []).push({ value, params })
+    } else if (isDateProp) {
       current[name] = { value, params }
     } else {
       current[name] = unescapeText(value)
@@ -535,6 +787,15 @@ export async function runIcsScraper(config) {
     const rawEvents = parseIcs(icsText)
     console.log(`  Parsed ${rawEvents.length} VEVENT blocks`)
 
+    // Optionally materialise recurring masters into concrete occurrences.
+    let workEvents = rawEvents
+    if (config.expandRecurring) {
+      workEvents = rawEvents.flatMap(ev =>
+        expandRecurrence(ev, { windowDays: config.recurrenceWindowDays ?? 120 }))
+      const recurring = rawEvents.filter(e => e.RRULE).length
+      console.log(`  Expanded ${recurring} recurring master(s) → ${workEvents.length} occurrences total`)
+    }
+
     if (rawEvents.length === 0) {
       await logUpsertResult(source, 0, 0, 0, {
         status: 'error',
@@ -560,11 +821,18 @@ export async function runIcsScraper(config) {
     }
 
     // Process each event
-    console.log(`\n📥  Processing ${rawEvents.length} events…`)
+    console.log(`\n📥  Processing ${workEvents.length} events…`)
     let inserted = 0, skipped = 0
     const venueCache = new Map()
 
-    for (const ev of rawEvents) {
+    // Opt-in past cutoff. Feeds that emit only upcoming events (Tribe, etc.)
+    // don't need this, but full-history feeds (e.g. Google Calendar) carry
+    // years of dead events — skipPast drops anything older than maxPastDays
+    // (default 1) so we never insert expired rows.
+    const nowMs = Date.now()
+    const pastCutoffMs = nowMs - (config.maxPastDays ?? 1) * DAY_MS
+
+    for (const ev of workEvents) {
       try {
         const row = normaliseIcsEvent(ev, {
           source,
@@ -576,6 +844,11 @@ export async function runIcsScraper(config) {
           defaultImageUrl:  config.defaultImageUrl,
         })
         if (!row || !row.start_at || !row.source_id) { skipped++; continue }
+
+        if (config.skipPast) {
+          const sMs = Date.parse(row.start_at)
+          if (Number.isFinite(sMs) && sMs < pastCutoffMs) { skipped++; continue }
+        }
 
         // Per-event venue: prefer VEVENT LOCATION, fall back to default
         let venueId = defaultVenueId
@@ -608,11 +881,11 @@ export async function runIcsScraper(config) {
 
     const durationMs = Date.now() - start
     await logUpsertResult(source, inserted, 0, skipped, {
-      eventsFound: rawEvents.length,
+      eventsFound: workEvents.length,
       durationMs,
     })
     console.log(`\n✅  ${source} done in ${(durationMs / 1000).toFixed(1)}s`)
-    return { inserted, skipped, eventsFound: rawEvents.length }
+    return { inserted, skipped, eventsFound: workEvents.length }
 
   } catch (err) {
     await logScraperError(source, err, start)

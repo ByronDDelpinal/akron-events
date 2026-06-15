@@ -596,6 +596,16 @@ const STREET_SUFFIX_MAP = {
 }
 const STREET_SUFFIXES = new Set(Object.values(STREET_SUFFIX_MAP))
 
+/** Directional words → single-letter abbreviation, so "134 East Tallmadge Ave"
+ *  and "134 E Tallmadge Ave" canonicalize identically. Spelled-out directionals
+ *  are a common cross-source cause of duplicate venue records (e.g. Eventbrite
+ *  writes "East" where the venue's own feed writes "E"). */
+const DIRECTIONAL_MAP = {
+  north: 'n', n: 'n', south: 's', s: 's', east: 'e', e: 'e', west: 'w', w: 'w',
+  northeast: 'ne', ne: 'ne', northwest: 'nw', nw: 'nw',
+  southeast: 'se', se: 'se', southwest: 'sw', sw: 'sw',
+}
+
 /**
  * Canonicalize a street-address string for equality comparison. Takes only the
  * street line (text before the first comma — drops any ", Akron, OH 44314" tail
@@ -615,7 +625,7 @@ export function normalizeStreetAddress(value) {
   if (!value || typeof value !== 'string') return null
   const streetLine = decodeEntities(value).split(',')[0]
   const cleaned = streetLine.toLowerCase().replace(/[^a-z0-9\s]/g, ' ')
-  const words = cleaned.split(/\s+/).filter(Boolean).map((w) => STREET_SUFFIX_MAP[w] ?? w)
+  const words = cleaned.split(/\s+/).filter(Boolean).map((w) => STREET_SUFFIX_MAP[w] ?? DIRECTIONAL_MAP[w] ?? w)
   const out = words.join(' ').trim()
   return out || null
 }

@@ -19,10 +19,12 @@ import { resolveVenueAlias } from '../scrape-better-kenmore.js'
 // below consumes it for bucketing. These cases pin the folding behavior the
 // dedupe pass relies on.
 describe('dedupe: normalizeStreetAddress', () => {
-  it('folds suffix variants and punctuation', () => {
+  it('folds suffix variants, directionals, and punctuation', () => {
     assert.equal(normalizeStreetAddress('1000 Kenmore Blvd.'), '1000 kenmore blvd')
     assert.equal(normalizeStreetAddress('1000 Kenmore Boulevard'), '1000 kenmore blvd')
-    assert.equal(normalizeStreetAddress('  220 South Balch Street '), '220 south balch st')
+    // Directionals fold to their abbreviation, so "South"/"S" compare equal.
+    assert.equal(normalizeStreetAddress('  220 South Balch Street '), '220 s balch st')
+    assert.equal(normalizeStreetAddress('220 S Balch St'), '220 s balch st')
   })
 
   it('returns null for empty/non-string input', () => {

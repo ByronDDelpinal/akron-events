@@ -7,6 +7,7 @@ import {
   deSlugTitle,
   parseDate,
   parseTime,
+  directlyScrapedVenue,
 } from '../scrape-better-kenmore.js'
 
 // ── List page ──────────────────────────────────────────────────────────────
@@ -85,6 +86,24 @@ test('deSlugTitle title-cases and strips recurrence date chains', () => {
     'Aa Crossroads Meeting',
   )
   assert.equal(deSlugTitle(''), 'Better Kenmore Event')
+})
+
+// ── Direct-source suppression ────────────────────────────────────────────────
+// First Glance is scraped directly from firstglance.org (canonical), so the
+// CDC's re-listed copies — which disagree on schedule and include paused
+// programs — must be skipped by matching the location free text.
+test('directlyScrapedVenue flags First Glance locations (name or address)', () => {
+  assert.equal(directlyScrapedVenue('First Glance'), 'first_glance')
+  assert.equal(directlyScrapedVenue('First Glance Student Center'), 'first_glance')
+  assert.equal(directlyScrapedVenue('943 Kenmore Blvd'), 'first_glance')
+  assert.equal(directlyScrapedVenue('First Glance, 943 Kenmore Blvd, Akron'), 'first_glance')
+})
+
+test('directlyScrapedVenue returns null for other Kenmore venues', () => {
+  assert.equal(directlyScrapedVenue('The Rialto'), null)
+  assert.equal(directlyScrapedVenue('Kenmore Senior Community Center'), null)
+  assert.equal(directlyScrapedVenue('1000 Kenmore Blvd'), null)
+  assert.equal(directlyScrapedVenue(''), null)
 })
 
 // ── Date/time sanity ────────────────────────────────────────────────────────

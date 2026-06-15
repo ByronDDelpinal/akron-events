@@ -28,6 +28,18 @@ test('normalizeStreetAddress makes equivalent addresses compare equal', () => {
   )
 })
 
+// Spelled-out directionals collapse to their abbreviation, so the same place
+// written "East"/"E" (a common Eventbrite-vs-venue dupe) compares equal.
+test('normalizeStreetAddress normalizes directionals', () => {
+  assert.equal(normalizeStreetAddress('134 East Tallmadge Avenue'), '134 e tallmadge ave')
+  assert.equal(
+    normalizeStreetAddress('134 East Tallmadge Avenue'),
+    normalizeStreetAddress('134 E Tallmadge Ave'),
+  )
+  assert.equal(normalizeStreetAddress('525 South Main Street'), '525 s main st')
+  assert.equal(normalizeStreetAddress('100 Northwest Blvd'), '100 nw blvd')
+})
+
 // ── looksLikeStreetAddress ───────────────────────────────────────────────────
 // Must require BOTH a leading house number AND a street-type suffix, so
 // number-led venue NAMES are not misread as addresses.
