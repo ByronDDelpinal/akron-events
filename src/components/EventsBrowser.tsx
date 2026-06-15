@@ -98,6 +98,7 @@ export default function EventsBrowser({
   const { events: mapEvents, loading: mapLoading } = useMapEvents({
     categories: effective.categories,
     family: effective.family,
+    excludeFamily: effective.excludeFamily,
     fundraiser: effective.fundraiser,
     dateRange: effective.dateRange,
     dateFrom: effective.dateFrom,
@@ -204,8 +205,13 @@ export default function EventsBrowser({
           dateFrom={filters.dateFrom}              onDateFrom={filters.setDateFrom}
           dateTo={filters.dateTo}                  onDateTo={filters.setDateTo}
           rawCategories={filters.rawCategories}    onRawCategories={filters.setRawCategories}
+          excludedCategories={filters.excludedCategories}
+          onExcludedCategories={filters.setExcludedCategories}
+          onCycleCategory={filters.cycleCategory}
           priceFilter={filters.priceFilter}        onPriceFilter={filters.setPriceFilter}
           sort={filters.sort}                      onSort={filters.setSort}
+          excludeFamily={filters.excludeFamily}    onExcludeFamily={filters.setExcludeFamily}
+          showAudienceToggle={features.filter}
           view={effectiveView}                     onView={features.map ? onView : undefined}
           total={total}
           cardViewMode={features.density ? density : undefined}

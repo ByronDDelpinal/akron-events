@@ -61,6 +61,23 @@ const ORACLE = [
   ["Children's Art Workshop", '', ['visual-art'], { family: true }],
   ['Storytime at the Library', '', ['other'], { family: true }],
   ['Family Game Night', '', ['games'], { family: true }],
+  // teen/tween/youth library & rec programming now flags family (2026-06).
+  ['Teen Advisory Board', '', ['other'], { family: true }],
+  ['Tween Hangout', '', ['other'], { family: true }],
+  ['Youth Lego Heads', '', ['other'], { family: true }],
+  ['Family Fun Night', 'Books under the big top', ['other'], { family: true }],
+  // Guard: "youth" as a beneficiary/service word stays UNflagged — these are
+  // adults-facing benefit/volunteer events, not kid programming.
+  ['Youth Mentoring Volunteer Night', 'Help us support local youth', ['other'], { fundraiser: true }],
+  // "<theme> camp" → day-camp programming, flags family.
+  ['Cheernastics Summer Camp Starts', '', ['learning'], { family: true }],
+  ['Kenmore CC - Week 6 - Adventure Camp', '', ['other'], { family: true }],
+  ['Whisk Takers Cooking Camp', '', ['other'], { family: true }],
+  // Guard: senior/adult camps and figurative/fitness "boot camp" stay UNflagged;
+  // a proper-noun camp venue ("Camp Ledgewood") is "camp <name>", not "<theme> camp".
+  ['Senior Citizen Summer Camp', 'A 2-week program for older adults', ['learning'], {}],
+  ['Sunrise Boot Camp', 'Outdoor fitness bootcamp', ['other'], {}],
+  ['Hike @ Girl Scouts\' Camp Ledgewood & Discover STEM', 'A networking hike for professionals', ['learning', 'outdoors'], {}],
 
   // fallback
   ['Community Networking Mixer', 'Meet local folks', ['other'], {}],

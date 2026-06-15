@@ -34,10 +34,18 @@ interface FilterBarProps {
   onDateTo: (v: string | null) => void
   rawCategories: string[]
   onRawCategories: (cats: string[]) => void
+  excludedCategories?: string[]
+  onExcludedCategories?: (cats: string[]) => void
+  /** Tri-state cycle for a content category: off -> include -> exclude -> off. */
+  onCycleCategory?: (slug: string) => void
   priceFilter: string | null
   onPriceFilter: (v: string | null) => void
   sort: string
   onSort: (v: string) => void
+  /** Audience toggle: hide events flagged is_family. */
+  excludeFamily?: boolean
+  onExcludeFamily?: (v: boolean) => void
+  showAudienceToggle?: boolean
   view: string
   onView?: (v: string) => void
   total: number
@@ -60,8 +68,12 @@ export default function FilterBar({
   dateFrom,        onDateFrom,
   dateTo,          onDateTo,
   rawCategories,   onRawCategories,
+  excludedCategories = [], onExcludedCategories,
+  onCycleCategory,
   priceFilter,     onPriceFilter,
   sort,            onSort,
+  excludeFamily = false, onExcludeFamily,
+  showAudienceToggle = false,
   view,            onView,
   total,
   cardViewMode,    onCardViewMode,
@@ -78,11 +90,13 @@ export default function FilterBar({
   // embeds), so their pills never appear in the clearable summary strip.
   const showDatePill = (dateRange || dateFrom || dateTo) && !lockedDimensions.dateRange
   const visibleCategories = lockedDimensions.category ? [] : rawCategories
+  const visibleExcluded = lockedDimensions.category ? [] : excludedCategories
   const showPricePill = priceFilter && !lockedDimensions.price
 
   const trayActiveCount = [
     activeIntentId !== null,
     visibleCategories.length > 0,
+    visibleExcluded.length > 0,
     showPricePill,
     showDatePill && (dateFrom || dateTo),
     sort !== 'soonest',
@@ -92,6 +106,7 @@ export default function FilterBar({
     activeIntentId ||
     showDatePill ||
     visibleCategories.length > 0 ||
+    visibleExcluded.length > 0 ||
     showPricePill ||
     sort !== 'soonest'
 
@@ -116,6 +131,26 @@ export default function FilterBar({
                 {trayActiveCount > 0 && (
                   <span className="more-badge">{trayActiveCount}</span>
                 )}
+              </button>
+            )}
+
+            {/* Audience toggle — one click to drop kids'/family events (library
+                storytimes, summer camps, teen clubs) from the grid. */}
+            {showAudienceToggle && onExcludeFamily && (
+              <button
+                className={`chip ${excludeFamily ? 'active' : ''}`}
+                onClick={() => {
+                  const next = !excludeFamily
+                  onExcludeFamily(next)
+                  // Turning the toggle on contradicts the Family intent (which
+                  // shows ONLY kids' events), so drop that intent if it's set.
+                  if (next && activeIntentId === 'family') onIntentId(null)
+                }}
+                aria-pressed={excludeFamily}
+                title="Hide kids' & family events (storytimes, camps, teen programs) from the grid"
+              >
+                {excludeFamily ? <EyeOffIcon /> : <FamilyIcon />}
+                {excludeFamily ? "Kids' events hidden" : "Hide kids' events"}
               </button>
             )}
           </div>
@@ -178,6 +213,18 @@ export default function FilterBar({
                 onRemove={() => removeRawCat(cat)}
               />
             ))}
+            {visibleExcluded.map((cat) => (
+              <ActivePill
+                key={`exclude-${cat}`}
+                exclude
+                label={`Not ${cat.charAt(0).toUpperCase() + cat.slice(1)}`}
+                onRemove={() =>
+                  onCycleCategory
+                    ? onCycleCategory(cat)
+                    : onExcludedCategories?.(excludedCategories.filter((c) => c !== cat))
+                }
+              />
+            ))}
             {showPricePill && (
               <ActivePill
                 label={priceFilter === 'free' ? 'Free only' : priceFilter === 'under10' ? 'Under $10' : 'Under $25'}
@@ -200,6 +247,7 @@ export default function FilterBar({
         onClose={() => setTrayOpen(false)}
         activeIntentId={activeIntentId} onIntentId={onIntentId}
         rawCategories={rawCategories}   onRawCategories={onRawCategories}
+        excludedCategories={excludedCategories} onCycleCategory={onCycleCategory}
         priceFilter={priceFilter}       onPriceFilter={onPriceFilter}
         dateFrom={dateFrom}             onDateFrom={onDateFrom}
         dateTo={dateTo}                 onDateTo={onDateTo}
@@ -227,11 +275,13 @@ function buildDateRangeLabel(from: string | null, to: string | null): string {
 interface ActivePillProps {
   label: ReactNode
   onRemove: () => void
+  /** Exclusion pill (a hidden category) — rendered in the muted "minus" style. */
+  exclude?: boolean
 }
 
-function ActivePill({ label, onRemove }: ActivePillProps) {
+function ActivePill({ label, onRemove, exclude = false }: ActivePillProps) {
   return (
-    <span className="active-pill">
+    <span className={`active-pill${exclude ? ' active-pill--exclude' : ''}`}>
       {label}
       <span
         className="active-pill-x"
@@ -255,6 +305,26 @@ function SlidersIcon() {
       <circle cx="8"  cy="6"  r="2" fill="currentColor" stroke="none"/>
       <circle cx="16" cy="12" r="2" fill="currentColor" stroke="none"/>
       <circle cx="10" cy="18" r="2" fill="currentColor" stroke="none"/>
+    </svg>
+  )
+}
+
+function FamilyIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <circle cx="9" cy="6" r="2.4" />
+      <path d="M5 20v-4a4 4 0 0 1 8 0v4" />
+      <circle cx="17" cy="8" r="1.8" />
+      <path d="M15.5 20v-3.5a3 3 0 0 1 5 0" />
+    </svg>
+  )
+}
+
+function EyeOffIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
     </svg>
   )
 }

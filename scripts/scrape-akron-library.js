@@ -166,7 +166,11 @@ function parseCategory(tagStr = '', title = '') {
  */
 export function parseIsFamily(ageStr = '', tagStr = '') {
   const t = `${ageStr} ${tagStr}`.toLowerCase()
-  return /\b(bab(y|ies)|toddlers?|preschool|kids?|child(ren)?|family|families|grades? [k0-9]|tweens?)\b/.test(t) || undefined
+  // Reads the library's structured Ages field, so teen/youth are safe here
+  // (no free-text "supporting local youth" noise) — unlike inference, which
+  // title-scopes those words. Keeps the big block of teen/tween/youth library
+  // programming flagged for the audience filter.
+  return /\b(bab(y|ies)|toddlers?|preschool|kids?|child(ren)?|family|families|grades? [k0-9]|tweens?|teens?|youth)\b/.test(t) || undefined
 }
 
 function parseTags(tagStr = '', ageStr = '') {

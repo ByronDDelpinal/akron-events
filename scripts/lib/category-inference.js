@@ -154,8 +154,31 @@ function conditionalContentSignals(text, tLow) {
 
 const FAMILY_RE = /\b(story ?time|story hour|kids?|children'?s?|family[- ]friendly|toddlers?|preschool|for kids|kid[- ]friendly|children'?s museum|family game night|family day|all[- ]ages family|grade[- ]schoolers|grades? [k0-9]|ages \d+ ?(to|-|–) ?\d+|little (explorers|ones)|baby|babies)\b/
 
+// teen/tween/youth/"family fun" added 2026-06 to catch the large block of
+// library & rec youth programming ("Teen Advisory Board", "Tween Manga Club",
+// "Youth Craft Day", "Family Fun Night") the original kid/preschool bar missed.
+// Matters for BOTH directions: the inclusive "Family" intent AND the new "Hide
+// kids' events" grid toggle, which both read is_family.
+//
+// TITLE-SCOPED on purpose. These words are noisy in free-text descriptions —
+// "youth" doubles as a beneficiary word and "teen" shows up in adult-event copy
+// ("great for teens and adults") — which would mis-flag concerts, clinical
+// trainings, etc. Library/rec programs reliably put the audience in the TITLE,
+// so matching the title alone keeps recall high without the description noise.
+// (Library events are additionally flagged from their structured Ages field in
+// scrape-akron-library.js's parseIsFamily.) The _FAMILY_EXCLUSIONS below still
+// strip beneficiary/service "youth" contexts even from titles.
+//
+// "<theme> camp" ("summer camp", "art camp", "cooking camp", "adventure camp")
+// is day-camp programming and is overwhelmingly for kids. It must be the
+// "<word> camp" shape (camp preceded by a theme word) so a proper-noun venue
+// ("Girl Scouts' Camp Ledgewood") — which is "camp <name>" — never matches.
+// Adult/senior camps ("boot camp", "Senior Citizen Summer Camp") are stripped
+// by _FAMILY_EXCLUSIONS first.
+const FAMILY_TITLE_RE = /\b(teens?|tweens?|youth|family fun)\b|\b[a-z]{3,}\s+camps?\b/
+
 // Family false-positive contexts, stripped from the text BEFORE FAMILY_RE
-// runs. All three shipped to production before being caught (2026-06-11):
+// runs. The first three shipped to production before being caught (2026-06-11):
 //   1. Negated admission — "we regret that we cannot admit infants or
 //      children under age 12" (Akron Symphony Lakes Tour) flagged an event
 //      that explicitly EXCLUDES kids.
@@ -166,10 +189,23 @@ const FAMILY_RE = /\b(story ?time|story hour|kids?|children'?s?|family[- ]friend
 //      children, Johnny and Olivia" (Five for Fighting). The count is what
 //      separates bio phrasing from programming copy: "parents and their
 //      children" (no count) must keep matching.
+//   4/5. "youth" guards (added with teen/tween/youth, 2026-06): a beneficiary
+//      verb before "youth" ("supporting local youth", "empowering our youth")
+//      or a service/org noun after it ("youth mentoring", "youth services")
+//      marks an adults-facing benefit/volunteer event, NOT kid programming.
+//      "Youth Craft Day" / "Youth Lego Heads" have neither and stay flagged.
 const _FAMILY_EXCLUSIONS = [
   /\b(?:cannot|can ?not|can't|may not|do not|don't|won't|unable to|no)\s+(?:admit|allow|accommodate|permit|bring)[^.!?]{0,80}/g,
   /\b(?:for\s+)?kids of all ages\b/g,
   /\b(?:his|her|their|my|our)\s+(?:two|three|four|five|six|seven|eight|nine|ten|\d+)\s+(?:young\s+)?(?:children|kids|grandchildren)\b/g,
+  /\b(?:support(?:ing|s)?|benefit(?:t?ing|s)?|serv(?:e|es|ing)|empower(?:ing|ment|s)?|uplift(?:ing|s)?|sponsor(?:ing|s)?|in support of)\s+(?:the\s+|our\s+|local\s+|area\s+|disadvantaged\s+|at[- ]risk\s+)*youth\b/g,
+  /\byouth\s+(?:mentoring|mentorship|services?|ministr(?:y|ies)|fund|foundation|coalition|alliance|council)\b/g,
+  //   6/7. "camp" guards (added with <theme> camp): "boot camp"/"base camp" are
+  //      adult fitness/figurative, and a senior/adult-qualified camp ("Senior
+  //      Citizen Summer Camp") is not kid programming. Strip both before the
+  //      <theme>-camp rule sees them.
+  /\b(?:boot|base)\s?camps?\b/g,
+  /\b(?:senior(?:s|\s+citizens?)?|adults?|grown[- ]?ups?|55\+|18\+|21\+)\b[^.!?]{0,25}?\bcamps?\b/g,
 ]
 
 /** Strip known family false-positive contexts (input is already lowercase). */
@@ -200,8 +236,13 @@ export function scoreCategories(title = '', description = '') {
 
 export function inferFacets(title = '', description = '') {
   const text = `${title || ''} ${description || ''}`.toLowerCase()
+  const titleText = (title || '').toLowerCase()
   return {
-    family: FAMILY_RE.test(_familySubject(text)),
+    // High-bar family words match anywhere; the noisier teen/tween/youth set is
+    // title-only (see FAMILY_TITLE_RE). Both run through _familySubject so the
+    // beneficiary/"youth"-service guards apply in either scope.
+    family: FAMILY_RE.test(_familySubject(text)) ||
+            FAMILY_TITLE_RE.test(_familySubject(titleText)),
     fundraiser: FUNDRAISER_RE.test(text),
   }
 }

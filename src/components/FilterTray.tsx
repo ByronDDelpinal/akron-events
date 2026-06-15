@@ -17,6 +17,9 @@ interface FilterTrayProps {
   onIntentId: (id: string | null) => void
   rawCategories: string[]
   onRawCategories: (cats: string[]) => void
+  excludedCategories?: string[]
+  /** Tri-state cycle for a content category: off -> include -> exclude -> off. */
+  onCycleCategory?: (slug: string) => void
   priceFilter: string | null
   onPriceFilter: (v: string | null) => void
   dateFrom: string | null
@@ -36,9 +39,16 @@ interface FilterTrayProps {
   lockedCategories?: string[]
 }
 
+// Intents (curated, single-select discovery mixes) and raw content categories
+// (multi-select, tri-state) are now distinct tray sections — keeping them in one
+// "Category" group implied raw-category rules (tap-again-to-exclude) applied to
+// intents too, which they don't.
+const INTENT_OPTIONS = CATEGORY_OPTIONS.filter((o) => o.kind === 'intent')
+const RAW_OPTIONS    = CATEGORY_OPTIONS.filter((o) => o.kind === 'raw')
+
 // Label lookup for raw category slugs, e.g. "music" → "🎵 Music".
 const RAW_CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
-  CATEGORY_OPTIONS.filter((o) => o.kind === 'raw').map((o) => [o.value, o.label])
+  RAW_OPTIONS.map((o) => [o.value, o.label])
 )
 function rawCategoryLabel(slug: string): string {
   return RAW_CATEGORY_LABELS[slug] ?? slug.charAt(0).toUpperCase() + slug.slice(1)
@@ -54,6 +64,7 @@ export default function FilterTray({
   onClose,
   activeIntentId, onIntentId,
   rawCategories,  onRawCategories,
+  excludedCategories = [], onCycleCategory,
   priceFilter,    onPriceFilter,
   dateFrom,       onDateFrom,
   dateTo,         onDateTo,
@@ -147,6 +158,12 @@ export default function FilterTray({
       onIntentId(activeIntentId === opt.value ? null : opt.value)
       return
     }
+    // Raw content categories cycle off -> include -> exclude -> off.
+    if (onCycleCategory) {
+      onCycleCategory(opt.value)
+      return
+    }
+    // Fallback (no cycle handler wired): legacy include-only toggle.
     if (rawCategories.includes(opt.value)) {
       onRawCategories(rawCategories.filter((c) => c !== opt.value))
     } else {
@@ -154,10 +171,12 @@ export default function FilterTray({
     }
   }
 
-  function isOptionActive(opt: CategoryOption) {
-    return opt.kind === 'intent'
-      ? activeIntentId === opt.value
-      : rawCategories.includes(opt.value)
+  // null | 'include' | 'exclude'
+  function optionState(opt: CategoryOption): 'include' | 'exclude' | null {
+    if (opt.kind === 'intent') return activeIntentId === opt.value ? 'include' : null
+    if (rawCategories.includes(opt.value)) return 'include'
+    if (excludedCategories.includes(opt.value)) return 'exclude'
+    return null
   }
 
   function clearAll() {
@@ -217,9 +236,32 @@ export default function FilterTray({
           </div>
         </TraySection>
 
+        {/* ── Quick picks (curated intents) ── */}
+        {/* Single-select discovery mixes. Their own section so it's clear they
+            behave differently from the tri-state content categories below. */}
+        {!hasLockedCategories && !lockedDimensions.category && (
+          <TraySection label="Quick picks">
+            <p className="tray-section-hint">
+              Curated mixes for an occasion — pick one.
+            </p>
+            <div className="tray-chips">
+              {INTENT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  className={`tray-chip ${activeIntentId === opt.value ? 'active' : ''}`}
+                  onClick={() => onIntentId(activeIntentId === opt.value ? null : opt.value)}
+                  aria-pressed={activeIntentId === opt.value}
+                >
+                  <span className="tray-chip-text">{opt.label}</span>
+                </button>
+              ))}
+            </div>
+          </TraySection>
+        )}
+
         {/* ── Category ── */}
         {/* Locked embed: offer only the partner's set so the visitor can narrow
-            within it. Unlocked: the full intents + raw categories picker. */}
+            within it. Unlocked: the multi-select, tri-state content categories. */}
         {hasLockedCategories ? (
           <TraySection label="Category">
             <div className="tray-chips">
@@ -236,16 +278,28 @@ export default function FilterTray({
           </TraySection>
         ) : !lockedDimensions.category && (
           <TraySection label="Category">
+            <p className="tray-section-hint">
+              Tap to show only that category. Tap again to hide it.
+            </p>
             <div className="tray-chips">
-              {CATEGORY_OPTIONS.map((opt) => (
-                <button
-                  key={`${opt.kind}:${opt.value}`}
-                  className={`tray-chip ${isOptionActive(opt) ? 'active' : ''}`}
-                  onClick={() => toggleOption(opt)}
-                >
-                  {opt.label}
-                </button>
-              ))}
+              {RAW_OPTIONS.map((opt) => {
+                const state = optionState(opt)
+                return (
+                  <button
+                    key={opt.value}
+                    className={`tray-chip${state === 'include' ? ' active' : ''}${state === 'exclude' ? ' excluded' : ''}`}
+                    onClick={() => toggleOption(opt)}
+                    aria-pressed={state !== null}
+                    title={
+                      state === 'exclude' ? 'Hidden — tap to clear'
+                        : state === 'include' ? 'Showing only this — tap to hide it'
+                        : 'Tap to show only this; tap again to hide'
+                    }
+                  >
+                    <span className="tray-chip-text">{opt.label}</span>
+                  </button>
+                )
+              })}
             </div>
           </TraySection>
         )}

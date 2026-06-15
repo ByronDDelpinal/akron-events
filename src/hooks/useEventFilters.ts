@@ -54,7 +54,11 @@ export interface UseEventFiltersOptions {
 /** The derived, validated arguments handed to useEvents. */
 export interface EffectiveQuery {
   categories: string[]
+  /** Content categories to hide from the grid (anti-join). */
+  excludedCategories: string[]
   family: boolean
+  /** Hide events flagged is_family (the "Hide kids' events" audience toggle). */
+  excludeFamily: boolean
   fundraiser: boolean
   dateRange: string | null
   dateFrom: string | null
@@ -71,7 +75,7 @@ export interface EffectiveQuery {
 // All filter-owned query keys. clearFilters only ever touches these, so
 // non-filter params (embed theme/features/target/view/density) survive a
 // "Clear filters" untouched.
-export const FILTER_PARAM_KEYS = ['intent', 'date', 'from', 'to', 'categories', 'price', 'sort', 'q']
+export const FILTER_PARAM_KEYS = ['intent', 'date', 'from', 'to', 'categories', 'exclude', 'price', 'sort', 'q', 'audience']
 
 type ParamValue = string | string[] | null | undefined
 
@@ -93,6 +97,19 @@ export function useEventFilters({
       params.delete(key)
     } else {
       params.set(key, Array.isArray(value) ? value.join(',') : String(value))
+    }
+    setSearchParams(params, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  // Write several params in ONE history entry. Sequential updateParam() calls
+  // each derive from the same render's searchParams snapshot, so the second
+  // would clobber the first; the include/exclude cycle must move a slug between
+  // two keys atomically, so it needs this.
+  const updateParams = useCallback((entries: Record<string, ParamValue>) => {
+    const params = new URLSearchParams(searchParams)
+    for (const [key, value] of Object.entries(entries)) {
+      if (value == null || value === '' || (Array.isArray(value) && value.length === 0)) params.delete(key)
+      else params.set(key, Array.isArray(value) ? value.join(',') : String(value))
     }
     setSearchParams(params, { replace: true })
   }, [searchParams, setSearchParams])
@@ -122,6 +139,25 @@ export function useEventFilters({
   }, [searchParams])
   const setRawCategories = useCallback((v: string[] | null) => updateParam('categories', v), [updateParam])
 
+  // exclude — comma-separated content categories to HIDE from the grid.
+  const excludedCategories = useMemo(() => {
+    const raw = searchParams.get('exclude') || ''
+    return raw.split(',').map((c) => c.trim()).filter(Boolean)
+  }, [searchParams])
+  const setExcludedCategories = useCallback((v: string[] | null) => updateParam('exclude', v), [updateParam])
+
+  // Tri-state category cycle: off -> include -> exclude -> off. Moves the slug
+  // between the two params atomically so a category is never both.
+  const cycleCategory = useCallback((slug: string) => {
+    if (rawCategories.includes(slug)) {
+      updateParams({ categories: rawCategories.filter((c) => c !== slug), exclude: [...excludedCategories, slug] })
+    } else if (excludedCategories.includes(slug)) {
+      updateParams({ exclude: excludedCategories.filter((c) => c !== slug) })
+    } else {
+      updateParams({ categories: [...rawCategories, slug] })
+    }
+  }, [rawCategories, excludedCategories, updateParams])
+
   // price — null | 'free' | 'under10' | 'under25'
   const priceFilter = useMemo(() => searchParams.get('price') || null, [searchParams])
   const setPriceFilter = useCallback((v: string | null) => updateParam('price', v), [updateParam])
@@ -134,6 +170,14 @@ export function useEventFilters({
   // component's <input> until the user commits it.
   const search = useMemo(() => searchParams.get('q') || '', [searchParams])
   const setSearch = useCallback((value: string | null) => updateParam('q', value || null), [updateParam])
+
+  // audience — the "Hide kids' events" grid toggle. Only non-default value is
+  // 'no-kids' (param omitted otherwise, so the default URL stays clean).
+  const excludeFamily = useMemo(() => searchParams.get('audience') === 'no-kids', [searchParams])
+  const setExcludeFamily = useCallback(
+    (v: boolean) => updateParam('audience', v ? 'no-kids' : null),
+    [updateParam],
+  )
 
   // ── Clear ─────────────────────────────────────────────────────────────
   // Removes every FILTER_PARAM_KEY except those in lockedKeys, preserving
@@ -160,14 +204,26 @@ export function useEventFilters({
         return narrowed.length > 0 ? narrowed : lockedCategories
       })()
     : (rawCategories.length > 0 ? rawCategories : (activeIntent?.categories ?? []))
+  // Exclusion is a homepage power feature: it's disabled inside category-locked
+  // embeds (which only narrow within the lock), and a slug can never be both
+  // included and excluded (guards a hand-edited URL).
+  const effectiveExcludedCategories = hasLockedCategories
+    ? []
+    : excludedCategories.filter((c) => !effectiveCategories.includes(c))
   const effectiveFamily = intentFacets.includes('family') || !!preset.family
+  // The Family intent (show only kids' events) and the audience toggle (hide
+  // them) are contradictory; the explicit inclusive choice wins, so the toggle
+  // is suppressed whenever family is on. Keeps results from going empty.
+  const effectiveExcludeFamily = excludeFamily && !effectiveFamily
   const effectiveFundraiser = intentFacets.includes('fundraiser') || !!preset.fundraiser
   const effectiveFreeOnly = intentFacets.includes('free') || priceFilter === 'free'
   const effectivePriceMax = effectiveFreeOnly ? null : priceFilter
 
   const effective: EffectiveQuery = {
     categories: effectiveCategories,
+    excludedCategories: effectiveExcludedCategories,
     family: effectiveFamily,
+    excludeFamily: effectiveExcludeFamily,
     fundraiser: effectiveFundraiser,
     dateRange,
     dateFrom,
@@ -185,7 +241,9 @@ export function useEventFilters({
   const filterKey = [
     activeIntentId,
     effectiveCategories.join(','),
+    effectiveExcludedCategories.join(','),
     effectiveFamily,
+    effectiveExcludeFamily,
     effectiveFundraiser,
     dateRange,
     dateFrom,
@@ -205,9 +263,11 @@ export function useEventFilters({
     dateFrom, setDateFrom,
     dateTo, setDateTo,
     rawCategories, setRawCategories,
+    excludedCategories, setExcludedCategories, cycleCategory,
     priceFilter, setPriceFilter,
     sort, setSort,
     search, setSearch,
+    excludeFamily, setExcludeFamily,
     // actions
     clearFilters,
     // derived

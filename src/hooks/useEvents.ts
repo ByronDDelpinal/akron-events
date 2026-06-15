@@ -98,7 +98,11 @@ function applyCategoryFilter(query: LooseQuery, categories: string[]): LooseQuer
 
 export interface UseEventsOptions {
   categories?: string[]
+  /** Content categories to hide (anti-join on category_slugs). */
+  excludedCategories?: string[]
   family?: boolean
+  /** Hide events flagged is_family (the "Hide kids' events" audience toggle). */
+  excludeFamily?: boolean
   fundraiser?: boolean
   dateRange?: string | null
   dateFrom?: string | null
@@ -120,7 +124,9 @@ export interface UseEventsOptions {
  */
 export function useEvents({
   categories       = [],
+  excludedCategories = [],
   family           = false,
+  excludeFamily    = false,
   fundraiser       = false,
   dateRange        = null,
   dateFrom         = null,
@@ -144,15 +150,17 @@ export function useEvents({
   // effect keys on a serialized form and reads memoized arrays derived from
   // it. Values are slugs/keys (never contain commas), so join/split is safe.
   const categoriesKey    = categories.join(',')
+  const excludedCatsKey  = excludedCategories.join(',')
   const hiddenSourcesKey = hiddenSources.join(',')
   const venueCitiesKey   = venueCities.join(',')
   const categoriesStable    = useMemo(() => categoriesKey.split(',').filter(Boolean), [categoriesKey])
+  const excludedCatsStable  = useMemo(() => excludedCatsKey.split(',').filter(Boolean), [excludedCatsKey])
   const hiddenSourcesStable = useMemo(() => hiddenSourcesKey.split(',').filter(Boolean), [hiddenSourcesKey])
   const venueCitiesStable   = useMemo(() => venueCitiesKey.split(',').filter(Boolean), [venueCitiesKey])
 
   useEffect(() => {
     let cancelled = false
-    const categories = categoriesStable, hiddenSources = hiddenSourcesStable, venueCities = venueCitiesStable
+    const categories = categoriesStable, excludedCategories = excludedCatsStable, hiddenSources = hiddenSourcesStable, venueCities = venueCitiesStable
 
     // The pristine homepage request (page one, no filters, default
     // sort) is byte-identical for every visitor, so it's served from
@@ -161,7 +169,8 @@ export function useEvents({
     // instead of paying PostgREST latency. Any failure falls through
     // to the normal live query.
     const isDefaultFirstPage =
-      categories.length === 0 && !family && !fundraiser &&
+      categories.length === 0 && excludedCategories.length === 0 &&
+      !family && !excludeFamily && !fundraiser &&
       !dateRange && !dateFrom && !dateTo &&
       (!search || search.trim().length === 0) &&
       !freeOnly && !priceMax &&
@@ -228,9 +237,16 @@ export function useEvents({
 
         // Content axis: any-match against the event_categories join table.
         query = applyCategoryFilter(query, categories)
+        // Exclusion axis: anti-join via the denormalized category_slugs array
+        // (migration 039). `not.ov` = "has NONE of these categories".
+        if (excludedCategories.length > 0) {
+          query = query.not('category_slugs', 'ov', `{${excludedCategories.join(',')}}`)
+        }
 
         // Facet axis: cross-cutting boolean flags.
-        if (family)     query = query.eq('is_family', true)
+        if (family)        query = query.eq('is_family', true)
+        // Hide kids'/family events. `.not(is, true)` keeps false AND null rows.
+        else if (excludeFamily) query = query.not('is_family', 'is', true)
         if (fundraiser) query = query.eq('is_fundraiser', true)
 
         if (hiddenSources.length > 0) {
@@ -290,7 +306,7 @@ export function useEvents({
 
     fetchEvents()
     return () => { cancelled = true }
-  }, [categoriesStable, family, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSourcesStable, neighborhoodSlug, venueCitiesStable, sort, limit, offset])
+  }, [categoriesStable, excludedCatsStable, family, excludeFamily, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSourcesStable, neighborhoodSlug, venueCitiesStable, sort, limit, offset])
 
   const hasMore = offset + limit < total
 
@@ -495,7 +511,9 @@ export function useRelatedEvents(
 
 export interface UseMapEventsOptions {
   categories?: string[]
+  excludedCategories?: string[]
   family?: boolean
+  excludeFamily?: boolean
   fundraiser?: boolean
   dateRange?: string | null
   dateFrom?: string | null
@@ -514,7 +532,9 @@ export interface UseMapEventsOptions {
  */
 export function useMapEvents({
   categories    = [],
+  excludedCategories = [],
   family        = false,
+  excludeFamily = false,
   fundraiser    = false,
   dateRange     = null,
   dateFrom      = null,
@@ -535,15 +555,17 @@ export function useMapEvents({
   // effect keys on a serialized form and reads memoized arrays derived from
   // it. Values are slugs/keys (never contain commas), so join/split is safe.
   const categoriesKey    = categories.join(',')
+  const excludedCatsKey  = excludedCategories.join(',')
   const hiddenSourcesKey = hiddenSources.join(',')
   const venueCitiesKey   = venueCities.join(',')
   const categoriesStable    = useMemo(() => categoriesKey.split(',').filter(Boolean), [categoriesKey])
+  const excludedCatsStable  = useMemo(() => excludedCatsKey.split(',').filter(Boolean), [excludedCatsKey])
   const hiddenSourcesStable = useMemo(() => hiddenSourcesKey.split(',').filter(Boolean), [hiddenSourcesKey])
   const venueCitiesStable   = useMemo(() => venueCitiesKey.split(',').filter(Boolean), [venueCitiesKey])
 
   useEffect(() => {
     let cancelled = false
-    const categories = categoriesStable, hiddenSources = hiddenSourcesStable, venueCities = venueCitiesStable
+    const categories = categoriesStable, excludedCategories = excludedCatsStable, hiddenSources = hiddenSourcesStable, venueCities = venueCitiesStable
 
     async function fetchMapEvents() {
       setLoading(true)
@@ -569,7 +591,11 @@ export function useMapEvents({
           .order('start_at', { ascending: true })
 
         query = applyCategoryFilter(query, categories)
-        if (family)     query = query.eq('is_family', true)
+        if (excludedCategories.length > 0) {
+          query = query.not('category_slugs', 'ov', `{${excludedCategories.join(',')}}`)
+        }
+        if (family)             query = query.eq('is_family', true)
+        else if (excludeFamily) query = query.not('is_family', 'is', true)
         if (fundraiser) query = query.eq('is_fundraiser', true)
 
         if (neighborhoodSlug) {
@@ -639,7 +665,7 @@ export function useMapEvents({
 
     fetchMapEvents()
     return () => { cancelled = true }
-  }, [categoriesStable, family, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSourcesStable, neighborhoodSlug, venueCitiesStable])
+  }, [categoriesStable, excludedCatsStable, family, excludeFamily, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSourcesStable, neighborhoodSlug, venueCitiesStable])
 
   return { events, loading, error, total }
 }

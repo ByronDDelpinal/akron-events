@@ -218,6 +218,13 @@
   flex-shrink: 0;
 }
 
+/* Exclusion pill — a hidden category. Coral to mirror the excluded tray chip. */
+.active-pill--exclude {
+  background: var(--coral-pale);
+  border-color: var(--coral);
+  color: var(--coral);
+}
+
 .active-pill-x {
   display: inline-flex;
   align-items: center;

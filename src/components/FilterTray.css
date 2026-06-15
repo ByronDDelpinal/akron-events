@@ -139,6 +139,30 @@
   color: var(--amber);
   font-weight: 700;
 }
+/* Third state: excluded (hidden from the grid). Coral + strikethrough so the
+   state reads without relying on color alone. */
+.tray-chip.excluded {
+  background: var(--coral-pale);
+  border-color: var(--coral);
+  color: var(--coral);
+  font-weight: 700;
+}
+.tray-chip.excluded:hover {
+  border-color: var(--coral);
+  color: var(--coral-hover);
+}
+.tray-chip.excluded .tray-chip-text {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+/* One-line helper under a section label. */
+.tray-section-hint {
+  font-family: var(--font-body);
+  font-size: var(--text-tiny);
+  color: var(--text-muted);
+  margin: 0 0 var(--space-md);
+}
 
 /* ── Date range ── */
 .tray-date-row {
