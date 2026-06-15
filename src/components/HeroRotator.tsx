@@ -12,6 +12,14 @@ interface HeroRotatorProps {
   intervalMs?: number
 }
 
+/** A random index in [0, n) that isn't `current`, so a word never repeats back to back. */
+function randomOtherIndex(current: number, n: number): number {
+  if (n <= 1) return current
+  let r = current
+  while (r === current) r = Math.floor(Math.random() * n)
+  return r
+}
+
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(
     () => typeof window !== 'undefined' &&
@@ -67,7 +75,7 @@ export default function HeroRotator({ words, intervalMs = 3000 }: HeroRotatorPro
     if (words.length <= 1) return
     const id = setInterval(() => {
       if (document.hidden) return // don't churn while backgrounded
-      const next = (indexRef.current + 1) % words.length
+      const next = randomOtherIndex(indexRef.current, words.length)
       if (reduced) setIndex(next)       // honor reduced-motion: instant swap
       else setIncoming(next)            // otherwise kick off the roll
     }, intervalMs)

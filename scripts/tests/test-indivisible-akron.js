@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL        = process.env.VITE_SUPABASE_URL        || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-const { parseCategory, buildSourceId } = await import('../scrape-indivisible-akron.js')
+const { parseCategory, eventCategories, buildSourceId } = await import('../scrape-indivisible-akron.js')
 const { parseCostFromTribe, parseTagsFromTribe } = await import('../lib/normalize.js')
 
 describe('Indivisible Akron — parseCategory', () => {
@@ -25,6 +25,20 @@ describe('Indivisible Akron — parseCategory', () => {
   it('defaults an activism meetup (no category) to civic', () => {
     assert.equal(parseCategory([]), 'civic')
     assert.equal(parseCategory([{ slug: 'meetup' }]), 'civic')
+  })
+})
+
+describe('Indivisible Akron — eventCategories (civic is always a label)', () => {
+  it('a plain meetup/rally is civic-only', () => {
+    assert.deepEqual(eventCategories([]), ['civic'])
+    assert.deepEqual(eventCategories([{ slug: 'meetup' }]), ['civic'])
+  })
+  it('an art build keeps civic as primary with visual-art secondary', () => {
+    assert.deepEqual(eventCategories([{ slug: 'art' }]), ['civic', 'visual-art'])
+  })
+  it('a book club is civic + learning; a benefit concert civic + music', () => {
+    assert.deepEqual(eventCategories([{ slug: 'book-club' }]), ['civic', 'learning'])
+    assert.deepEqual(eventCategories([{ slug: 'live-music' }]), ['civic', 'music'])
   })
 })
 

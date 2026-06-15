@@ -264,7 +264,7 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
   // daily look at this month's events"). Keyed off prefs, never the raw
   // 30-day lookahead, so the copy matches what they signed up for.
   let content = `
-  <div style="font-family:${f.display};font-size:20px;font-weight:700;color:${c.primary};line-height:1.25;letter-spacing:-0.01em;margin:0 0 20px;">
+  <div style="font-family:${f.display};font-size:20px;font-weight:700;color:${c.primary};line-height:1.25;letter-spacing:-0.01em;margin:0 0 20px;text-align:center;">
     ${headlineLabel(sub)}
   </div>
 `
@@ -348,19 +348,27 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
   }
 
   // "Also coming up" — tail of plain-text event links. No images,
-  // no metadata clutter; just titles + dates so the reader feels
-  // depth without scrolling through more cards.
+  // no metadata clutter; just titles + times/dates so the reader feels
+  // depth without scrolling through more cards. When the subscriber's
+  // window IS today (daily cadence, ≤1-day lookahead), the tail is all
+  // same-day, so we lead with a today-framed heading and show the start
+  // TIME per event; for week/month windows the tail spans days, so we
+  // keep the neutral heading and show the DATE.
   if (tailEvents.length > 0) {
+    const todayWindow = sub.frequency !== 'monthly' && sub.lookahead_days <= 1
+    const tailHeading = todayWindow ? 'Check today’s pulse' : 'Also coming up'
     content += `
   <div style="margin-top:26px;padding-top:18px;border-top:1px solid ${c.border};">
-    <div style="font-family:${f.display};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:${c.textMuted};margin-bottom:10px;">Also coming up</div>
+    <div style="font-family:${f.display};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:${c.textMuted};margin-bottom:10px;">${tailHeading}</div>
 `
     for (const event of tailEvents) {
       const eventUrl = withUtm(`${BASE_URL}${eventPath(event)}`, campaign, 'tail')
-      const date = new Date(event.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+      const lead = todayWindow
+        ? formatTimeOnly(event.start_at)
+        : new Date(event.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
       content += `
     <a href="${eventUrl}" style="display:block;padding:6px 0;text-decoration:none;color:${c.textSecondary};font-size:14px;line-height:1.4;">
-      <span style="color:${c.primary};font-weight:600;">${date}</span>
+      <span style="color:${c.primary};font-weight:600;">${lead}</span>
       <span style="color:${c.textMuted};"> &middot; </span>
       <span style="color:${c.textPrimary};">${escapeHtml(event.title)}</span>
     </a>
@@ -424,10 +432,13 @@ function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: numb
   }
 
   if (tailEvents.length > 0) {
-    lines.push('ALSO COMING UP')
+    const todayWindow = sub.frequency !== 'monthly' && sub.lookahead_days <= 1
+    lines.push(todayWindow ? 'CHECK TODAY’S PULSE' : 'ALSO COMING UP')
     for (const event of tailEvents) {
-      const date = new Date(event.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-      lines.push(`- ${date} · ${event.title} — ${withUtm(`${BASE_URL}${eventPath(event)}`, campaign, 'tail')}`)
+      const lead = todayWindow
+        ? formatTimeOnly(event.start_at)
+        : new Date(event.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+      lines.push(`- ${lead} · ${event.title} — ${withUtm(`${BASE_URL}${eventPath(event)}`, campaign, 'tail')}`)
     }
     lines.push('')
   }
@@ -438,7 +449,7 @@ function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: numb
 
   lines.push(
     'Never miss a beat.',
-    'Thanks for checking Akron Pulse, your free, easy, go-to regional events calendar, courtesy of your friendly neighborhood Summit County residents.',
+    'Thanks for checking Akron Pulse, your free, customizable, and go-to regional events calendar.',
     `Have an event? Submit it here, see it live in 24 hours: ${withUtm(`${BASE_URL}/submit`, campaign, 'submit')}`,
     '',
     `Manage preferences: ${BASE_URL}/subscribe/preferences?token=${sub.token}`,

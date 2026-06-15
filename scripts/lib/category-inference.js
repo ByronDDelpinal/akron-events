@@ -73,6 +73,14 @@ const _COMEDY_INCIDENTAL = [
   //   "comedy on topics like politics" (a real set) is untouched.
   [/\btopics?\b[^.!?]*?\b(?:stand[- ]?up comedy|comedy|comedian|improv)\b/g, ' '],
   [/\beven\s+(?:some|a little|a bit of)\b[^.!?]*?\bcomedy\b/g, ' '],
+  // (5) Drag show/brunch that is a scheduled component of a larger Pride or
+  //   festival — an after-party or sub-event, not the event itself: "Drag Show
+  //   @ The Haunted Closet | 5-7 PM. The main event wraps at 5", "Head over …
+  //   for a spectacular Pride Drag Show" (Pride on Portage festival). A bare
+  //   "Sunday Drag Brunch" (no festival/after-party cue) stays comedy.
+  [/\bpride\s+drag (?:show|brunch|king|queen)\b/g, ' '],
+  [/\b(?:after[- ]?part(?:y|ies)|head over to|main event)\b[^.!?]*?\bdrag (?:show|brunch|king|queen)\b/g, ' '],
+  [/\bdrag (?:show|brunch|king|queen)\b[^.!?]*?\b(?:after[- ]?part(?:y|ies)|main event)\b/g, ' '],
 ]
 
 /** Strip incidental comedy contexts before comedy signals score (input lowercase). */
@@ -142,14 +150,16 @@ const SIGNALS = [
 
   // Outdoors
   // Specific outdoors ACTIVITIES / features score STRONG.
-  { cat: 'outdoors', w: STRONG, re: /\b(trail|nature walk|nature center|naturalist|arboretum|wildlife|botanical|bird (walk|nerd)|birding|hike|hiking|conservation|outdoor adventure|metro park|towpath|fishing|camping|archery|kayak)\b/ },
-  // Bare venue-name-prone nouns ("park", "zoo", "garden") only score SOFT: they
-  // routinely show up as proper-noun VENUE names inside a description
-  // ("Cuyahoga Valley National Park", "Akron Zoo", "Stan Hywet … Gardens") and
-  // must NOT override a decisive content category as a secondary (an artist talk
-  // held in a national-park gallery is visual-art, not outdoors). As a sole or
-  // primary signal they still classify the event as outdoors (e.g. "Park Cleanup").
-  { cat: 'outdoors', w: SOFT, re: /\b(park|zoo|garden)\b/ },
+  { cat: 'outdoors', w: STRONG, re: /\b(hiking trail|nature trail|bike trail|multi[- ]use trail|nature walk|nature center|naturalist|arboretum|wildlife|botanical|bird (walk|nerd)|birding|hike|hiking|conservation|outdoor adventure|metro park|towpath|fishing|camping|archery|kayak)\b/ },
+  // Bare venue-name-prone nouns ("park", "zoo", "garden", "trail") only score
+  // SOFT: they routinely show up as proper-noun VENUE/STREET names inside a
+  // description ("Cuyahoga Valley National Park", "Akron Zoo", "Stan Hywet …
+  // Gardens", "Portage Trail" — a downtown road) and must NOT override a
+  // decisive content category as a secondary (an artist talk held in a
+  // national-park gallery is visual-art, not outdoors; a Pride street festival
+  // on Portage Trail is a festival, not outdoors). As a sole or primary signal
+  // they still classify the event as outdoors (e.g. "Park Cleanup", "Trail Day").
+  { cat: 'outdoors', w: SOFT, re: /\b(park|zoo|garden|trail)\b/ },
 
   // Learning
   { cat: 'learning', w: DECISIVE, re: /\b(certification|professional development|continuing education|sat prep|gre prep|esol classes|ged classes|lean six sigma|pmp|leadership training|sales training|management training|conflict resolution training|coding bootcamp|six sigma)\b/ },
@@ -164,6 +174,9 @@ const SIGNALS = [
 
   // Festival
   { cat: 'festival', w: DECISIVE, re: /\b(festival|fireworks|carnival|parade|block party)\b/ },
+  // Pride / community celebrations are festivals. A drag show inside one is a
+  // scheduled component, not the event — see the _COMEDY_INCIDENTAL drag guard.
+  { cat: 'festival', w: DECISIVE, re: /\b(lgbtq\+? pride|pride (celebration|festival|fest|parade|march|picnic|block party|fair|on the )|community celebration)\b/ },
   { cat: 'festival', w: STRONG,   re: /\b(fair|holiday celebration|street fair|fest\b|community day|family fun day|fun day|field day)\b/ },
 
   // Market

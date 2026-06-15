@@ -46,9 +46,11 @@ function parseImage(imageObj, descriptionHtml = '') {
 }
 
 /**
- * Map Tribe category slugs to a v2 category. Indivisible Akron is an activism
- * org — workshops/book clubs read as learning; everything else is civic. The
- * `defaultCategory: 'civic'` in the manifest backstops the unlabelled long tail.
+ * Map Tribe category slugs to the event's specific TYPE. Indivisible Akron is
+ * an activism org whose programming spans book/movie clubs (learning), benefit
+ * concerts (music), and art builds / banner-making (visual-art) — but every
+ * event is fundamentally civic. parseCategory returns the specific type;
+ * eventCategories() then guarantees civic is always a label (see below).
  */
 export function parseCategory(categories = []) {
   const slugs = categories.map((c) => (c.slug ?? c.name ?? '').toLowerCase())
@@ -57,6 +59,18 @@ export function parseCategory(categories = []) {
   if (has('art') || has('gallery'))                         return 'visual-art'
   if (has('workshop') || has('educat') || has('book') || has('class')) return 'learning'
   return 'civic'
+}
+
+/**
+ * Categories for an Indivisible event: civic is ALWAYS present (it's a civic
+ * org), with the specific type as a secondary when it differs. So an art build
+ * is ['civic','visual-art'], a book club ['civic','learning'], a rally ['civic'].
+ * Returned as an explicit list so it bypasses text inference (which otherwise
+ * tags banner-making as plain visual-art and drops civic).
+ */
+export function eventCategories(tribeCategories = []) {
+  const type = parseCategory(tribeCategories)
+  return type === 'civic' ? ['civic'] : ['civic', type]
 }
 
 // ── Venue cache ──────────────────────────────────────────────────────────
@@ -136,7 +150,7 @@ async function processEvents(rawEvents, organizerId) {
   for (const ev of rawEvents) {
     try {
       const { price_min, price_max } = parseCostFromTribe(ev.cost, ev.cost_details)
-      const category = parseCategory(ev.categories)
+      const categories = eventCategories(ev.categories)
       const tags     = parseTagsFromTribe(ev.categories, ev.tags, ['activism', 'community', 'akron', 'indivisible-akron'])
       const imageUrl = parseImage(ev.image, ev.description)
 
@@ -150,7 +164,7 @@ async function processEvents(rawEvents, organizerId) {
         description:     descText || null,
         start_at:        ev.utc_start_date ? ev.utc_start_date.replace(' ', 'T') + 'Z' : null,
         end_at:          ev.utc_end_date   ? ev.utc_end_date.replace(' ', 'T') + 'Z'   : null,
-        category,
+        categories,
         tags,
         price_min,
         price_max,

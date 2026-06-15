@@ -162,7 +162,7 @@ export function renderEmailShell({ preheader, content, footer }: ShellOptions): 
     <tr>
       <td align="center" style="padding:0 14px 14px;">
         <div style="font-family:${f.body};font-size:13px;color:${onCanvasSoft};line-height:1.6;max-width:420px;margin:0 auto;">
-          Thanks for checking Akron Pulse, your free, easy, go-to regional events calendar, courtesy of your friendly neighborhood Summit County residents.
+          Thanks for checking Akron Pulse, your free, customizable, and go-to regional events calendar.
         </div>
       </td>
     </tr>
@@ -215,6 +215,9 @@ export function renderEmailShell({ preheader, content, footer }: ShellOptions): 
             <div style="font-family:${f.body};font-size:13px;color:${c.textMuted};margin-top:9px;letter-spacing:0.04em;">
               Never miss a beat
             </div>
+            ${footer.prefsUrl ? `<div style="margin-top:8px;">
+              <a href="${footer.prefsUrl}" style="font-family:${f.body};font-size:12px;font-weight:600;color:${c.primary};text-decoration:underline;text-underline-offset:2px;">Customize newsletter</a>
+            </div>` : ''}
           </td>
         </tr>
 

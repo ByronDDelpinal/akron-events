@@ -191,7 +191,15 @@ export default function EventPage() {
           {/* ── MAIN COLUMN ── */}
           <div>
             {event.featured && <div className="event-detail-featured">Featured Event</div>}
-            <h1 className="event-detail-title">{event.title}</h1>
+            {/* Category/facet badges sit inline with the title. Raw source tags
+                (event.tags) are intentionally not displayed — they're low-value
+                source-internal labels ("partner event", …); still stored on
+                intake (they feed search) and available if we surface them later. */}
+            <div className="event-detail-title-row">
+              <h1 className="event-detail-title">{event.title}</h1>
+              <CategoryBadges event={event} />
+              <FacetBadges event={event} />
+            </div>
             {event.organizations?.length > 0 ? (
               <p className="event-detail-organizer">
                 Presented by{' '}
@@ -212,13 +220,6 @@ export default function EventPage() {
                   : <Link to={`/organizations/${event.organizer.id}`} className="event-detail-org-link">{event.organizer.name}</Link>}
               </p>
             ) : null}
-            <div className="event-detail-type-row">
-              <CategoryBadges event={event} />
-              <FacetBadges event={event} />
-              {event.tags?.map((tag: string) => (
-                <span key={tag} className="user-tag">{tag}</span>
-              ))}
-            </div>
 
             {/* Share row */}
             <div className="event-detail-share">

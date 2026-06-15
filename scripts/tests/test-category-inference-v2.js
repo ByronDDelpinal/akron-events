@@ -135,6 +135,16 @@ const ORACLE = [
   ['Roast Battle Cleveland',
     'From the World Famous Comedy Store to Comedy Central, the Fight Club for Comedians expands worldwide.',
     ['comedy'], {}],
+  // Pride / community celebration is a festival; a drag show inside it is a
+  // scheduled after-party component, not the event (organizer ask, 2026-06-15).
+  ['Pride on Portage - Cuyahoga Falls',
+    'A joyful LGBTQ+ Pride celebration downtown. Head over to The Haunted Closet for a spectacular Pride Drag Show after-party.',
+    ['festival'], {}],
+  // Guard: a street named "… Trail" is a location, not an outdoors activity —
+  // bare "trail" is now venue-name-prone (SOFT) so it can't ride as a secondary.
+  ['Spring Fling on Portage Trail', 'A street festival along Portage Trail downtown', ['festival'], {}],
+  // Guard: real trail activities still classify as outdoors.
+  ['Towpath Trail Guided Hike', 'Join a naturalist for a hike on the towpath trail', ['outdoors'], {}],
 ]
 
 describe('inferCategories (v2 draft) — oracle', () => {

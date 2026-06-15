@@ -118,10 +118,17 @@
   padding: var(--space-2xs) var(--space-sm); border-radius: var(--radius-xs);
   display: inline-block; margin-bottom: var(--space-md);
 }
+/* Title + category/facet badges share one row, so the badges sit inline with
+   the headline rather than on their own line below it. */
+.event-detail-title-row {
+  display: flex; align-items: baseline; flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-sm);
+}
 .event-detail-title {
   /* font-family / weight / size / line-height / letter-spacing all
-     come from the global h1 rule. Only margin needs setting per-page. */
-  margin-bottom: var(--space-sm);
+     come from the global h1 rule. Margin handled by the title-row above. */
+  margin-bottom: 0;
 }
 .event-detail-organizer {
   font-size: var(--text-base); color: var(--text-muted);
@@ -134,20 +141,9 @@
   font-style: italic;
 }
 .event-detail-org-link:hover { text-decoration: underline; }
-.event-detail-type-row {
-  display: flex; gap: var(--space-sm); align-items: center;
-  flex-wrap: wrap; margin-bottom: var(--space-lg);
-}
-/* Share row sits between the category/tags row and the mobile info
-   grid. The smaller bottom margin on type-row above keeps the share
-   row close to its context. */
-.event-detail-share { margin-bottom: var(--space-2xl); }
-.user-tag {
-  font-size: var(--text-xxs); font-weight: 500;
-  color: var(--text-muted);
-  background: var(--chip-bg);
-  padding: var(--space-2xs) var(--space-sm); border-radius: var(--radius-pill);
-}
+/* Share row sits below the organizer line; a little top margin gives it
+   breathing room from its context. */
+.event-detail-share { margin-top: var(--space-lg); margin-bottom: var(--space-2xl); }
 .event-section-label {
   font-family: var(--font-display);
   font-size: var(--text-tag); font-weight: 700;
