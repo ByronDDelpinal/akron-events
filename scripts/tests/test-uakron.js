@@ -33,27 +33,29 @@ function parseTags(ev) {
 }
 
 function parsePrice(costStr) {
-  // Mirror of scrape-uakron-calendar.js parsePrice(). LiveWhale's cost field
-  // can be a string, number, or array depending on the admin's entry.
-  if (costStr == null || costStr === '' || costStr === false) return 0
+  // Mirror of scrape-uakron-calendar.js parsePrice(). Never assume free:
+  // unknown/unparseable cost stays null; only an explicit number or
+  // "free"/"no charge" resolves to 0.
+  if (costStr == null || costStr === '' || costStr === false) return null
 
   if (typeof costStr === 'number') {
-    return Number.isFinite(costStr) && costStr >= 0 ? costStr : 0
+    return Number.isFinite(costStr) && costStr >= 0 ? costStr : null
   }
 
   if (Array.isArray(costStr)) {
     const nums = costStr
       .map(v => typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.]/g, '')))
       .filter(n => Number.isFinite(n) && n >= 0)
-    return nums.length ? Math.min(...nums) : 0
+    return nums.length ? Math.min(...nums) : null
   }
 
-  if (typeof costStr !== 'string') return 0
+  if (typeof costStr !== 'string') return null
 
   const s = costStr.trim().toLowerCase()
-  if (!s || s === 'free' || s === 'no charge') return 0
+  if (!s) return null
+  if (s === 'free' || s === 'no charge') return 0
   const m = s.match(/\d+(\.\d+)?/)
-  return m ? parseFloat(m[0]) : 0
+  return m ? parseFloat(m[0]) : null
 }
 
 function normalizeEvent(ev) {
@@ -117,8 +119,10 @@ describe('UAkron: Price Parsing', () => {
     assert.equal(parsePrice('$15.50'), 15.50)
   })
 
-  it('defaults to 0 for null', () => {
-    assert.equal(parsePrice(null), 0)
+  it('returns null (unknown — never assume free) for null/empty', () => {
+    assert.equal(parsePrice(null), null)
+    assert.equal(parsePrice(''), null)
+    assert.equal(parsePrice(false), null)
   })
 
   // ── Non-string cost handling (Simonetti Awards incident, 2026-04-17) ─────
@@ -131,10 +135,10 @@ describe('UAkron: Price Parsing', () => {
     assert.equal(parsePrice(15.5), 15.5)
   })
 
-  it('rejects negative / non-finite numbers', () => {
-    assert.equal(parsePrice(-10), 0)
-    assert.equal(parsePrice(NaN), 0)
-    assert.equal(parsePrice(Infinity), 0)
+  it('rejects negative / non-finite numbers as unknown (null)', () => {
+    assert.equal(parsePrice(-10), null)
+    assert.equal(parsePrice(NaN), null)
+    assert.equal(parsePrice(Infinity), null)
   })
 
   it('takes the minimum of a tiered price array', () => {
@@ -148,16 +152,16 @@ describe('UAkron: Price Parsing', () => {
     assert.equal(parsePrice(['alumni: $25', 'guest: $40']), 25)
   })
 
-  it('falls back to 0 for empty or all-invalid arrays', () => {
-    assert.equal(parsePrice([]), 0)
-    assert.equal(parsePrice(['invalid', null]), 0)
-    assert.equal(parsePrice([-5, -10]), 0)
+  it('returns null for empty or all-invalid arrays (unknown, not free)', () => {
+    assert.equal(parsePrice([]), null)
+    assert.equal(parsePrice(['invalid', null]), null)
+    assert.equal(parsePrice([-5, -10]), null)
   })
 
-  it('treats objects and booleans as unknown (0)', () => {
-    assert.equal(parsePrice({ amount: 50 }), 0)
-    assert.equal(parsePrice(true), 0)
-    assert.equal(parsePrice(undefined), 0)
+  it('treats objects and booleans as unknown (null)', () => {
+    assert.equal(parsePrice({ amount: 50 }), null)
+    assert.equal(parsePrice(true), null)
+    assert.equal(parsePrice(undefined), null)
   })
 
   it('does not throw on any of the observed shapes', () => {
@@ -209,10 +213,10 @@ describe('UAkron: Event Normalization', () => {
     assert.equal(row.price_min, 35, 'array cost should use the minimum tier')
   })
 
-  it('normalizes event with object cost (graceful 0)', () => {
+  it('normalizes event with object cost (unknown → null, never assume free)', () => {
     const row = normalizeEvent(OBJECT_COST_EVENT)
     assert.ok(row, 'event with object cost should normalize, not throw')
-    assert.equal(row.price_min, 0, 'unknown-shape cost falls back to 0')
+    assert.equal(row.price_min, null, 'unknown-shape cost stays null, not 0')
   })
 
   it('skips event without title', () => {

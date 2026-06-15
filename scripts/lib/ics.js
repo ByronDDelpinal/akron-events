@@ -289,7 +289,7 @@ export function parseIcs(icsText) {
  *   @param {string}   config.source             — scraper source key (e.g. 'akron_symphony')
  *   @param {Function} [config.mapCategory]      — (ev) → v2 category or null (default null → inference)
  *   @param {Function} [config.mapTags]          — (ev) → string[] (default [])
- *   @param {number}   [config.defaultPriceMin]  — default price_min (default 0)
+ *   @param {number|null} [config.defaultPriceMin] — default price_min (default null — never assume free)
  *   @param {number|null} [config.defaultPriceMax] — default price_max (default null)
  *   @param {string}   [config.ageRestriction]   — default age_restriction (default 'not_specified')
  *   @param {string}   [config.defaultImageUrl]  — fallback image if feed omits one

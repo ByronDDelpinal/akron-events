@@ -135,10 +135,14 @@ function parsePrice(costStr) {
   // See: docs.livewhale.com — "response values will be formatted as various
   // types based on the field". Incident: 2026-04-17, "Dr. Frank L. Simonetti
   // Awards Ceremony" returned a non-string and crashed on .trim().
-  if (costStr == null || costStr === '' || costStr === false) return 0
+  // Never assume free. An absent, empty, or unparseable cost is UNKNOWN and
+  // must stay null — showing $0 for an event that actually charges would send
+  // someone to the door with no money. Only an explicit numeric price (incl. a
+  // genuine 0) or the words "free"/"no charge" may resolve to 0.
+  if (costStr == null || costStr === '' || costStr === false) return null
 
   if (typeof costStr === 'number') {
-    return Number.isFinite(costStr) && costStr >= 0 ? costStr : 0
+    return Number.isFinite(costStr) && costStr >= 0 ? costStr : null
   }
 
   if (Array.isArray(costStr)) {
@@ -146,15 +150,16 @@ function parsePrice(costStr) {
     const nums = costStr
       .map(v => typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.]/g, '')))
       .filter(n => Number.isFinite(n) && n >= 0)
-    return nums.length ? Math.min(...nums) : 0
+    return nums.length ? Math.min(...nums) : null
   }
 
-  if (typeof costStr !== 'string') return 0  // objects, booleans → treat as unknown
+  if (typeof costStr !== 'string') return null  // objects, booleans → unknown
 
   const s = costStr.trim().toLowerCase()
-  if (!s || s === 'free' || s === 'no charge') return 0
+  if (!s) return null
+  if (s === 'free' || s === 'no charge') return 0
   const m = s.match(/\d+(\.\d+)?/)
-  return m ? parseFloat(m[0]) : 0
+  return m ? parseFloat(m[0]) : null
 }
 
 // ── Venue cache ────────────────────────────────────────────────────────────

@@ -234,7 +234,11 @@ export async function runCivicPlusScraper(config) {
           source,
           mapCategory,
           mapTags: (e) => buildTags(e, baseTags),
-          defaultPriceMin: 0,        // Municipal programming is overwhelmingly free
+          // Never assume free. CivicPlus VEVENT feeds carry no price field, and
+          // "overwhelmingly free" is not "always free" — a paid class or
+          // ticketed festival shown as $0 would turn someone away at the door.
+          // Leave price UNKNOWN (null) rather than asserting free.
+          defaultPriceMin: null,
           defaultPriceMax: null,
           ageRestriction:  'all_ages',
           // CivicPlus VEVENT URLs are root-relative; absolutise against the

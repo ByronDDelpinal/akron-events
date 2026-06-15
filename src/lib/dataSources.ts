@@ -573,6 +573,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'first_glance',
+    method:      'HTML scrape',
+    methodDetail:'WordPress — /programs/ index for program permalinks, then each /program/ page\'s og tags + weekly schedule line',
+    venue:       'First Glance Student Center — 943 Kenmore Blvd, Kenmore, Akron',
+    notes:       "Youth/student center in Akron's Kenmore neighborhood. There is no events-calendar plugin; instead each recurring program (Rec Night, The Connect, Soul Sisters, Hip Hop Night, etc.) is a /program/{slug} page carrying a fixed weekly schedule line (\"Thursdays 7:00-9:00pm\"), an og:description, and an og:image. We harvest the program links from /programs/, parse the day-of-week + time range from each page, and expand it into individual dated occurrences for a rolling 8-week horizon — reflecting First Glance's own published schedule and linking back to their page. Programs with no parseable schedule line are skipped. Price is left null (the pages state none). Replaces the indirect path through the Better Kenmore aggregator for this venue.",
+    status:      'active',
+  },
+  {
     key:         'highland_square_theatre',
     method:      'HTML scrape',
     methodDetail:'WordPress (server-rendered) — homepage showtime listing',
@@ -903,6 +911,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   akron_community_foundation: 'html',
   the_well_cdc:           'html',
   better_kenmore:         'html',
+  first_glance:           'html',
   highland_square_theatre: 'html',
   highland_square:        'html',
   downtown_akron:         'html',

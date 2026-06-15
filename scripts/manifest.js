@@ -85,6 +85,7 @@ export const SCRAPERS = [
   { key: 'akron_urban_league',   script: 'scripts/scrape-akron-urban-league.js',      label: 'Akron Urban League',           group: 'custom',         active: true  },
   { key: 'the_well_cdc',        script: 'scripts/scrape-the-well-cdc.js',             label: 'The Well CDC',                 group: 'custom',         active: true  },
   { key: 'better_kenmore',       script: 'scripts/scrape-better-kenmore.js',          label: 'Better Kenmore CDC',           group: 'wordpress',      active: true  },
+  { key: 'first_glance',         script: 'scripts/scrape-first-glance.js',            label: 'First Glance Student Center',  group: 'wordpress',      active: true  },
   { key: 'life_gurukula',        script: 'scripts/scrape-life-gurukula.js',           label: 'Life Gurukula',                group: 'ics',            active: true  },
   { key: 'torchbearers',         script: 'scripts/scrape-torchbearers.js',            label: 'Torchbearers',        group: 'custom',         active: true, defaultCategory: 'civic' },
   { key: 'indivisible_akron',    script: 'scripts/scrape-indivisible-akron.js',       label: 'Indivisible Akron',            group: 'tribe',          active: true, defaultCategory: 'civic' },

@@ -262,7 +262,9 @@ async function main() {
           end_at:          null,
           category:        mapCategory(title, detail.description || ''),
           tags:            mapTags(title),
-          price_min:       0,
+          // Never assume free: the city feed has no price field, so leave it
+          // unknown (null) rather than asserting $0 for events that may charge.
+          price_min:       null,
           price_max:       null,
           age_restriction: 'all_ages',
           image_url:       detail.imageUrl || null,

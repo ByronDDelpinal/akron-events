@@ -111,7 +111,7 @@ export function parseSquarespaceLocation(loc) {
  *   @param {string}   config.source       — scraper source key (e.g. 'leadership_akron')
  *   @param {Function} [config.mapCategory]— (item) → v2 category or null (default: null → inference)
  *   @param {Function} [config.mapTags]    — (item) → string[]          (default: [])
- *   @param {number}   [config.defaultPriceMin] — fallback price_min   (default: 0)
+ *   @param {number|null} [config.defaultPriceMin] — fallback price_min (default: null — never assume free)
  *   @param {number|null} [config.defaultPriceMax] — fallback price_max (default: null)
  *   @param {string}   [config.ageRestriction]  — default age_restriction (default: 'not_specified')
  * @returns {object}       — Event row ready for upsertEventSafe()

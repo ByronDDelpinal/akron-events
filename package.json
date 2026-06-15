@@ -72,6 +72,7 @@
     "scrape:acf": "node scripts/scrape-acf.js",
     "scrape:the-well-cdc": "node scripts/scrape-the-well-cdc.js",
     "scrape:better-kenmore": "node scripts/scrape-better-kenmore.js",
+    "scrape:first-glance": "node scripts/scrape-first-glance.js",
     "scrape:highland-square": "node scripts/scrape-highland-square.js",
     "scrape:highland-square-theatre": "node scripts/scrape-highland-square-theatre.js",
     "scrape:akron-rec-parks": "node scripts/scrape-akron-rec-parks.js",

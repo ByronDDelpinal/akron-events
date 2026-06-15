@@ -566,7 +566,9 @@ async function processEvents(items, venueId, organizerId) {
         'museum', 'art', 'akron',
       ].filter((v, i, a) => a.indexOf(v) === i)
 
-      const priceMin = detail.priceMin ?? 0
+      // Never assume free: unknown price stays null (detail.priceMin is only a
+      // number when the page showed "Free" or a real $ amount).
+      const priceMin = detail.priceMin ?? null
       const priceMax = detail.priceMax ?? null
       const description = detail.description || null
       const ticketUrl = detail.ticketUrl || item.href
