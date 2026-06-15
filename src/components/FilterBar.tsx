@@ -97,6 +97,7 @@ export default function FilterBar({
     activeIntentId !== null,
     visibleCategories.length > 0,
     visibleExcluded.length > 0,
+    excludeFamily,
     showPricePill,
     showDatePill && (dateFrom || dateTo),
     sort !== 'soonest',
@@ -107,6 +108,7 @@ export default function FilterBar({
     showDatePill ||
     visibleCategories.length > 0 ||
     visibleExcluded.length > 0 ||
+    excludeFamily ||
     showPricePill ||
     sort !== 'soonest'
 
@@ -131,26 +133,6 @@ export default function FilterBar({
                 {trayActiveCount > 0 && (
                   <span className="more-badge">{trayActiveCount}</span>
                 )}
-              </button>
-            )}
-
-            {/* Audience toggle — one click to drop kids'/family events (library
-                storytimes, summer camps, teen clubs) from the grid. */}
-            {showAudienceToggle && onExcludeFamily && (
-              <button
-                className={`chip ${excludeFamily ? 'active' : ''}`}
-                onClick={() => {
-                  const next = !excludeFamily
-                  onExcludeFamily(next)
-                  // Turning the toggle on contradicts the Family intent (which
-                  // shows ONLY kids' events), so drop that intent if it's set.
-                  if (next && activeIntentId === 'family') onIntentId(null)
-                }}
-                aria-pressed={excludeFamily}
-                title="Hide kids' & family events (storytimes, camps, teen programs) from the grid"
-              >
-                {excludeFamily ? <EyeOffIcon /> : <FamilyIcon />}
-                {excludeFamily ? "Kids' events hidden" : "Hide kids' events"}
               </button>
             )}
           </div>
@@ -231,6 +213,13 @@ export default function FilterBar({
                 onRemove={() => onPriceFilter(null)}
               />
             )}
+            {excludeFamily && (
+              <ActivePill
+                exclude
+                label="Kids' &amp; family hidden"
+                onRemove={() => onExcludeFamily?.(false)}
+              />
+            )}
             {onClearAll && (
               <button className="active-pill active-pill--clear" onClick={onClearAll}>
                 Clear filters
@@ -248,6 +237,8 @@ export default function FilterBar({
         activeIntentId={activeIntentId} onIntentId={onIntentId}
         rawCategories={rawCategories}   onRawCategories={onRawCategories}
         excludedCategories={excludedCategories} onCycleCategory={onCycleCategory}
+        excludeFamily={excludeFamily}   onExcludeFamily={onExcludeFamily}
+        showAudienceToggle={showAudienceToggle}
         priceFilter={priceFilter}       onPriceFilter={onPriceFilter}
         dateFrom={dateFrom}             onDateFrom={onDateFrom}
         dateTo={dateTo}                 onDateTo={onDateTo}
@@ -305,26 +296,6 @@ function SlidersIcon() {
       <circle cx="8"  cy="6"  r="2" fill="currentColor" stroke="none"/>
       <circle cx="16" cy="12" r="2" fill="currentColor" stroke="none"/>
       <circle cx="10" cy="18" r="2" fill="currentColor" stroke="none"/>
-    </svg>
-  )
-}
-
-function FamilyIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      <circle cx="9" cy="6" r="2.4" />
-      <path d="M5 20v-4a4 4 0 0 1 8 0v4" />
-      <circle cx="17" cy="8" r="1.8" />
-      <path d="M15.5 20v-3.5a3 3 0 0 1 5 0" />
-    </svg>
-  )
-}
-
-function EyeOffIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-      <line x1="1" y1="1" x2="23" y2="23" />
     </svg>
   )
 }

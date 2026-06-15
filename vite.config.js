@@ -91,10 +91,13 @@ export default defineConfig({
      */
     VitePWA({
       registerType: 'autoUpdate',
-      // Deferred script: the default injection was render-blocking
-      // (flagged by Lighthouse). SW registration never needs to beat
-      // first paint.
-      injectRegister: 'script-defer',
+      // We register the SW ourselves (src/lib/registerPwa.ts) so we can poll
+      // for updates on a timer + on focus — the browser's own check only fires
+      // on navigation (~daily at most) and is skipped by long-lived sessions and
+      // iOS standalone resumes, which left the precached shell stale for days.
+      // Registration still runs from the app bundle (after first paint), so it
+      // never blocks rendering.
+      injectRegister: null,
       includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Akron Pulse',

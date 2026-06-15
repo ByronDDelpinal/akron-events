@@ -5,8 +5,13 @@ import App from './App'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { initAnalytics, trackEvent, EVENTS } from './lib/analytics'
 import { isStandalone, isIos } from './hooks/usePwaInstall'
+import { registerPwa } from './lib/registerPwa'
 
 initAnalytics()
+
+// Register the service worker and start polling for new deploys (see
+// registerPwa for why the browser's default update check isn't enough).
+registerPwa()
 
 // Count one standalone (installed-app) launch per session. This is the
 // reliable signal that someone installed the PWA — and the ONLY signal on

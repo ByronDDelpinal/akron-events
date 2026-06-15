@@ -28,6 +28,10 @@ interface FilterTrayProps {
   onDateTo: (v: string | null) => void
   sort: string
   onSort: (v: string) => void
+  /** Audience filter: hide events flagged is_family. */
+  excludeFamily?: boolean
+  onExcludeFamily?: (v: boolean) => void
+  showAudienceToggle?: boolean
   total: number
   lockedDimensions?: LockedDimensions
   /**
@@ -69,6 +73,8 @@ export default function FilterTray({
   dateFrom,       onDateFrom,
   dateTo,         onDateTo,
   sort,           onSort,
+  excludeFamily = false, onExcludeFamily,
+  showAudienceToggle = false,
   total,
   lockedDimensions = {},
   lockedCategories = [],
@@ -184,6 +190,7 @@ export default function FilterTray({
     // In the embed an empty categories param resets to the full locked set, so
     // this never escapes the lock. Locked price/date are left untouched.
     onRawCategories([])
+    onExcludeFamily?.(false)
     if (!lockedDimensions.price) onPriceFilter(null)
     if (!lockedDimensions.dateRange) { onDateFrom(null); onDateTo(null) }
     onSort('soonest')
@@ -300,6 +307,34 @@ export default function FilterTray({
                   </button>
                 )
               })}
+            </div>
+          </TraySection>
+        )}
+
+        {/* ── Audience ── */}
+        {showAudienceToggle && onExcludeFamily && (
+          <TraySection label="Audience">
+            <div className="tray-chips">
+              <button
+                className={`tray-chip ${!excludeFamily ? 'active' : ''}`}
+                onClick={() => onExcludeFamily(false)}
+                aria-pressed={!excludeFamily}
+              >
+                <span className="tray-chip-text">Everyone</span>
+              </button>
+              <button
+                className={`tray-chip ${excludeFamily ? 'active' : ''}`}
+                onClick={() => {
+                  onExcludeFamily(true)
+                  // Contradicts the Family intent (shows ONLY kids' events), so
+                  // drop that intent if it's set.
+                  if (activeIntentId === 'family') onIntentId(null)
+                }}
+                aria-pressed={excludeFamily}
+                title="Hide kids' &amp; family events: storytimes, camps, teen programs"
+              >
+                <span className="tray-chip-text">Hide kids' &amp; family</span>
+              </button>
             </div>
           </TraySection>
         )}

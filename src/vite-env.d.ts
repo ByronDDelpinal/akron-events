@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+/// <reference types="vite-plugin-pwa/client" />
 
 /**
  * Typed `import.meta.env`. Only the `VITE_`-prefixed vars are exposed to the

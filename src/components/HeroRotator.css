@@ -1,0 +1,66 @@
+/* HeroRotator — rolling place-name in the homepage hero. */
+
+.hero-rotator {
+  --hero-rot-dur: 0.65s;
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+  /* Hide the rolling words above/below the line. The words travel 112% of their
+     height, so a generous bottom inset still hides them while leaving room for
+     descenders (Kenmore, Goodyear Heights). Horizontal slack avoids shaving
+     letter edges. clip-path (not overflow:hidden) so the inline baseline stays
+     put — overflow would drop the word out of line with "in" / "?". */
+  clip-path: inset(-0.05em -0.25em -0.18em -0.25em);
+  transition: width var(--hero-rot-dur) cubic-bezier(0.66, 0, 0.34, 1);
+}
+
+.hero-rotator__word {
+  display: inline-block;
+  white-space: nowrap;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+/* The settled word sits in normal flow so it anchors the box height + baseline. */
+.hero-rotator__word--current {
+  position: relative;
+}
+.hero-rotator__word--current.is-out {
+  animation: heroRotatorOut var(--hero-rot-dur) cubic-bezier(0.6, 0, 0.32, 1) forwards;
+}
+
+/* The arriving word overlays, rolling up from below. */
+.hero-rotator__word--incoming {
+  position: absolute;
+  left: 0;
+  top: 0;
+  animation: heroRotatorIn var(--hero-rot-dur) cubic-bezier(0.18, 0.72, 0.2, 1) forwards;
+}
+
+/* Off-screen width sizer. */
+.hero-rotator__measure {
+  position: absolute;
+  left: 0;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+@keyframes heroRotatorOut {
+  0%   { transform: translateY(0);     opacity: 1; }
+  100% { transform: translateY(-112%); opacity: 0; }
+}
+@keyframes heroRotatorIn {
+  0%   { transform: translateY(112%);  opacity: 0; }
+  55%  { opacity: 1; }
+  100% { transform: translateY(0);     opacity: 1; }
+}
+
+/* Respect reduced-motion: the JS already swaps instantly, this kills any
+   residual transition/animation as a safeguard. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-rotator { transition: none; }
+  .hero-rotator__word--current.is-out,
+  .hero-rotator__word--incoming { animation: none; }
+}

@@ -73,11 +73,14 @@ export const SCRAPERS = [
   { key: 'akron_zoo',            script: 'scripts/scrape-akron-zoo.js',               label: 'Akron Zoo',                    group: 'custom',         active: true  },
   { key: 'hale_farm',            script: 'scripts/scrape-hale-farm.js',               label: 'Hale Farm & Village',          group: 'custom',         active: true  },
   { key: 'cascade_locks',        script: 'scripts/scrape-cascade-locks.js',           label: 'Cascade Locks',    group: 'squarespace',    active: true  },
+  { key: 'hiho_brewing',         script: 'scripts/scrape-hiho-brewing.js',            label: 'HiHO Brewing Co.',             group: 'squarespace',    active: true  },
   { key: 'crown_point_ecology',  script: 'scripts/scrape-crown-point-ecology.js',     label: 'Crown Point Ecology Center',   group: 'squarespace',    active: true  },
   { key: 'highland_square',      script: 'scripts/scrape-highland-square.js',         label: 'Highland Square (PorchROKR)', group: 'custom',         active: true  },
 
   // ── Community / neighborhood orgs ──────────────────────────────────────
   { key: 'akron_childrens_museum', script: 'scripts/scrape-akron-childrens-museum.js', label: 'Akron Children\'s Museum',   group: 'drupal',         active: true  },
+  { key: 'akron_makerspace',     script: 'scripts/scrape-akron-makerspace.js',        label: 'Akron Makerspace',             group: 'wordpress',      active: true, defaultCategory: 'learning' },
+  { key: 'akron_soul_train',     script: 'scripts/scrape-akron-soul-train.js',        label: 'Akron Soul Train',             group: 'wix',            active: true, defaultCategory: 'visual-art' },
   { key: 'north_hill_cdc',       script: 'scripts/scrape-north-hill-cdc.js',          label: 'North Hill CDC',               group: 'ics',            active: true  },
   { key: 'leadership_akron',     script: 'scripts/scrape-leadership-akron.js',        label: 'Leadership Akron',             group: 'squarespace',    active: true  },
   { key: 'artisan_coffee',       script: 'scripts/scrape-artisan-coffee.js',          label: 'Artisan Coffee',               group: 'squarespace',    active: true  },
@@ -100,6 +103,7 @@ export const SCRAPERS = [
   { key: 'eventbrite',           script: 'scripts/scrape-eventbrite.js',              label: 'Eventbrite',            group: 'api',            active: true  },
   { key: 'ticketmaster',         script: 'scripts/fetch-ticketmaster.js',             label: 'Ticketmaster',          group: 'api',            active: true  },
   { key: 'visit_akron_cvb',      script: 'scripts/scrape-visit-akron-cvb.js',         label: 'Visit Akron CVB',             group: 'custom',         active: true  },
+  { key: 'meetup',               script: 'scripts/scrape-meetup.js',                  label: 'Meetup',                       group: 'ics',            active: true  },
 
   // ── City calendars (CivicPlus) ─────────────────────────────────────────
   { key: 'akron_rec_parks',      script: 'scripts/scrape-akron-rec-parks.js',         label: 'Akron Recreation & Parks',     group: 'recdesk',        active: true  },

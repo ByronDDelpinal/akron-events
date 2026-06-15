@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, type ChangeEvent, ty
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import EventsBrowser from '@/components/EventsBrowser'
+import HeroRotator from '@/components/HeroRotator'
 import { useEventFilters } from '@/hooks/useEventFilters'
 import type { AppEvent } from '@/hooks/useEvents'
 import { INTENTS, SEARCH_SUGGESTIONS } from '@/lib/intents'
@@ -18,6 +19,10 @@ import {
 } from '@/lib/seo'
 import { eventPath } from '@/lib/slug'
 import './HomePage.css'
+
+// Hero headline cycles through Akron, then its neighborhoods. "Akron" leads so
+// the first paint (and the <h1> aria-label) reads "What's happening in Akron?".
+const HERO_PLACES = ['Akron', ...NEIGHBORHOODS.map((n) => n.label)]
 import { SearchIcon } from '@/components/icons'
 
 // ── localStorage key for persisting card view mode (density) ──
@@ -195,7 +200,12 @@ export default function HomePage() {
         </div>
         <div className="hero-glow" />
         <p className="hero-eyebrow">Summit County, Ohio</p>
-        <h1>What's happening<br />in <span>Akron?</span></h1>
+        <h1 aria-label="What's happening in Akron?">
+          <span aria-hidden="true">
+            What's happening<br />in{' '}
+            <span className="hero-place"><HeroRotator words={HERO_PLACES} intervalMs={3000} />?</span>
+          </span>
+        </h1>
         <p className="hero-sub">Concerts, galas, art shows, markets, and more, happening right now in Akron.</p>
         <div className="search-wrap" ref={searchWrapRef}>
           <SearchIcon className="search-icon" />

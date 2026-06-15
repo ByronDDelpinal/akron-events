@@ -104,6 +104,37 @@ const ORACLE = [
     ['visual-art'], {}],
   // Guard: a concert at a park-named venue stays music, not music+outdoors.
   ['Summer Concert Series at Hardesty Park', 'Live bands every Friday', ['music'], {}],
+
+  // ── Incidental-comedy regressions (organizer complaint, 2026-06-15) ──
+  // A comedy keyword that is a SUPPORTING act, a performer BIO detail, or a
+  // listed TOPIC must NOT decisively tag the whole event "comedy".
+  // (1) Coworking night — comedy is one of the listed mini-talk topics.
+  ['Werk It Out',
+    'A post-work coworking experience. Local experts kick things off with mini talks on topics like mindfulness, productivity, self-care, and even some tension-relieving stand-up comedy.',
+    ['other'], {}],
+  // (2) Folk concert — comedy is a genre the artist once loved; jazz keeps music.
+  ['An Evening with Noel "Paul" Stookey',
+    'As a lover of jazz, pop, and standup comedy, he formed a band and became a popular music phenomenon.',
+    ['music'], {}],
+  // (3) Concert with a comedian opener — the band is the event.
+  ['Rock the Park: Country Redford',
+    'Country Redford is a modern country tribute band. Plus, magician and comedian Michael Mage will kick off the night.',
+    ['music'], {}],
+  // (4) Pops-orchestra festival with a comedian opener.
+  ['Rock the Park: The Cleveland Pops Orchestra',
+    'A free all-ages festival. The 65-piece orchestra performs. Plus, magician and comedian Michael Mage will kick off the night.',
+    ['music', 'festival'], {}],
+  // Guards: genuine comedy whose only comedy cue is in the DESCRIPTION must STAY
+  // comedy — none of these carry an incidental cue (also/plus/lover-of/topics).
+  ['An Evening with Paula Poundstone',
+    'Iconic comedian Paula Poundstone is known for her smart, observational humor and hosts a weekly comedy podcast.',
+    ['comedy'], {}],
+  ['Chevy Terrill',
+    'Chevy Terrill is a stand-up comedian from Akron, Ohio, who turns his everyday experiences into comedy.',
+    ['comedy'], {}],
+  ['Roast Battle Cleveland',
+    'From the World Famous Comedy Store to Comedy Central, the Fight Club for Comedians expands worldwide.',
+    ['comedy'], {}],
 ]
 
 describe('inferCategories (v2 draft) — oracle', () => {

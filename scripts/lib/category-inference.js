@@ -38,6 +38,50 @@ const _MUSIC_VENUES = /(@|\bat)\s+(the\s+)?(?:\w+\s+){0,2}(old 97|vorte[xz]|mati
 const _GENERIC_TOUR_EXCLUSION = /(walking|guided|historical|garden|home|food|brewery|trolley|architecture|museum|self[- ]guided|virtual|haunted|farm|driving|kayak|free|weekly|exhibit|art|behind[- ]?the[- ]?scenes|members'?|public|private|holiday|cemetery|winery|wine|history|ghost)\s+tour|tour\s*:/i
 const _LEARN_NOT_EDUCATIONAL = /\blearn\s+(more|why|all|about|everything|here|now|first|today|tomorrow)\b/i
 
+// Comedy false-positive contexts, stripped from the text BEFORE the comedy
+// signals score (analogous to _FAMILY_EXCLUSIONS). A comedy keyword does NOT
+// mean the event IS comedy when it shows up as a SUPPORTING act, a performer's
+// BIO backstory, or one item in a list of session TOPICS. All five shipped to
+// production before being caught (organizer complaint, 2026-06-15): a coworking
+// night, a folk concert, a country-tribute concert, a Pops-orchestra festival
+// and a PGA golf championship were all mis-tagged "comedy".
+//
+// Each tuple is [match, replacement]; replacement keeps any non-comedy prefix
+// (genre words, etc.) so a real secondary category still scores. Genuine comedy
+// survives because it names a comedian or puts comedy up front, with none of
+// these incidental cues ("comedian Paula Poundstone is known for…" stays).
+const _COMEDY_INCIDENTAL = [
+  // (1) Supporting / opening / additional act at a non-comedy event:
+  //   "There will also be a comedy show" (Kaulig golf championship),
+  //   "Plus, magician and comedian Michael Mage will kick off the night"
+  //   (a Rock the Park concert). Additive cue + comedy term in one sentence…
+  [/\b(?:plus|also|additionally|as well as|along with)\b[^.!?]*?\b(?:stand[- ]?up comedy|comedy show|comedian|comedians|improv)\b/g, ' '],
+  //   …or a comedy act that "will/to kick off / open / warm up / start" a night.
+  [/\b(?:comedian|comedians|comedy)\b[^.!?]{0,40}?\b(?:will|to)\s+(?:kick|open|warm|start|get)\b[^.!?]*/g, ' '],
+  // (2) Performer-bio backstory — comedy listed among genres the act once
+  //   enjoyed: "as a lover of jazz, pop, and standup comedy, he formed a band"
+  //   (Noel Paul Stookey, a folk concert). Drop only the comedy tail so the
+  //   genre words (jazz) keep scoring music.
+  [/(\b(?:lover|fan)\s+of\b[^.!?]*?),?\s*(?:and|&)\s+(?:stand[- ]?up\s+)?comedy\b/g, '$1'],
+  // (3) Profession list in a speaker bio — "comedian" as one of several hats:
+  //   "swimmer, comedian, speaker, author and photographer" (a road-safety talk).
+  [/\bcomedian,\s+\w+(?:,|\s+(?:and|&)\b)/g, ' '],
+  // (4) Listed session/talk TOPIC — comedy is one item in a "topics like …"
+  //   list, not the format: "mini talks on topics like mindfulness,
+  //   productivity, self-care, and even some tension-relieving stand-up comedy"
+  //   (a coworking night). Only strips when comedy FOLLOWS the cue, so
+  //   "comedy on topics like politics" (a real set) is untouched.
+  [/\btopics?\b[^.!?]*?\b(?:stand[- ]?up comedy|comedy|comedian|improv)\b/g, ' '],
+  [/\beven\s+(?:some|a little|a bit of)\b[^.!?]*?\bcomedy\b/g, ' '],
+]
+
+/** Strip incidental comedy contexts before comedy signals score (input lowercase). */
+function _comedySubject(text) {
+  let t = text
+  for (const [re, repl] of _COMEDY_INCIDENTAL) t = t.replace(re, repl)
+  return t
+}
+
 const SIGNALS = [
   // Music
   { cat: 'music', w: DECISIVE, re: /\b(concert|symphony|orchestra|recital|live music|live bands?|open mic|karaoke|sing[- ]along|songwriter night|jazz night|blues night|dj set|album release|ep release|single release|musical guest|tribute (band|act|show|to)|on spotify)\b/ },
@@ -68,8 +112,8 @@ const SIGNALS = [
   // Comedy (110 so "comedy open mic" beats music's "open mic").
   // NOTE: bare "stand-up" is intentionally NOT a comedy signal — it collides
   // with "stand-up paddleboard" (fitness). Require explicit comedy wording.
-  { cat: 'comedy', w: 110,      re: /\bcomedy (open mic|night|show|jam)\b/ },
-  { cat: 'comedy', w: DECISIVE, re: /\b(stand[- ]?up comedy|stand[- ]?up comedian|comedian|comedians|comedy jam|improv|sketch comedy|open mic comedy|drag (show|brunch|king|queen|bingo))\b/ },
+  { cat: 'comedy', w: 110,      re: /\bcomedy (open mic|night|show|jam)\b/, scope: 'comedy' },
+  { cat: 'comedy', w: DECISIVE, re: /\b(stand[- ]?up comedy|stand[- ]?up comedian|comedian|comedians|comedy jam|improv|sketch comedy|open mic comedy|drag (show|brunch|king|queen|bingo))\b/, scope: 'comedy' },
 
   // Visual art
   { cat: 'visual-art', w: DECISIVE, re: /\b(gallery|exhibition|exhibit opening|opening (reception|celebration)|artist reception|artist talk|sculpture|mural|art show|art walk|art fair|installation|vernissage)\b/ },
@@ -140,9 +184,9 @@ const SIGNALS = [
   { cat: 'games', w: STRONG,   re: /\b(trivia|chess|cornhole|darts|pinball|arcade|cosplay|jigsaw|puzzles?|bingo|card games?|gaming|questing club|magic the gathering|pok[eé]mon)\b/ },
 ]
 
-function conditionalContentSignals(text, tLow) {
+function conditionalContentSignals(text, tLow, comedyText) {
   const out = []
-  if (/\bopen mic\b/.test(text) && /\bcomedy|comedians?\b/.test(text)) out.push({ cat: 'comedy', w: 110 })
+  if (/\bopen mic\b/.test(text) && /\b(?:comedy|comedians?)\b/.test(comedyText)) out.push({ cat: 'comedy', w: 110 })
   if (/\btour\b/.test(tLow) && !_GENERIC_TOUR_EXCLUSION.test(text)) out.push({ cat: 'music', w: STRONG })
   // "Learn X" anywhere in title OR description signals an instructional event.
   // The negative lookahead skips marketing CTAs ("learn more/about/why…") at the
@@ -224,13 +268,15 @@ const FUNDRAISER_RE = /\b(fundraiser|fund[- ]?raising|gala|benefit (dinner|conce
 export function scoreCategories(title = '', description = '') {
   const text = `${title || ''} ${description || ''}`.toLowerCase()
   const tLow = (title || '').toLowerCase()
+  const comedyText = _comedySubject(text)
   const scores = {}
   const add = ({ cat, w }) => { scores[cat] = (scores[cat] || 0) + w }
   for (const sig of SIGNALS) {
-    const subject = sig.scope === 'title' ? tLow : text
+    const subject =
+      sig.scope === 'title' ? tLow : sig.scope === 'comedy' ? comedyText : text
     if (sig.re.test(subject)) add(sig)
   }
-  for (const sig of conditionalContentSignals(text, tLow)) add(sig)
+  for (const sig of conditionalContentSignals(text, tLow, comedyText)) add(sig)
   return scores
 }
 

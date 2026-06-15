@@ -38,7 +38,7 @@
 import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
-import { preloadSummitCountyBoundary, pointInSummitCounty } from './lib/summit-county.js'
+import { preloadSummitCountyBoundary, pointInSummitCounty, SUMMIT_COUNTY_CITIES } from './lib/summit-county.js'
 import {
   EVENTBRITE_CATEGORY_MAP,
   categoryFromEventbriteNames,
@@ -631,19 +631,8 @@ async function upsertOrganizer(ev) {
  * again delegate locality to the source.
  */
 
-// Every postal city/township name used by addresses inside Summit County.
-// Uniontown (44685) and Mogadore (44260) straddle the county line; the
-// polygon check resolves them when coords exist, and we accept them here
-// when coords are missing (better a rare Lake/Portage-edge event than
-// dropping legit Green/Springfield events).
-const SUMMIT_COUNTY_CITIES = new Set([
-  'akron', 'barberton', 'cuyahoga falls', 'fairlawn', 'green', 'hudson',
-  'macedonia', 'munroe falls', 'new franklin', 'norton', 'stow', 'tallmadge',
-  'twinsburg', 'boston heights', 'clinton', 'lakemore', 'mogadore',
-  'northfield', 'northfield center', 'peninsula', 'reminderville',
-  'richfield', 'silver lake', 'sagamore hills', 'bath', 'copley',
-  'coventry township', 'boston township', 'uniontown',
-])
+// SUMMIT_COUNTY_CITIES now lives in lib/summit-county.js (shared with the
+// meetup scraper and any future locality-gated source).
 
 /**
  * County-level locality gate. Hierarchy:

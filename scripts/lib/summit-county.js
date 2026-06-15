@@ -82,6 +82,38 @@ export async function preloadSummitCountyBoundary() {
  * (the helper is intentionally synchronous — call sites that don't
  * pre-load will throw rather than silently miss the polygon check).
  */
+// ── City allowlist + combined locality gate ──────────────────────────────
+// Postal city/township names whose addresses fall inside Summit County. Used
+// when a venue has no coordinates to feed the polygon check. Uniontown (44685)
+// and Mogadore (44260) straddle the county line; we accept them rather than
+// drop legit Green/Springfield-edge events. Single source of truth shared by
+// every scraper that gates on locality (eventbrite, meetup, …).
+export const SUMMIT_COUNTY_CITIES = new Set([
+  'akron', 'barberton', 'cuyahoga falls', 'fairlawn', 'green', 'hudson',
+  'macedonia', 'munroe falls', 'new franklin', 'norton', 'stow', 'tallmadge',
+  'twinsburg', 'boston heights', 'clinton', 'lakemore', 'mogadore',
+  'northfield', 'northfield center', 'peninsula', 'reminderville',
+  'richfield', 'silver lake', 'sagamore hills', 'bath', 'copley',
+  'coventry township', 'boston township', 'uniontown',
+])
+
+/**
+ * Source-agnostic locality gate. Coordinates win (point-in-polygon, requires
+ * preloadSummitCountyBoundary()); otherwise fall back to the city allowlist.
+ * Returns false when neither is usable — unknown locality is NOT trusted (a
+ * feed's own geo scoping has burned us before), so an event with no resolvable
+ * Summit County location simply isn't posted.
+ */
+export function isSummitCountyLocation({ lat, lng, city } = {}) {
+  // Coords only when genuinely present — Number(null) is 0 (finite!), so guard
+  // null/undefined/'' explicitly before trusting the polygon path.
+  const hasCoords = lat != null && lat !== '' && lng != null && lng !== ''
+  const la = Number(lat), ln = Number(lng)
+  if (hasCoords && Number.isFinite(la) && Number.isFinite(ln)) return pointInSummitCounty(la, ln)
+  const c = String(city ?? '').toLowerCase().trim()
+  return c ? SUMMIT_COUNTY_CITIES.has(c) : false
+}
+
 export function pointInSummitCounty(lat, lng) {
   if (!RINGS) {
     throw new Error(
