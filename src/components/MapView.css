@@ -23,6 +23,22 @@
   cursor: pointer;
 }
 
+/* ── Neighborhood-scope vignette ──────────────────────────────────────────
+   An on-theme gradient that fades the rest of the city toward the edges while
+   leaving the centered, focused neighborhood clear. Pairs with the Mapbox mask
+   layer (which dims outside the boundary) for depth. Non-interactive. */
+.map-scope-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 42%,
+    color-mix(in srgb, var(--amber) 16%, transparent) 100%
+  );
+}
+
 /* ── Click-to-activate overlay ───────────────────────────────────────── */
 .map-activate-hint {
   position: absolute;

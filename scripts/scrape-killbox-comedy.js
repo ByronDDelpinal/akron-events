@@ -62,6 +62,13 @@ const VENUE_INFO = {
   city:    'Akron',
   state:   'OH',
   zip:     '44310',
+  // Geo is carried by the source so the venue always plots on the map and lands
+  // in the North Hill neighborhood embed — without it the venue had null
+  // coordinates and was invisible on map views (a stray geocoded duplicate held
+  // the coords instead; merged 2026-06-15).
+  lat:     41.107830,
+  lng:     -81.510390,
+  neighborhood_slug: 'north-hill',
   website: BASE_URL,
   description:
     "Akron's dedicated stand-up comedy club — open mics, weeknight specials, and " +
@@ -361,14 +368,17 @@ async function main() {
 
   try {
     const venueId = await ensureVenue(VENUE_INFO.name, {
-      address:       VENUE_INFO.address,
-      city:          VENUE_INFO.city,
-      state:         VENUE_INFO.state,
-      zip:           VENUE_INFO.zip,
-      website:       VENUE_INFO.website,
-      description:   VENUE_INFO.description,
-      parking_type:  VENUE_INFO.parking_type,
-      parking_notes: VENUE_INFO.parking_notes,
+      address:           VENUE_INFO.address,
+      city:              VENUE_INFO.city,
+      state:             VENUE_INFO.state,
+      zip:               VENUE_INFO.zip,
+      lat:               VENUE_INFO.lat,
+      lng:               VENUE_INFO.lng,
+      neighborhood_slug: VENUE_INFO.neighborhood_slug,
+      website:           VENUE_INFO.website,
+      description:       VENUE_INFO.description,
+      parking_type:      VENUE_INFO.parking_type,
+      parking_notes:     VENUE_INFO.parking_notes,
     })
     const organizerId = await ensureOrganization(ORG_INFO.name, ORG_INFO.details)
     if (venueId && organizerId) await linkOrganizationVenue(organizerId, venueId)

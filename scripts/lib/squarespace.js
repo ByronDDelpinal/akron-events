@@ -126,9 +126,18 @@ export function normaliseSquarespaceEvent(item, config = {}) {
     ageRestriction    = 'not_specified',
   } = config
 
-  // Squarespace dates are epoch milliseconds
-  const startAt = item.startDate ? new Date(item.startDate).toISOString() : null
-  const endAt   = item.endDate   ? new Date(item.endDate).toISOString()   : null
+  // Squarespace dates are epoch milliseconds. Floor to whole seconds — the
+  // raw ms fraction (e.g. …:00.219Z) otherwise splits the cross-source dedupe's
+  // exact-time bucket from whole-second copies of the same event (Eventbrite,
+  // Tribe, etc. emit whole seconds).
+  const toWholeSecondIso = (v) => {
+    const d = new Date(v)
+    if (Number.isNaN(d.getTime())) return null
+    d.setUTCMilliseconds(0)
+    return d.toISOString()
+  }
+  const startAt = item.startDate ? toWholeSecondIso(item.startDate) : null
+  const endAt   = item.endDate   ? toWholeSecondIso(item.endDate)   : null
 
   // Body is HTML; excerpt is plain text
   const description = item.body

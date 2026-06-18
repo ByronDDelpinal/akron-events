@@ -92,7 +92,7 @@ const KNOWN_FACILITIES = {
   'Ellet Community Center':             { address: '2449 Wedgewood Dr',     zip: '44312', neighborhood_slug: 'ellet' },
   'Firestone Park Community Center':    { address: '1480 Girard St',        zip: '44301', neighborhood_slug: 'firestone-park' },
   'Summit Lake Community Center':       { address: '380 W Crosier St',      zip: '44311', neighborhood_slug: 'summit-lake' },
-  'Patterson Park Community Center':    { address: '800 Patterson Ave',     zip: '44310', neighborhood_slug: 'north-hill' },
+  'Patterson Park Community Center':    { address: '800 Patterson Ave',     zip: '44310', neighborhood_slug: 'north-hill', lat: 41.107016, lng: -81.504164 },
   'Joy Park Community Center':          { address: '825 Fuller Ave',        zip: '44306', neighborhood_slug: 'east-akron' },
   'Reservoir Park Community Center':    { address: '1735 Hillside Terrace', zip: '44305', neighborhood_slug: 'goodyear-heights' },
   'Ed Davis Community Center':          { address: '730 Perkins Park Dr',   zip: '44320', neighborhood_slug: 'west-akron' },
@@ -123,6 +123,8 @@ async function ensureFacilityVenue(locationName) {
     state:             'OH',
     zip:               f.zip,
     neighborhood_slug: f.neighborhood_slug,
+    lat:               f.lat,   // optional — ensureVenue ignores null/undefined
+    lng:               f.lng,
     website:           VENUE_INFO.website,
     parking_type:      'lot',
   })

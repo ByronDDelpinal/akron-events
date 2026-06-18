@@ -91,12 +91,19 @@ export default defineConfig({
      */
     VitePWA({
       registerType: 'autoUpdate',
-      // We register the SW ourselves (src/lib/registerPwa.ts) so we can poll
-      // for updates on a timer + on focus — the browser's own check only fires
-      // on navigation (~daily at most) and is skipped by long-lived sessions and
-      // iOS standalone resumes, which left the precached shell stale for days.
-      // Registration still runs from the app bundle (after first paint), so it
-      // never blocks rendering.
+      // NO CACHING by design. Precaching the app shell meant a freshly deployed
+      // feature could stay invisible behind a stale cached build, with no easy
+      // way to bust it. We now ship a custom, cache-free service worker
+      // (src/sw.js) via injectManifest: it keeps the app INSTALLABLE (a
+      // registered SW + the manifest below) but caches nothing, so every load
+      // is the live build — and on activate it deletes every cache left behind
+      // by the old precaching SW, so existing installs un-stick themselves on
+      // their next visit. We register it ourselves (src/lib/registerPwa.ts).
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
+      // No precache manifest — the SW intentionally caches nothing.
+      injectManifest: { injectionPoint: undefined },
       injectRegister: null,
       includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png'],
       manifest: {
@@ -159,88 +166,6 @@ export default defineConfig({
             description: 'Add your event to Akron Pulse',
             url: '/submit',
             icons: [{ src: '/shortcut-submit.png', sizes: '192x192', type: 'image/png' }],
-          },
-        ],
-      },
-      workbox: {
-        // App shell only. Deliberately excludes the large static payloads
-        // (geojson polygons, og-default.jpg, neighborhood-map.webp, hero
-        // video) — they'd bloat every install for pages most visitors
-        // never open. PWA icons are listed explicitly so installed apps
-        // keep their icon offline.
-        globPatterns: [
-          '**/*.{js,css,html,svg,ico,woff2}',
-          'pwa-*.png',
-          'maskable-icon-*.png',
-          'shortcut-*.png',
-          'apple-touch-icon.png',
-        ],
-        // mapbox-gl makes the main chunk large; default cap is 2 MiB.
-        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
-        cleanupOutdatedCaches: true,
-        // SPA routing: unknown navigations get index.html, EXCEPT the
-        // server-rendered routes that vercel.json/middleware.js own.
-        // (/events/* unfurler SSR is crawler-only — crawlers don't run
-        // service workers, so no exclusion is needed for it.)
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/feed\.xml$/, /^\/sitemap\.xml$/],
-        runtimeCaching: [
-          {
-            // Edge-cached first page of events (see api/events-first-page.js).
-            // Same NetworkFirst posture as the Supabase route so repeat
-            // visitors get an offline/flaky-network fallback.
-            urlPattern: /\/api\/events-first-page$/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'first-page',
-              networkTimeoutSeconds: 2.5,
-              expiration: { maxEntries: 1, maxAgeSeconds: 60 * 60 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            // Event/venue/org reads. NetworkFirst: always try the network,
-            // fall back to a recent cached copy only when offline or the
-            // request times out. Short TTL keeps any fallback honest.
-            urlPattern: /^https:\/\/[a-z0-9-]+\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-api',
-              // Fall back to cached data after 2.5s rather than 4 —
-              // on flaky mobile, waiting longer just feels broken.
-              networkTimeoutSeconds: 2.5,
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            // Map tiles/styles/sprites are immutable-ish and expensive;
-            // cache hard with a bounded entry count so the quota stays sane.
-            urlPattern: /^https:\/\/api\.mapbox\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'mapbox',
-              expiration: { maxEntries: 300, maxAgeSeconds: 7 * 24 * 60 * 60 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            // Theme font stylesheets swap at runtime (useTheme.jsx), so
-            // revalidate in the background rather than pinning.
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'google-fonts-stylesheets' },
-          },
-          {
-            // The font binaries themselves are content-hashed by Google;
-            // safe to cache for a year.
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-webfonts',
-              expiration: { maxEntries: 30, maxAgeSeconds: 365 * 24 * 60 * 60 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
           },
         ],
       },

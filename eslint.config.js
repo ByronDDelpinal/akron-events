@@ -77,6 +77,7 @@ export default tseslint.config(
       'scripts/lib/puppeteer.js',
       'scripts/scrape-nightlight.js',
       'scripts/scrape-killbox-comedy.js',
+      'scripts/scrape-cuyahoga-falls-library.js',
     ],
     languageOptions: {
       globals: { ...globals.node, ...globals.browser },
@@ -129,5 +130,17 @@ export default tseslint.config(
 
       'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
     },
+  },
+
+  // ── Service worker — runs in ServiceWorkerGlobalScope (self, caches, …) ───
+  {
+    files: ['src/sw.js'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: { ...globals.serviceworker },
+    },
+    rules: { ...baseRules },
   },
 )

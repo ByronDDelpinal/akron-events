@@ -142,10 +142,10 @@ export default function SummitCountyMap({ activeSlug, className, pickedSlug, onP
   const navigate = useNavigate()
   const [data, setData] = useState<FeatureCollection | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [internalSelected, setInternalSelected] = useState<string | null>(null)
 
   const isPicker = onPick !== undefined
-  const selectedSlug = isPicker ? (pickedSlug ?? null) : internalSelected
+  // Only the picker holds a selection; the hub map navigates on tap.
+  const selectedSlug = isPicker ? (pickedSlug ?? null) : null
 
   useEffect(() => {
     let cancelled = false
@@ -154,9 +154,6 @@ export default function SummitCountyMap({ activeSlug, className, pickedSlug, onP
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Map error') })
     return () => { cancelled = true }
   }, [])
-
-  // Reset selection whenever the active hub changes.
-  useEffect(() => { setInternalSelected(null) }, [activeSlug])
 
   const features = useMemo<ShapeFeature[] | null>(() => {
     if (!data) return null
@@ -204,9 +201,7 @@ export default function SummitCountyMap({ activeSlug, className, pickedSlug, onP
     )
   }
 
-  const activeLabel   = activeSlug   ? PLACE_LABEL_MAP[activeSlug]   : null
-  const selectedLabel = selectedSlug ? PLACE_LABEL_MAP[selectedSlug] : null
-  const hasSelection  = selectedSlug && selectedSlug !== activeSlug
+  const activeLabel = activeSlug ? PLACE_LABEL_MAP[activeSlug] : null
 
   const goToSlug = (slug: string) => {
     navigate(`/events/${slug}`, { state: { preserveScroll: true } })
@@ -219,13 +214,7 @@ export default function SummitCountyMap({ activeSlug, className, pickedSlug, onP
       onPick!(slug)
       return
     }
-    setInternalSelected(slug)
-  }
-
-  const handlePolygonDoubleClick = (e: MouseEvent, slug: string) => {
-    if (e.metaKey || e.ctrlKey || e.shiftKey) return
-    e.preventDefault()
-    if (isPicker) return // picker mode never navigates
+    // A single tap commits straight to that hub — no select-then-confirm step.
     goToSlug(slug)
   }
 
@@ -260,8 +249,7 @@ export default function SummitCountyMap({ activeSlug, className, pickedSlug, onP
               key={f.slug}
               href={`/events/${f.slug}`}
               onClick={(e) => handlePolygonClick(e, f.slug)}
-              onDoubleClick={(e) => handlePolygonDoubleClick(e, f.slug)}
-              aria-label={`Select ${f.name}, double-click to open`}
+              aria-label={`View ${f.name} events`}
             >
               <title>{f.name}</title>
               <path d={f.d} className={cls} />
@@ -271,40 +259,17 @@ export default function SummitCountyMap({ activeSlug, className, pickedSlug, onP
       </svg>
 
       {!isPicker && (
-      <div className="summit-county-map-panel">
-        <div className="summit-county-map-panel-text">
-          <p className="summit-county-map-panel-eyebrow">
-            {hasSelection ? 'Selected' : "You're viewing"}
-          </p>
-          <p className="summit-county-map-panel-name">
-            {selectedLabel ?? activeLabel ?? '—'}
-          </p>
+        <div className="summit-county-map-panel">
+          <div className="summit-county-map-panel-text">
+            <p className="summit-county-map-panel-eyebrow">You're viewing</p>
+            <p className="summit-county-map-panel-name">{activeLabel ?? '—'}</p>
+          </div>
         </div>
-
-        {hasSelection && (
-          <button
-            type="button"
-            className="summit-county-map-panel-go"
-            onClick={() => goToSlug(selectedSlug!)}
-            aria-label={`View ${selectedLabel} events`}
-          >
-            <span>View {selectedLabel} events</span>
-            <svg
-              width="14" height="14" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor"
-              strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </button>
-        )}
-      </div>
       )}
 
-      {!isPicker && !hasSelection && (
+      {!isPicker && (
         <p className="summit-county-map-panel-hint">
-          Tap a city to select it
+          Tap another community to select it
         </p>
       )}
     </figure>

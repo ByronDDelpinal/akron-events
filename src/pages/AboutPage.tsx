@@ -1,72 +1,12 @@
-import { useState, useRef, useEffect, type ReactNode } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { SEO, buildGraph, faqPageSchema, breadcrumbSchema } from '@/lib/seo'
+import { SEO, buildGraph, breadcrumbSchema } from '@/lib/seo'
 import { trackEvent, EVENTS } from '@/lib/analytics'
 import { INTENTS } from '@/lib/intents'
 import { DATA_SOURCES } from '@/lib/dataSources'
 import './AboutPage.css'
 
 const GITHUB_URL = 'https://github.com/byronddelpinal/akron-events'
-
-interface Faq {
-  question: string
-  answer: string
-  answerNode?: ReactNode
-}
-
-// FAQ content pulled into structured data. Keep answers under ~300 chars so
-// they read well as LLM citations.
-const FAQS: Faq[] = [
-  {
-    question: 'What is Akron Pulse?',
-    answer:
-      'Akron Pulse is a free directory of local events in Akron (OH) and Summit County. We track concerts, shows, gatherings, fundraisers, markets, games, classes, excursions, and more, so more people can plan ahead, find community, and get out more often.',
-  },
-  {
-    question: 'How much does Akron Pulse cost?',
-    answer:
-      'Akron Pulse will never cost anything nor will it allow advertisements on the site. It exists to serve every Akron resident without compromise.',
-  },
-  {
-    question: 'How do I submit an event to Akron Pulse?',
-    answer:
-      'Anyone can submit an event through the Submit page, or simply email it to intake@akronpulse.com and it will be processed and live within 24 hours. Submissions are reviewed before being published. We also aggregate events from venue websites and partner organizations, so please check to make sure yours isn\'t already listed.',
-    answerNode: (
-      <>
-        Anyone can submit an event through the{' '}
-        <Link to="/submit">Submit page</Link>, or simply email it to{' '}
-        <a href="mailto:intake@akronpulse.com">intake@akronpulse.com</a> and it
-        will be processed and live within 24 hours. Submissions are reviewed
-        before being published. We also aggregate events from venue websites and
-        partner organizations, so please check to make sure yours isn&apos;t
-        already listed.
-      </>
-    ),
-  },
-  {
-    question: 'Why should I use Akron Pulse?',
-    answer:
-      'We\'ve lived in Summit County for more than 10 years and the most common complaint we hear from residents is that they only ever hear about events after they happen. Akron Pulse is designed to change that: it features more local event listings than any other resource in Summit County.',
-  },
-  {
-    question: 'How should I use Akron Pulse?',
-    answer:
-      'We love the website, but we recommend subscribing to our newsletter. You can choose the cadence and focus of your Akron Pulse to explore, find community, and discover local gems.',
-    answerNode: (
-      <>
-        We love the website, but we recommend{' '}
-        <Link to="/subscribe">subscribing to our newsletter</Link>. You can
-        choose the cadence and focus of your Akron Pulse to explore, find
-        community, and discover local gems.
-      </>
-    ),
-  },
-  {
-    question: 'Who created Akron Pulse?',
-    answer:
-      'Akron Pulse is a collaboration between Byron Delpinal and Mac Love, two Summit County residents who are tired of hearing people say "there\'s nothing going on" or "nothing to do here." Get the Akron Pulse. You\'ll know better.',
-  },
-]
 
 // Discovery "vibes" derived from the canonical intent registry so they never
 // drift from the homepage Filter & Sort presets.
@@ -84,7 +24,6 @@ export default function AboutPage() {
       { name: 'Home',  url: '/' },
       { name: 'About', url: '/about' },
     ]),
-    faqPageSchema(FAQS),
   )
 
   return (
@@ -175,15 +114,55 @@ export default function AboutPage() {
 
         <div className="about-divider" />
 
-        <h2 className="about-section-title">Frequently Asked</h2>
-        <div className="about-faqs">
-          {FAQS.map(({ question, answer, answerNode }) => (
-            <div key={question} className="about-faq">
-              <h4 className="about-faq-q">{question}</h4>
-              <p className="about-faq-a">{answerNode ?? answer}</p>
-            </div>
-          ))}
+        <h2 className="about-section-title">Why we built this</h2>
+        <div className="about-letter">
+          <p className="about-p">
+            For more than ten years here, the line we heard most was always the
+            same: &ldquo;there&apos;s nothing to do.&rdquo; We never believed it.
+            Something is always happening in Akron. People just find out a day too
+            late.
+          </p>
+          <p className="about-p">
+            So we built what we wished existed: one free, complete view of
+            everything going on across Akron and Summit County. Big concerts and
+            quiet neighborhood gatherings, markets, fundraisers, classes, games,
+            all of it. It will always be free, and it will never run ads. It&apos;s
+            for everyone here, no exceptions.
+          </p>
+          <p className="about-letter-kicker">No more finding out too late.</p>
+          <p className="about-letter-sign">Byron Delpinal &amp; Mac Love</p>
         </div>
+
+        <div className="about-promises">
+          <div className="about-promise">
+            <p className="about-promise-stmt">Free, forever.</p>
+            <p className="about-promise-sub">No ads, no paywall, no catch.</p>
+          </div>
+          <div className="about-promise">
+            <p className="about-promise-stmt">Everything, in one place.</p>
+            <p className="about-promise-sub">
+              More local listings than anywhere in Summit County, pulled from venues,
+              parks, city feeds, and neighbors, refreshed every day.
+            </p>
+          </div>
+          <div className="about-promise">
+            <p className="about-promise-stmt">Add yours in a minute.</p>
+            <p className="about-promise-sub">
+              Submit it on the <Link to="/submit">Submit page</Link> or email{' '}
+              <a href="mailto:intake@akronpulse.com">intake@akronpulse.com</a>, live
+              within 24 hours.
+            </p>
+          </div>
+          <div className="about-promise">
+            <p className="about-promise-stmt">On your schedule.</p>
+            <p className="about-promise-sub">
+              <Link to="/subscribe">Subscribe</Link> and choose how often you hear
+              from us. The good stuff comes to you.
+            </p>
+          </div>
+        </div>
+
+        <div className="about-divider" />
 
         <h3 className="about-section-title">See Something Missing?</h3>
         <p className="about-p">

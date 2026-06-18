@@ -20,9 +20,13 @@ import {
 import { eventPath } from '@/lib/slug'
 import './HomePage.css'
 
-// Hero headline cycles through Akron, then its neighborhoods. "Akron" leads so
-// the first paint (and the <h1> aria-label) reads "What's happening in Akron?".
-const HERO_PLACES = ['Akron', ...NEIGHBORHOODS.map((n) => n.label)]
+// Hero headline cycles through Akron, its neighborhoods, and the other Summit
+// County communities (Green, Stow, …). "Akron" leads so first paint (and the
+// <h1> aria-label) reads "What's happening in Akron?". Deduped (CITIES also
+// contains Akron); the long regional rollups are intentionally left out.
+const HERO_PLACES = Array.from(
+  new Set(['Akron', ...NEIGHBORHOODS.map((n) => n.label), ...CITIES.map((c) => c.label)]),
+)
 import { SearchIcon } from '@/components/icons'
 
 // ── localStorage key for persisting card view mode (density) ──
@@ -202,8 +206,8 @@ export default function HomePage() {
         <p className="hero-eyebrow">Summit County, Ohio</p>
         <h1 aria-label="What's happening in Akron?">
           <span aria-hidden="true">
-            What's happening<br />in{' '}
-            <span className="hero-place"><HeroRotator words={HERO_PLACES} intervalMs={3000} />?</span>
+            What's happening<br />
+            in <span className="hero-place"><HeroRotator words={HERO_PLACES} intervalMs={3000} />?</span>
           </span>
         </h1>
         <p className="hero-sub">Concerts, galas, art shows, markets, and more, happening right now in Akron.</p>

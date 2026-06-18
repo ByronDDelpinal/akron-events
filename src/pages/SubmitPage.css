@@ -4,10 +4,13 @@
      This class is applied to <h1> on the form state and <h2> on the
      success state — letting the global element rules drive font-size
      means the heading size automatically matches whichever tag the
-     class lands on. We only override margin here. */
+     class lands on. We only override margin here.
+     Centered to match the hub-page headers (home, organizers, about) so the
+     heading sits in the same spot when navigating between pages. */
   margin-bottom: var(--space-sm);
+  text-align: center;
 }
-.page-sub { font-size: var(--text-base); color: var(--text-muted); margin-bottom: var(--space-2xl); line-height: 1.6; }
+.page-sub { font-size: var(--text-base); color: var(--text-muted); margin-bottom: var(--space-2xl); line-height: 1.6; text-align: center; }
 .notice-box {
   border-left: var(--border-width-thickest) solid var(--amber);
   background: var(--amber-pale);

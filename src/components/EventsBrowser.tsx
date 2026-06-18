@@ -229,7 +229,7 @@ export default function EventsBrowser({
       {effectiveView === 'map' && (
         mapLoading
           ? <div className="map-loading"><span>Loading map…</span></div>
-          : <MapView events={mapEvents} onBackToList={() => onView?.('list')} />
+          : <MapView events={mapEvents} onBackToList={() => onView?.('list')} neighborhoodSlug={effective.neighborhoodSlug} />
       )}
 
       {/* ── LIST VIEW ── */}

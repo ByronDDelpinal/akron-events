@@ -10,6 +10,8 @@
 .venues-hero-inner {
   max-width: 800px;
   margin: 0 auto;
+  /* Centered to match the other hub heroes (home, organizers, about). */
+  text-align: center;
 }
 .venues-hero-eyebrow {
   font-family: var(--font-display);
@@ -34,6 +36,7 @@
   color: var(--overlay-light-50);
   line-height: 1.65;
   max-width: 480px;
+  margin: 0 auto;
 }
 
 /* ── Body ── */

@@ -227,6 +227,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     notes:       'Fetches 180 days of events in one call. ~400+ events per window: programs, classes, story times.',
     status:      'active',
   },
+  {
+    key:         'cuyahoga_falls_library',
+    method:      'Rendered Communico listing',
+    methodDetail:'Puppeteer render of the Communico "Anywhere" calendar (events.fallslibrary.org) + DOM parse',
+    venue:       'Cuyahoga Falls Library (Taylor Memorial) — 2015 Third St, Cuyahoga Falls',
+    notes:       "The Cuyahoga Falls library is a SEPARATE system from the Akron-Summit County Public Library. It runs the same Communico vendor, but this hosted tenant renders events client-side via the `amEvents` widget and exposes no clean public JSON/ICS feed (its internal api.communico.co/v1/fallslibrary/events endpoint is undocumented and param-fragile — returns empty or SQL errors). So we render the listing with Puppeteer across the widget's named ranges (this month + next month) and parse each `.eelist*` event card: title, date/time (year inferred — it isn't shown), location, age group, event type, description, and the /event/{id} detail link. Category comes from the EVENT TYPE controlled vocabulary; is_family from AGE GROUP; price 0. Main-library rooms (Graefe/Chambers/Sutliff) collapse to one venue; external locations (e.g. Silver Lake Village Hall, Lions Park) become their own.",
+    status:      'active',
+  },
 
   // ── Squarespace Events Collection ───────────────────────────────────
   {
@@ -597,6 +605,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'southgate_farm',
+    method:      'HTML scrape',
+    methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
+    venue:       'Southgate Farm — 6521 Mt Pleasant St NW, North Canton (Stark County)',
+    notes:       'Organic farm/CSA in North Canton hosting public classes in its historic barn: weekly summer farm yoga, full-moon yoga + bonfires, farm/garden tours, and craft make-and-takes. Wix Events with no JSON-LD, so we parse the server-rendered #wix-warmup-data blob (robust vs Wix\'s hashed CSS classes). All events are at the one farm address; Wix lists some as "Southgate Farm" and some as "Southgate Farm Barn", so we pin everything to a single canonical venue to avoid a duplicate record. Just outside the Summit County core (like our Players Guild / Centennial Plaza Canton sources) but a direct first-party venue scraper, so it isn\'t Summit-gated. Price left null (never assume free — classes are ticketed/RSVP).',
+    status:      'active',
+  },
+  {
     key:         'meetup',
     method:      'iCal feed',
     methodDetail:'Per-group Meetup iCal feeds (meetup.com/<group>/events/ical/) parsed via lib/ics.js — no API/Pro, no HTML scraping',
@@ -956,6 +972,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   // Single-platform APIs
   visit_akron_cvb:     'simpleview',
   akron_library:       'communico',
+  cuyahoga_falls_library: 'communico',
   rubberducks:         'mlb',
   akron_zips:          'sidearm',
   akron_rec_parks:     'recdesk',
@@ -983,6 +1000,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   full_grip_games:        'ics',
   akron_makerspace:       'html',
   akron_soul_train:       'html',
+  southgate_farm:         'html',
   meetup:                 'ics',
   highland_square_theatre: 'html',
   highland_square:        'html',

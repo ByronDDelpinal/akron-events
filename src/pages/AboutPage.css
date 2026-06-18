@@ -289,27 +289,60 @@ h2.about-section-title {
   text-decoration: underline;
 }
 
-/* ── FAQ section ──
-   Also rendered as FAQPage JSON-LD from AboutPage.jsx. Schema must
-   match visible content, so keep question/answer strings in both places
-   identical. */
-.about-faqs {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xl);
-  margin-top: var(--space-lg);
-}
-.about-faq-q {
+/* ── Founders' letter + promises (replaced the old FAQ) ── */
+.about-letter { margin-top: var(--space-md); }
+/* The kicker owns the gap above it, so the last letter paragraph doesn't
+   double up its margin with it. */
+.about-letter .about-p:last-of-type { margin-bottom: 0; }
+.about-letter-kicker {
   font-family: var(--font-display);
   font-size: var(--text-h6);
   font-weight: var(--font-weight-bold);
   color: var(--text-primary);
+  line-height: 1.3;
+  margin-top: var(--space-xl);
+}
+.about-letter-sign {
+  font-size: var(--text-base);
+  font-style: italic;
+  color: var(--text-muted);
+  margin-top: var(--space-sm);
+}
+
+/* Promises sit as a quiet 2-up below the letter, set off by a clear break and
+   amber accent rules rather than card chrome. */
+.about-promises {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--space-2xl);
+  row-gap: var(--space-xl);
+  margin-top: var(--space-3xl);
+  /* Center each item within its row, so a short promise (Free, forever) sits
+     centered against a taller neighbor instead of pinning to the top. */
+  align-items: center;
+}
+.about-promise {
+  border-left: var(--border-width-thickest) solid var(--amber);
+  padding-left: var(--space-lg);
+}
+.about-promise-stmt {
+  font-family: var(--font-display);
+  font-size: var(--text-h6);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  line-height: 1.2;
   margin-bottom: var(--space-xs);
 }
-.about-faq-a {
+.about-promise-sub {
   font-size: var(--text-base);
   color: var(--text-secondary);
-  line-height: var(--line-height-relaxed);
+  line-height: 1.6;
+}
+.about-promise-sub a { color: var(--amber); font-weight: 600; text-decoration: none; }
+.about-promise-sub a:hover { text-decoration: underline; }
+
+@media (max-width: 600px) {
+  .about-promises { grid-template-columns: 1fr; row-gap: var(--space-lg); margin-top: var(--space-2xl); }
 }
 
 /* ── Mission & vision ─────────────────────────────────────────────── */

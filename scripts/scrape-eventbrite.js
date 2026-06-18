@@ -771,9 +771,14 @@ function normaliseEvent(ev) {
     category = 'visual-art'
   }
 
-  // Facet-shaped Eventbrite categories: not content, but authoritative flags.
+  // Facet-shaped Eventbrite categories: not content, but useful flags.
   const facetText = `${ev._categoryName ?? ''} ${ev._subcategoryName ?? ''}`.toLowerCase()
-  const is_fundraiser = /charity|fundrais/.test(facetText) || undefined
+  // is_fundraiser requires an explicit "fundraising" category — NOT the broad
+  // "Charity & Causes" bucket, which Eventbrite slaps on community orgs'
+  // networking dinners, social clubs, etc. (a Comeunity Project "Girls Night
+  // Out" was landing in Give Back, 2026-06-17). When this is undefined, the
+  // strict text inference (FUNDRAISER_RE) decides instead.
+  const is_fundraiser = /fundrais/.test(facetText) || undefined
   const is_family     = /family/.test(facetText) || undefined
 
   const rawImg =

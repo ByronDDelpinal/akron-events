@@ -11,7 +11,10 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { locationKey, fuzzyTitlesMatch } from '../dedupe-cross-source.js'
+import {
+  locationKey, fuzzyTitlesMatch,
+  sharedNamePrefixMatch, toSecondKey, findDuplicateGroups, priority,
+} from '../dedupe-cross-source.js'
 import { normalizeStreetAddress } from '../lib/normalize.js'
 import { resolveVenueAlias } from '../scrape-better-kenmore.js'
 
@@ -66,6 +69,66 @@ describe('dedupe: the EMB pair groups end-to-end', () => {
       'EMB Presents Afloat / Pro Skater / Twin Division / Baja Thunder',
       'Open Mic Comedy Night with Dave Smith',
     ), false)
+  })
+})
+
+describe('dedupe: shared series-name prefix (Crown Point / Eventbrite)', () => {
+  it('matches titles that share a 3+ meaningful-token leading name', () => {
+    assert.equal(sharedNamePrefixMatch(
+      'Meadow Music Concert Series at Crown Point',     // Eventbrite
+      'Meadow Music Concert Series - Alex Bevan',        // Crown Point's own site
+    ), true)
+  })
+  it('does not match titles that diverge before 3 shared tokens', () => {
+    assert.equal(sharedNamePrefixMatch('Toddler Storytime', 'Teen Coding Club'), false)
+    // shares only [summer, concert] before the act diverges — below the 3-token floor
+    assert.equal(sharedNamePrefixMatch('Summer Concert: Wilco', 'Summer Concert: Phish'), false)
+    // a 2-word series name can't reach the floor either
+    assert.equal(sharedNamePrefixMatch('Yoga Class - Beginner', 'Yoga Class - Advanced'), false)
+  })
+})
+
+describe('dedupe: whole-second bucketing', () => {
+  it('toSecondKey floors a sub-second fraction', () => {
+    assert.equal(toSecondKey('2026-06-19T22:00:00.219Z'), '2026-06-19T22:00:00')
+    assert.equal(toSecondKey('2026-06-19 22:00:00+00'), '2026-06-19T22:00:00')
+  })
+
+  it('groups a Squarespace (.219) copy with an Eventbrite whole-second copy', () => {
+    const venue = { name: 'Crown Point Ecology Center', address: '3220 Ira Rd' }
+    const mk = (id, title, source, start) => ({
+      id, title, source, start_at: start, end_at: null,
+      event_venues: [{ venue_id: 'cp-1', venues: venue }],
+    })
+    const { groups } = findDuplicateGroups([
+      mk('a', 'Meadow Music Concert Series at Crown Point', 'eventbrite', '2026-06-19T22:00:00+00:00'),
+      mk('b', 'Meadow Music Concert Series - Alex Bevan', 'crown_point_ecology', '2026-06-19T22:00:00.219+00:00'),
+    ])
+    assert.equal(groups.length, 1)
+    assert.equal(groups[0].length, 2)
+  })
+
+  it('does NOT group two genuinely different programs at the same venue + second', () => {
+    const venue = { name: 'Akron-Summit County Public Library', address: '60 S High St' }
+    const mk = (id, title) => ({
+      id, title, source: 'akron_library', start_at: '2026-06-20T18:00:00+00:00', end_at: null,
+      event_venues: [{ venue_id: 'lib-1', venues: venue }],
+    })
+    const { groups } = findDuplicateGroups([mk('a', 'Toddler Storytime'), mk('b', 'Teen Coding Club')])
+    assert.equal(groups.length, 0)
+  })
+})
+
+describe('dedupe: first-party beats aggregators in priority', () => {
+  it('an unlisted first-party source outranks Eventbrite/CVB/Akron Life', () => {
+    assert.ok(priority('crown_point_ecology') < priority('eventbrite'))
+    assert.ok(priority('royal_palace') < priority('visit_akron_cvb'))
+    assert.ok(priority('release_yoga') < priority('akron_life'))
+  })
+  it('explicitly-ranked first-party still beats aggregators, and aggregators keep their order', () => {
+    assert.ok(priority('akron_civic') < priority('ticketmaster'))
+    assert.ok(priority('ticketmaster') < priority('eventbrite'))
+    assert.ok(priority('eventbrite') < priority('akron_life'))
   })
 })
 

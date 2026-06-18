@@ -75,15 +75,21 @@ const SOURCE_PRIORITY = [
   'torchbearers',
   'uakron_calendar',
   'weathervane',
-  'ticketmaster',            // aggregator — authoritative ticketing, but republisher
-  'eventbrite',              // aggregator — republisher
-  'visit_akron_cvb',         // CVB aggregator — between ticketing aggregators and akron_life
-  'akron_life',              // aggregator — last
 ]
 
-function priority(source) {
+// Aggregators / re-syndicators — always rank BELOW any first-party source, in
+// this internal order. Kept separate from SOURCE_PRIORITY so that first-party
+// venue scrapers we haven't explicitly ranked still beat an aggregator copy
+// (the bug that let an Eventbrite "…at Crown Point" win canonical over Crown
+// Point's own "…- Alex Bevan").
+const AGGREGATOR_PRIORITY = ['ticketmaster', 'eventbrite', 'visit_akron_cvb', 'akron_life']
+
+export function priority(source) {
   const i = SOURCE_PRIORITY.indexOf(source)
-  return i === -1 ? SOURCE_PRIORITY.length : i  // unknown sources sort to the end
+  if (i !== -1) return i                       // explicitly-ranked first-party
+  const a = AGGREGATOR_PRIORITY.indexOf(source)
+  if (a !== -1) return 1000 + a                // aggregators last, in their own order
+  return 900                                   // unlisted first-party: before aggregators
 }
 
 function hasManualOverrides(ev) {
@@ -299,6 +305,44 @@ function titlesMatch(a, b) {
   return false
 }
 
+// Minimum identical leading meaningful tokens for a shared-name-prefix match.
+const MIN_SHARED_PREFIX_TOKENS = 3
+
+/**
+ * Same-event match for two titles that share a series/event NAME as their
+ * leading words but then diverge — the classic cross-source pattern where one
+ * source appends the venue and the other appends the act:
+ *   "Meadow Music Concert Series at Crown Point"   (Eventbrite)
+ *   "Meadow Music Concert Series - Alex Bevan"     (Crown Point's own site)
+ * Both tokenize (stopwords dropped) to a shared leading run [meadow, concert,
+ * series]; we require ≥ MIN_SHARED_PREFIX_TOKENS identical leading tokens.
+ *
+ * Used ONLY in Pass 1, which already requires the same venue AND the same exact
+ * start instant — that hard gate is what makes a 3-token name prefix safe: two
+ * genuinely different programs would have to start at the same venue on the
+ * same second and share their first three meaningful words to false-merge.
+ */
+export function sharedNamePrefixMatch(a, b) {
+  const ta = tokenizeTitle(a)
+  const tb = tokenizeTitle(b)
+  const n = Math.min(ta.length, tb.length)
+  if (n < MIN_SHARED_PREFIX_TOKENS) return false
+  let shared = 0
+  for (let i = 0; i < n; i++) {
+    if (ta[i] === tb[i]) shared++
+    else break
+  }
+  return shared >= MIN_SHARED_PREFIX_TOKENS
+}
+
+/** Truncate an ISO/timestamp to whole-second resolution (UTC) so sub-second
+ *  fractions some sources emit (Squarespace's `…:00.219Z`) don't split a
+ *  venue+time bucket from a whole-second copy of the same event. */
+export function toSecondKey(ts) {
+  const d = new Date(ts)
+  return Number.isNaN(d.getTime()) ? String(ts) : d.toISOString().slice(0, 19)
+}
+
 /**
  * Group events into cross-source duplicate clusters. Pure + exported for tests.
  *
@@ -328,11 +372,11 @@ export function findDuplicateGroups(events) {
   const groups = []
   const matchedIds = new Set()   // prevent an event appearing in two groups
 
-  // ── Pass 1: exact start_at ─────────────────────────────────────────────────
+  // ── Pass 1: exact start_at (whole-second resolution) ───────────────────────
   const byVenueTime = new Map()
   for (const [venueKey, evs] of byVenue) {
     for (const e of evs) {
-      const bucket = `${venueKey}|${e.start_at}`
+      const bucket = `${venueKey}|${toSecondKey(e.start_at)}`
       if (!byVenueTime.has(bucket)) byVenueTime.set(bucket, [])
       byVenueTime.get(bucket).push(e)
     }
@@ -340,7 +384,10 @@ export function findDuplicateGroups(events) {
   for (const bucket of byVenueTime.values()) {
     const clusters = []
     for (const e of bucket) {
-      const existing = clusters.find(c => titlesMatch(c[0]._titleKey, e._titleKey))
+      // Same venue + same exact second is a hard gate; a title match can be the
+      // flexible prefix/peel form OR a shared series-name leading prefix.
+      const existing = clusters.find(c =>
+        titlesMatch(c[0]._titleKey, e._titleKey) || sharedNamePrefixMatch(c[0].title, e.title))
       if (existing) existing.push(e)
       else clusters.push([e])
     }

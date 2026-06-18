@@ -10,10 +10,11 @@
 
 import type { LooseRow } from '@/types'
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
-import MapGL, { Marker, Popup, NavigationControl, type MapRef } from 'react-map-gl/mapbox'
+import MapGL, { Marker, Popup, NavigationControl, Source, Layer, type MapRef } from 'react-map-gl/mapbox'
 import { format } from 'date-fns'
 import { useEventNavigator } from '@/hooks/useEventNavigator'
 import { formatPrice } from '@/lib/eventFormatting'
+import { loadNeighborhoodGeo, type NeighborhoodGeo, type BBox } from '@/lib/neighborhoodGeo'
 import Modal from '@/components/Modal'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import './MapView.css'
@@ -45,19 +46,87 @@ interface VenueGroup {
 interface MapViewProps {
   events: MapEvent[]
   onBackToList?: () => void
+  /**
+   * When set (embed locked to an Akron neighborhood), the map opens centered on
+   * that neighborhood, draws its boundary, and dims the rest of the city.
+   */
+  neighborhoodSlug?: string | null
+}
+
+/** Themed colors pulled from CSS vars so the scope overlay tracks the embed theme. */
+interface ScopeColors {
+  accent: string
+  mask: string
+}
+const DEFAULT_SCOPE_COLORS: ScopeColors = { accent: '#96671E', mask: '#0b0f14' }
+
+function bboxCenter(b: BBox): { longitude: number; latitude: number } {
+  return { longitude: (b[0] + b[2]) / 2, latitude: (b[1] + b[3]) / 2 }
+}
+
+/** Rough zoom that frames a bbox, used to seed the controlled camera before the
+ *  map can run a precise fitBounds (robust to map-load/container-size timing). */
+function zoomForBbox(b: BBox): number {
+  const latSpan = Math.abs(b[3] - b[1])
+  const lngSpan = Math.abs(b[2] - b[0]) * Math.cos(((b[1] + b[3]) / 2) * Math.PI / 180)
+  const span = Math.max(latSpan, lngSpan, 1e-4)
+  return Math.max(11, Math.min(15, Math.log2(360 / span) - 1))
 }
 
 // ── Main component ────────────────────────────────────────────────────────
 
-export default function MapView({ events, onBackToList }: MapViewProps) {
+export default function MapView({ events, onBackToList, neighborhoodSlug = null }: MapViewProps) {
   const goToEvent = useEventNavigator()
   const mapRef = useRef<MapRef | null>(null)
+  const sectionRef = useRef<HTMLDivElement | null>(null)
   const [popupVenueId, setPopupVenueId] = useState<string | null>(null)
   const [mapActive, setMapActive] = useState(false)
+  const [mapLoaded, setMapLoaded] = useState(false)
+  const [geo, setGeo] = useState<NeighborhoodGeo | null>(null)
+  const [scopeColors, setScopeColors] = useState<ScopeColors>(DEFAULT_SCOPE_COLORS)
   const [viewState, setViewState] = useState({
     ...AKRON_CENTER,
     zoom: DEFAULT_ZOOM,
   })
+
+  // Load the locked neighborhood's geometry (lazy — only when scoped).
+  useEffect(() => {
+    if (!neighborhoodSlug) { setGeo(null); return }
+    let active = true
+    loadNeighborhoodGeo(neighborhoodSlug).then((g) => { if (active) setGeo(g) })
+    return () => { active = false }
+  }, [neighborhoodSlug])
+
+  // Read themed colors for the scope overlay once the section is mounted.
+  useEffect(() => {
+    if (!geo || !sectionRef.current) return
+    const cs = getComputedStyle(sectionRef.current)
+    const accent = cs.getPropertyValue('--amber').trim()
+    const mask = cs.getPropertyValue('--bg-nav').trim()
+    setScopeColors({
+      accent: accent || DEFAULT_SCOPE_COLORS.accent,
+      mask: mask || DEFAULT_SCOPE_COLORS.mask,
+    })
+  }, [geo])
+
+  // Seed the controlled camera onto the neighborhood as soon as its geometry
+  // loads. Driving viewState directly guarantees centering regardless of map
+  // load order or container-size timing (an imperative fitBounds alone can
+  // silently no-op if the map isn't ready or sized yet).
+  useEffect(() => {
+    if (!geo) return
+    const c = bboxCenter(geo.bbox)
+    setViewState((vs) => ({ ...vs, longitude: c.longitude, latitude: c.latitude, zoom: zoomForBbox(geo.bbox) }))
+  }, [geo])
+
+  // Once the map is ready, refine to a precise, padded fit on the boundary.
+  useEffect(() => {
+    if (!mapLoaded || !geo) return
+    mapRef.current?.fitBounds(
+      [[geo.bbox[0], geo.bbox[1]], [geo.bbox[2], geo.bbox[3]]],
+      { padding: 48, duration: 0 },
+    )
+  }, [mapLoaded, geo])
 
   // Deactivate map scroll-zoom when user clicks outside the map
   useEffect(() => {
@@ -90,17 +159,28 @@ export default function MapView({ events, onBackToList }: MapViewProps) {
   const mappedEventCount = venues.reduce((sum, g) => sum + g.events.length, 0)
   const unmappedCount = events.length - mappedEventCount
 
+  // Recenter target: the locked neighborhood when scoped, else Akron.
+  const recenterTarget = geo ? bboxCenter(geo.bbox) : AKRON_CENTER
+
   const handleRecenter = useCallback(() => {
-    setViewState((vs) => ({ ...vs, ...AKRON_CENTER, zoom: DEFAULT_ZOOM }))
     setPopupVenueId(null)
-  }, [])
+    if (geo && mapRef.current) {
+      mapRef.current.fitBounds(
+        [[geo.bbox[0], geo.bbox[1]], [geo.bbox[2], geo.bbox[3]]],
+        { padding: 48, duration: 600 },
+      )
+    } else {
+      setViewState((vs) => ({ ...vs, ...AKRON_CENTER, zoom: DEFAULT_ZOOM }))
+    }
+  }, [geo])
 
   const isOffCenter = useMemo(() => {
-    const dLng = Math.abs(viewState.longitude - AKRON_CENTER.longitude)
-    const dLat = Math.abs(viewState.latitude - AKRON_CENTER.latitude)
+    const dLng = Math.abs(viewState.longitude - recenterTarget.longitude)
+    const dLat = Math.abs(viewState.latitude - recenterTarget.latitude)
     const dZoom = Math.abs(viewState.zoom - DEFAULT_ZOOM)
-    return dLng > 0.01 || dLat > 0.01 || dZoom > 1.5
-  }, [viewState])
+    // When scoped, the fit zoom varies by neighborhood size, so ignore zoom.
+    return dLng > 0.01 || dLat > 0.01 || (!geo && dZoom > 1.5)
+  }, [viewState, recenterTarget, geo])
 
   if (!MAPBOX_TOKEN) {
     return (
@@ -112,7 +192,7 @@ export default function MapView({ events, onBackToList }: MapViewProps) {
   }
 
   return (
-    <div className="map-section">
+    <div className="map-section" ref={sectionRef}>
       <div
         className={`map-wrap ${mapActive ? 'map-wrap--active' : ''}`}
         onClick={() => { if (!mapActive) setMapActive(true) }}
@@ -128,6 +208,7 @@ export default function MapView({ events, onBackToList }: MapViewProps) {
           ref={mapRef}
           {...viewState}
           onMove={(e: { viewState: typeof viewState }) => setViewState(e.viewState)}
+          onLoad={() => setMapLoaded(true)}
           style={{ width: '100%', height: '100%' }}
           mapStyle={MAP_STYLE}
           mapboxAccessToken={MAPBOX_TOKEN}
@@ -135,6 +216,31 @@ export default function MapView({ events, onBackToList }: MapViewProps) {
           onClick={() => setPopupVenueId(null)}
         >
           <NavigationControl position="top-right" showCompass={false} />
+
+          {/* ── Neighborhood scope: dim the rest of the city, draw the boundary ── */}
+          {geo && (
+            <>
+              <Source id="scope-mask" type="geojson" data={geo.mask}>
+                <Layer
+                  id="scope-mask-fill"
+                  type="fill"
+                  paint={{ 'fill-color': scopeColors.mask, 'fill-opacity': 0.55 }}
+                />
+              </Source>
+              <Source id="scope-neighborhood" type="geojson" data={geo.feature}>
+                <Layer
+                  id="scope-neighborhood-fill"
+                  type="fill"
+                  paint={{ 'fill-color': scopeColors.accent, 'fill-opacity': 0.08 }}
+                />
+                <Layer
+                  id="scope-neighborhood-line"
+                  type="line"
+                  paint={{ 'line-color': scopeColors.accent, 'line-width': 2.5, 'line-opacity': 0.9 }}
+                />
+              </Source>
+            </>
+          )}
 
           {/* ── Venue markers ── */}
           {venues.map(({ venue, events: vEvents }) => (
@@ -174,6 +280,9 @@ export default function MapView({ events, onBackToList }: MapViewProps) {
           )}
         </MapGL>
 
+        {/* On-theme gradient vignette around the focused neighborhood. */}
+        {geo && <div className="map-scope-vignette" aria-hidden="true" />}
+
         {/* ── Top-left: Back to list + event count ── */}
         <div className="map-top-bar">
           {onBackToList && (
@@ -197,8 +306,12 @@ export default function MapView({ events, onBackToList }: MapViewProps) {
 
         {/* ── Recenter button ── */}
         {isOffCenter && (
-          <button className="map-recenter-btn" onClick={handleRecenter} aria-label="Re-center map on Akron">
-            <ResetIcon /> Akron
+          <button
+            className="map-recenter-btn"
+            onClick={handleRecenter}
+            aria-label={geo ? `Re-center map on ${geo.name}` : 'Re-center map on Akron'}
+          >
+            <ResetIcon /> {geo ? geo.name : 'Akron'}
           </button>
         )}
       </div>

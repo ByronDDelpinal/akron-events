@@ -63,6 +63,15 @@ const ORACLE = [
   // facet: fundraiser (content scored independently)
   ['Benefit Concert for the Food Bank', 'Proceeds support hunger relief', ['music'], { fundraiser: true }],
   ['Annual Charity Gala', 'A fundraiser supporting local youth', ['other'], { fundraiser: true }],
+  // Give Back is strict: genuine fundraisers, drives, and stewardship/volunteer
+  // events count; an incidental "our volunteers" or a bare "cleanup" does not.
+  ['Winter Coat Drive', 'Drop off new or gently used coats', ['other'], { fundraiser: true }],
+  ['Towpath Trail Cleanup', 'Help tidy the canal towpath', ['outdoors'], { fundraiser: true }],
+  ['Invasive Plant Removal Drop-In', 'Pull garlic mustard with a naturalist', ['outdoors'], { fundraiser: true }],
+  ['Open Skate Night', 'Our volunteers keep the rink running smoothly', ['other'], {}],
+  ['Spring Cleanup Sale', 'Clearance on overstock items', ['other'], {}],
+  // Org-mission boilerplate mentioning fundraising is NOT a fundraiser event.
+  ['Girls Night Out', "A women's networking dinner. Our community supports each other's fundraising campaigns in times of need.", ['other'], {}],
 
   // facet: family high-bar
   ["Children's Art Workshop", '', ['visual-art'], { family: true }],

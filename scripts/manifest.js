@@ -43,6 +43,7 @@ export const SCRAPERS = [
   { key: 'rubberducks',           script: 'scripts/scrape-rubberducks.js',             label: 'Akron RubberDucks',            group: 'custom',         active: true  },
   { key: 'nightlight_cinema',     script: 'scripts/scrape-nightlight.js',              label: 'The Nightlight Cinema',        group: 'custom',         active: true  },
   { key: 'akron_library',         script: 'scripts/scrape-akron-library.js',           label: 'Akron Library', group: 'civicplus', active: true  },
+  { key: 'cuyahoga_falls_library', script: 'scripts/scrape-cuyahoga-falls-library.js',  label: 'Cuyahoga Falls Library',       group: 'communico',      active: true  },
   { key: 'jillys_music_room',    script: 'scripts/scrape-jillys.js',                  label: "Jilly's Music Room",           group: 'custom',         active: true  },
   { key: 'blu_jazz',             script: 'scripts/scrape-blu-jazz.js',                label: 'BLU Jazz+',                    group: 'custom',         active: true  },
 
@@ -81,6 +82,7 @@ export const SCRAPERS = [
   { key: 'akron_childrens_museum', script: 'scripts/scrape-akron-childrens-museum.js', label: 'Akron Children\'s Museum',   group: 'drupal',         active: true  },
   { key: 'akron_makerspace',     script: 'scripts/scrape-akron-makerspace.js',        label: 'Akron Makerspace',             group: 'wordpress',      active: true, defaultCategory: 'learning' },
   { key: 'akron_soul_train',     script: 'scripts/scrape-akron-soul-train.js',        label: 'Akron Soul Train',             group: 'wix',            active: true, defaultCategory: 'visual-art' },
+  { key: 'southgate_farm',       script: 'scripts/scrape-southgate-farm.js',          label: 'Southgate Farm',               group: 'wix',            active: true, defaultCategory: 'outdoors' },
   { key: 'north_hill_cdc',       script: 'scripts/scrape-north-hill-cdc.js',          label: 'North Hill CDC',               group: 'ics',            active: true  },
   { key: 'leadership_akron',     script: 'scripts/scrape-leadership-akron.js',        label: 'Leadership Akron',             group: 'squarespace',    active: true  },
   { key: 'artisan_coffee',       script: 'scripts/scrape-artisan-coffee.js',          label: 'Artisan Coffee',               group: 'squarespace',    active: true  },

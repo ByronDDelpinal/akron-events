@@ -283,7 +283,32 @@ function _familySubject(text) {
 // mention ("a volunteer will help you check in") must NOT flag the whole event,
 // the way a single supporting-act mention doesn't make a show a comedy show.
 // Other give-back signals (charity, cleanup, drives) are kept inclusive.
-const FUNDRAISER_RE = /\b(fundraiser|fund[- ]?raising|gala|benefit (dinner|concert|show|night|gala|auction)|silent auction|charity|proceeds (benefit|support|go to|will)|raise (money|funds)|volunteers?\s+(?:needed|wanted)|volunteer\s+(?:day|night|event|week(?:end)?|month|opportunit(?:y|ies)|fair|drive|orientation|appreciation|meet[- ]?up|meeting|program|shift|sign[- ]?up)|service event|park cleanup|clean[- ]?up|food drive|blood drive|donation drive|in support of|golf outing)\b/
+// "cleanup" is qualified the same way "volunteer" is: a bare "spring cleanup" /
+// "closet cleanup" isn't a give-back event, so cleanup must name a place
+// (park/river/trail…). Genuine stewardship volunteering (invasive-plant pulls,
+// trail work, tree plantings, habitat restoration) is kept explicitly so those
+// service events still land in Give Back without the loose bare "cleanup".
+// "charity" and "in support of" used to flag concerts/comedians whose BIOS
+// mention charity work ("the band has raised millions for charity", "a show in
+// support of the arts"). Dropped bare "in support of"; "charity" must now name a
+// charity EVENT (charity gala/run/golf…) so the event itself is the give-back.
+const FUNDRAISER_RE = /\b(fundraiser|fund[- ]?raising|gala|benefit (dinner|concert|show|night|gala|auction|event|for)|silent auction|charity\s+(?:gala|event|drive|auction|dinner|luncheon|breakfast|concert|show|run|walk|ride|golf|tournament|ball|bash|benefit|fundraiser|night)|for charity|charitable\s+(?:event|cause|giving)|proceeds (benefit|support|go to|will|from)|raise (money|funds)|volunteers?\s+(?:needed|wanted)|volunteer\s+(?:day|night|event|week(?:end)?|month|opportunit(?:y|ies)|fair|drive|orientation|appreciation|meet[- ]?up|meeting|program|shift|sign[- ]?up)|day of service|service\s+(?:event|day|project)|(?:park|river|stream|creek|lake|beach|community|neighborhood|trail|highway|roadside|litter|shoreline|canal|towpath)\s+clean[- ]?up|litter\s+pick[- ]?up|invasive\s+(?:plant|species)\s+(?:removal|pull)|habitat restoration|tree planting|(?:food|blood|coat|toy|book|diaper|canned[- ]?food|school[- ]?supply)\s+drive|donation drive|golf outing)\b/
+
+// Fundraiser incidental-mention guards, stripped before FUNDRAISER_RE scores
+// (analogous to _COMEDY_INCIDENTAL / _FAMILY_EXCLUSIONS). Org-mission and
+// community boilerplate that describes fundraising in GENERAL — "supports each
+// other's fundraising campaigns", "our fundraising efforts", a linked
+// "fundraising page" — does not make THIS event a fundraiser (caught on a
+// Comeunity Project networking dinner, 2026-06-17). The event-type words
+// (fundraiser, fundraising gala/dinner/event, X drive) are untouched.
+const _FUNDRAISER_EXCLUSIONS = [
+  /\bfundrais(?:er|ing)\s+(?:campaign|effort|page|goal|account|platform|initiative)s?\b/g,
+]
+function _fundraiserSubject(text) {
+  let t = text
+  for (const re of _FUNDRAISER_EXCLUSIONS) t = t.replace(re, ' ')
+  return t
+}
 
 export function scoreCategories(title = '', description = '') {
   const text = `${title || ''} ${description || ''}`.toLowerCase()
@@ -309,7 +334,7 @@ export function inferFacets(title = '', description = '') {
     // beneficiary/"youth"-service guards apply in either scope.
     family: FAMILY_RE.test(_familySubject(text)) ||
             FAMILY_TITLE_RE.test(_familySubject(titleText)),
-    fundraiser: FUNDRAISER_RE.test(text),
+    fundraiser: FUNDRAISER_RE.test(_fundraiserSubject(text)),
   }
 }
 

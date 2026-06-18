@@ -128,8 +128,10 @@ describe('normaliseSquarespaceEvent', () => {
     assert.equal(row.title, 'Leadership on Main: April 2026')
     assert.equal(row.source, 'test_source')
     assert.equal(row.source_id, '693b06ed3254061779677e65')
-    assert.equal(row.start_at, '2026-04-15T11:30:00.311Z')
-    assert.equal(row.end_at, '2026-04-15T13:00:00.311Z')
+    // Floored to whole seconds (the source epoch's .311 ms is dropped) so the
+    // cross-source dedupe's exact-time bucket aligns with whole-second sources.
+    assert.equal(row.start_at, '2026-04-15T11:30:00.000Z')
+    assert.equal(row.end_at, '2026-04-15T13:00:00.000Z')
     assert.equal(row.category, 'community')
     assert.deepEqual(row.tags, ['test-tag'])
     assert.equal(row.status, 'published')
