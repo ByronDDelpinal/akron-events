@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { SEO, buildGraph, breadcrumbSchema } from '@/lib/seo'
+import PageHero from '@/components/PageHero'
 import './OrganizersPage.css'
 
 const INTAKE_EMAIL = 'intake@akronpulse.com'
@@ -88,14 +89,11 @@ export default function OrganizersPage() {
         jsonLd={seoGraph}
       />
 
-      <div className="organizers-hero">
-        <h1>You make it happen. <span>We make it heard.</span></h1>
-        <p>
-          Akron Pulse exists so people see what&apos;s going on before it
-          happens. If you&apos;re the one making the good stuff happen, here are
-          four ways to plug in, all of them free.
-        </p>
-      </div>
+      <PageHero title={<>You make it happen. <span>We make it heard.</span></>}>
+        Akron Pulse exists so people see what&apos;s going on before it happens.
+        If you&apos;re the one making the good stuff happen, here are four ways to
+        plug in, all of them free.
+      </PageHero>
 
       <div className="organizers-body">
         <div className="organizers-grid">

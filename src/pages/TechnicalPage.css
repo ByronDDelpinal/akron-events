@@ -1,31 +1,6 @@
 /* ─── TECHNICAL DETAILS PAGE ─── */
 
-/* Hero */
-.tp-hero {
-  background: var(--bg-nav);
-  padding: var(--space-4xl) var(--space-xl) var(--space-4xl);
-  text-align: center;
-}
-.tp-hero__inner { max-width: var(--width-narrow); margin: 0 auto; }
-.tp-hero__eyebrow {
-  font-family: var(--font-display);
-  font-size: var(--text-tag);
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--green-mid);
-  margin-bottom: var(--space-md);
-}
-.tp-hero__title {
-  /* font-family / weight / size from global h1. Hero overrides only. */
-  color: var(--white);
-  margin-bottom: var(--space-md);
-}
-.tp-hero__sub {
-  font-size: var(--text-base);
-  color: var(--overlay-light-50);
-  line-height: 1.65;
-}
+/* Header standardized via the shared <PageHero> component (PageHero.css). */
 
 /* Body */
 .tp-body {

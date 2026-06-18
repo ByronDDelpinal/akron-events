@@ -40,6 +40,7 @@
 import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
 import {
+  decodeEntities,
   enrichWithImageDimensions,
   ensureOrganization,
   ensureVenue,
@@ -154,6 +155,49 @@ function isPublicSpecialEvent(ev) {
 
 export { isPublicSpecialEvent, isClosureNotice, EXCLUDE_EXACT_SUMMARIES }
 
+// ── Location parsing ─────────────────────────────────────────────────────
+//
+// The CivicPlus iCalendar feed mashes the venue name and full address into the
+// single LOCATION field, sometimes wrapped in stray HTML, e.g.
+//   "<p>Green Recycling Center</p> - 5383 Massillon Rd  Green OH 44720"
+//   "Boettler Park - 5300 Massillon Road  Green OH 44720"
+// The earlier scraper passed this straight to ensureVenue as the venue NAME,
+// which (a) leaked the <p> tags and (b) minted address-named duplicate venues
+// with a null address column. We instead split the name from the address on the
+// first " - " and parse the trailing "<street>  <city> <state> <zip>" (the feed
+// separates street from city with a double space). Returns a clean name plus
+// structured address details, so ensureVenue can dedupe against the canonical
+// named venue at that address.
+
+export function parseGreenLocation(rawLocation) {
+  if (!rawLocation) return null
+  // Strip tags (NOT via stripHtml — that collapses the double-space delimiter we
+  // rely on below); decode entities afterward.
+  const clean = decodeEntities(String(rawLocation).replace(/<[^>]*>/g, '')).replace(/\u00a0/g, ' ').trim()
+  if (!clean) return null
+
+  const dash = clean.match(/^(.*?)\s+-\s+(.+)$/)
+  const name = (dash ? dash[1] : clean).trim()
+  const addrPart = dash ? dash[2].trim() : ''
+  if (!name) return null
+
+  let address = null, city = 'Green', state = 'OH', zip = null
+  if (addrPart) {
+    const z = addrPart.match(/\b([A-Z]{2})\s+(\d{5})(?:-\d{4})?\s*$/)
+    if (z) { state = z[1]; zip = z[2] }
+    const head = (z ? addrPart.slice(0, z.index) : addrPart).trim()
+    // Feed uses a double space to separate street from city.
+    const parts = head.split(/\s{2,}/).map((s) => s.trim()).filter(Boolean)
+    if (parts.length >= 2) {
+      address = parts[0]
+      city = parts.slice(1).join(' ')
+    } else if (head) {
+      address = head
+    }
+  }
+  return { name, details: { address, city, state, zip } }
+}
+
 // ── Category mapping ─────────────────────────────────────────────────────
 
 // Category: infer from event text; Green special events default to 'other'.
@@ -239,16 +283,19 @@ async function main() {
         })
         if (!row || !row.start_at || !row.source_id) { skipped++; continue }
 
-        // Per-event venue: prefer VEVENT LOCATION when present, fall back to
-        // Boettler Park as the default Green-area venue.
+        // Per-event venue: parse the LOCATION field into a clean name + address
+        // (see parseGreenLocation), fall back to Boettler Park when LOCATION is
+        // empty. ensureVenue may return null for an unparseable/address-only
+        // value (its address-named guard) — in that case the event is left
+        // venue-less rather than mis-assigned to the default park.
         let venueId = defaultVenueId
-        const locName = (ev.LOCATION || '').trim()
-        if (locName) {
-          if (venueCache.has(locName)) {
-            venueId = venueCache.get(locName)
+        const parsed = parseGreenLocation(ev.LOCATION)
+        if (parsed?.name) {
+          if (venueCache.has(parsed.name)) {
+            venueId = venueCache.get(parsed.name)
           } else {
-            venueId = await ensureVenue(locName, { city: 'Green', state: 'OH' })
-            venueCache.set(locName, venueId)
+            venueId = await ensureVenue(parsed.name, parsed.details)
+            venueCache.set(parsed.name, venueId)
           }
         }
 

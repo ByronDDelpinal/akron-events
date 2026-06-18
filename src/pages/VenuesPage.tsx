@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { useVenues } from '@/hooks/useEvents'
 import { SEO, buildGraph, itemListSchema, breadcrumbSchema } from '@/lib/seo'
 import { PARKING_LABEL } from '@/lib/eventFormatting'
+import PageHero from '@/components/PageHero'
 import './VenuesPage.css'
 import { GlobeIcon, ParkingIcon, SearchIcon } from '@/components/icons'
 
@@ -45,16 +46,10 @@ export default function VenuesPage() {
         jsonLd={seoGraph}
       />
       {/* ── HERO ── */}
-      <div className="venues-hero">
-        <div className="venues-hero-inner">
-          <p className="venues-hero-eyebrow">Summit County</p>
-          <h1 className="venues-hero-title">Where it happens</h1>
-          <p className="venues-hero-sub">
-            Every venue we track, from concert halls and gallery spaces to parks,
-            theatres, and dive bars.
-          </p>
-        </div>
-      </div>
+      <PageHero eyebrow="Summit County" title="Where it happens">
+        Every venue we track, from concert halls and gallery spaces to parks,
+        theatres, and dive bars.
+      </PageHero>
 
       {/* ── CONTENT ── */}
       <div className="venues-body">

@@ -5,26 +5,7 @@
    All sizing uses the site's design tokens.
    ────────────────────────────────────────────────────────────────── */
 
-/* ── Hero ────────────────────────────────────────────────────────── */
-.builder-hero {
-  background: var(--bg-nav);
-  padding: var(--space-3xl) var(--space-xl);
-}
-.builder-hero-inner {
-  max-width: var(--width-full);
-  margin: 0 auto;
-}
-.builder-hero h1 {
-  color: var(--white);
-  margin: 0 0 var(--space-sm);
-}
-.builder-hero p {
-  color: var(--overlay-light-50);
-  font-size: var(--text-base);
-  margin: 0;
-  max-width: 520px;
-  line-height: 1.6;
-}
+/* Header standardized via the shared <PageHero> component (PageHero.css). */
 
 /* ── Two-column layout ───────────────────────────────────────────── */
 .builder-layout {

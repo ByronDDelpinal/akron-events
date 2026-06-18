@@ -746,7 +746,13 @@ function sanitizeWebsite(value) {
 
 export async function ensureVenue(name, details = {}) {
   if (!name) return null
-  const trimmed = decodeEntities(name.trim())
+  // Universal safeguard: a venue NAME must never contain HTML. Some feeds
+  // (e.g. CivicPlus iCalendar LOCATION fields) wrap the value in stray tags
+  // like "<p>Green Recycling Center</p>". stripHtml() removes tags, decodes
+  // entities, and collapses whitespace; for a clean name it's a no-op. This is
+  // defense-in-depth — scrapers should still parse their own location fields —
+  // but it guarantees no `<p>…</p>` ever reaches the venues table.
+  const trimmed = stripHtml(String(name))
   if (!trimmed) return null
 
   // Drop malformed website strings before they reach the DB. See

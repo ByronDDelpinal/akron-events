@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { SEO, buildGraph, breadcrumbSchema } from '@/lib/seo'
+import PageHero from '@/components/PageHero'
 import { trackEvent, EVENTS } from '@/lib/analytics'
 import { INTENTS } from '@/lib/intents'
 import { DATA_SOURCES } from '@/lib/dataSources'
@@ -34,13 +35,10 @@ export default function AboutPage() {
         path="/about"
         jsonLd={seoGraph}
       />
-      <div className="about-hero">
-        <h1>Never miss <span>a beat</span></h1>
-        <p>
-          Amazing concerts, exhibitions, games, gatherings, and experiences
-          are happening every week. Akron Pulse has them all.
-        </p>
-      </div>
+      <PageHero title={<>Never miss <span>a beat</span></>}>
+        Amazing concerts, exhibitions, games, gatherings, and experiences are
+        happening every week. Akron Pulse has them all.
+      </PageHero>
 
       <div className="about-body-wrap">
         <div className="about-bar" />

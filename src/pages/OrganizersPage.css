@@ -2,23 +2,7 @@
    Mirrors the AboutPage hero treatment and card conventions so the two
    informational pages read as siblings. All colors come from theme tokens. */
 
-.organizers-hero {
-  background: var(--bg-nav);
-  padding: var(--space-4xl) var(--space-xl);
-  text-align: center;
-}
-.organizers-hero h1 {
-  color: var(--white);
-  margin-bottom: var(--space-md);
-}
-.organizers-hero h1 span { color: var(--amber-on-dark); }
-.organizers-hero p {
-  font-size: var(--text-base);
-  color: var(--overlay-light-50);
-  max-width: 520px;
-  margin: 0 auto;
-  line-height: 1.65;
-}
+/* Header standardized via the shared <PageHero> component (PageHero.css). */
 
 .organizers-body {
   max-width: var(--width-full);

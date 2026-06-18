@@ -6,9 +6,11 @@
  * `now` is injectable so the weekday-boundary logic is unit-testable without
  * mocking the clock.
  *
- * Weekend semantics: "this weekend" is the upcoming Saturday + Sunday, but when
- * the query runs *on* the weekend the window includes the current day rather
- * than skipping a week ahead. "this week" runs from today through the coming
+ * Weekend semantics: "this weekend" runs Friday 4pm → end of Sunday (Friday
+ * night counts — people want to go out). When the query runs *during* the
+ * weekend (Fri evening through Sun) it anchors to the current weekend rather
+ * than skipping a week ahead; the caller's `start_at >= now` filter trims the
+ * part that's already past. "this week" runs from today through the coming
  * Sunday (today, when today is already Sunday).
  *
  * @param {string} dateRange  One of 'today' | 'this_weekend' | 'this_week' | 'this_month'.
@@ -24,15 +26,18 @@ export function dateRangeBounds(dateRange, now = new Date()) {
     end.setHours(23, 59, 59, 999)
   } else if (dateRange === 'this_weekend') {
     const dayOfWeek = now.getDay() // 0 = Sun … 6 = Sat
-    // Sunday: the weekend window is just today (Sat is already past). Mon–Sat:
-    // advance to (or stay on, when today is Saturday) the upcoming Saturday.
-    const daysToSat = dayOfWeek === 0 ? 0 : 6 - dayOfWeek
-    // End of the weekend is Sunday: one day after a Saturday start, same day
-    // when the window already starts on Sunday.
-    const weekendSpan = dayOfWeek === 0 ? 0 : 1
-    start.setDate(now.getDate() + daysToSat)
-    start.setHours(0, 0, 0, 0)
-    end.setDate(now.getDate() + daysToSat + weekendSpan)
+    // Offset to this weekend's Friday. Sat/Sun fall *inside* the weekend, so
+    // their Friday is in the past (−1, −2); Mon–Fri point to the upcoming Friday.
+    const daysToFri =
+      dayOfWeek === 6 ? -1 :
+      dayOfWeek === 0 ? -2 :
+      5 - dayOfWeek
+    start.setDate(now.getDate() + daysToFri)
+    start.setHours(16, 0, 0, 0) // Friday 4pm — Friday night counts
+    // End of the weekend is Sunday night = Friday + 2 days. Clone the start so
+    // the +2 rolls across month boundaries correctly.
+    end.setTime(start.getTime())
+    end.setDate(end.getDate() + 2)
     end.setHours(23, 59, 59, 999)
   } else if (dateRange === 'this_week') {
     start.setHours(0, 0, 0, 0)

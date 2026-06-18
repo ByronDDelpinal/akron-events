@@ -2,29 +2,7 @@
    ORGANIZATIONS PAGE
 ════════════════════════════════════════ */
 
-/* ── Hero ── */
-.orgs-hero {
-  background: var(--bg-nav);
-  padding: var(--space-4xl) var(--space-xl) var(--space-4xl);
-  text-align: center;
-}
-.orgs-hero-inner { max-width: 640px; margin: 0 auto; }
-.orgs-hero-eyebrow {
-  font-family: var(--font-display);
-  font-size: var(--text-tiny); font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.14em;
-  color: var(--amber); margin-bottom: var(--space-md);
-}
-.orgs-hero-title {
-  /* font-family / weight / size from global h1. Hero overrides only. */
-  color: var(--white);
-  line-height: 1.1;
-  margin-bottom: var(--space-md);
-}
-.orgs-hero-sub {
-  font-size: var(--text-base); color: var(--overlay-light-50);
-  line-height: 1.6;
-}
+/* Header standardized via the shared <PageHero> component (PageHero.css). */
 
 /* ── Body ── */
 .orgs-body {

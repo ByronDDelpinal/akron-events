@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { trackEvent, EVENTS } from '@/lib/analytics'
 import { SEO } from '@/lib/seo'
+import PageHero from '@/components/PageHero'
 import { THEMES } from '@/lib/themes'
 import { FILTERABLE_CATEGORIES } from '@/lib/categories.js'
 import { CITIES } from '@/lib/cities'
@@ -231,12 +232,10 @@ export default function EmbedBuilderPage() {
         description="Configure and preview a white-label Akron Pulse events calendar for your website. Copy the iframe snippet and drop it into any page."
       />
 
-      <div className="builder-hero">
-        <div className="builder-hero-inner">
-          <h1>Embed Builder</h1>
-          <p>Configure a live Akron Pulse calendar for your website. Copy the snippet below and drop it anywhere.</p>
-        </div>
-      </div>
+      <PageHero title="Embed Builder">
+        Configure a live Akron Pulse calendar for your website. Copy the snippet
+        below and drop it anywhere.
+      </PageHero>
 
       <div className="builder-layout">
 

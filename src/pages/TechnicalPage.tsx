@@ -2,6 +2,7 @@ import type { LooseRow } from '@/types'
 import { Fragment, useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { SEO } from '@/lib/seo'
+import PageHero from '@/components/PageHero'
 import {
   DATA_SOURCES,
   SOURCE_GROUPS,
@@ -191,16 +192,10 @@ export default function TechnicalPage() {
         path="/technical"
       />
       {/* ── Hero ── */}
-      <div className="tp-hero">
-        <div className="tp-hero__inner">
-          <p className="tp-hero__eyebrow">Akron Pulse / Open Infrastructure</p>
-          <h1 className="tp-hero__title">Technical Details</h1>
-          <p className="tp-hero__sub">
-            A transparent look at how event data flows into this site: every source,
-            every scraper, and the live health of each pipeline.
-          </p>
-        </div>
-      </div>
+      <PageHero eyebrow="Akron Pulse / Open Infrastructure" title="Technical Details">
+        A transparent look at how event data flows into this site: every source,
+        every scraper, and the live health of each pipeline.
+      </PageHero>
 
       <div className="tp-body">
 

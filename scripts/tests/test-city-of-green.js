@@ -18,7 +18,46 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL        = process.env.VITE_SUPABASE_URL        || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-const { isPublicSpecialEvent, isClosureNotice } = await import('../scrape-city-of-green.js')
+const { isPublicSpecialEvent, isClosureNotice, parseGreenLocation } = await import('../scrape-city-of-green.js')
+
+describe('parseGreenLocation: splits the LOCATION field into name + address', () => {
+  it('strips stray HTML tags from the name', () => {
+    const r = parseGreenLocation('<p>Green Recycling Center</p> - 5383 Massillon Rd  Green OH 44720')
+    assert.equal(r.name, 'Green Recycling Center')
+    assert.deepEqual(r.details, { address: '5383 Massillon Rd', city: 'Green', state: 'OH', zip: '44720' })
+  })
+
+  it('parses a plain "Name - Street  City State Zip" value', () => {
+    const r = parseGreenLocation('Boettler Park - 5300 Massillon Road  Green OH 44720')
+    assert.equal(r.name, 'Boettler Park')
+    assert.deepEqual(r.details, { address: '5300 Massillon Road', city: 'Green', state: 'OH', zip: '44720' })
+  })
+
+  it('handles a multi-word city', () => {
+    const r = parseGreenLocation('Foo Hall - 12 Main St  North Canton OH 44720')
+    assert.equal(r.name, 'Foo Hall')
+    assert.equal(r.details.city, 'North Canton')
+    assert.equal(r.details.address, '12 Main St')
+  })
+
+  it('returns a bare name (no address) when there is no " - " separator', () => {
+    const r = parseGreenLocation('Boettler Park')
+    assert.equal(r.name, 'Boettler Park')
+    assert.deepEqual(r.details, { address: null, city: 'Green', state: 'OH', zip: null })
+  })
+
+  it('returns null for empty/blank input', () => {
+    assert.equal(parseGreenLocation(''), null)
+    assert.equal(parseGreenLocation(null), null)
+  })
+
+  it('never leaves HTML in the parsed name', () => {
+    const r = parseGreenLocation('<strong>Veterans Memorial Park</strong> - 1900 Steese Road  Green OH 44685')
+    assert.equal(r.name, 'Veterans Memorial Park')
+    assert.ok(!/[<>]/.test(r.name))
+    assert.equal(r.details.zip, '44685')
+  })
+})
 
 describe('isClosureNotice: detects office-closure descriptions', () => {
   it('flags the exact "City offices will be closed" Juneteenth row', () => {

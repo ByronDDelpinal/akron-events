@@ -1,0 +1,37 @@
+/* PageHero — standardized full-bleed dark page header. One source of truth for
+   the eyebrow / title / subtitle treatment across content pages. */
+
+.page-hero {
+  background: var(--bg-nav);
+  padding: var(--space-4xl) var(--space-xl);
+  text-align: center;
+}
+.page-hero-inner {
+  max-width: 680px;
+  margin: 0 auto;
+}
+.page-hero-eyebrow {
+  font-family: var(--font-display);
+  font-size: var(--text-tag);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--amber-on-dark);
+  margin-bottom: var(--space-md);
+}
+.page-hero-title {
+  color: var(--white);
+  line-height: 1.1;
+  margin-bottom: var(--space-md);
+}
+/* No subtitle → drop the title's bottom margin so the band stays balanced. */
+.page-hero-title:last-child { margin-bottom: 0; }
+.page-hero-title span { color: var(--amber-on-dark); }
+.page-hero-sub {
+  font-size: var(--text-base);
+  color: var(--overlay-light-50);
+  line-height: 1.65;
+  margin: 0;
+}
+.page-hero-sub a { color: var(--amber-on-dark); font-weight: 600; text-decoration: none; }
+.page-hero-sub a:hover { text-decoration: underline; }

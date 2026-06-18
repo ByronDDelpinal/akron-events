@@ -3,6 +3,7 @@ import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useOrganizations } from '@/hooks/useEvents'
 import { SEO, buildGraph, itemListSchema, breadcrumbSchema } from '@/lib/seo'
+import PageHero from '@/components/PageHero'
 import './OrganizationsPage.css'
 import { SearchIcon } from '@/components/icons'
 
@@ -44,16 +45,10 @@ export default function OrganizationsPage() {
         jsonLd={seoGraph}
       />
       {/* ── HERO ── */}
-      <div className="orgs-hero">
-        <div className="orgs-hero-inner">
-          <p className="orgs-hero-eyebrow">Akron &amp; Summit County</p>
-          <h1 className="orgs-hero-title">Organizations</h1>
-          <p className="orgs-hero-sub">
-            The people and groups that make things happen: nonprofits, arts councils,
-            community groups, and local businesses putting on events.
-          </p>
-        </div>
-      </div>
+      <PageHero eyebrow="Akron &amp; Summit County" title="Organizations">
+        The people and groups that make things happen: nonprofits, arts councils,
+        community groups, and local businesses putting on events.
+      </PageHero>
 
       {/* ── CONTENT ── */}
       <div className="orgs-body">
