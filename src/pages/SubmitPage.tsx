@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { SEO } from '@/lib/seo'
 import { ADMIN_CATEGORIES as CATEGORIES } from '@/lib/categories'
 import { INTAKE_MAILTO } from '@/lib/intakeEmail'
+import { fromDatetimeLocalValue } from '@/lib/datetimeLocal'
 import './SubmitPage.css'
 
 interface SubmitForm {
@@ -54,8 +55,10 @@ export default function SubmitPage() {
       const payload = {
         title:           form.title,
         description:     form.description || null,
-        start_at:        form.start_at,
-        end_at:          form.end_at || null,
+        // Inputs are timezone-naive datetime-local strings (submitter's
+        // local wall-clock); convert to a UTC instant before persisting.
+        start_at:        fromDatetimeLocalValue(form.start_at),
+        end_at:          fromDatetimeLocalValue(form.end_at),
         ticket_url:      form.ticket_url || null,
         // Mirror ticket link into source_url so every event has a source page.
         source_url:      form.ticket_url || null,

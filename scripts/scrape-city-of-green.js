@@ -111,23 +111,48 @@ const EXCLUDE_EXACT_SUMMARIES = new Set([
   'veterans advisory commission meeting',
   "mayor's morning meet-up",
   'green veterans rally point',
-  // Federal holiday observances (distinct from the public ceremonies,
-  // which have "Ceremony" in their summary — e.g. "Veterans Day
-  // Ceremony" stays, "Veterans Day" the holiday gets dropped)
+  // Federal/observed holiday observances (distinct from the public
+  // ceremonies, which have "Ceremony" in their summary — e.g. "Veterans
+  // Day Ceremony" stays, "Veterans Day" the holiday gets dropped). These
+  // are office-closing markers, not attendable events. The isClosureNotice
+  // check below is the primary, future-proof gate; this list stays as
+  // defense-in-depth for any closure entry that omits the description.
   'christmas day',
   'veterans day',
   'independence day',
   "new year's day",
+  'juneteenth',
+  'memorial day',
+  'labor day',
+  'thanksgiving',
+  "martin luther king jr. day",
+  'presidents day',
 ])
+
+// Holiday-closure marker: the master calendar (catID=14) interleaves
+// public events with all-day "City offices will be closed" notices for
+// observed holidays (Juneteenth, Memorial Day, Labor Day, …). Those are
+// closing announcements, not things to attend, so we drop any entry whose
+// description announces an office closure. This one signal generalizes
+// past the exact-summary list above and catches future holidays without a
+// code change. (Removed 3 stale "Juneteenth" closure rows on 2026-06-18.)
+const CLOSURE_RE = /\boffices?\b[^.]*\bclos(?:e|ed|ing)\b/i
+
+function isClosureNotice(ev) {
+  return CLOSURE_RE.test(ev.DESCRIPTION || '')
+}
 
 function isPublicSpecialEvent(ev) {
   const summary = (ev.SUMMARY || '').trim().toLowerCase()
   if (!summary) return false
   if (EXCLUDE_EXACT_SUMMARIES.has(summary)) return false
+  if (isClosureNotice(ev)) return false
   // Drop any "...Canceled for Summer Recess" / "Canceled" markers
   if (/\bcanceled\b|\bcancelled\b/.test(summary)) return false
   return true
 }
+
+export { isPublicSpecialEvent, isClosureNotice, EXCLUDE_EXACT_SUMMARIES }
 
 // ── Category mapping ─────────────────────────────────────────────────────
 

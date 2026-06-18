@@ -299,7 +299,11 @@ function evenSample<T>(arr: T[], n: number): T[] {
   return [...new Set(out)]
 }
 
-const dayKeyOf = (iso: string): string => new Date(iso).toISOString().slice(0, 10)
+// Bucket by the Eastern calendar day (en-CA → YYYY-MM-DD), matching how the
+// digest groups events for display. A UTC slice would file an 8 PM-Eastern
+// event under the next day and skew the per-day spread.
+const dayKeyOf = (iso: string): string =>
+  new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 
 export interface DigestSelection {
   picks: Event[]   // the rich-card events (≤ MAX_EVENTS_PER_EMAIL), chronological

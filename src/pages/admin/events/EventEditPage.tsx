@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, type Dispatch, type FormEvent, type S
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { CATEGORIES, STATUSES, AGE_OPTIONS } from '@/lib/admin/constants'
+import { toDatetimeLocalValue, fromDatetimeLocalValue } from '@/lib/datetimeLocal'
 import { useFormState } from '@/lib/admin/useFormState'
 import { useOverrides } from '@/lib/admin/useOverrides'
 import {
@@ -214,15 +215,15 @@ function EventForm({
           <FormField label="Start" field="start_at" overrides={overrides} onToggleOverride={toggleOverride}>
             <FormInput
               type="datetime-local"
-              value={form.start_at ? form.start_at.slice(0, 16) : ''}
-              onChange={(e) => setField('start_at', e.target.value ? new Date(e.target.value).toISOString() : null)}
+              value={toDatetimeLocalValue(form.start_at)}
+              onChange={(e) => setField('start_at', fromDatetimeLocalValue(e.target.value))}
             />
           </FormField>
           <FormField label="End" field="end_at" overrides={overrides} onToggleOverride={toggleOverride}>
             <FormInput
               type="datetime-local"
-              value={form.end_at ? form.end_at.slice(0, 16) : ''}
-              onChange={(e) => setField('end_at', e.target.value ? new Date(e.target.value).toISOString() : null)}
+              value={toDatetimeLocalValue(form.end_at)}
+              onChange={(e) => setField('end_at', fromDatetimeLocalValue(e.target.value))}
             />
           </FormField>
         </FormFieldRow>

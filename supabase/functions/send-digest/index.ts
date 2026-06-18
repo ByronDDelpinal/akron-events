@@ -28,6 +28,15 @@ const resend = new Resend(Deno.env.get('RESEND_API_KEY')!)
 const BASE_URL = Deno.env.get('PUBLIC_SITE_URL') || 'https://akronpulse.com'
 const BATCH_SIZE = 100
 
+// All dates/times in the digest render in the event's local zone. The
+// function runs server-side (Deno, UTC clock) with no browser context, so
+// — unlike the web app, which uses the viewer's browser zone — email has
+// to pin an explicit zone. Akron Pulse is a Summit County calendar, so
+// that zone is Eastern; toLocale* without `timeZone` would otherwise emit
+// the UTC wall-clock (a 7 PM show printed as "11:00 PM"). select.ts
+// already uses this same zone for event-slug dates.
+const DISPLAY_TZ = 'America/New_York'
+
 /**
  * Tag a link so GA4 can attribute email-driven sessions. utm_medium=email is
  * what lands them in GA4's built-in Email channel; utm_campaign carries the
@@ -146,26 +155,30 @@ function imageBlock(e: Event, opts: { width: string; height: string; radius: str
   `
 }
 
-/** Group events by their YYYY-MM-DD start day. Order preserved. */
+/** Group events by their Eastern-calendar start day. Order preserved. */
 function groupByDay(events: Event[]): { dayKey: string; label: string; events: Event[] }[] {
   const groups = new Map<string, Event[]>()
   for (const e of events) {
-    const d = new Date(e.start_at)
-    const key = d.toISOString().slice(0, 10)
+    // en-CA gives a YYYY-MM-DD key; computing it in DISPLAY_TZ keeps an
+    // 8 PM-Eastern event on its real day rather than rolling it to the
+    // next UTC day.
+    const key = new Date(e.start_at).toLocaleDateString('en-CA', { timeZone: DISPLAY_TZ })
     if (!groups.has(key)) groups.set(key, [])
     groups.get(key)!.push(e)
   }
   return [...groups.entries()].map(([dayKey, evs]) => ({
     dayKey,
-    label: new Date(dayKey + 'T12:00:00').toLocaleDateString('en-US', {
-      weekday: 'long', month: 'short', day: 'numeric',
+    // Noon UTC always lands on the same calendar day in Eastern, so it's a
+    // safe instant to format the day label from.
+    label: new Date(dayKey + 'T12:00:00Z').toLocaleDateString('en-US', {
+      timeZone: DISPLAY_TZ, weekday: 'long', month: 'short', day: 'numeric',
     }),
     events: evs,
   }))
 }
 
 function formatTimeOnly(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  return new Date(iso).toLocaleTimeString('en-US', { timeZone: DISPLAY_TZ, hour: 'numeric', minute: '2-digit' })
 }
 
 // Short, human category words for the subscription-aware headline,
@@ -273,7 +286,7 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
   if (hero) {
     const venue = hero.venues[0]
     const heroUrl = withUtm(`${BASE_URL}${eventPath(hero)}`, campaign, 'hero')
-    const heroDate = new Date(hero.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    const heroDate = new Date(hero.start_at).toLocaleDateString('en-US', { timeZone: DISPLAY_TZ, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     const price = priceLabel(hero)
     content += `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px;">
@@ -365,7 +378,7 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
       const eventUrl = withUtm(`${BASE_URL}${eventPath(event)}`, campaign, 'tail')
       const lead = todayWindow
         ? formatTimeOnly(event.start_at)
-        : new Date(event.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+        : new Date(event.start_at).toLocaleDateString('en-US', { timeZone: DISPLAY_TZ, weekday: 'short', month: 'short', day: 'numeric' })
       content += `
     <a href="${eventUrl}" style="display:block;padding:6px 0;text-decoration:none;color:${c.textSecondary};font-size:14px;line-height:1.4;">
       <span style="color:${c.primary};font-weight:600;">${lead}</span>
@@ -412,7 +425,7 @@ function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: numb
 
   if (hero) {
     const venue = hero.venues[0]
-    const heroDate = new Date(hero.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    const heroDate = new Date(hero.start_at).toLocaleDateString('en-US', { timeZone: DISPLAY_TZ, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     lines.push(`FEATURED: ${hero.title}`)
     lines.push(`  ${heroDate}${venue ? ` · ${venue.name}` : ''}`)
     lines.push(`  ${withUtm(`${BASE_URL}${eventPath(hero)}`, campaign, 'hero')}`, '')
@@ -437,7 +450,7 @@ function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: numb
     for (const event of tailEvents) {
       const lead = todayWindow
         ? formatTimeOnly(event.start_at)
-        : new Date(event.start_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+        : new Date(event.start_at).toLocaleDateString('en-US', { timeZone: DISPLAY_TZ, weekday: 'short', month: 'short', day: 'numeric' })
       lines.push(`- ${lead} · ${event.title} — ${withUtm(`${BASE_URL}${eventPath(event)}`, campaign, 'tail')}`)
     }
     lines.push('')
@@ -471,7 +484,7 @@ function buildSubject(sub: Subscriber, eventCount: number): string {
   const s = eventCount !== 1 ? 's' : ''
 
   if (sub.frequency === 'monthly') {
-    const month = new Date().toLocaleDateString('en-US', { month: 'long' })
+    const month = new Date().toLocaleDateString('en-US', { timeZone: DISPLAY_TZ, month: 'long' })
     return `${month} in ${loc}: ${eventCount} event${s} for you`
   }
 
