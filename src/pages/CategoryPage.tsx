@@ -479,7 +479,6 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
           </div>
         ) : (
           <div className="hub-hero-stack">
-            <p className="hub-intro">{hub.intro}</p>
             {shareRow}
             {searchBox}
             {filtersPanel}
@@ -566,9 +565,9 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
         )}
       </section>
 
-      {/* Map hubs: the SEO intro copy reads below the grid instead of
-          competing with the controls and map above it. */}
-      {hasMap && (
+      {/* The SEO intro copy reads below the grid on every hub, so the events
+          lead and the prose doesn't push them down. */}
+      {hub.intro && (
         <section className="hub-about" aria-label={`About ${hub.label}`}>
           <p className="hub-intro hub-intro--below">{hub.intro}</p>
         </section>

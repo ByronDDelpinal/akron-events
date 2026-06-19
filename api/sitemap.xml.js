@@ -90,7 +90,8 @@ export default async function handler(req, res) {
     supabase
       .from('venues')
       .select('id, updated_at')
-      .eq('status', 'published'),
+      .eq('status', 'published')
+      .eq('listed', true),   // keep unlisted venues (bare-address race starts) out of the sitemap
     supabase
       .from('organizations')
       .select('id, updated_at')

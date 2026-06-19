@@ -122,6 +122,7 @@ export const SCRAPERS = [
   { key: 'city_of_fairlawn',     script: 'scripts/scrape-city-of-fairlawn.js',        label: 'City of Fairlawn',             group: 'civicplus',      active: true  },
   { key: 'city_of_cuyahoga_falls', script: 'scripts/scrape-city-of-cuyahoga-falls.js', label: 'City of Cuyahoga Falls',     group: 'custom',         active: true  },
   { key: 'akron_marathon',       script: 'scripts/scrape-akron-marathon.js',          label: 'Akron Marathon',               group: 'custom',         active: true  },
+  { key: 'akron_promise',        script: 'scripts/scrape-akron-promise.js',           label: 'Akron Promise',                group: 'custom',         active: true, defaultCategory: 'fitness' },
 ]
 
 // Active scrapers only — what run-all.js iterates.

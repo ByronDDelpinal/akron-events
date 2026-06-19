@@ -744,7 +744,7 @@ function sanitizeWebsite(value) {
   return withScheme
 }
 
-export async function ensureVenue(name, details = {}) {
+export async function ensureVenue(name, details = {}, opts = {}) {
   if (!name) return null
   // Universal safeguard: a venue NAME must never contain HTML. Some feeds
   // (e.g. CivicPlus iCalendar LOCATION fields) wrap the value in stray tags
@@ -777,12 +777,20 @@ export async function ensureVenue(name, details = {}) {
       _venueNameCache.set(trimmed, byAddress)
       return byAddress
     }
-    console.warn(
-      `  ⚠ Refusing to create address-named venue "${trimmed}" — no existing venue has this address. ` +
-      `Event left venue-less; add a named venue with this address to capture it.`,
-    )
-    _venueNameCache.set(trimmed, null)
-    return null
+    // opts.allowAddressName lets a caller mint a venue from a bare street
+    // address when there's genuinely no formal venue name (e.g. a race start
+    // location). Such venues are created UNLISTED (listed:false) so they never
+    // clutter the public venues index — they remain directly navigable from the
+    // event they belong to. Without this flag the guard still refuses, which is
+    // the default that keeps junk address rows out (see the First Glance dup).
+    if (!opts.allowAddressName) {
+      console.warn(
+        `  ⚠ Refusing to create address-named venue "${trimmed}" — no existing venue has this address. ` +
+        `Event left venue-less; add a named venue with this address to capture it.`,
+      )
+      _venueNameCache.set(trimmed, null)
+      return null
+    }
   }
 
   // neighborhood_slug is pulled into the existing-venue query so we
@@ -881,6 +889,9 @@ export async function ensureVenue(name, details = {}) {
   if (details.website)       row.website       = details.website
   if (details.description)   row.description   = details.description
   if (details.tags?.length)  row.tags          = details.tags
+  // Unlisted venues (opts.listed === false) are hidden from the public /venues
+  // index + sitemap but stay navigable from their event. Column defaults to true.
+  if (opts.listed === false) row.listed = false
 
   // An explicit slug from a curated KNOWN_VENUES entry wins (and is required
   // where the polygon GeoJSON is wrong — see the Kenmore Blvd corridor note

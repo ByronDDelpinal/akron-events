@@ -154,7 +154,7 @@ const COVERED_BY_DIRECT_SCRAPER = [
   { scraper: 'summit_metro_parks',     domains: ['summitmetroparks.org'],                            organisers: ['summit metro parks'] },
   { scraper: 'cvnp_conservancy',       domains: ['conservancyforcvnp.org'],                          organisers: ['conservancy for cuyahoga', 'cuyahoga valley national park'] },
   { scraper: 'akron_art_museum',       domains: ['akronartmuseum.org'],                              organisers: ['akron art museum'] },
-  { scraper: 'akron_civic',            domains: ['akroncivic.com', 'akroncivictheatre.com', 'theatreakron.com'], organisers: ['akron civic'] },
+  { scraper: 'akron_civic',            domains: ['akroncivic.com', 'akroncivictheatre.com', 'theatreakron.com'], organisers: ['akron civic'], venues: ['akron civic', 'pnc plaza', 'knight stage', 'wild oscar'] },
   { scraper: 'akron_zoo',              domains: ['akronzoo.org'],                                    organisers: ['akron zoo'] },
   { scraper: 'akron_childrens_museum', domains: ['akronchildrensmuseum.org'],                        organisers: ["akron children's museum", 'akron childrens museum'] },
   { scraper: 'akron_symphony',         domains: ['akronsymphony.org'],                               organisers: ['akron symphony'] },
@@ -210,7 +210,7 @@ function isDedicatedlyScraped(title) {
  * COVERED_BY_DIRECT_SCRAPER. Returns the matching scraper key when the
  * event is already owned by one of our direct scrapers, or null otherwise.
  */
-function findCoveringScraper(rawEvent) {
+export function findCoveringScraper(rawEvent) {
   const links = rawEvent?.original_links || {}
   const hosts = []
   for (const url of Object.values(links)) {
@@ -220,6 +220,11 @@ function findCoveringScraper(rawEvent) {
     } catch { /* skip malformed URLs */ }
   }
   const organiser = String(rawEvent?.organiser_name ?? '').toLowerCase().trim()
+  // Venue name is the most reliable signal when an event reaches Akron Life via
+  // a third party (e.g. Bandsintown) whose link host + organiser carry no hint
+  // of the real venue — the "Afi Scruggs" Party-on-the-Plaza case. If the event
+  // is at a venue we scrape directly, that scraper owns the canonical row.
+  const venue = String(rawEvent?.venue?.name ?? '').toLowerCase().trim()
 
   for (const entry of COVERED_BY_DIRECT_SCRAPER) {
     for (const dom of entry.domains) {
@@ -227,6 +232,9 @@ function findCoveringScraper(rawEvent) {
     }
     for (const kw of entry.organisers) {
       if (organiser.includes(kw)) return entry.scraper
+    }
+    for (const kw of entry.venues ?? []) {
+      if (venue.includes(kw)) return entry.scraper
     }
   }
   return null

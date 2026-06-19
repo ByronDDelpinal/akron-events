@@ -328,6 +328,7 @@ export function useVenues() {
         organization:organizations ( id, name ),
         areas ( id, name, description, capacity )
       `)
+      .eq('listed', true)   // hide unlisted venues (e.g. bare-address race starts) from the directory
       .order('name', { ascending: true })
     if (fetchError) throw fetchError
     return (data ?? []) as RawRow[]

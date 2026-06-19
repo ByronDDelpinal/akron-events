@@ -205,6 +205,35 @@ describe('Akron Life — isInAkronArea (town fallback when no coords)', () => {
   })
 })
 
+// ── findCoveringScraper (real import — venue/host/organiser suppression) ──
+
+describe('Akron Life — findCoveringScraper', async () => {
+  const { findCoveringScraper } = await import('../scrape-akron-life.js')
+
+  it('suppresses a Bandsintown-linked event by its Civic VENUE (the Afi Scruggs case)', () => {
+    // No akroncivic.com link, no "akron civic" organiser — only the venue gives it away.
+    const ev = {
+      title: 'Afi Scruggs',
+      organiser_name: '',
+      original_links: { ticket: 'https://www.bandsintown.com/t/1038984074' },
+      venue: { name: 'Akron Civic Theatre' },
+    }
+    assert.equal(findCoveringScraper(ev), 'akron_civic')
+  })
+
+  it('suppresses a PNC Plaza event by venue', () => {
+    assert.equal(findCoveringScraper({ title: 'X', venue: { name: 'PNC Plaza at The Civic' }, original_links: {} }), 'akron_civic')
+  })
+
+  it('still matches by link host', () => {
+    assert.equal(findCoveringScraper({ title: 'X', original_links: { w: 'https://akronlibrary.org/e/1' }, venue: { name: 'Somewhere' } }), 'akron_library')
+  })
+
+  it('returns null for an event we do not scrape directly', () => {
+    assert.equal(findCoveringScraper({ title: 'X', original_links: { w: 'https://example.com' }, venue: { name: 'Some Bar' } }), null)
+  })
+})
+
 // ── isBackfilledFromDirectScraper ─────────────────────────────────────────
 
 describe('Akron Life — isBackfilledFromDirectScraper', () => {

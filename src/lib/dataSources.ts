@@ -337,9 +337,9 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
   {
     key:         'akron_civic',
     method:      'HTML scrape',
-    methodDetail:'Schema.org Event JSON-LD on theatreakron.com homepage',
-    venue:       'Akron Civic Theatre, The Knight Stage, Wild Oscar\'s — 182 S Main St',
-    notes:       "The Civic publishes its calendar to two domains: the legacy Bolt CMS at akroncivic.com and a modern WordPress build at theatreakron.com. As of 2026-06 we read theatreakron.com because every page emits a clean Schema.org Event JSON-LD list (~10–12 upcoming shows on the homepage). Same venue, same events, but the structured-data block is far less fragile than the Bolt three-line-text format we used to regex. Sub-venue routing (The Knight Stage, Wild Oscar's, PNC Plaza) is preserved by inspecting event titles and descriptions for those names. Migration of 2026-06 swapped the source URL and parser; venue + organiser records stay the same.",
+    methodDetail:'Official akroncivic.com (Bolt CMS) — /view-all-shows listing, then per-show detail pages',
+    venue:       'Akron Civic Theatre, PNC Plaza at The Civic, The Knight Stage, Wild Oscar\'s — 182 S Main St',
+    notes:       "Reads the Civic's OFFICIAL site, akroncivic.com. We list every show from /view-all-shows (each detail link is a slug ending in -YYYY-MM-DD) and parse each detail page for title, date/time + venue (two <h6> lines), the poster image (an upsized /thumbs/{dims}/shows/… rendition), and the formatted description (kept as text with paragraph + line breaks). Each Civic stage is its own venue record — the main theatre, the outdoor PNC Plaza at The Civic (home of the free \"Party on the Plaza\" concerts), The Knight Stage, and Wild Oscar's. 2026-06 rewrite: previously read theatreakron.com, which turned out to be a third-party ticket RESALE aggregator (TicketSqueeze) — it only listed big ticketed shows (so free community events never ingested) and linked patrons to resale tickets. The official site fixes coverage, images, formatting, and ticket links. Price is left null unless the page states free admission.",
     status:      'active',
   },
   {
@@ -486,6 +486,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     methodDetail:'/future-race-dates/ on akronmarathon.org — text-date scrape, paired with hard-coded race-series metadata',
     venue:       'Downtown Akron course — Akron Marathon Charitable Corporation HQ at 155 E Voris St',
     notes:       "Three race weekends per year — Akron 8K & 1M (June), Half Marathon & 10K (August), full Marathon with relay (September). akronmarathon.org is WordPress + Divi with no Tribe API, no JSON-LD, and no event detail pages — the canonical schedule is the static /future-race-dates/ page. The scraper extracts every Month DD, YYYY string in document order, buckets them by year (always exactly three per year), and pairs each year's [first, second, third] dates with the [8K, Half, Marathon] race-series metadata (title, description, tags, /race-series/ ticket URL). Migrated off Akron Life in 2026-06 — Evvnt was tagging races as community rather than fitness. Default 7:00 AM Eastern start; categorised fitness.",
+    status:      'active',
+  },
+  {
+    key:         'akron_promise',
+    method:      'HTML scrape',
+    methodDetail:'City Series page on akronpromise.org/cityseries (Drupal 10) — parses each div.item race card',
+    venue:       'Various Akron neighborhoods (no per-race venue listed)',
+    notes:       "Akron Promise is an education nonprofit (scholarships + student support); its public events are the City Series — a season of neighborhood 5K/run-walk races that support community organizations. The /events page is just a Google Form, so we scrape the City Series landing page (/cityseries, Drupal 10, server-rendered). Each \"Upcoming Races\" card carries a logo image, an <h3> title, a div.date (M/D/YY H:MM), free-text detail lines (Dog Friendly / Finisher Medal / Kids Run), and a RunSignup \"Register Now\" link. Each RunSignup race is then enriched via RunSignup's public REST API (page → race_id → /rest/race/{id}): we pull the full race description, the start address, and the logo. RunSignup's address.street is freeform — a real place name (e.g. \"Kohl Family YMCA\") becomes a named venue, while a bare street address is handed to ensureVenue's guard (links to an existing venue at that address or skips, so no junk address-named venues). Price left null (races are ticketed; APS students free, public pays). Categorised fitness.",
     status:      'active',
   },
   {
@@ -979,6 +987,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   city_of_akron_lock3: 'revize',
   killbox_comedy:      'seatengine',
   akron_marathon:      'html',
+  akron_promise:       'html',
   release_yoga:        'html',
 
   // EventON / custom WordPress
@@ -1018,7 +1027,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
 
   // Schema.org Event JSON-LD on every detail page
   kent_stage:             'schema-jsonld',
-  akron_civic:            'schema-jsonld',
+  akron_civic:            'html',
   get_away_with_murder:   'schema-jsonld',
 
   // Aggregator-routed organizations (share a parent scraper via `subOf`)
