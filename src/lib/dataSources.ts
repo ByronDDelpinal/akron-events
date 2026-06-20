@@ -493,7 +493,31 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     method:      'HTML scrape',
     methodDetail:'City Series page on akronpromise.org/cityseries (Drupal 10) — parses each div.item race card',
     venue:       'Various Akron neighborhoods (no per-race venue listed)',
-    notes:       "Akron Promise is an education nonprofit (scholarships + student support); its public events are the City Series — a season of neighborhood 5K/run-walk races that support community organizations. The /events page is just a Google Form, so we scrape the City Series landing page (/cityseries, Drupal 10, server-rendered). Each \"Upcoming Races\" card carries a logo image, an <h3> title, a div.date (M/D/YY H:MM), free-text detail lines (Dog Friendly / Finisher Medal / Kids Run), and a RunSignup \"Register Now\" link. Each RunSignup race is then enriched via RunSignup's public REST API (page → race_id → /rest/race/{id}): we pull the full race description, the start address, and the logo. RunSignup's address.street is freeform — a real place name (e.g. \"Kohl Family YMCA\") becomes a named venue, while a bare street address is handed to ensureVenue's guard (links to an existing venue at that address or skips, so no junk address-named venues). Price left null (races are ticketed; APS students free, public pays). Categorised fitness.",
+    notes:       "Akron Promise is an education nonprofit (scholarships + student support); its public events are the City Series — a season of neighborhood 5K/run-walk races that support community organizations. The /events page is just a Google Form, so we scrape the City Series landing page (/cityseries, Drupal 10, server-rendered). Each \"Upcoming Races\" card carries a logo image, an <h3> title, a div.date (M/D/YY H:MM), free-text detail lines (Dog Friendly / Finisher Medal / Kids Run), and a RunSignup \"Register Now\" link. Each RunSignup race is then enriched via the shared lib/runsignup.js (page → race_id → /rest/race/{id}): full description, address, logo, the authoritative start time (RunSignup wins over the sometimes-stale card time), and the registration fee. RunSignup's address.street is freeform — a real place name (e.g. \"Kohl Family YMCA\") becomes a normal venue, while a bare street address is minted UNLISTED (hidden from the venues index, still navigable). Categorised fitness.",
+    status:      'active',
+  },
+  {
+    key:         'runsignup',
+    method:      'REST API',
+    methodDetail:'RunSignup public REST API — /rest/races geo search (zipcode 44308 + 25mi) → /rest/race/{id} detail; shared lib/runsignup.js',
+    venue:       'Summit County race start locations (named, or unlisted bare addresses)',
+    notes:       "Broad discovery of Summit County road races on RunSignup (the registration platform behind most local races). The public REST API needs no key: we page the geo race search, gate results to Summit County by city (lib/summit-county.js), drop drafts/private/test/undated races, then fetch each race's detail for the precise start time, tiered fee, description, address, and logo. Multi-distance races (5K/10K/1mi) collapse to one event at the earliest start. The Akron Promise City Series and Akron Marathon races re-surface here; per the chosen strategy we ingest everything and let the cross-source dedupe merge overlaps — start times are aligned to RunSignup's authoritative value and runsignup ranks below the curated race scrapers in the dedupe priority. Bare-address venues are minted unlisted.",
+    status:      'active',
+  },
+  {
+    key:         'akron_dance_festival',
+    method:      'Curated data',
+    methodDetail:'Hand-entered from akrondancefestival.org\'s official schedule; one row per company per night, run through the normal ingestion path',
+    venue:       'Akron city parks — Forest Lodge Park, Goodyear Heights Metro Park, Firestone Park',
+    notes:       "The Heinz Poll Summer Dance Festival is the City of Akron's 52-year tradition of FREE professional dance performances in public parks. Its headline performances aren't ticketed (no registration feed) and live only on a small hand-built static page, so rather than maintain a fragile text-parser for ~6 events a year we enter the season directly from the official schedule (PERFORMANCES in scrape-akron-dance-festival.js) and run them through the normal upsert path — slug, categories (dance → theater), search-normalisation, and venue linking all happen as usual. Idempotent (per company+date source_id) and date-guarded, so it stays in the twice-daily run; update the array once a year. The June 18 Preview (Akron Art Museum) and the Saturday yoga + master classes (Eventbrite) are covered by their own sources and not duplicated here.",
+    status:      'active',
+  },
+  {
+    key:         'gather_round_games',
+    method:      'Puppeteer render',
+    methodDetail:'grgcollect.com Wix Bookings service pages — Puppeteer render + text parse of each service\'s recurring session schedule',
+    venue:       "Gather 'Round Games & Collectibles — 121 Ghent Rd, Fairlawn",
+    notes:       "Gather 'Round Games is a family-owned TCG/board-game store in Fairlawn (Pokémon, Magic, Lorcana, One Piece). Its brochure site (gatherround.net, Squarespace) has no events; events live on grgcollect.com, a Wix site using Wix BOOKINGS — each event is a recurring 'service' (/service-page/<slug>) with a session schedule, not the Wix Events app, so lib/wix-events.js doesn't apply and the widget hydrates client-side. We render service pages with Puppeteer and parse the human-readable session text (robust to hashed Wix classes). We ingest ONLY non-product-release events — the recurring community play nights (Trade Night, Friday Night Magic) — dropping set-launch events (prereleases, commander parties, set-specific booster drafts) by release-keyword on the title AND by dropping one-time (single-session) services. Category games; price from the listed fee (null when free, never assumed).",
     status:      'active',
   },
   {
@@ -925,6 +949,21 @@ export const SOURCE_GROUPS: SourceGroup[] = [
     title: 'LRMR (House Three Thirty)',
     description: "House Three Thirty runs on the LeBron James Family Foundation's in-house \"LRMR\" web platform — a Vue front end whose LrmrEvents component reads an unauthenticated JSON feed (GET /api/vtl/events). We hit that endpoint directly. It returns display-formatted date/time strings rather than ISO timestamps, so the scraper parses them back to Eastern time and assigns recurring occurrences a per-date source_id.",
   },
+  {
+    id:    'wix-bookings',
+    title: 'Wix Bookings (rendered)',
+    description: "Some venues run their events as Wix Bookings 'services' (recurring bookable sessions) rather than the Wix Events app — so the #wix-warmup-data trick doesn't apply and the booking widget hydrates client-side. We render the service pages with Puppeteer (lib/puppeteer.js) and parse the human-readable session schedule (robust to Wix's hashed CSS classes). Used for the Gather Round Games game store, where we keep only the recurring community play nights and drop one-time product-release events.",
+  },
+  {
+    id:    'curated',
+    title: 'Curated (hand-entered from official schedules)',
+    description: "A small number of stable, recurring events that have no machine-readable feed and live only on hand-built static pages — so instead of maintaining a fragile HTML parser for a handful of events a year, we enter them directly from the organizer's official schedule and run them through the normal ingestion path (slug, categories, search-normalisation, and venue linking all happen as usual). Idempotent and date-guarded, refreshed yearly. Currently: the Heinz Poll Summer Dance Festival's free park performances.",
+  },
+  {
+    id:    'runsignup',
+    title: 'RunSignup (race registration)',
+    description: "RunSignup is the registration platform behind a large share of local road races. Its public REST API (no key) exposes a geo race search (/rest/races by zipcode + radius) and per-race detail (/rest/race/{id}) with description, address, logo, event start times, and tiered fees. We discover races within 25 miles of downtown Akron, gate them to Summit County by city, and ingest each as a fitness event. The bespoke per-org race scrapers (Akron Promise, Akron Marathon) re-surface here too, so RunSignup ranks below them in the dedupe priority and the curated copy wins a merge. Shared logic lives in scripts/lib/runsignup.js.",
+  },
 ]
 
 // Maps each DATA_SOURCES key to its SOURCE_GROUPS id. Kept separate from the
@@ -988,6 +1027,9 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   killbox_comedy:      'seatengine',
   akron_marathon:      'html',
   akron_promise:       'html',
+  runsignup:           'runsignup',
+  akron_dance_festival:'curated',
+  gather_round_games:  'wix-bookings',
   release_yoga:        'html',
 
   // EventON / custom WordPress

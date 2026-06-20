@@ -12,10 +12,16 @@ const PAGE_SIZE = 50
 
 type Row = LooseRow
 
+// The two review surfaces this page exposes.
+//   categorize  → events the scraper dumped into 'Other' (needs_review = true)
+//   unpublished → events still awaiting publish (status = 'pending_review')
+type Tab = 'categorize' | 'unpublished'
+
 // Categories available for reassignment — everything except 'other'
 const REMAP_OPTIONS = CATEGORIES.filter((c) => c.value !== 'other')
 
 export default function ReviewQueuePage() {
+  const [tab, setTab]         = useState<Tab>('categorize')
   const [events, setEvents]   = useState<Row[]>([])
   const [total, setTotal]     = useState(0)
   const [page, setPage]       = useState(0)
@@ -29,23 +35,36 @@ export default function ReviewQueuePage() {
   const fetchQueue = useCallback(async () => {
     setLoading(true)
     const from = page * PAGE_SIZE
-    const { data, count, error } = await supabase
+
+    let query = supabase
       .from('events')
-      .select('id, title, start_at, source, source_id, manual_overrides, event_categories ( category )', { count: 'exact' })
-      .eq('needs_review', true)
+      .select(
+        'id, title, start_at, source, source_id, status, manual_overrides, event_categories ( category )',
+        { count: 'exact' },
+      )
       // Hide events whose start time has already passed — no point reviewing them.
       .gte('start_at', new Date().toISOString())
       .order('start_at', { ascending: true })
       .range(from, from + PAGE_SIZE - 1)
+
+    query =
+      tab === 'categorize'
+        ? query.eq('needs_review', true)
+        : query.eq('status', 'pending_review')
+
+    const { data, count, error } = await query
 
     if (!error) {
       setEvents((data ?? []) as Row[])
       setTotal(count ?? 0)
     }
     setLoading(false)
-  }, [page])
+  }, [page, tab])
 
   useEffect(() => { fetchQueue() }, [fetchQueue])
+
+  // Reset to the first page whenever the active tab changes.
+  useEffect(() => { setPage(0) }, [tab])
 
   // Seed per-row selections with the event's current non-'other' categories.
   useEffect(() => {
@@ -105,6 +124,19 @@ export default function ReviewQueuePage() {
     if (!error) setEvents((prev) => prev.filter((e) => e.id !== ev.id))
   }
 
+  // One-click publish: flip status to 'published' and clear the review flag so
+  // the event drops off every review surface at once.
+  async function handlePublish(ev: Row) {
+    setSaving((s) => ({ ...s, [ev.id]: true }))
+    const { error } = await supabase
+      .from('events')
+      .update({ status: 'published', needs_review: false } as TablesUpdate<'events'>)
+      .eq('id', ev.id)
+
+    setSaving((s) => ({ ...s, [ev.id]: false }))
+    if (!error) setEvents((prev) => prev.filter((e) => e.id !== ev.id))
+  }
+
   const totalPages = Math.ceil(total / PAGE_SIZE)
 
   return (
@@ -114,10 +146,39 @@ export default function ReviewQueuePage() {
         {!loading && <span className="admin-section-count">{total}</span>}
       </div>
 
+      <div className="admin-tabs" role="tablist">
+        <button
+          role="tab"
+          aria-selected={tab === 'categorize'}
+          className={`admin-tab ${tab === 'categorize' ? 'admin-tab--active' : ''}`}
+          onClick={() => setTab('categorize')}
+        >
+          Needs categorization
+        </button>
+        <button
+          role="tab"
+          aria-selected={tab === 'unpublished'}
+          className={`admin-tab ${tab === 'unpublished' ? 'admin-tab--active' : ''}`}
+          onClick={() => setTab('unpublished')}
+        >
+          Unpublished
+        </button>
+      </div>
+
       <p className="admin-review-desc">
-        Events below were categorized as <strong>Other</strong> — the scraper
-        couldn't confidently place them. Assign the correct category and
-        approve to lock it in; the scraper will never overwrite it.
+        {tab === 'categorize' ? (
+          <>
+            Events below were categorized as <strong>Other</strong> — the scraper
+            couldn't confidently place them. Assign the correct category and
+            approve to lock it in; the scraper will never overwrite it.
+          </>
+        ) : (
+          <>
+            Events below are still <strong>pending review</strong> and aren't
+            visible to the public yet. Publish to make them live; this also
+            clears them from the categorization queue.
+          </>
+        )}
       </p>
 
       {loading && <div className="admin-loading">Loading queue…</div>}
@@ -125,7 +186,11 @@ export default function ReviewQueuePage() {
       {!loading && events.length === 0 && (
         <div className="admin-review-empty">
           <span className="admin-review-empty-icon">✓</span>
-          <p>Queue is clear — no events need review.</p>
+          <p>
+            {tab === 'categorize'
+              ? 'Queue is clear — no events need review.'
+              : 'Nothing to publish — every upcoming event is live.'}
+          </p>
         </div>
       )}
 
@@ -138,7 +203,7 @@ export default function ReviewQueuePage() {
                   <th>Event</th>
                   <th>Date</th>
                   <th>Source</th>
-                  <th>Category</th>
+                  {tab === 'categorize' && <th>Category</th>}
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -171,31 +236,46 @@ export default function ReviewQueuePage() {
                           : '—'}
                       </td>
                       <td className="admin-cell-mono">{ev.source}</td>
-                      <td>
-                        <ChipSelector
-                          items={REMAP_OPTIONS.map((c) => ({ id: c.value, name: c.label }))}
-                          selectedIds={selected}
-                          onChange={(ids) => setSelections((s) => ({ ...s, [ev.id]: ids }))}
-                          max={2}
-                        />
-                      </td>
+                      {tab === 'categorize' && (
+                        <td>
+                          <ChipSelector
+                            items={REMAP_OPTIONS.map((c) => ({ id: c.value, name: c.label }))}
+                            selectedIds={selected}
+                            onChange={(ids) => setSelections((s) => ({ ...s, [ev.id]: ids }))}
+                            max={2}
+                          />
+                        </td>
+                      )}
                       <td className="admin-review-actions">
-                        <button
-                          className="btn-admin-primary btn-admin-sm"
-                          onClick={() => handleApprove(ev)}
-                          disabled={isSaving || selected.length === 0}
-                          title="Save this category and lock it against future scraper overwrites"
-                        >
-                          {isSaving ? 'Saving…' : 'Approve'}
-                        </button>
-                        <button
-                          className="btn-admin-ghost btn-admin-sm"
-                          onClick={() => handleDismiss(ev)}
-                          disabled={isSaving}
-                          title="Remove from queue without changing the category"
-                        >
-                          Dismiss
-                        </button>
+                        {tab === 'categorize' ? (
+                          <>
+                            <button
+                              className="btn-admin-primary btn-admin-sm"
+                              onClick={() => handleApprove(ev)}
+                              disabled={isSaving || selected.length === 0}
+                              title="Save this category and lock it against future scraper overwrites"
+                            >
+                              {isSaving ? 'Saving…' : 'Approve'}
+                            </button>
+                            <button
+                              className="btn-admin-ghost btn-admin-sm"
+                              onClick={() => handleDismiss(ev)}
+                              disabled={isSaving}
+                              title="Remove from queue without changing the category"
+                            >
+                              Dismiss
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            className="btn-admin-primary btn-admin-sm"
+                            onClick={() => handlePublish(ev)}
+                            disabled={isSaving}
+                            title="Publish this event and clear it from the review queue"
+                          >
+                            {isSaving ? 'Publishing…' : 'Publish'}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   )

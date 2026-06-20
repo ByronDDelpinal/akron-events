@@ -11,7 +11,82 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-const { isRunSignupUrl, extractRaceId, parseRunSignupRace } = await import('../lib/runsignup.js')
+const { isRunSignupUrl, extractRaceId, parseRunSignupRace, runSignupDateTimeToIso, runSignupStartIso, runSignupPriceRange } =
+  await import('../lib/runsignup.js')
+const { isIngestableRace, fallbackStartIso, buildTags } = await import('../scrape-runsignup.js')
+
+// A detail-shaped race object with multiple events (distances) + tiered fees.
+const DETAIL = {
+  name: 'Flight of the Heron 5k, 10k, & 1mi',
+  next_date: '07/18/2026',
+  is_draft_race: 'F', is_private_race: 'F',
+  description: '<p>A river run in Akron.</p>',
+  logo_url: 'https://cdn.example.com/logo.jpg',
+  url: 'https://runsignup.com/Race/OH/Akron/FlightOfTheHeron5k',
+  address: { street: '57 West North Street', city: 'Akron', state: 'OH', zipcode: '44304' },
+  events: [
+    { name: '5k', start_time: '7/18/2026 10:00', registration_periods: [{ race_fee: '$30.00' }, { race_fee: '$35.00' }] },
+    { name: '1 Mile', start_time: '7/18/2026 10:00', registration_periods: [{ race_fee: '$20.00' }, { race_fee: '$25.00' }] },
+  ],
+}
+
+describe('runSignupDateTimeToIso', () => {
+  it('parses M/D/YYYY H:MM (24h) to Eastern ISO', () => {
+    assert.equal(runSignupDateTimeToIso('7/18/2026 10:00'), new Date('2026-07-18T14:00:00Z').toISOString()) // 10AM EDT
+    assert.equal(runSignupDateTimeToIso('8/21/2026 18:30'), new Date('2026-08-21T22:30:00Z').toISOString()) // 6:30PM EDT
+    assert.equal(runSignupDateTimeToIso('nope'), null)
+  })
+})
+
+describe('runSignupStartIso + runSignupPriceRange', () => {
+  it('takes the earliest event start time', () => {
+    assert.equal(runSignupStartIso(DETAIL), new Date('2026-07-18T14:00:00Z').toISOString())
+  })
+  it('returns min/max fee across events + periods', () => {
+    assert.deepEqual(runSignupPriceRange(DETAIL), { priceMin: 20, priceMax: 35 })
+  })
+  it('null/empty when no events', () => {
+    assert.equal(runSignupStartIso({}), null)
+    assert.deepEqual(runSignupPriceRange({}), { priceMin: null, priceMax: null })
+  })
+})
+
+describe('parseRunSignupRace with events', () => {
+  it('includes startIso + price + unlisted bare-address venue', () => {
+    const r = parseRunSignupRace(DETAIL)
+    assert.equal(r.startIso, new Date('2026-07-18T14:00:00Z').toISOString())
+    assert.equal(r.priceMin, 20)
+    assert.equal(r.priceMax, 35)
+    assert.equal(r.bareAddress, true)            // "57 West North Street"
+    assert.equal(r.venueDetails.address, '57 West North Street')
+  })
+})
+
+describe('scraper: isIngestableRace', () => {
+  it('accepts a dated, public, Akron race', () => {
+    assert.equal(isIngestableRace(DETAIL), true)
+  })
+  it('rejects drafts, private, undated, test, and out-of-county races', () => {
+    assert.equal(isIngestableRace({ ...DETAIL, is_draft_race: 'T' }), false)
+    assert.equal(isIngestableRace({ ...DETAIL, is_private_race: 'T' }), false)
+    assert.equal(isIngestableRace({ ...DETAIL, next_date: null }), false)
+    assert.equal(isIngestableRace({ ...DETAIL, name: 'Cupcakes Test Race' }), false)
+    assert.equal(isIngestableRace({ ...DETAIL, address: { city: 'Streetsboro' } }), false) // Portage County
+  })
+})
+
+describe('scraper: fallbackStartIso + buildTags', () => {
+  it('defaults an undated-time race to 8 AM ET on next_date', () => {
+    assert.equal(fallbackStartIso('07/18/2026'), new Date('2026-07-18T12:00:00Z').toISOString())
+    assert.equal(fallbackStartIso('bad'), null)
+  })
+  it('derives tags from name + description', () => {
+    const t = buildTags({ name: 'Akron Half Marathon & 5K Fun Run' }, 'A charity walk for kids')
+    assert.ok(t.includes('half-marathon') && t.includes('5k') && t.includes('walk') && t.includes('family') && t.includes('fundraiser'))
+    assert.ok(!t.includes('marathon')) // half-marathon shouldn't also tag plain marathon
+  })
+})
+
 
 describe('isRunSignupUrl', () => {
   it('matches runsignup.com hosts (incl. www + subdomains)', () => {

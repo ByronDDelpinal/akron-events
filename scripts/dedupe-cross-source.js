@@ -82,7 +82,7 @@ const SOURCE_PRIORITY = [
 // venue scrapers we haven't explicitly ranked still beat an aggregator copy
 // (the bug that let an Eventbrite "…at Crown Point" win canonical over Crown
 // Point's own "…- Alex Bevan").
-const AGGREGATOR_PRIORITY = ['ticketmaster', 'eventbrite', 'visit_akron_cvb', 'akron_life']
+const AGGREGATOR_PRIORITY = ['ticketmaster', 'eventbrite', 'visit_akron_cvb', 'akron_life', 'runsignup']
 
 export function priority(source) {
   const i = SOURCE_PRIORITY.indexOf(source)

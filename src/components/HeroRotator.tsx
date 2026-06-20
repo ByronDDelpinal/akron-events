@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import './HeroRotator.css'
 
 // Keep in lockstep with --hero-rot-dur in HeroRotator.css.
-const ROT_MS = 650
+const ROT_MS = 950
 
 interface HeroRotatorProps {
   /** Words to cycle through; words[0] is shown first and on every SSR/first paint. */

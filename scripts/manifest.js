@@ -123,6 +123,9 @@ export const SCRAPERS = [
   { key: 'city_of_cuyahoga_falls', script: 'scripts/scrape-city-of-cuyahoga-falls.js', label: 'City of Cuyahoga Falls',     group: 'custom',         active: true  },
   { key: 'akron_marathon',       script: 'scripts/scrape-akron-marathon.js',          label: 'Akron Marathon',               group: 'custom',         active: true  },
   { key: 'akron_promise',        script: 'scripts/scrape-akron-promise.js',           label: 'Akron Promise',                group: 'custom',         active: true, defaultCategory: 'fitness' },
+  { key: 'runsignup',            script: 'scripts/scrape-runsignup.js',               label: 'RunSignup',                    group: 'custom',         active: true, defaultCategory: 'fitness' },
+  { key: 'akron_dance_festival', script: 'scripts/scrape-akron-dance-festival.js',    label: 'Heinz Poll Dance Festival',    group: 'custom',         active: true, defaultCategory: 'theater' },
+  { key: 'gather_round_games',   script: 'scripts/scrape-gather-round-games.js',      label: 'Gather Round Games',           group: 'custom',         active: true, defaultCategory: 'games' },
 ]
 
 // Active scrapers only — what run-all.js iterates.

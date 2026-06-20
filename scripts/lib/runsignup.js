@@ -28,7 +28,7 @@
  * directory with address-named rows.
  */
 
-import { htmlToText, looksLikeStreetAddress } from './normalize.js'
+import { htmlToText, looksLikeStreetAddress, easternToIso } from './normalize.js'
 
 export const RUNSIGNUP_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
@@ -58,11 +58,47 @@ export function extractRaceId(html) {
   return null
 }
 
+/** Parse a RunSignup "M/D/YYYY H:MM" timestamp (24-hour) → ISO Eastern, or null. */
+export function runSignupDateTimeToIso(str) {
+  const m = String(str || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/)
+  if (!m) return null
+  const datePart = `${m[3]}-${String(+m[1]).padStart(2, '0')}-${String(+m[2]).padStart(2, '0')}`
+  const hour = +m[4], minute = m[5]
+  const ampm = hour < 12 ? 'AM' : 'PM'
+  const h12 = (hour % 12) || 12
+  return easternToIso(datePart, `${h12}:${minute} ${ampm}`)
+}
+
+/** Earliest event start time across a race's events[] → ISO Eastern, or null. */
+export function runSignupStartIso(race) {
+  const events = Array.isArray(race?.events) ? race.events : []
+  const isos = events.map((e) => runSignupDateTimeToIso(e?.start_time)).filter(Boolean).sort()
+  return isos[0] || null
+}
+
+/** Min/max registration fee across a race's events[].registration_periods[]. */
+export function runSignupPriceRange(race) {
+  const events = Array.isArray(race?.events) ? race.events : []
+  const fees = []
+  for (const e of events) {
+    for (const p of (Array.isArray(e?.registration_periods) ? e.registration_periods : [])) {
+      const f = parseFloat(String(p?.race_fee ?? '').replace(/[^0-9.]/g, ''))
+      if (Number.isFinite(f)) fees.push(f)
+    }
+  }
+  if (!fees.length) return { priceMin: null, priceMax: null }
+  const min = Math.min(...fees), max = Math.max(...fees)
+  return { priceMin: min, priceMax: max > min ? max : null }
+}
+
 /**
- * Shape a RunSignup REST `race` object into enrichment fields.
+ * Shape a RunSignup REST `race` object into enrichment fields. When the object
+ * carries `events` (the detail endpoint, not the search endpoint) we also derive
+ * the start time and price range.
  *
  * @param {object} race — the `race` object from /rest/race/{id}
- * @returns {object|null} — { description, venueName, venueDetails, logo, bareAddress }
+ * @returns {object|null} — { description, venueName, venueDetails, logo,
+ *                            bareAddress, startIso, priceMin, priceMax }
  */
 export function parseRunSignupRace(race) {
   if (!race || typeof race !== 'object') return null
@@ -90,8 +126,34 @@ export function parseRunSignupRace(race) {
     ? htmlToText(race.description).slice(0, 3000) || null
     : null
   const logo = typeof race.logo_url === 'string' && /^https?:\/\//i.test(race.logo_url) ? race.logo_url : null
+  const { priceMin, priceMax } = runSignupPriceRange(race)
 
-  return { venueName, venueDetails, description, logo, bareAddress }
+  return { venueName, venueDetails, description, logo, bareAddress, startIso: runSignupStartIso(race), priceMin, priceMax }
+}
+
+/**
+ * Search RunSignup for races near a location. Public, no API key. Paginates
+ * /rest/races (50/page) until a short page. Returns raw `race` objects (these
+ * carry description + address but NOT events — fetch the detail for start time).
+ *
+ * @param {object} p — { zipcode, radius=25, startDate, endDate, maxPages=10, userAgent }
+ * @returns {object[]}
+ */
+export async function searchRunSignupRaces(p = {}) {
+  const { zipcode, radius = 25, startDate, endDate, maxPages = 10, userAgent = RUNSIGNUP_USER_AGENT } = p
+  const out = []
+  for (let page = 1; page <= maxPages; page++) {
+    const url = `https://runsignup.com/rest/races?format=json&zipcode=${encodeURIComponent(zipcode)}` +
+      `&radius=${radius}&start_date=${startDate}&end_date=${endDate}` +
+      `&results_per_page=50&page=${page}&sort=date+ASC`
+    const res = await fetch(url, { headers: { Accept: 'application/json', 'User-Agent': userAgent } })
+    if (!res.ok) break
+    const json = await res.json()
+    const races = (Array.isArray(json.races) ? json.races : []).map((x) => x.race || x)
+    out.push(...races)
+    if (races.length < 50) break // last page
+  }
+  return out
 }
 
 /** Fetch the public REST race object for a numeric race_id (no API key). */

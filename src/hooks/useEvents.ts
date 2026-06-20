@@ -403,7 +403,13 @@ export function useVenueEvents(venueId: string | null | undefined) {
 }
 
 /**
- * Fetch a single published event by ID, with venues + organizations joined.
+ * Fetch a single event by ID, with venues + organizations joined.
+ *
+ * Visibility is governed by RLS, not a query filter: anon visitors can only
+ * read published events (so an unpublished id resolves to "not found"), while a
+ * logged-in admin (authenticated role) can read any status. This is what lets
+ * the admin "view public page" / preview links work for pending_review events
+ * before they're published — without exposing drafts to the public.
  */
 export function useEvent(id: string | null | undefined) {
   const { data: event, loading, error } = useAsync(async () => {
@@ -426,7 +432,6 @@ export function useEvent(id: string | null | undefined) {
         ))
       `)
       .eq('id', id)
-      .eq('status', 'published')
       .single()
     if (fetchError) throw fetchError
     return normalizeEventJoins(data as RawRow)

@@ -207,7 +207,7 @@ export default function HomePage() {
         <h1 aria-label="What's happening in Akron?">
           <span aria-hidden="true">
             What's happening<br />
-            in <span className="hero-place"><HeroRotator words={HERO_PLACES} intervalMs={3000} />?</span>
+            in <span className="hero-place"><HeroRotator words={HERO_PLACES} intervalMs={5000} />?</span>
           </span>
         </h1>
         <p className="hero-sub">Concerts, galas, art shows, markets, and more, happening right now in Akron.</p>

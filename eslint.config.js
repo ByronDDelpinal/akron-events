@@ -78,6 +78,7 @@ export default tseslint.config(
       'scripts/scrape-nightlight.js',
       'scripts/scrape-killbox-comedy.js',
       'scripts/scrape-cuyahoga-falls-library.js',
+      'scripts/scrape-gather-round-games.js',
     ],
     languageOptions: {
       globals: { ...globals.node, ...globals.browser },

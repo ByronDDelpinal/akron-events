@@ -1,7 +1,7 @@
 /* HeroRotator — rolling place-name in the homepage hero. */
 
 .hero-rotator {
-  --hero-rot-dur: 0.65s;
+  --hero-rot-dur: 0.95s;
   position: relative;
   display: inline-block;
   white-space: nowrap;

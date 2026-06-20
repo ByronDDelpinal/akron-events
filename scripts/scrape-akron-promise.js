@@ -165,9 +165,14 @@ async function main() {
         const startMs = Date.parse(race.startIso)
         if (startMs < now - 86_400_000 || startMs > cutoff) { skipped++; continue }
 
-        // Enrich from RunSignup when the race links there (description, venue, logo).
+        // Enrich from RunSignup when the race links there (description, venue,
+        // logo, authoritative start time + price). RunSignup is the registration
+        // system of record, so its start time wins over the City Series card
+        // (which can be stale) — this also aligns times with scrape-runsignup.js
+        // so the cross-source dedupe can merge the overlap.
         const rs = isRunSignupUrl(race.ticketUrl) ? await fetchRunSignupRaceData(race.ticketUrl) : null
         if (rs) enriched++
+        const startIso = rs?.startIso || race.startIso
 
         // Resolve the venue from RunSignup's address. Real place names become
         // normal (listed) venues; bare street addresses are minted UNLISTED so
@@ -187,17 +192,17 @@ async function main() {
         const row = {
           title:           race.title,
           description:     rs?.description || race.description,
-          start_at:        race.startIso,
+          start_at:        startIso,
           end_at:          null,
           category:        'fitness',
           tags:            raceTags(race.detail),
-          price_min:       null,            // never assume free — races are ticketed
-          price_max:       null,
+          price_min:       rs?.priceMin ?? null,   // real registration fee when RunSignup has it; never assumed
+          price_max:       rs?.priceMax ?? null,
           age_restriction: 'all_ages',
           image_url:       race.imageUrl || rs?.logo || null,
           ticket_url:      race.ticketUrl || SERIES_URL,
           source:          SOURCE_KEY,
-          source_id:       `${slug}-${race.startIso.slice(0, 10)}`,
+          source_id:       `${slug}-${startIso.slice(0, 10)}`,
           status:          'published',
           featured:        false,
         }
