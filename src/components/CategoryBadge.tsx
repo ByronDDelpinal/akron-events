@@ -7,6 +7,7 @@
  */
 
 import { CATEGORY_DISPLAY, TAG_CLASS_MAP, FACETS } from '@/lib/categories'
+import { CATEGORY_GLYPHS } from '@/lib/categoryGlyphs'
 import type { AppEvent } from '@/hooks/useEvents'
 
 interface FacetDef { slug: string; emoji: string; label: string }
@@ -68,26 +69,11 @@ export function FacetBadges({ event }: { event?: AppEvent | null }) {
 
 /**
  * Category glyph rendered inside the badge. Uses the same SVG assets as the
- * card-accent gradients, tinted via CSS mask. Unknown slugs fall back to a star.
+ * card-accent gradients (CATEGORY_GLYPHS), tinted via CSS mask. Unknown slugs
+ * fall back to a star.
  */
-const GLYPH_SVG: Record<string, string> = {
-  music:        '/music-note.svg',
-  theater:      '/theater.svg',
-  film:         '/film.svg',
-  comedy:       '/laugh.svg',
-  'visual-art': '/paint-brush.svg',
-  food:         '/apple.svg',
-  sports:       '/baseball.svg',
-  fitness:      '/weight.svg',
-  outdoors:     '/leaf.svg',
-  learning:     '/pencil.svg',
-  festival:     '/sportlights.svg',
-  market:       '/market-store.svg',
-  civic:        '/city-block.svg',
-}
-
 function CategoryIcon({ category }: { category: string }) {
-  const svg = GLYPH_SVG[category]
+  const svg = CATEGORY_GLYPHS[category]
   if (svg) {
     return (
       <span

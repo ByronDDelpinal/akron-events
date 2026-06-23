@@ -32,7 +32,8 @@ const MIN_PREVIEW_WIDTH = 320
 
 const ALL_FEATURES: { key: EmbedFeature; label: string; description: string }[] = [
   { key: 'filter',  label: 'Filter & Sort', description: 'Filter tray entry point' },
-  { key: 'map',     label: 'Map view',       description: 'List / Map toggle' },
+  { key: 'map',      label: 'Map view',      description: 'List / Map toggle' },
+  { key: 'calendar', label: 'Calendar view', description: 'List / Calendar toggle' },
   { key: 'density', label: 'Density toggle', description: 'Comfortable / Compact switch' },
   { key: 'price',   label: 'Price labels',   description: 'Price shown on event cards' },
   { key: 'tags',    label: 'Category tags',  description: 'Category badges on cards' },
@@ -61,7 +62,7 @@ const DEFAULT_STATE: BuilderState = {
   price: '',
   date: '',
   family: false,
-  features: { filter: true, map: true, density: true, price: true, tags: true },
+  features: { filter: true, map: true, calendar: true, density: true, price: true, tags: true },
   view: 'list',
   density: 'comfortable',
   target: 'inline',
@@ -386,7 +387,7 @@ export default function EmbedBuilderPage() {
               <div className="builder-field-half">
                 <label className="builder-label">Initial view</label>
                 <div className="builder-radio-group">
-                  {(['list', 'map'] as EmbedView[]).map((v) => (
+                  {(['list', 'calendar', 'map'] as EmbedView[]).map((v) => (
                     <label key={v} className="builder-radio">
                       <input
                         type="radio"
@@ -395,7 +396,7 @@ export default function EmbedBuilderPage() {
                         checked={state.view === v}
                         onChange={() => set('view', v)}
                       />
-                      <span>{v === 'list' ? 'List' : 'Map'}</span>
+                      <span>{v === 'list' ? 'List' : v === 'calendar' ? 'Calendar' : 'Map'}</span>
                     </label>
                   ))}
                 </div>

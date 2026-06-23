@@ -241,9 +241,12 @@ function parseShowPage(html, _slug) {
       const parsed = parseDateString(raw)
       if (parsed) {
         dateStr = parsed
-        // Try to extract time from nearby context
-        const context = bodyText.slice(Math.max(0, m.index - 20), m.index + 60)
-        const t       = parseTime(context)
+        // Pull a time only from the text immediately after the date (the
+        // documented "April 3, 2026 8pm" pattern), and stop at a range dash or
+        // parenthetical so a date range like "OCTOBER 8 - NOV 1" can't borrow
+        // the time from a "(11:59pm October 31)" midnight-show note.
+        const after   = bodyText.slice(m.index, m.index + 40).split(/\s[-–—]\s|\(/)[0]
+        const t       = parseTime(after)
         if (t) timeStr = t
         break
       }

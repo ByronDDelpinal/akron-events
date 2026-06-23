@@ -18,10 +18,10 @@
  *   price=free|under10|under25 locked price filter
  *   date=today|this_weekend|this_week|this_month   locked date preset
  *   family=1                   locked family-friendly facet
- *   features=filter,map,density,price,tags
+ *   features=filter,map,calendar,density,price,tags
  *                              allowlist of enabled features; OMITTED = all on
  *   title=<string>             custom embed heading (default: "Upcoming Events")
- *   view=list|map              initial view (default: list)
+ *   view=list|calendar|map     initial view (default: list)
  *   density=comfortable|efficient  initial card density (default: comfortable)
  *   target=inline|blank        event click-through (default: inline)
  *
@@ -38,12 +38,12 @@ import { isValidTheme, DEFAULT_THEME } from '@/lib/themes'
 import { NEIGHBORHOOD_SLUGS, NEIGHBORHOOD_LABELS } from '@/lib/neighborhoods'
 import { getCityHub } from '@/lib/seo/categories'
 
-export const EMBED_FEATURES = ['filter', 'map', 'density', 'price', 'tags'] as const
+export const EMBED_FEATURES = ['filter', 'map', 'calendar', 'density', 'price', 'tags'] as const
 export type EmbedFeature = (typeof EMBED_FEATURES)[number]
 
 export type EmbedPrice = 'free' | 'under10' | 'under25'
 export type EmbedDate = 'today' | 'this_weekend' | 'this_week' | 'this_month'
-export type EmbedView = 'list' | 'map'
+export type EmbedView = 'list' | 'map' | 'calendar'
 export type EmbedDensity = 'comfortable' | 'efficient'
 export type EmbedTarget = 'inline' | 'blank' | 'external'
 
@@ -72,7 +72,7 @@ export interface EmbedConfig {
 
 const VALID_PRICE = new Set<EmbedPrice>(['free', 'under10', 'under25'])
 const VALID_DATE = new Set<EmbedDate>(['today', 'this_weekend', 'this_week', 'this_month'])
-const VALID_VIEW = new Set<EmbedView>(['list', 'map'])
+const VALID_VIEW = new Set<EmbedView>(['list', 'map', 'calendar'])
 const VALID_DENSITY = new Set<EmbedDensity>(['comfortable', 'efficient'])
 const VALID_TARGET = new Set<EmbedTarget>(['inline', 'blank', 'external'])
 

@@ -4,6 +4,7 @@ import { useEventFilters } from '@/hooks/useEventFilters'
 import EventCard from '@/components/EventCard'
 import FilterBar, { type LockedDimensions } from '@/components/FilterBar'
 import MapView from '@/components/MapView'
+import CalendarView from '@/components/CalendarView'
 import SourceOverflowCard from '@/components/SourceOverflowCard'
 import DateHeading from '@/components/DateHeading'
 import { groupEventsByDate, applySourceCap } from '@/lib/eventGrouping'
@@ -16,12 +17,13 @@ const PREFETCH_PX = 400
 interface Features {
   filter: boolean
   map: boolean
+  calendar: boolean
   density: boolean
   price: boolean
   tags: boolean
 }
 
-const ALL_FEATURES_ON: Features = { filter: true, map: true, density: true, price: true, tags: true }
+const ALL_FEATURES_ON: Features = { filter: true, map: true, calendar: true, density: true, price: true, tags: true }
 
 type Filters = ReturnType<typeof useEventFilters>
 
@@ -65,8 +67,12 @@ export default function EventsBrowser({
 }: EventsBrowserProps) {
   const { effective } = filters
 
-  // Map toggle gated by feature flag: when the partner hides the map, force list.
-  const effectiveView = features.map ? view : 'list'
+  // View toggle gated by feature flags: an unavailable view falls back to list.
+  const viewAllowed =
+    view === 'list' ||
+    (view === 'map' && features.map) ||
+    (view === 'calendar' && features.calendar)
+  const effectiveView = viewAllowed ? view : 'list'
   const isEfficient = density === 'efficient'
   const activePageSize = isEfficient ? COMPACT_PAGE_SIZE : PAGE_SIZE
 
@@ -94,7 +100,8 @@ export default function EventsBrowser({
     offset,
   })
 
-  // Separate unpaginated fetch for the map — same filters, all results.
+  // Separate unpaginated fetch for the map — same filters, all results. Only
+  // runs while the map is showing.
   const { events: mapEvents, loading: mapLoading } = useMapEvents({
     categories: effective.categories,
     excludedCategories: effective.excludedCategories,
@@ -109,6 +116,31 @@ export default function EventsBrowser({
     priceMax: effective.priceMax,
     neighborhoodSlug: effective.neighborhoodSlug,
     venueCities: effective.venueCities,
+    enabled: effectiveView === 'map',
+  })
+
+  // Calendar fetch — same filters EXCEPT the date range: the calendar owns the
+  // date dimension (it pages by day/week/month), so it shouldn't be limited to
+  // the active preset. The preset still seeds the calendar's starting view. A
+  // ~13-month upper horizon bounds the payload without restricting navigation.
+  const calendarHorizon = useMemo(() => {
+    const d = new Date()
+    d.setMonth(d.getMonth() + 13)
+    return d.toISOString().slice(0, 10)
+  }, [])
+  const { events: calendarEvents, loading: calendarLoading } = useMapEvents({
+    categories: effective.categories,
+    excludedCategories: effective.excludedCategories,
+    family: effective.family,
+    excludeFamily: effective.excludeFamily,
+    fundraiser: effective.fundraiser,
+    search: effective.search,
+    freeOnly: effective.freeOnly,
+    priceMax: effective.priceMax,
+    neighborhoodSlug: effective.neighborhoodSlug,
+    venueCities: effective.venueCities,
+    dateTo: calendarHorizon,
+    enabled: effectiveView === 'calendar',
   })
 
   // Append each incoming page to the accumulated list.
@@ -214,7 +246,8 @@ export default function EventsBrowser({
           search={filters.search}                  onSearch={filters.setSearch}
           excludeFamily={filters.excludeFamily}    onExcludeFamily={filters.setExcludeFamily}
           showAudienceToggle={features.filter}
-          view={effectiveView}                     onView={features.map ? onView : undefined}
+          view={effectiveView}                     onView={(features.map || features.calendar) ? onView : undefined}
+          showMapView={features.map}               showCalendarView={features.calendar}
           total={total}
           cardViewMode={features.density ? density : undefined}
           onCardViewMode={features.density ? onDensity : undefined}
@@ -230,6 +263,17 @@ export default function EventsBrowser({
         mapLoading
           ? <div className="map-loading"><span>Loading map…</span></div>
           : <MapView events={mapEvents} onBackToList={() => onView?.('list')} neighborhoodSlug={effective.neighborhoodSlug} />
+      )}
+
+      {/* ── CALENDAR VIEW ── */}
+      {effectiveView === 'calendar' && (
+        <CalendarView
+          events={calendarEvents}
+          loading={calendarLoading}
+          initialRange={effective.dateRange}
+          initialFrom={effective.dateFrom}
+          initialTo={effective.dateTo}
+        />
       )}
 
       {/* ── LIST VIEW ── */}

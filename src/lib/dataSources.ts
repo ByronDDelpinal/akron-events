@@ -521,6 +521,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'akron_pride',
+    method:      'iCal feed',
+    methodDetail:'Events Manager all-events iCal feed (/events/ical/) parsed via lib/ics.js runIcsScraper',
+    venue:       'Downtown Akron — Main Street (festival & equity march)',
+    notes:       "Akron Pride Festival is the LGBTQ+ nonprofit behind the annual Akron Pride Festival & Equity March in downtown Akron. The WordPress site runs the Events Manager plugin, whose REST API is auth-gated (401) — but it publishes a clean all-events iCal feed at /events/ical/ (RFC 5545, TZID America/New_York, structured LOCATION), which we consume via the shared ICS pipeline. Events Manager's LOCATION is \"Name, Street, City, State, Zip, Country\", so a parseLocation hook splits it into a clean venue name + address instead of an address-in-name junk venue. We SKIP the org's \"Akron Pride Festival 5K\" (an includeEvent filter) because that race is already owned by runsignup + akron_promise (City Series) — akron_pride keeps the unique Festival & March. Categorised festival.",
+    status:      'active',
+  },
+  {
     key:         'get_away_with_murder',
     method:      'HTML scrape',
     methodDetail:'Schema.org Event JSON-LD on the 330tix.com/organizations/get-away-with-murder-killer-parties listing',
@@ -988,6 +996,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   // iCalendar (ICS) feeds
   akron_symphony:      'ics',
   north_hill_cdc:      'ics',
+  akron_pride:         'ics',
   akron_public_schools:'ics',
   life_gurukula:       'ics',
 

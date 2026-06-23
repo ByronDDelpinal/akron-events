@@ -84,6 +84,7 @@ export const SCRAPERS = [
   { key: 'akron_soul_train',     script: 'scripts/scrape-akron-soul-train.js',        label: 'Akron Soul Train',             group: 'wix',            active: true, defaultCategory: 'visual-art' },
   { key: 'southgate_farm',       script: 'scripts/scrape-southgate-farm.js',          label: 'Southgate Farm',               group: 'wix',            active: true, defaultCategory: 'outdoors' },
   { key: 'north_hill_cdc',       script: 'scripts/scrape-north-hill-cdc.js',          label: 'North Hill CDC',               group: 'ics',            active: true  },
+  { key: 'akron_pride',          script: 'scripts/scrape-akron-pride.js',             label: 'Akron Pride Festival',         group: 'ics',            active: true, defaultCategory: 'festival' },
   { key: 'leadership_akron',     script: 'scripts/scrape-leadership-akron.js',        label: 'Leadership Akron',             group: 'squarespace',    active: true  },
   { key: 'artisan_coffee',       script: 'scripts/scrape-artisan-coffee.js',          label: 'Artisan Coffee',               group: 'squarespace',    active: true  },
   { key: 'musica',               script: 'scripts/scrape-musica.js',                  label: 'Musica',                       group: 'dice',           active: true  },

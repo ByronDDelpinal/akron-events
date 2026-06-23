@@ -51,6 +51,9 @@ interface FilterBarProps {
   showAudienceToggle?: boolean
   view: string
   onView?: (v: string) => void
+  /** Which alternate views to offer in the toggle (List is always present). */
+  showMapView?: boolean
+  showCalendarView?: boolean
   total: number
   cardViewMode?: string
   onCardViewMode?: (v: string) => void
@@ -79,6 +82,8 @@ export default function FilterBar({
   excludeFamily = false, onExcludeFamily,
   showAudienceToggle = false,
   view,            onView,
+  showMapView = true,
+  showCalendarView = true,
   total,
   cardViewMode,    onCardViewMode,
   onClearAll,
@@ -150,7 +155,7 @@ export default function FilterBar({
               <ViewModeToggle mode={cardViewMode} onChange={onCardViewMode} />
             )}
 
-            {/* List / Map toggle */}
+            {/* List / Calendar / Map toggle */}
             {onView && (
               <div className="view-toggle" role="group" aria-label="View mode">
                 <button
@@ -161,14 +166,26 @@ export default function FilterBar({
                 >
                   <ListIcon /> List
                 </button>
-                <button
-                  className={`view-toggle-btn ${view === 'map' ? 'active' : ''}`}
-                  onClick={() => onView('map')}
-                  aria-pressed={view === 'map'}
-                  title="Map view"
-                >
-                  <MapIcon /> Map
-                </button>
+                {showCalendarView && (
+                  <button
+                    className={`view-toggle-btn ${view === 'calendar' ? 'active' : ''}`}
+                    onClick={() => onView('calendar')}
+                    aria-pressed={view === 'calendar'}
+                    title="Calendar view"
+                  >
+                    <CalendarIcon /> Calendar
+                  </button>
+                )}
+                {showMapView && (
+                  <button
+                    className={`view-toggle-btn ${view === 'map' ? 'active' : ''}`}
+                    onClick={() => onView('map')}
+                    aria-pressed={view === 'map'}
+                    title="Map view"
+                  >
+                    <MapIcon /> Map
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -351,6 +368,17 @@ function ListIcon() {
       <circle cx="3" cy="6"  r="1.5" fill="currentColor" stroke="none"/>
       <circle cx="3" cy="12" r="1.5" fill="currentColor" stroke="none"/>
       <circle cx="3" cy="18" r="1.5" fill="currentColor" stroke="none"/>
+    </svg>
+  )
+}
+
+function CalendarIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="3" y1="9" x2="21" y2="9" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="16" y1="2" x2="16" y2="6" />
     </svg>
   )
 }

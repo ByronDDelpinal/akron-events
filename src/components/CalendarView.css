@@ -1,0 +1,284 @@
+/* CalendarView — month-grid event view (third option beside List and Map). */
+
+.calendar-view {
+  max-width: var(--width-full);
+  margin: 0 auto;
+  padding: var(--space-lg) var(--space-xl) var(--space-5xl);
+}
+
+/* ── Toolbar ── */
+.cal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+.cal-month {
+  font-family: var(--font-display);
+  font-size: var(--text-h4);
+  margin: 0;
+  min-width: 11ch;
+  text-align: center;
+}
+.cal-nav {
+  width: 36px;
+  height: 36px;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+.cal-nav:hover:not(:disabled) { border-color: var(--amber); color: var(--amber); }
+.cal-nav:disabled { opacity: 0.35; cursor: default; }
+.cal-today {
+  margin-left: var(--space-2xs);
+  padding: 7px 14px;
+  border: var(--border-width-thin) solid var(--amber-border);
+  border-radius: var(--radius-pill);
+  background: var(--amber-pale);
+  color: var(--amber);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+/* ── Day / Week / Month segmented control ── */
+.cal-modes {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg-card);
+}
+.cal-mode {
+  border: none;
+  background: none;
+  padding: 5px 13px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.cal-mode:hover { color: var(--text-primary); }
+.cal-mode.active { background: var(--amber); color: var(--chip-active-txt); }
+
+/* ── Weekday header ── */
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-2xs);
+  margin-bottom: var(--space-2xs);
+}
+.cal-weekday {
+  text-align: center;
+  font-size: var(--text-tiny);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: var(--space-2xs) 0;
+}
+
+/* ── Grid ── */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-2xs);
+}
+.cal-cell {
+  min-height: 116px;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+}
+/* Week mode: a single row of taller cells so more of each day is visible. */
+.cal-grid--week .cal-cell { min-height: 300px; }
+.cal-cell--out { background: transparent; border-color: transparent; }
+.cal-cell--out .cal-daynum { opacity: 0.4; }
+.cal-cell--past { background: var(--bg-secondary); }
+.cal-cell--has { cursor: pointer; }
+.cal-cell--today { border-color: var(--amber); box-shadow: inset 0 0 0 1px var(--amber); }
+.cal-cell--selected { border-color: var(--amber); }
+.cal-daynum {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.cal-cell--today .cal-daynum {
+  color: var(--chip-active-txt);
+  background: var(--amber);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cal-daycount { display: none; }
+
+/* ── Event chips ── */
+.cal-chips { display: flex; flex-direction: column; gap: 3px; min-height: 0; }
+.cal-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  color: #fff;
+  font-size: var(--text-tiny);
+  line-height: 1.35;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.cal-chip-time { font-weight: 700; flex-shrink: 0; opacity: 0.92; }
+.cal-chip-title { overflow: hidden; text-overflow: ellipsis; }
+.cal-more {
+  background: none;
+  border: none;
+  padding: 1px 4px;
+  color: var(--text-muted);
+  font-size: var(--text-tiny);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.cal-more:hover { color: var(--amber); }
+
+/* ── Selected-day detail ── */
+.cal-day {
+  margin-top: var(--space-xl);
+  border-top: var(--border-width-thin) solid var(--border);
+  padding-top: var(--space-lg);
+}
+.cal-day-title {
+  font-family: var(--font-display);
+  font-size: var(--text-h5);
+  margin: 0 0 var(--space-md);
+}
+.cal-day-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+/* Gradient-backed cards (category gradient via the .gradient-* class), matching
+   the chip + event-card colour treatment: time on the left, then the title /
+   venue, and a right-hand cluster holding the category glyph beside the arrow. */
+.cal-day-row {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: #fff;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.cal-day-row:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md, 0 6px 18px rgba(0, 0, 0, 0.18));
+}
+/* The shared .gradient-* classes tile the category glyph repeat-x via an
+   ::after strip. The day rows carry their own single glyph beside the arrow, so
+   suppress that busy tiled texture here. */
+.cal-day-row::after { display: none; }
+/* "Other" uses .gradient-default, whose two-dot scatter lives in background-image
+   (not ::after). Drop the dots so the fallback reads as a plain gradient — the
+   other categories keep their glyph, which still aids visual distinction. */
+.cal-day-row.gradient-default { background-image: var(--gradient-default); }
+.cal-day-time {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-md);
+  color: #fff;
+  min-width: 4.5ch;
+  flex-shrink: 0;
+}
+.cal-day-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cal-day-name {
+  font-weight: 700;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-day-venue { font-size: var(--text-sm); color: rgba(255, 255, 255, 0.82); }
+/* Right-hand cluster: the category glyph sits immediately left of the arrow,
+   5px apart, and the whole group is pushed to the right edge. */
+.cal-day-end {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.cal-day-glyph {
+  width: 24px;
+  height: 24px;
+  background-color: rgba(255, 255, 255, 0.9);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+.cal-day-arrow {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: var(--text-lg);
+  flex-shrink: 0;
+}
+
+/* Day mode renders the agenda directly under the toolbar. */
+.calendar-view > .cal-day-list { margin-top: var(--space-md); }
+
+.cal-empty { text-align: center; color: var(--text-muted); padding: var(--space-3xl) 0; }
+
+/* ── Mobile: a day cell is too small for chips, so show a count badge and lean
+   on the selected-day list. ── */
+@media (max-width: 720px) {
+  .calendar-view { padding-left: var(--space-md); padding-right: var(--space-md); }
+  .cal-toolbar { flex-wrap: wrap; }
+  .cal-month { font-size: var(--text-h5); min-width: 0; flex: 1; }
+  .cal-modes { order: 3; flex-basis: 100%; margin-left: 0; justify-content: center; }
+  .cal-cell,
+  .cal-grid--week .cal-cell {
+    min-height: 54px;
+    align-items: center;
+    text-align: center;
+    padding: 4px;
+    gap: 3px;
+  }
+  .cal-chips { display: none; }
+  .cal-daycount {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: var(--radius-pill);
+    background: var(--amber-pale);
+    color: var(--amber);
+    font-size: var(--text-tiny);
+    font-weight: 700;
+  }
+}

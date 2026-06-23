@@ -498,11 +498,13 @@ export interface UseMapEventsOptions {
   hiddenSources?: string[]
   neighborhoodSlug?: string | null
   venueCities?: string[]
+  /** When false, the hook holds off fetching (and clears results). */
+  enabled?: boolean
 }
 
 /**
  * Fetch ALL published events matching the current filters — no pagination.
- * Used exclusively by MapView. Lighter select to keep the payload small.
+ * Used by the Map and Calendar views. Lighter select to keep the payload small.
  */
 export function useMapEvents({
   categories    = [],
@@ -519,6 +521,7 @@ export function useMapEvents({
   hiddenSources = [],
   neighborhoodSlug = null,
   venueCities      = [],
+  enabled       = true,
 }: UseMapEventsOptions = {}) {
   const [events,  setEvents]  = useState<RawRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -541,6 +544,13 @@ export function useMapEvents({
     let cancelled = false
     const categories = categoriesStable, excludedCategories = excludedCatsStable, hiddenSources = hiddenSourcesStable, venueCities = venueCitiesStable
 
+    if (!enabled) {
+      setLoading(false)
+      setEvents([])
+      setTotal(0)
+      return
+    }
+
     async function fetchMapEvents() {
       setLoading(true)
       setError(null)
@@ -552,69 +562,92 @@ export function useMapEvents({
         const venueJoin = useInnerVenue ? 'event_venues!inner' : 'event_venues'
         const venueTbl  = useInnerVenue ? 'venues!inner'      : 'venues'
 
-        let query: LooseQuery = supabase
-          .from('events')
-          .select(`
-            id, title, start_at, price_min, price_max, is_family, is_fundraiser,
-            ${categorySelectFragment(categories)}
-            ${venueJoin} ( venue:${venueTbl} ( id, name, address, city, lat, lng, neighborhood_slug ) )
-          `, { count: 'exact' })
-          .eq('status', 'published')
-          // Drop events the moment their start time passes — no in-progress grace window.
-          .gte('start_at', new Date().toISOString())
-          .order('start_at', { ascending: true })
+        // Rebuilt fresh per page — a Supabase query builder can't be re-awaited
+        // once it has resolved, so each .range() call needs its own instance.
+        const buildQuery = (): LooseQuery => {
+          let query: LooseQuery = supabase
+            .from('events')
+            .select(`
+              id, title, start_at, price_min, price_max, is_family, is_fundraiser,
+              ${categorySelectFragment(categories)}
+              ${venueJoin} ( venue:${venueTbl} ( id, name, address, city, lat, lng, neighborhood_slug ) )
+            `, { count: 'exact' })
+            .eq('status', 'published')
+            // Drop events the moment their start time passes — no in-progress grace window.
+            .gte('start_at', new Date().toISOString())
+            .order('start_at', { ascending: true })
 
-        query = applyCategoryFilter(query, categories)
-        if (excludedCategories.length > 0) {
-          query = query.not('category_slugs', 'ov', `{${excludedCategories.join(',')}}`)
+          query = applyCategoryFilter(query, categories)
+          if (excludedCategories.length > 0) {
+            query = query.not('category_slugs', 'ov', `{${excludedCategories.join(',')}}`)
+          }
+          if (family)             query = query.eq('is_family', true)
+          else if (excludeFamily) query = query.not('is_family', 'is', true)
+          if (fundraiser) query = query.eq('is_fundraiser', true)
+
+          if (neighborhoodSlug) {
+            query = query.eq('event_venues.venues.neighborhood_slug', neighborhoodSlug)
+          }
+          if (venueCities.length > 0) {
+            query = query.in('event_venues.venues.city', venueCities)
+          }
+
+          if (hiddenSources.length > 0) {
+            query = query.not('source', 'in', `(${hiddenSources.join(',')})`)
+          }
+
+          if (dateFrom || dateTo) {
+            if (dateFrom) query = query.gte('start_at', new Date(dateFrom + 'T00:00:00').toISOString())
+            if (dateTo)   query = query.lte('start_at', new Date(dateTo + 'T23:59:59').toISOString())
+          } else if (dateRange) {
+            const { start, end } = dateRangeBounds(dateRange)
+            query = query.gte('start_at', start.toISOString()).lte('start_at', end.toISOString())
+          }
+
+          if (freeOnly) {
+            query = query.eq('price_min', 0).or('price_max.is.null,price_max.eq.0')
+          } else if (priceMax === 'under10') {
+            query = query.lte('price_min', 10)
+          } else if (priceMax === 'under25') {
+            query = query.lte('price_min', 25)
+          }
+
+          if (search && search.trim().length > 0) {
+            const term = normalizeSearch(search.trim())
+            // Tags are folded into description_normalized server-side (migration
+            // 031), so this title/description match also covers tag searches
+            // (e.g. "baseball" → events tagged baseball) without a fragile
+            // array-contains filter inside .or().
+            query = query.or(
+              `title_normalized.ilike.*${term}*,description_normalized.ilike.*${term}*`
+            )
+          }
+          return query
         }
-        if (family)             query = query.eq('is_family', true)
-        else if (excludeFamily) query = query.not('is_family', 'is', true)
-        if (fundraiser) query = query.eq('is_fundraiser', true)
 
-        if (neighborhoodSlug) {
-          query = query.eq('event_venues.venues.neighborhood_slug', neighborhoodSlug)
-        }
-        if (venueCities.length > 0) {
-          query = query.in('event_venues.venues.city', venueCities)
-        }
+        // PostgREST caps any single response at ~1000 rows. This view is meant to
+        // return *all* matching events (the Calendar lays them across a month and
+        // a busy month here exceeds 1000), so page through until the table is
+        // exhausted. MAX_ROWS is a safety stop against a runaway query.
+        const CHUNK = 1000
+        const MAX_ROWS = 20000
+        const allRows: RawRow[] = []
+        let totalCount = 0
+        let pageStart = 0
+        let pageLen = 0
+        do {
+          const { data, error: fetchError, count } = await buildQuery().range(pageStart, pageStart + CHUNK - 1)
+          if (fetchError) throw fetchError
+          if (cancelled) return
+          totalCount = count ?? totalCount
+          const rows = (data ?? []) as RawRow[]
+          allRows.push(...rows)
+          pageLen = rows.length
+          pageStart += CHUNK
+        } while (pageLen === CHUNK && pageStart < MAX_ROWS)
 
-        if (hiddenSources.length > 0) {
-          query = query.not('source', 'in', `(${hiddenSources.join(',')})`)
-        }
-
-        if (dateFrom || dateTo) {
-          if (dateFrom) query = query.gte('start_at', new Date(dateFrom + 'T00:00:00').toISOString())
-          if (dateTo)   query = query.lte('start_at', new Date(dateTo + 'T23:59:59').toISOString())
-        } else if (dateRange) {
-          const { start, end } = dateRangeBounds(dateRange)
-          query = query.gte('start_at', start.toISOString()).lte('start_at', end.toISOString())
-        }
-
-        if (freeOnly) {
-          query = query.eq('price_min', 0).or('price_max.is.null,price_max.eq.0')
-        } else if (priceMax === 'under10') {
-          query = query.lte('price_min', 10)
-        } else if (priceMax === 'under25') {
-          query = query.lte('price_min', 25)
-        }
-
-        if (search && search.trim().length > 0) {
-          const term = normalizeSearch(search.trim())
-          // Tags are folded into description_normalized server-side (migration
-          // 031), so this title/description match also covers tag searches
-          // (e.g. "baseball" → events tagged baseball) without a fragile
-          // array-contains filter inside .or().
-          query = query.or(
-            `title_normalized.ilike.*${term}*,description_normalized.ilike.*${term}*`
-          )
-        }
-
-        const { data, error: fetchError, count } = await query
-
-        if (fetchError) throw fetchError
         if (!cancelled) {
-          const mapped = ((data ?? []) as RawRow[]).map((e) => {
+          const mapped = allRows.map((e) => {
             const venues = ((e.event_venues ?? []) as RawRow[]).map((ev) => ev.venue).filter(Boolean)
             const cats = ((e.event_categories ?? []) as RawRow[]).map((ec) => ec.category).filter(Boolean)
             return {
@@ -628,7 +661,7 @@ export function useMapEvents({
             }
           })
           setEvents(mapped)
-          setTotal(count ?? 0)
+          setTotal(totalCount)
         }
       } catch (err) {
         if (!cancelled) setError(errorMessage(err, 'Failed to load map events.'))
@@ -639,7 +672,7 @@ export function useMapEvents({
 
     fetchMapEvents()
     return () => { cancelled = true }
-  }, [categoriesStable, excludedCatsStable, family, excludeFamily, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSourcesStable, neighborhoodSlug, venueCitiesStable])
+  }, [enabled, categoriesStable, excludedCatsStable, family, excludeFamily, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSourcesStable, neighborhoodSlug, venueCitiesStable])
 
   return { events, loading, error, total }
 }

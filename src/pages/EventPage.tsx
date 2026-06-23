@@ -366,7 +366,6 @@ function EventBannerImage({ imageUrl, event, gradient }: BannerProps) {
         width={event.image_width || undefined}
         height={event.image_height || undefined}
         loading="eager"
-        fetchPriority="high"
         decoding="async"
       />
       <div className="banner-scrim" />

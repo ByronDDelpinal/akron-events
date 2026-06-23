@@ -834,6 +834,10 @@ export async function runIcsScraper(config) {
 
     for (const ev of workEvents) {
       try {
+        // Optional per-event filter (e.g. drop a race already owned by another
+        // source). Cheap check on the raw VEVENT before normalisation.
+        if (config.includeEvent && !config.includeEvent(ev)) { skipped++; continue }
+
         const row = normaliseIcsEvent(ev, {
           source,
           mapCategory:      config.mapCategory,
@@ -850,15 +854,26 @@ export async function runIcsScraper(config) {
           if (Number.isFinite(sMs) && sMs < pastCutoffMs) { skipped++; continue }
         }
 
-        // Per-event venue: prefer VEVENT LOCATION, fall back to default
+        // Per-event venue: prefer VEVENT LOCATION, fall back to default. A
+        // config.parseLocation hook lets feeds with a structured LOCATION string
+        // (e.g. Events Manager's "Name, Street, City, State, Zip, Country") map
+        // to a clean venue name + address instead of dumping the whole string
+        // in as the name (which mints address-in-name junk venues).
         let venueId = defaultVenueId
         const locName = (ev.LOCATION || '').trim()
         if (locName) {
           if (venueCache.has(locName)) {
             venueId = venueCache.get(locName)
           } else {
-            venueId = await ensureVenue(locName, { city: 'Akron', state: 'OH' })
-            venueCache.set(locName, venueId)
+            let vId = defaultVenueId
+            if (config.parseLocation) {
+              const parsed = config.parseLocation(locName)
+              if (parsed?.name) vId = await ensureVenue(parsed.name, parsed.details || { city: 'Akron', state: 'OH' })
+            } else {
+              vId = await ensureVenue(locName, { city: 'Akron', state: 'OH' })
+            }
+            venueCache.set(locName, vId)
+            venueId = vId
           }
         }
 

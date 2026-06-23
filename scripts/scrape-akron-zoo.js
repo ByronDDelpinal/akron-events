@@ -153,11 +153,24 @@ function toClock(raw) {
  */
 export function parseTimeRangeFromText(text) {
   if (!text) return { startStr: '10:00:00', endStr: null }
-  const rangeRe = /(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))\s*(?:[-–—]|to)\s*(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))/i
+  // The start token may omit its meridiem when it shares the end's, e.g. the
+  // zoo writes "6 - 9 p.m." Keep the start am/pm optional and infer it from the
+  // end; otherwise the match fails and we'd grab "9 p.m." (the range end) as the
+  // start time.
+  const rangeRe = /(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)?\s*(?:[-–—]|to)\s*(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)/i
   const range = text.match(rangeRe)
   if (range) {
-    const startStr = toClock(range[1])
-    const endStr   = toClock(range[2])
+    const [, startNum, startMerRaw, endNum, endMer] = range
+    let startMer = startMerRaw
+    if (!startMer) {
+      startMer = endMer
+      // Guard a range that crosses noon, e.g. "11 - 1 p.m." → 11 a.m.
+      if (/p/i.test(endMer) && parseInt(endNum, 10) < parseInt(startNum, 10)) {
+        startMer = 'am'
+      }
+    }
+    const startStr = toClock(`${startNum} ${startMer}`)
+    const endStr   = toClock(`${endNum} ${endMer}`)
     if (startStr) return { startStr, endStr: endStr ?? null }
   }
   const single = text.match(/\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)/i)

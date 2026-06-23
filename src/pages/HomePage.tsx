@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback, type ChangeEvent, type KeyboardEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import EventsBrowser from '@/components/EventsBrowser'
 import HeroRotator from '@/components/HeroRotator'
@@ -53,7 +53,21 @@ export default function HomePage() {
   const navigate = useNavigate()
 
   // ── View + density (controlled, passed to EventsBrowser) ──────────────
-  const [view, setView] = useState('list')
+  // View is URL-backed (?view=) so it survives navigating to an event page and
+  // pressing Back; local state would reset to 'list' on remount.
+  const [viewParams, setViewParams] = useSearchParams()
+  const view = (() => {
+    const v = viewParams.get('view')
+    return v === 'map' || v === 'calendar' ? v : 'list'
+  })()
+  const setView = useCallback((v: string) => {
+    setViewParams((prev) => {
+      const p = new URLSearchParams(prev)
+      if (v === 'list') p.delete('view')
+      else p.set('view', v)
+      return p
+    }, { replace: true })
+  }, [setViewParams])
   const [cardViewMode, setCardViewMode] = useState(getStoredViewMode)
   const handleCardViewMode = (mode: string) => {
     setCardViewMode(mode)

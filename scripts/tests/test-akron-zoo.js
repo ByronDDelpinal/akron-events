@@ -139,11 +139,21 @@ function toClock(raw) {
 
 function parseTimeRangeFromText(text) {
   if (!text) return { startStr: '10:00:00', endStr: null }
-  const rangeRe = /(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))\s*(?:[-–—]|to)\s*(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))/i
+  // Keep in sync with scripts/scrape-akron-zoo.js. The start token may omit its
+  // meridiem when it shares the end's, e.g. "6 - 9 p.m." — infer it from the end.
+  const rangeRe = /(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)?\s*(?:[-–—]|to)\s*(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)/i
   const range = text.match(rangeRe)
   if (range) {
-    const startStr = toClock(range[1])
-    const endStr   = toClock(range[2])
+    const [, startNum, startMerRaw, endNum, endMer] = range
+    let startMer = startMerRaw
+    if (!startMer) {
+      startMer = endMer
+      if (/p/i.test(endMer) && parseInt(endNum, 10) < parseInt(startNum, 10)) {
+        startMer = 'am'
+      }
+    }
+    const startStr = toClock(`${startNum} ${startMer}`)
+    const endStr   = toClock(`${endNum} ${endMer}`)
     if (startStr) return { startStr, endStr: endStr ?? null }
   }
   const single = text.match(/\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)/i)
@@ -185,6 +195,20 @@ describe('Zoo: Detail-page time parsing', () => {
     const { startStr, endStr } = parseTimeRangeFromText('Doors 9:30 am to 12 pm, rain or shine')
     assert.equal(startStr, '09:30:00')
     assert.equal(endStr, '12:00:00')
+  })
+
+  it('uses the START, not the end, when the start omits its meridiem ("6 - 9 p.m.")', () => {
+    // Regression: the zoo writes "6 - 9 p.m." (no am/pm on the start). The old
+    // range regex failed to match and grabbed "9 p.m." (21:00) as the start.
+    const { startStr, endStr } = parseTimeRangeFromText('6 - 9 p.m.')
+    assert.equal(startStr, '18:00:00')
+    assert.equal(endStr, '21:00:00')
+  })
+
+  it('infers the start meridiem across noon ("11 - 1 p.m." → 11 a.m.)', () => {
+    const { startStr, endStr } = parseTimeRangeFromText('11 - 1 p.m.')
+    assert.equal(startStr, '11:00:00')
+    assert.equal(endStr, '13:00:00')
   })
 })
 
