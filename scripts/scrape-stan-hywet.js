@@ -72,44 +72,120 @@ const MONTH_MAP = {
 }
 
 /**
- * Convert "6:30pm" / "6pm" / "6:30 PM" → "HH:MM:SS" 24h.
- * Returns null on no match.
+ * Build a 24h "HH:MM:SS" string from an hour, optional minutes and a meridiem.
+ * Returns null when the meridiem is missing (we never guess am vs pm).
  */
-function parseTimeFragment(raw) {
-  if (!raw) return null
-  const m = raw.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/i)
-  if (!m) return null
-  let hr = parseInt(m[1], 10)
-  const min = m[2] ?? '00'
-  const mer = m[3].toLowerCase()
+function buildTime(hour, minute, meridiem) {
+  if (!meridiem) return null
+  let hr = parseInt(hour, 10)
+  if (Number.isNaN(hr) || hr < 1 || hr > 12) return null
+  const min = minute ?? '00'
+  const mer = meridiem.toLowerCase()
   if (mer === 'pm' && hr !== 12) hr += 12
   if (mer === 'am' && hr === 12) hr = 0
   return `${String(hr).padStart(2, '0')}:${min}:00`
 }
 
+// Meridiem fragment that tolerates the periods/spaces Stan Hywet uses in the
+// wild — "a.m.", "p.m.", "A.M." all collapse to "am"/"pm" before matching.
+function normalizeMeridiems(raw) {
+  return raw.replace(/\b([ap])\.?\s*m\.?/gi, '$1m')
+}
+
+/**
+ * Extract the START time from a Stan Hywet date string → "HH:MM:SS" or null.
+ *
+ * Two real-world quirks drove this:
+ *   1) Ranges quote the meridiem only once: "11:00-11:30am", "5:30-8:30pm",
+ *      "12:00–1:00pm". We must take the START and let it INHERIT the end's
+ *      am/pm — the old code grabbed the first am/pm-qualified token, which was
+ *      the END (stored 11:30 for an 11:00 start, 8:30pm for a 5:30 start).
+ *   2) Times are written "10:30 a.m." with periods, which the old regex missed
+ *      entirely and silently fell back to the 09:00 default.
+ * Requiring the END of a range to carry a meridiem also keeps day ranges like
+ * "July 9-26 | 7:30pm" from being misread as a time range.
+ */
+export function extractStartTime(raw) {
+  if (!raw) return null
+  const s = normalizeMeridiems(raw)
+
+  // Range: START[meridiem?] - END meridiem  → take START, inherit END's am/pm.
+  const range = s.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*[-–—]\s*\d{1,2}(?::(\d{2}))?\s*(am|pm)/i)
+  if (range) {
+    const startMeridiem = range[3] || range[5]
+    const t = buildTime(range[1], range[2], startMeridiem)
+    if (t) return t
+  }
+
+  // Single time: "6pm", "7:30pm", "10:30am".
+  const single = s.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
+  if (single) {
+    const t = buildTime(single[1], single[2], single[3])
+    if (t) return t
+  }
+
+  return null
+}
+
+// Month names (longest-first so "sept"/"june" win over "sep"/"jun").
+const MONTH_ALTERNATION = Object.keys(MONTH_MAP)
+  .sort((a, b) => b.length - a.length)
+  .join('|')
+const DATE_TOKEN_RE = new RegExp(
+  `\\b(${MONTH_ALTERNATION})\\b\\.?\\s+(\\d{1,2})(?:,?\\s*(\\d{4}))?`,
+  'gi',
+)
+
+function toYmd(year, month, day) {
+  return `${year}-${String(month).padStart(2, '0')}-${String(parseInt(day, 10)).padStart(2, '0')}`
+}
+
+/**
+ * Many Stan Hywet programs run on several discrete dates listed together,
+ * e.g. "August 9, October 25, & December 6 | 11am" or "July 7, and August 4".
+ * Surface the next UPCOMING occurrence rather than blindly the first one — the
+ * old code took the first token, and when that date had already passed its
+ * year-rollover heuristic pushed it a full year into the future (a Photography
+ * Walk listed as "May 31, … October 25" was stored as next-year May 31).
+ * Returns a { dateStr } for the soonest date >= today, or null when the string
+ * holds fewer than two dates (single-date events keep their existing handling).
+ */
+function pickUpcomingFromList(s, nowYear) {
+  const tokens = [...s.matchAll(DATE_TOKEN_RE)]
+    .map((m) => {
+      const month = MONTH_MAP[m[1].toLowerCase()]
+      if (!month) return null
+      const year = m[3] ? parseInt(m[3], 10) : nowYear
+      return { dateStr: toYmd(year, month, m[2]), ms: Date.UTC(year, month - 1, parseInt(m[2], 10)) }
+    })
+    .filter(Boolean)
+
+  if (tokens.length < 2) return null
+
+  const todayMs = (() => { const d = new Date(); d.setUTCHours(0, 0, 0, 0); return d.getTime() })()
+  const upcoming = tokens.filter((t) => t.ms >= todayMs).sort((a, b) => a.ms - b.ms)
+  const chosen = upcoming[0] ?? tokens.sort((a, b) => a.ms - b.ms)[0]
+  return { dateStr: chosen.dateStr }
+}
+
 /**
  * Parse Stan Hywet's `<p class="date">` text into { dateStr, timeStr,
  * endDateStr }.  Strategies, in order:
- *   1) Numeric range with year:   "9/13/26", "10/25/26"
- *   2) Pipe-separated date+time:  "May 28 | 6pm-7:30pm"
- *   3) Month-range with year:     "May 23–September 13, 2026"
- *   4) Full date:                 "April 21, 2026"
- *   5) Short date (no year):      "October 30" → infer current/next year
- *   6) "Sundays through 10/25/26" → start today (recurring marker)
+ *   1) Numeric range with year:   "9/13/26", "10/25/26"  (recurring marker)
+ *   2) Month-range with year:     "May 23–September 13, 2026"
+ *   3) Same-month range:          "October 9-11, 2026"
+ *   4) Multi-date list:           "August 9, October 25, & December 6" → next
+ *   5) Full date:                 "April 21, 2026"
+ *   6) Short date (no year):      "October 30" → infer current/next year
  * Returns nulls when nothing parses; the caller skips the event in that case.
  */
-function parseStanHywetDate(raw) {
+export function parseStanHywetDate(raw) {
   if (!raw) return { dateStr: null, timeStr: DEFAULT_TIME, endDateStr: null }
   const s = raw.replace(/–|—/g, '-').trim()
   const nowYear = new Date().getFullYear()
 
-  // Find an inline time range "6pm-7:30pm" or single time "6pm"
-  let timeStr = DEFAULT_TIME
-  const timeRange = s.match(/(\d{1,2}(?::\d{2})?\s*(?:am|pm))\s*-\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)/i)
-  const timeSingle = s.match(/\b(\d{1,2}(?::\d{2})?\s*(?:am|pm))\b/i)
-  const timeText = (timeRange?.[1] ?? timeSingle?.[1] ?? '').replace(/\s+/g, '')
-  const parsedTime = parseTimeFragment(timeText)
-  if (parsedTime) timeStr = parsedTime
+  // Inline start time (handles ranges, inherited meridiems and "a.m."/"p.m.").
+  const timeStr = extractStartTime(s) ?? DEFAULT_TIME
 
   // 1) Numeric M/D/YY-range fragment ("Sundays through 10/25/26")
   const numericRange = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/)
@@ -149,7 +225,14 @@ function parseStanHywetDate(raw) {
     }
   }
 
-  // 4) Full date — "April 21, 2026"
+  // 4) Multi-date list — "August 9, October 25, & December 6" → next upcoming.
+  //    Runs after the range strategies so true ranges keep their start+end.
+  const upcoming = pickUpcomingFromList(s, nowYear)
+  if (upcoming) {
+    return { dateStr: upcoming.dateStr, timeStr, endDateStr: null }
+  }
+
+  // 5) Full date — "April 21, 2026"
   const fullDate = s.match(/([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})/)
   if (fullDate) {
     const [, mon, day, year] = fullDate
@@ -163,7 +246,7 @@ function parseStanHywetDate(raw) {
     }
   }
 
-  // 5) Short date — "May 28 | 6pm" or "May 28"
+  // 6) Short date — "May 28 | 6pm" or "May 28"
   const shortDate = s.match(/([A-Za-z]+)\s+(\d{1,2})\b/)
   if (shortDate) {
     const [, mon, day] = shortDate

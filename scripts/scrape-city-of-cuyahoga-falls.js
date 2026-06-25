@@ -84,17 +84,48 @@ function mapTags(title = '') {
 
 // ── Time parsing from detail prose ──────────────────────────────────────────
 // CF detail pages describe times in prose ("take place from 6 to 10 p.m.",
-// "beginning at 7 p.m.", "11:30 a.m. – 1 p.m."). Grab the first clock time.
-function parseTimeFromText(text) {
+// "beginning at 7 p.m.", "11:30 a.m. – 1 p.m."). We want the event's START time.
+//
+// The previous version grabbed the first clock token that carried an am/pm
+// marker. In a range like "7 - 8 p.m." only the END states the meridiem, so it
+// matched "8 p.m." and stored the event an hour late; "4 – 7 p.m." likewise
+// yielded 7 p.m. instead of the 4 p.m. start. So: detect a range first and take
+// its start (inheriting the end's meridiem when the start omits one), and only
+// fall back to a single clock time when there's no range.
+function timeStr(hr, min, isPm) {
+  const h = (hr % 12) + (isPm ? 12 : 0)
+  return `${String(h).padStart(2, '0')}:${min}:00`
+}
+
+export function parseTimeFromText(text) {
   if (!text) return '12:00:00'
-  const m = text.match(/(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)/i)
-  if (!m) return '12:00:00'
-  let hr = parseInt(m[1], 10)
-  const min = m[2] ?? '00'
-  const isPm = /p/i.test(m[3])
-  if (isPm && hr !== 12) hr += 12
-  if (!isPm && hr === 12) hr = 0
-  return `${String(hr).padStart(2, '0')}:${min}:00`
+
+  // Range: "<start>[meridiem] (-|–|—|to) <end> meridiem"
+  const range = text.match(
+    /(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?\s*(?:-|–|—|to)\s*(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)/i,
+  )
+  if (range) {
+    const startHr  = parseInt(range[1], 10)
+    const startMin = range[2] ?? '00'
+    const endHr    = parseInt(range[4], 10)
+    let startPm
+    if (range[3]) {
+      startPm = /p/i.test(range[3])                 // start states its own meridiem
+    } else {
+      const endPm = /p/i.test(range[6])
+      const to24  = (h, pm) => (h % 12) + (pm ? 12 : 0)
+      // Inherit the end's meridiem, unless inheriting PM would push the start
+      // past the end across the noon line (e.g. "11 - 1 p.m." → 11 a.m.).
+      startPm = endPm && to24(startHr, true) <= to24(endHr, true)
+    }
+    return timeStr(startHr, startMin, startPm)
+  }
+
+  // Single time: "beginning at 7 p.m.", "10:30 a.m."
+  const single = text.match(/(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)/i)
+  if (single) return timeStr(parseInt(single[1], 10), single[2] ?? '00', /p/i.test(single[3]))
+
+  return '12:00:00'
 }
 
 // ── HTTP ─────────────────────────────────────────────────────────────────────
@@ -126,29 +157,60 @@ function monthUrls() {
 }
 
 /**
- * Walk the grid in document order. A combined regex matches either a day-cell
- * date token or an event link; we track the current date and attach events to
- * it. `ym` restricts to the page's own month so spillover cells from adjacent
- * months don't create duplicate (already covered by their own page).
+ * Map each event to its date using the calendar's week-block structure.
+ *
+ * Cuyahoga Falls' Drupal calendar renders every week as a `date-box` row whose
+ * seven cells carry the day numbers (in-month days link to
+ * /calendar-field_cal_date/day/YYYYMMDD), followed by `single-day` / `multi-day`
+ * event rows whose cells reference the day only by a `headers="<Weekday>"`
+ * attribute. An event's date is therefore the date-box date for the SAME weekday
+ * column in the SAME week.
+ *
+ * The previous implementation tracked "the most recent day token in document
+ * order" and attached events to it. Because the day links and the event rows
+ * live in separate rows, that clustered an entire week's events onto a handful
+ * of dates (e.g. 32 July events collapsed onto 5 days), producing wrong and
+ * duplicated dates. We instead build the current week's weekday→date map from
+ * each date-box row and resolve every event cell through it. `ym` keeps the page
+ * to its own month so adjacent-month spillover cells (covered by their own page)
+ * don't double-count.
  */
 export function parseGrid(html, ym) {
   const out = []
-  const tokenRe =
-    /calendar-field_cal_date\/day\/(\d{8})|href="\/events\/([a-z0-9][a-z0-9-]*)"[^>]*>([\s\S]*?)<\/a>/gi
-  let current = null
+  const weekDates = {}                          // weekday name → 'YYYY-MM-DD' | null
+  const cellRe = /<td\b([^>]*)>([\s\S]*?)<\/td>/gi
+  const attrOf = (tag, name) =>
+    (tag.match(new RegExp(`${name}="([^"]*)"`, 'i')) || [])[1] || ''
+
   let m
-  while ((m = tokenRe.exec(html)) !== null) {
-    if (m[1]) {
-      // Day cell: YYYYMMDD
-      current = m[1]
-    } else if (m[2] && current) {
-      const dateYm = current.slice(0, 6)
-      if (dateYm !== ym) continue            // ignore adjacent-month spillover
-      const slug = m[2]
-      const title = stripHtml(m[3])
-      if (!title) continue
-      const dateStr = `${current.slice(0, 4)}-${current.slice(4, 6)}-${current.slice(6, 8)}`
-      out.push({ slug, title, dateStr })
+  while ((m = cellRe.exec(html)) !== null) {
+    const tag = m[1]
+    const inner = m[2]
+    const cls = attrOf(tag, 'class')
+    const weekday = attrOf(tag, 'headers')
+
+    if (/\bdate-box\b/.test(cls)) {
+      // Day cell. In-month days carry an 8-digit day link; spillover/empty days
+      // don't — clear those so events can't inherit a stale prior-week date.
+      const d = (inner.match(/calendar-field_cal_date\/day\/(\d{8})/) || [])[1]
+      if (weekday) {
+        weekDates[weekday] = d
+          ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`
+          : null
+      }
+      continue
+    }
+
+    if (/\b(single-day|multi-day)\b/.test(cls)) {
+      const dateStr = weekDates[weekday]
+      if (!dateStr) continue                     // unknown / out-of-month column
+      if (dateStr.slice(0, 4) + dateStr.slice(5, 7) !== ym) continue
+      const linkRe = /href="\/events\/([a-z0-9][a-z0-9-]*)"[^>]*>([\s\S]*?)<\/a>/gi
+      let e
+      while ((e = linkRe.exec(inner)) !== null) {
+        const title = stripHtml(e[2])
+        if (title) out.push({ slug: e[1], title, dateStr })
+      }
     }
   }
   return out

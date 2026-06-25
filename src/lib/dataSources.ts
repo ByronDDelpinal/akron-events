@@ -529,6 +529,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'habitat_summit',
+    method:      'HTML scrape',
+    methodDetail:'hfhsummitcounty.org/joinus/events/ — parses the fundraiser cards + the ECWD (Events Calendar WD) calendar grid',
+    venue:       'Varies — Summit County ReStore, Gleneagles Golf Club, RubberDucks Duck Club, etc.',
+    notes:       "Habitat for Humanity of Summit County (affordable-housing nonprofit). Its events page has two kinds of events with NO clean machine source: (1) static \"Annual Fundraising Events\" cards for the marquee fundraisers (Build In Style, Home In One golf outing, Bourbon Build) — reliable title/date/location but no published time, so we infer one from the event type (golf→9am, luncheon→11am, else evening 6pm; landing pages are noisy/stale); (2) the ECWD plugin's month calendar of volunteer/community drives (e.g. Neighborhood Reborn) with /event/<slug> links + machine-readable YYYY.MM.DD date ranges + times. ECWD has no public REST (/ecwd/v1/ is write-only, post type not in WP REST), no Event JSON-LD, and no all-events iCal — so we parse the server-rendered page. Tagged for the Give Back facet (fundraiser/charity/volunteer); fundraiser price null (never assumed), volunteer drives free.",
+    status:      'active',
+  },
+  {
     key:         'get_away_with_murder',
     method:      'HTML scrape',
     methodDetail:'Schema.org Event JSON-LD on the 330tix.com/organizations/get-away-with-murder-killer-parties listing',
@@ -997,6 +1005,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   akron_symphony:      'ics',
   north_hill_cdc:      'ics',
   akron_pride:         'ics',
+  habitat_summit:      'html',
   akron_public_schools:'ics',
   life_gurukula:       'ics',
 
