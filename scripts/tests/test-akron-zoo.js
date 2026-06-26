@@ -7,6 +7,18 @@ import {
   DETAIL_HTML, DETAIL_HTML_NO_TIME,
 } from './fixtures/zoo-events.js'
 
+// The scraper module is import-safe (guarded main + lazy supabase-admin), so we
+// can import the REAL parsers to lock in the malformed-source hardening. Dummy
+// env vars are belt-and-suspenders.
+process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
+process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
+import {
+  toClock as toClockReal,
+  parseTimeRangeFromText as parseRangeReal,
+  extractHeadingTimeRange,
+  extractDateTimeMap,
+} from '../scrape-akron-zoo.js'
+
 // ── Helpers (inlined to avoid importing the scraper which requires .env) ───
 
 const MONTH_MAP = {
@@ -130,6 +142,7 @@ function toClock(raw) {
   const m = raw.match(/(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)/i)
   if (!m) return null
   let hr = parseInt(m[1], 10)
+  if (hr < 1 || hr > 12) return null   // reject a date digit glued onto the time
   const min = m[2] ?? '00'
   const isPm = /p/i.test(m[3])
   if (isPm && hr !== 12) hr += 12
@@ -229,6 +242,66 @@ describe('Zoo: Detail-page description parsing', () => {
       metaContent(DETAIL_HTML, 'og:image'),
       'https://www.akronzoo.org/sites/default/files/2025-12/LTB.png',
     )
+  })
+})
+
+describe('Zoo: malformed og:description hardening (real module)', () => {
+  it('toClock rejects an out-of-range hour ("66 p.m.")', () => {
+    assert.equal(toClockReal('66 p.m.'), null)
+  })
+
+  it('toClock still accepts valid clock times', () => {
+    assert.equal(toClockReal('6 p.m.'), '18:00:00')
+    assert.equal(toClockReal('12 a.m.'), '00:00:00')
+  })
+
+  it('glued date+time "266 - 9 p.m." never yields a bogus hour or start-after-end', () => {
+    // This is the Bark After Dark failure: the date "26" ran into the start
+    // hour "6" → "266 - 9 p.m.", which read "66" o'clock and rolled the date.
+    const { startStr, endStr } = parseRangeReal('266 - 9 p.m.')
+    assert.match(startStr, /^([01]\d|2[0-3]):[0-5]\d:00$/, `start must be a real clock time, got ${startStr}`)
+    if (endStr) assert.ok(startStr <= endStr, `start ${startStr} should not exceed end ${endStr}`)
+  })
+
+  it('reads the clean time from a heading, bypassing the mangled meta', () => {
+    const r = extractHeadingTimeRange('<h3>6 - 9 p.m.</h3>')
+    assert.equal(r.startStr, '18:00:00')
+    assert.equal(r.endStr, '21:00:00')
+  })
+
+  it('heading extraction returns null when no heading carries a time', () => {
+    assert.equal(extractHeadingTimeRange('<p>Join us at the zoo!</p>'), null)
+  })
+})
+
+describe('Zoo: per-date time mapping on multi-event detail pages', () => {
+  // Mirrors the live Bark After Dark page: three sub-events, each a date block
+  // followed by its own time block, with the September date sharing two days.
+  const BARK_HTML = `
+    <h3>Sep 19 &amp; 26</h3>
+    <h3>6 - 9 p.m.</h3>
+    <p>Experience the zoo like never before with your dog!</p>
+    <h3>October 16: Barktober</h3>
+    <h4>5 - 8 p.m.</h4>
+    <p>More information coming soon!</p>
+    <h3>November 6: Yappy Holidays</h3>
+    <h4>5 - 8 p.m.</h4>`
+  const y = new Date().getFullYear()
+
+  it('maps each date to its own time (Sep 6-9pm, Oct/Nov 5-8pm)', () => {
+    const map = extractDateTimeMap(BARK_HTML)
+    assert.deepEqual(map[`${y}-09-19`], { startStr: '18:00:00', endStr: '21:00:00' })
+    assert.deepEqual(map[`${y}-09-26`], { startStr: '18:00:00', endStr: '21:00:00' })
+    assert.deepEqual(map[`${y}-10-16`], { startStr: '17:00:00', endStr: '20:00:00' })
+    assert.deepEqual(map[`${y}-11-06`], { startStr: '17:00:00', endStr: '20:00:00' })
+  })
+
+  it('returns an empty map when there are no date/time blocks', () => {
+    assert.deepEqual(extractDateTimeMap('<p>Tickets on sale soon.</p>'), {})
+  })
+
+  it('ignores a time with no preceding date (falls through to the page-level fallback)', () => {
+    assert.deepEqual(extractDateTimeMap('<h3>9 - 10 a.m.</h3><p>Daily.</p>'), {})
   })
 })
 

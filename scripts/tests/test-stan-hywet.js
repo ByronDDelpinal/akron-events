@@ -21,7 +21,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-import { extractStartTime, parseStanHywetDate } from '../scrape-stan-hywet.js'
+import { extractStartTime, parseStanHywetDate, resolveStartTime } from '../scrape-stan-hywet.js'
 
 describe('extractStartTime — start-of-range + a.m./p.m. handling', () => {
   const cases = [
@@ -73,6 +73,36 @@ describe('parseStanHywetDate — time is correct across formats', () => {
   it('Off the Vine keeps the 5:30 start (was 8:30pm)', () => {
     const { timeStr } = parseStanHywetDate('July 31 | 5:30-8:30pm')
     assert.equal(timeStr, '17:30:00')
+  })
+})
+
+describe('resolveStartTime — recovers the time from description prose', () => {
+  it('Nature Sprouts: date line has no time, body does (was 09:00 default)', () => {
+    // Live shape: `.date` is just the dates; the time lives in the body copy.
+    const dateLine = 'July 7, and August 4'
+    const body =
+      'BIG adventures for little explorers! Each session features a unique theme. ' +
+      'All sessions run 10:30 - 11:30 a.m. Members: Adults FREE, Youth $5. ' +
+      'Registration closes at 5:00 p.m. the day before each session.'
+    assert.equal(resolveStartTime(dateLine, body), '10:30:00')
+  })
+
+  it('prefers the date line when it carries a time, ignoring the prose', () => {
+    assert.equal(
+      resolveStartTime('July 31 | 5:30-8:30pm', 'Doors at 7:00pm; show later.'),
+      '17:30:00',
+    )
+  })
+
+  it('falls back to the 09:00 default when neither has a clock time', () => {
+    assert.equal(resolveStartTime('July 7, and August 4', 'Join us for a fun morning on the grounds.'), '09:00:00')
+  })
+
+  it('ignores dash-joined digits without a meridiem (phone numbers)', () => {
+    assert.equal(
+      resolveStartTime('August 15', 'Questions? Call the Visitors Center at 330-865-8065.'),
+      '09:00:00',
+    )
   })
 })
 

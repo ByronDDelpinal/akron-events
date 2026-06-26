@@ -133,11 +133,18 @@ export function metaContent(html, prop) {
 
 /**
  * Normalize a "10 a.m." / "4:30pm" token to "HH:MM:00".
+ * Rejects bogus hours (outside 1–12). This guards against a date digit being
+ * glued onto the start time — the zoo's og:description renders "…19 & 26 6 - 9
+ * p.m." as "266 - 9 p.m.", which a naive parse reads as a "66" o'clock start.
+ * Without this guard "66" became "78:00:00" and easternToIso rolled the date
+ * three days forward, pushing start_at past end_at and failing the data
+ * contract.
  */
-function toClock(raw) {
+export function toClock(raw) {
   const m = raw.match(/(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)/i)
   if (!m) return null
   let hr = parseInt(m[1], 10)
+  if (hr < 1 || hr > 12) return null
   const min = m[2] ?? '00'
   const isPm = /p/i.test(m[3])
   if (isPm && hr !== 12) hr += 12
@@ -176,6 +183,80 @@ export function parseTimeRangeFromText(text) {
   const single = text.match(/\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)/i)
   const startStr = single ? toClock(single[0]) : null
   return { startStr: startStr ?? '10:00:00', endStr: null }
+}
+
+/**
+ * Pull the first clean time range out of a heading/strong element in the raw
+ * detail HTML — e.g. `<h3>6 - 9 p.m.</h3>`. The tag boundary isolates the time
+ * from the date, so this is more reliable than og:description, where the zoo
+ * sometimes glues the date onto the start time ("266 - 9 p.m."). Returns
+ * { startStr, endStr } or null when no heading carries a time range.
+ */
+export function extractHeadingTimeRange(html) {
+  if (!html) return null
+  const re = /<(?:h[1-6]|strong)[^>]*>\s*(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?\s*(?:[-–—]|to)\s*\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))\s*<\//gi
+  for (const m of html.matchAll(re)) {
+    const { startStr, endStr } = parseTimeRangeFromText(m[1])
+    if (startStr) return { startStr, endStr }
+  }
+  return null
+}
+
+const MONTH_ALTERNATION = Object.keys(MONTH_MAP)
+  .sort((a, b) => b.length - a.length)
+  .join('|')
+
+/**
+ * Pull the calendar dates out of a date heading like "Sep 19 & 26",
+ * "October 16: Barktober", or "November 6". Additional bare days after an
+ * "&"/"and"/"," share the leading month. Year matches parseDateText (current
+ * year, no rollover) so the keys line up with a listing card's dateStr.
+ */
+function parseDatesFromText(text, year) {
+  const re = new RegExp(`\\b(${MONTH_ALTERNATION})\\b\\.?\\s+(\\d{1,2})((?:\\s*(?:&|and|,)\\s*\\d{1,2})*)`, 'i')
+  const m = text.match(re)
+  if (!m) return []
+  const month = MONTH_MAP[m[1].toLowerCase()]
+  if (!month) return []
+  const days = [parseInt(m[2], 10)]
+  if (m[3]) for (const d of m[3].matchAll(/\d{1,2}/g)) days.push(parseInt(d[0], 10))
+  return days
+    .filter((d) => d >= 1 && d <= 31)
+    .map((d) => `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`)
+}
+
+/**
+ * Some zoo detail pages bundle several sub-events, each its own date block
+ * followed by its own time block — e.g. Bark After Dark lists "Sep 19 & 26 →
+ * 6-9 p.m.", "October 16 → 5-8 p.m.", "November 6 → 5-8 p.m." on one page.
+ * Walk the heading/strong/p elements in document order and attach each time
+ * range to the most recently seen date(s), returning a { 'YYYY-MM-DD':
+ * {startStr, endStr} } map so each listing card can look up its own time.
+ * Relies on the date and time living in SEPARATE elements (the observed
+ * markup); a combined element would fall to the heading/meta fallback.
+ */
+export function extractDateTimeMap(html) {
+  if (!html) return {}
+  const year = new Date().getFullYear()
+  const blockRe = /<(h[1-6]|strong|p)[^>]*>([\s\S]*?)<\/\1>/gi
+  const timeRe = /\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?\s*(?:[-–—]|to)\s*\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)/i
+  const map = {}
+  let pendingDates = []
+  for (const m of html.matchAll(blockRe)) {
+    const text = stripHtml(m[2])
+    if (!text || text.length > 80) continue
+    const dates = parseDatesFromText(text, year)
+    if (dates.length) pendingDates = dates
+    const timeMatch = text.match(timeRe)
+    if (timeMatch && pendingDates.length) {
+      const { startStr, endStr } = parseTimeRangeFromText(timeMatch[0])
+      if (startStr) {
+        for (const d of pendingDates) if (!map[d]) map[d] = { startStr, endStr }
+        pendingDates = []
+      }
+    }
+  }
+  return map
 }
 
 /**
@@ -338,18 +419,23 @@ function parseEvents(html) {
  * only hit the network once.
  */
 async function fetchDetail(href, cache) {
-  if (!href) return { startStr: null, endStr: null, description: null, imageUrl: null }
+  if (!href) return { startStr: null, endStr: null, timeByDate: {}, description: null, imageUrl: null }
   if (cache.has(href)) return cache.get(href)
 
-  let detail = { startStr: null, endStr: null, description: null, imageUrl: null }
+  let detail = { startStr: null, endStr: null, timeByDate: {}, description: null, imageUrl: null }
   try {
     const html = await fetchHtml(href)
     const rawDesc = metaContent(html, 'og:description') || metaContent(html, 'description') || ''
     const cleanDesc = stripHtml(rawDesc)
-    const { startStr, endStr } = parseTimeRangeFromText(cleanDesc)
+    // Per-date times for multi-event pages (each date maps to its own time),
+    // then a single fallback: a clean heading time range beats the
+    // og:description, which can glue the date onto the start time.
+    const timeByDate = extractDateTimeMap(html)
+    const { startStr, endStr } = extractHeadingTimeRange(html) ?? parseTimeRangeFromText(cleanDesc)
     detail = {
       startStr,
       endStr,
+      timeByDate,
       description: stripLeadingTime(cleanDesc).slice(0, 5000) || null,
       imageUrl:    metaContent(html, 'og:image') || null,
     }
@@ -369,11 +455,20 @@ async function processEvents(events, venueId, organizerId) {
   for (const ev of events) {
     try {
       const detail = await fetchDetail(ev.href, detailCache)
-      // Prefer the detail-page time; fall back to the listing default.
-      const startTime = detail.startStr ?? ev.timeStr
+      // Prefer this date's own time on multi-event pages, then the page-level
+      // detail time, then the listing default.
+      const perDate   = detail.timeByDate?.[ev.dateStr]
+      const startTime = perDate?.startStr ?? detail.startStr ?? ev.timeStr
+      const endTime   = perDate?.endStr   ?? detail.endStr
       const startAt   = easternToIso(`${ev.dateStr} ${startTime}`)
       if (!startAt) { skipped++; continue }
-      const endAt = detail.endStr ? easternToIso(`${ev.dateStr} ${detail.endStr}`) : null
+      let endAt = endTime ? easternToIso(`${ev.dateStr} ${endTime}`) : null
+      // Final safety net: never persist an end at or before the start. A
+      // malformed source time must degrade to "no end", not block the upsert.
+      if (endAt && new Date(endAt) <= new Date(startAt)) {
+        console.warn(`  ⚠ Dropping end_at ≤ start_at for "${ev.title}" (${ev.dateStr})`)
+        endAt = null
+      }
 
       const row = {
         title:           ev.title,

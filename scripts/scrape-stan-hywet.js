@@ -127,6 +127,28 @@ export function extractStartTime(raw) {
   return null
 }
 
+/**
+ * Resolve an event's START time, preferring the listing's `.date` line but
+ * falling back to the description prose before settling for the 09:00 default.
+ *
+ * Why: several Stan Hywet programs keep the date in the `.date` line yet state
+ * the time only in the body copy — e.g. Nature Sprouts lists "July 7, and
+ * August 4" in `.date` but "All sessions run 10:30 - 11:30 a.m." in the
+ * description. The old code only looked at the date line, so these silently
+ * stored 09:00 (off by 1.5h for Nature Sprouts; caught by the nightly audit).
+ * The prose is parsed with the same extractStartTime rules (ranges inherit the
+ * end's meridiem; phone numbers and other dash-joined digits never match
+ * because a clock time requires an am/pm token), so a misread is unlikely and,
+ * when it happens, is still strictly better than the blind 09:00 default.
+ */
+export function resolveStartTime(dateText, descriptionText) {
+  return (
+    extractStartTime(dateText) ??
+    extractStartTime(descriptionText) ??
+    DEFAULT_TIME
+  )
+}
+
 // Month names (longest-first so "sept"/"june" win over "sep"/"jun").
 const MONTH_ALTERNATION = Object.keys(MONTH_MAP)
   .sort((a, b) => b.length - a.length)
@@ -431,13 +453,17 @@ async function processEvents(cards, venueId, organizerId) {
         continue
       }
 
-      const startAt = easternToIso(`${dateStr} ${timeStr}`)
+      // Provisional start, used only for the past-event filter below. The
+      // final start time may be refined once the description prose is in hand
+      // (see resolveStartTime) — the refinement only shifts the clock time
+      // within the same day, so it never changes the past/future decision.
+      const provisionalStart = easternToIso(`${dateStr} ${timeStr}`)
       const endAt   = endDateStr ? easternToIso(`${endDateStr} 23:59:59`) : null
-      if (!startAt) { skipped++; continue }
+      if (!provisionalStart) { skipped++; continue }
 
       // Filter past events.  Range events whose end is still in the future
       // count as upcoming.
-      const startMs = new Date(startAt).getTime()
+      const startMs = new Date(provisionalStart).getTime()
       const endMs   = endAt ? new Date(endAt).getTime() : startMs
       if (endMs < Date.now() - 86_400_000) { skipped++; continue }
 
@@ -449,6 +475,13 @@ async function processEvents(cards, venueId, organizerId) {
       const detailDescription = await fetchEventDescription(card.href)
       const description = detailDescription
         ?? (card.alertText && card.alertText.length > 0 ? card.alertText : null)
+
+      // Recover the time from the description when the `.date` line had none.
+      const effectiveTime = resolveStartTime(card.dateText, description ?? '')
+      const startAt = effectiveTime === timeStr
+        ? provisionalStart
+        : easternToIso(`${dateStr} ${effectiveTime}`)
+      if (!startAt) { skipped++; continue }
 
       const row = {
         title:           card.title,
