@@ -45,7 +45,12 @@ import { defineScraper } from './lib/scraper-runner.js'
 const SOURCE_KEY = 'get_away_with_murder'
 const SOURCE_URL = 'https://330tix.com/organizations/get-away-with-murder-killer-parties'
 const SITE_URL   = 'https://getawaywithmurdermystery.weebly.com'
-const USER_AGENT = 'Mozilla/5.0 (compatible; AkronPulseBot/1.0; +https://akronpulse.com)'
+// 330tix now returns HTTP 403 to the generic bot UA, so present a realistic
+// Chrome-on-Mac fingerprint (same UA used by scrape-life-gurukula.js /
+// scrape-akron-symphony.js) to get past the simple UA gate.
+const USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+  '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
 
 const VENUE_DETAILS = {
   address:       '1653 Merriman Rd',

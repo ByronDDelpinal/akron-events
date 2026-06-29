@@ -230,6 +230,21 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
 
   // ── Data fetch ──
   const isAkronNeighborhood = isNeighborhood && NEIGHBORHOOD_SLUGS.has(hub.slug)
+
+  // The hub's first page is edge-cacheable only when the request is the
+  // pristine hub default: soonest sort, no search/intent, and no user-applied
+  // category/price/date filter. (Date-range hubs are time-relative, so they're
+  // never long-cached.) When all true, the effective filters equal what
+  // /api/events-hub applies, so we let useEvents serve page one from the edge.
+  const hubFirstPageCacheable =
+    sort === 'soonest' &&
+    !search &&
+    rawCategories.length === 0 &&
+    !priceFilter &&
+    !dateFrom && !dateTo &&
+    !activeIntentId &&
+    !hub.dateRange
+
   const { events: page, loading, error, total, hasMore } = useEvents({
     categories: effectiveCategories,
     family:     effectiveFamily,
@@ -245,6 +260,7 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
     venueCities:      isCity ? (hub.cityMatch || []) : [],
     limit:    PAGE_SIZE,
     offset,
+    hubSlug:  hubFirstPageCacheable ? hub.slug : null,
   })
 
   useEffect(() => {

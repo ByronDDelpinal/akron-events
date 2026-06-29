@@ -85,23 +85,34 @@ async function main() {
   const start = Date.now()
 
   try {
-    let feedUrl = process.env.AKRON_PUBLIC_SCHOOLS_ICS_URL
-    if (!feedUrl) {
+    const feedEnv = process.env.AKRON_PUBLIC_SCHOOLS_ICS_URL
+    let feedUrls = []
+    if (feedEnv) {
+      // APS (Finalsite) publishes one iCal feed per calendar, so the env var
+      // may list several, comma-separated (e.g. District Calendar + Fine Arts).
+      feedUrls = feedEnv.split(',').map((u) => u.trim()).filter(Boolean)
+    } else {
       console.log('  🔎  Discovering ICS feed from district calendar page…')
-      feedUrl = await discoverIcsFeed(CALENDAR_PAGE)
-      if (!feedUrl) {
+      const discovered = await discoverIcsFeed(CALENDAR_PAGE)
+      if (!discovered) {
         throw new Error(
           'No ICS feed discovered on APS calendar page. ' +
           'Visit the district calendar in a browser, find the "Subscribe" or RSS/iCal link, ' +
           'and set AKRON_PUBLIC_SCHOOLS_ICS_URL in .env.'
         )
       }
-      console.log(`  ✓ Discovered feed: ${feedUrl}`)
+      feedUrls = [discovered]
+      console.log(`  ✓ Discovered feed: ${discovered}`)
     }
 
-    const icsText   = await fetchIcsFeed(feedUrl)
-    const allEvents = parseIcs(icsText)
-    console.log(`  Parsed ${allEvents.length} VEVENTs`)
+    // Fetch and merge every configured feed before filtering.
+    const allEvents = []
+    for (const url of feedUrls) {
+      const icsText = await fetchIcsFeed(url)
+      const events  = parseIcs(icsText)
+      console.log(`  Parsed ${events.length} VEVENTs from ${url}`)
+      allEvents.push(...events)
+    }
 
     const publicEvents = allEvents.filter(isPublicFacing)
     console.log(`  Filtered to ${publicEvents.length} public-facing events (dropped ${allEvents.length - publicEvents.length})`)

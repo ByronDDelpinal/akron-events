@@ -117,6 +117,14 @@ export interface UseEventsOptions {
   sort?: string
   limit?: number
   offset?: number
+  /**
+   * When set, the FIRST page (offset 0) is served from the edge-cached
+   * /api/events-hub?slug=<hubSlug> endpoint instead of PostgREST. The caller
+   * (CategoryPage) passes the hub slug only when the current request equals
+   * the hub's pristine defaults — i.e. the same filters the cached endpoint
+   * applies. Any cache miss falls through to the live query below.
+   */
+  hubSlug?: string | null
 }
 
 /**
@@ -141,6 +149,7 @@ export function useEvents({
   sort             = 'soonest',
   limit            = PAGE_SIZE,
   offset           = 0,
+  hubSlug          = null,
 }: UseEventsOptions = {}) {
   const [events,  setEvents]  = useState<AppEvent[]>([])
   const [loading, setLoading] = useState(true)
@@ -203,6 +212,30 @@ export function useEvents({
         }
       }
 
+      // Hub first page (page one of a category/neighborhood/city hub with no
+      // user filters): served from the edge-cached /api/events-hub. The caller
+      // only passes hubSlug when the request matches the hub's pristine
+      // defaults, so the cached rows equal what the live query below returns.
+      if (hubSlug && offset === 0) {
+        try {
+          const res = await fetch(`/api/events-hub?slug=${encodeURIComponent(hubSlug)}`)
+          if (res.ok) {
+            const { events: rows, total: cachedTotal } = await res.json()
+            if (Array.isArray(rows)) {
+              if (!cancelled) {
+                setEvents(rows.map((r: RawRow) => normalizeEventJoins(r) as AppEvent))
+                setTotal(cachedTotal ?? 0)
+                setLoading(false)
+              }
+              return
+            }
+          }
+          // Non-OK (e.g. an uncacheable hub returns 404) — fall through.
+        } catch {
+          // CDN/function unavailable or vite dev — fall through to live query.
+        }
+      }
+
       try {
         // The venue embed is an inner join only when neighborhoodSlug is
         // set — that flips PostgREST into "filter the parent by the
@@ -217,6 +250,12 @@ export function useEvents({
         // artifacts. Dropping them halves the page payload (~48 kB →
         // ~26 kB measured 2026-06). Detail pages (useEvent) still
         // select * for the full record.
+        // Exact COUNT is only fetched on the first page: it's needed for the
+        // "N events" total and the initial hasMore, but re-running a full
+        // filtered COUNT on every "load more" is pure overhead. Later pages
+        // reuse the page-one total (held in state) for hasMore, so they skip
+        // the count entirely.
+        const countOption = offset === 0 ? { count: 'exact' as const } : undefined
         let query: LooseQuery = supabase
           .from('events')
           .select(`
@@ -224,7 +263,7 @@ export function useEvents({
             ${categorySelectFragment(categories)}
             ${venueJoin} ( venue:${venueTbl} ( id, name, address, city, state, zip, lat, lng, parking_type, parking_notes, website, image_url, neighborhood_slug ) ),
             event_organizations ( organization:organizations ( id, name, website, description, image_url ) )
-          `, { count: 'exact' })
+          `, countOption)
           .eq('status', 'published')
           // Drop events the moment their start time passes — no in-progress grace window.
           .gte('start_at', new Date().toISOString())
@@ -296,7 +335,9 @@ export function useEvents({
         if (fetchError) throw fetchError
         if (!cancelled) {
           setEvents((data ?? []).map((r: RawRow) => normalizeEventJoins(r) as AppEvent))
-          setTotal(count ?? 0)
+          // Only page one carries a count; later pages leave the page-one
+          // total untouched (a filter change resets offset to 0 and recounts).
+          if (offset === 0) setTotal(count ?? 0)
         }
       } catch (err) {
         if (!cancelled) setError(errorMessage(err, 'Failed to load events.'))
@@ -307,7 +348,7 @@ export function useEvents({
 
     fetchEvents()
     return () => { cancelled = true }
-  }, [categoriesStable, excludedCatsStable, family, excludeFamily, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSourcesStable, neighborhoodSlug, venueCitiesStable, sort, limit, offset])
+  }, [categoriesStable, excludedCatsStable, family, excludeFamily, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSourcesStable, neighborhoodSlug, venueCitiesStable, sort, limit, offset, hubSlug])
 
   const hasMore = offset + limit < total
 

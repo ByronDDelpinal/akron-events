@@ -55,10 +55,15 @@ export default async function handler(req, res) {
 
   res.setHeader(
     'Cache-Control',
-    'public, s-maxage=300, stale-while-revalidate=86400',
+    // 8h fresh window, then serve-stale-while-revalidating for a day. Safe
+    // to cache this long because the scraper purges the shared `events` tag
+    // at the end of every run (scripts/run-all.js), so fresh results appear
+    // immediately rather than waiting out the TTL.
+    'public, s-maxage=28800, stale-while-revalidate=86400',
   )
-  // Makes this response purgeable on demand (dashboard, CLI, or REST
-  // API) without a redeploy — see header comment.
-  res.setHeader('Vercel-Cache-Tag', 'events-first-page')
+  // Two purge tags: `events-first-page` for this one response, and the shared
+  // `events` tag that every cached events response carries — purging `events`
+  // busts the homepage + all hub pages in a single call.
+  res.setHeader('Vercel-Cache-Tag', 'events-first-page,events')
   res.status(200).json({ events: data ?? [], total: count ?? 0 })
 }

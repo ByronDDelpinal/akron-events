@@ -107,6 +107,38 @@ async function fetchIcsViaBrowser() {
   return withBrowser(async (browser) => {
     const page = await newConfiguredPage(browser, { userAgent: BROWSER_UA })
     await page.goto(EVENTS_PAGE_URL, { waitUntil: 'networkidle2', timeout: 30_000 })
+
+    // lifegurukula.org sits behind a Sucuri "Smart Guard" challenge served from
+    // /.well-known/sgcaptcha/ (or /captcha/), title "Robot Challenge Screen".
+    // For a normal browser this is a PASSIVE JS check: it runs, sets a
+    // clearance cookie, and redirects back within a few seconds — no human
+    // interaction. The previous code fetched the feed immediately and raced the
+    // challenge, getting the HTTP 202 interstitial body instead of iCalendar.
+    // Wait for the challenge to clear before fetching. waitForFunction resolves
+    // instantly when we're not on the challenge, so this is a no-op on the
+    // happy path. If it never clears (i.e. an interactive CAPTCHA was served to
+    // the headless browser), fail loudly with a clear message.
+    try {
+      await page.waitForFunction(
+        () =>
+          !/\/\.well-known\/(?:sgcaptcha|captcha)\//.test(location.href) &&
+          !/robot challenge/i.test(document.title || ''),
+        { timeout: 25_000, polling: 500 },
+      )
+    } catch {
+      throw new Error(
+        'Sucuri challenge did not clear within 25s — likely an interactive ' +
+        'CAPTCHA was served to the headless browser rather than the passive ' +
+        'JS challenge a normal browser receives.',
+      )
+    }
+
+    // The challenge often redirects to the site root, so make sure we land on
+    // /events/ (same-origin, clearance cookie now set) before fetching the feed.
+    if (!page.url().includes('/events')) {
+      await page.goto(EVENTS_PAGE_URL, { waitUntil: 'networkidle2', timeout: 30_000 })
+    }
+
     const text = await page.evaluate(async (url) => {
       const r = await fetch(url, { credentials: 'include' })
       if (!r.ok) throw new Error(`HTTP ${r.status} on browser-context fetch`)

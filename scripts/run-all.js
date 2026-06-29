@@ -105,10 +105,11 @@ if (includesDedupe) {
 }
 
 // ── Edge-cache invalidation ───────────────────────────────────────────────────
-// The homepage's first page of events is CDN-cached by Vercel under the
-// cache tag set in api/events-first-page.js. Invalidating it here means
-// fresh scrape results reach visitors on the very next request instead
-// of waiting out the (up to 5 min) s-maxage window.
+// The homepage AND every category/neighborhood/city hub first page are
+// CDN-cached by Vercel, all carrying the shared `events` cache tag (set in
+// api/events-first-page.js and api/events-hub.js). Purging that one tag here
+// busts the whole set, so fresh scrape results reach visitors on the very
+// next request instead of waiting out the (now 8h) s-maxage window.
 //
 // Deliberately non-fatal: the cache self-heals via its TTL, so a purge
 // hiccup should never mark a successful scrape run as failed. Skipped
@@ -119,7 +120,7 @@ if (includesDedupe) {
 //   VERCEL_PROJECT_ID   — project id (or name) on Vercel
 //   VERCEL_TEAM_ID      — only if the project lives under a team
 
-async function invalidateFirstPageCache() {
+async function invalidateEventsCache() {
   const token   = process.env.VERCEL_TOKEN
   const project = process.env.VERCEL_PROJECT_ID
   if (!token || !project) {
@@ -139,20 +140,22 @@ async function invalidateFirstPageCache() {
           Authorization:  `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ tags: 'events-first-page', target: 'production' }),
+        // The shared tag every cached events response carries — one purge
+        // busts the homepage first page and all hub first pages.
+        body: JSON.stringify({ tags: 'events', target: 'production' }),
       },
     )
     if (res.ok) {
-      console.log('\n🧹  CDN cache invalidated (events-first-page)')
+      console.log('\n🧹  CDN cache invalidated (events)')
     } else {
-      console.warn(`\n⚠   CDN cache invalidation returned ${res.status} — cache will self-heal within 5 min`)
+      console.warn(`\n⚠   CDN cache invalidation returned ${res.status} — cache will self-heal within its TTL`)
     }
   } catch (err) {
-    console.warn(`\n⚠   CDN cache invalidation failed (${err?.message}) — cache will self-heal within 5 min`)
+    console.warn(`\n⚠   CDN cache invalidation failed (${err?.message}) — cache will self-heal within its TTL`)
   }
 }
 
-await invalidateFirstPageCache()
+await invalidateEventsCache()
 
 // ── Summary ───────────────────────────────────────────────────────────────────
 

@@ -36,6 +36,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# scrape:all run-health reports — local only, regenerated each run (see scripts/scrape-report.js)
+scrape-reports/
+
 # raw / uncompressed video source files — only the compressed output belongs in the repo
 public/video/*-source.*
 
