@@ -2,26 +2,23 @@
  * scrape-cuyahoga-falls-library.js
  *
  * Cuyahoga Falls Library (Taylor Memorial) — a SEPARATE system from the
- * Akron-Summit County Public Library. Its events live on a Communico "Anywhere"
- * hosted calendar at https://events.fallslibrary.org/events.
+ * Akron-Summit County Public Library. Its Communico "Anywhere" calendar moved
+ * from https://events.fallslibrary.org/events to a new host,
+ * https://fallslibrary.libnet.info/events.
  *
- * Unlike the Akron library (which exposes a clean JSON endpoint), this Communico
- * tenant renders events client-side via the `amEvents` jQuery widget, and its
- * internal API (api.communico.co/v1/fallslibrary/events) is undocumented and
- * param-fragile (returns empty / SQL errors). There is no public ICS/RSS feed.
- * So we render the listing with Puppeteer and parse the event cards from the DOM
- * — each `[class*="event-"]` card carries:
- *   .eelisttitle  (title <a> + optional subtitle <span>, and the /event/{id} link)
- *   .eelisttime   ("Tuesday, June 16: 10:30am - 12:00pm")
- *   .eelocation   ("Cuyahoga Falls Library - Graefe Room" or an external venue)
- *   .eelisttags   ("Age group: Toddler Preschool")
- *   .eelistgroup  ("event type: Storytime, Arts/Crafts")
- *   .eelistdesc   (description)
+ * The listing still renders client-side, but it is backed by a clean JSON feed
+ * (the same endpoint the page's widget calls), so we no longer need Puppeteer:
+ *   GET /eeventcaldata?event_type=0&req={"private":false,"date":"YYYY-MM-DD",
+ *        "days":N,"locations":[],"ages":[],"types":[]}
+ * It returns an array of event instances (recurring events pre-expanded), each
+ * carrying title, sub_title, datestring ("Monday, June 29"), time_string
+ * ("10:30am - 11:00am"), raw_start_time, location, ages, description, and the
+ * /event/{id} detail url.
  *
- * We page through the widget's named ranges (this month + next month); the
- * scraper runs twice daily so coverage rolls forward continuously. Price is 0
- * (library programs are free). Category comes from the EVENT TYPE field;
- * is_family from the AGE GROUP field (authoritative audience signal).
+ * The scraper runs twice daily so coverage rolls forward continuously. Price is
+ * 0 (library programs are free). Category is inferred from the title (the feed
+ * has no program-type field); is_family from the AGE GROUP field (authoritative
+ * audience signal).
  *
  * Usage:  node scripts/scrape-cuyahoga-falls-library.js
  * Env:    VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
@@ -29,7 +26,6 @@
 
 import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
-import { withBrowser, newConfiguredPage } from './lib/puppeteer.js'
 import {
   logUpsertResult, logScraperError, stripHtml, easternToIso,
   enrichWithImageDimensions, upsertEventSafe, linkEventVenue, linkEventOrganization,
@@ -37,8 +33,11 @@ import {
 } from './lib/normalize.js'
 
 export const SOURCE_KEY = 'cuyahoga_falls_library'
-const BASE = 'https://events.fallslibrary.org/events'
-const RANGES = ['thismonth', 'nextmonth']  // named widget ranges; ~2 months forward
+const ORIGIN = 'https://fallslibrary.libnet.info'
+const BASE = `${ORIGIN}/events`             // public listing (fallback ticket url)
+const API = `${ORIGIN}/eeventcaldata`       // JSON feed the widget reads
+const DETAIL_BASE = `${ORIGIN}/event`
+const DAYS_AHEAD = 60                        // one request covers ~2 months forward
 
 const ORG_NAME = 'Cuyahoga Falls Library'
 const MAIN_VENUE = {
@@ -196,68 +195,65 @@ export function buildRow(card, now = new Date()) {
   }
 }
 
-// ── Browser extraction ────────────────────────────────────────────────────────
+// ── JSON feed ─────────────────────────────────────────────────────────────────
 
-/** Runs in the page: pull raw fields from each rendered event card. */
-/* c8 ignore start */
-function extractCards() {
-  const txt = (el) => (el ? (el.textContent || '').replace(/\s+/g, ' ').trim() : '')
-  const stripLabel = (s, label) => s.replace(new RegExp(`^\\s*${label}\\s*:?\\s*`, 'i'), '').replace(new RegExp(`\\s*${label}\\s*:?\\s*$`, 'i'), '').trim()
-  return [...document.querySelectorAll('[class*="event-"]')].map((card) => {
-    const titleA = card.querySelector('.eelisttitle a')
-    const sub = card.querySelector('.eelisttitle span')
-    const link = card.querySelector('a[href*="/event/"]')
-    const idM = link ? (link.getAttribute('href') || '').match(/\/event\/(\d+)/) : null
-    return {
-      title: txt(titleA),
-      subtitle: txt(sub),
-      datetimeText: txt(card.querySelector('.eelisttime')),
-      location: txt(card.querySelector('.eelocation')),
-      ageGroup: stripLabel(txt(card.querySelector('.eelisttags')), 'age group'),
-      eventType: stripLabel(txt(card.querySelector('.eelistgroup')), 'event type'),
-      description: txt(card.querySelector('.eelistdesc')),
-      detailUrl: link ? link.href : null,
-      eventId: idM ? idM[1] : null,
-    }
-  }).filter((c) => c.title)
+/** Today's date in Eastern time as YYYY-MM-DD — the feed's `date` anchor. */
+function easternTodayYmd(now = new Date()) {
+  return now.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 }
-/* c8 ignore stop */
 
-async function collectCards() {
-  return withBrowser(async (browser) => {
-    const page = await newConfiguredPage(browser)
-    const byId = new Map()
-    for (const range of RANGES) {
-      try {
-        await page.goto(`${BASE}?r=${range}`, { waitUntil: 'networkidle2', timeout: 30_000 })
-        try { await page.waitForSelector('.eelisttitle', { timeout: 8_000 }) } catch { /* empty range */ }
-        const cards = await page.evaluate(extractCards)
-        for (const c of cards) {
-          const key = c.eventId ? `id:${c.eventId}` : `${c.title}|${c.datetimeText}`
-          if (!byId.has(key)) byId.set(key, c)
-        }
-        console.log(`  ${range}: ${cards.length} cards (total unique: ${byId.size})`)
-      } catch (err) {
-        console.warn(`  ⚠ ${range} load failed: ${err.message}`)
-      }
-    }
-    return [...byId.values()]
+/**
+ * Map one feed event object to the "card" shape buildRow expects, so all the
+ * pure parsers (parseListDateTime, mapCategory, parseIsFamily, venueFor) are
+ * reused unchanged. `datetimeText` is rebuilt as "Weekday, Month Day: start -
+ * end" from the feed's datestring + time_string, which parseListDateTime reads.
+ */
+export function eventToCard(e = {}) {
+  const datestring = String(e.datestring || '').trim()
+  const timeString = String(e.time_string || '').trim()
+  return {
+    title:        e.title || '',
+    subtitle:     e.sub_title || '',
+    datetimeText: datestring && timeString ? `${datestring}: ${timeString}` : datestring,
+    location:     e.location || e.library || '',
+    ageGroup:     e.ages || '',
+    eventType:    '',                                   // feed has no program-type field; title drives category
+    description:  e.long_description || e.description || '',
+    detailUrl:    e.url || (e.id != null ? `${DETAIL_BASE}/${e.id}` : null),
+    // Per-instance id so recurring occurrences don't collide on source_id.
+    eventId:      e.id != null ? `${e.id}_${String(e.raw_start_time || '').slice(0, 10)}` : null,
+  }
+}
+
+/** Fetch the next DAYS_AHEAD days of events from the Communico JSON feed. */
+async function fetchEvents(now = new Date()) {
+  const req = { private: false, date: easternTodayYmd(now), days: DAYS_AHEAD, locations: [], ages: [], types: [] }
+  const url = `${API}?event_type=0&req=${encodeURIComponent(JSON.stringify(req))}`
+  const res = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'Mozilla/5.0 (compatible; AkronPulse-bot/1.0; +https://akronpulse.com)',
+    },
   })
+  if (!res.ok) throw new Error(`HTTP ${res.status} fetching the Communico feed`)
+  const data = await res.json()
+  if (!Array.isArray(data)) throw new Error('Communico feed did not return a JSON array of events')
+  return data
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('📚  Starting Cuyahoga Falls Library (Communico) scrape…')
+  console.log('📚  Starting Cuyahoga Falls Library (Communico JSON feed) scrape…')
   const start = Date.now()
 
   try {
-    const cards = await collectCards()
-    console.log(`\n📥  Processing ${cards.length} events…`)
+    const events = await fetchEvents()
+    const cards = events.map(eventToCard).filter((c) => c.title)
+    console.log(`\n📥  Processing ${cards.length} events (from ${events.length} feed rows)…`)
     if (!cards.length) {
+      console.warn('  ⚠ Communico feed returned 0 upcoming events.')
       await logUpsertResult(SOURCE_KEY, 0, 0, 0, {
-        status: 'error',
-        errorMessage: 'Rendered the Communico listing but found 0 event cards — the .eelist* markup may have changed.',
         durationMs: Date.now() - start, eventsFound: 0,
       })
       process.exit(0)

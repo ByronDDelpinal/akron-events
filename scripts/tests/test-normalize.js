@@ -27,7 +27,21 @@ const {
   parseCostFromTribe,
   parseTagsFromTribe,
   parseEventbritePrice,
+  canonicalVenueName,
 } = await import('../lib/normalize.js')
+
+describe('canonicalVenueName', () => {
+  it('folds known venue-name variants onto the canonical name (case/space-insensitive)', () => {
+    assert.equal(canonicalVenueName('E.J. Thomas Hall - The University of Akron'), 'E.J. Thomas Performing Arts Hall')
+    assert.equal(canonicalVenueName('lock 3 live'), 'Lock 3')
+    assert.equal(canonicalVenueName('First and Main Green'), 'First & Main Green - First Street Hudson')
+    assert.equal(canonicalVenueName('The Nightlight'), 'The Nightlight Cinema')
+  })
+  it('returns the input unchanged for unknown names', () => {
+    assert.equal(canonicalVenueName('Akron Civic Theatre'), 'Akron Civic Theatre')
+    assert.equal(canonicalVenueName('Lock 3'), 'Lock 3')
+  })
+})
 
 // ════════════════════════════════════════════════════════════════════════════
 // stripHtml

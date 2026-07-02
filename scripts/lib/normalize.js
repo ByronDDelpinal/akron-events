@@ -744,6 +744,28 @@ function sanitizeWebsite(value) {
   return withScheme
 }
 
+// Known venue-name aliases: a variant label → the canonical venue name. Some
+// feeds name the same physical place differently and arrive WITHOUT a matching
+// address, so ensureVenue's exact-name lookup mints a second venue row and that
+// place's events split across two venues — which silently breaks cross-source
+// dedupe (it buckets by venue). Resolving the alias to the canonical name before
+// the lookup keeps every feed on one row. Keys are matched case-insensitively
+// with collapsed whitespace. Add an entry whenever you merge two venue records
+// so the split can't reappear on the next scrape.
+const VENUE_NAME_ALIASES = new Map([
+  ['e.j. thomas hall - the university of akron', 'E.J. Thomas Performing Arts Hall'],
+  ['lock 3 live',                                'Lock 3'],
+  ['first and main green',                       'First & Main Green - First Street Hudson'],
+  ['the nightlight',                             'The Nightlight Cinema'],
+])
+
+/** Resolve a venue name to its canonical form via VENUE_NAME_ALIASES, or return
+ *  the input unchanged. Pure + exported for tests. */
+export function canonicalVenueName(name) {
+  const key = String(name || '').toLowerCase().replace(/\s+/g, ' ').trim()
+  return VENUE_NAME_ALIASES.get(key) ?? name
+}
+
 export async function ensureVenue(name, details = {}, opts = {}) {
   if (!name) return null
   // Universal safeguard: a venue NAME must never contain HTML. Some feeds
@@ -752,8 +774,11 @@ export async function ensureVenue(name, details = {}, opts = {}) {
   // entities, and collapses whitespace; for a clean name it's a no-op. This is
   // defense-in-depth — scrapers should still parse their own location fields —
   // but it guarantees no `<p>…</p>` ever reaches the venues table.
-  const trimmed = stripHtml(String(name))
+  let trimmed = stripHtml(String(name))
   if (!trimmed) return null
+  // Fold known name variants onto the canonical venue before any lookup, so a
+  // second row is never minted for a place we already have (see VENUE_NAME_ALIASES).
+  trimmed = canonicalVenueName(trimmed)
 
   // Drop malformed website strings before they reach the DB. See
   // sanitizeWebsite() for rationale.

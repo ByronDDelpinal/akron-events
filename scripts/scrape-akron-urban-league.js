@@ -5,11 +5,18 @@
  * Platform: WordPress 6.x (custom AUL theme — server-rendered HTML)
  *
  * Strategy:
- *   1. Fetch /home/events/ listing page and collect all unique event URLs
- *      by scanning for hrefs matching the /events/ and /events-archive/ patterns.
+ *   1. Fetch the events-workshops hub (+ the WFD/MBAC workshop sub-pages) and
+ *      collect all unique event detail URLs by scanning for hrefs matching the
+ *      /events/ and /events-archive/ patterns.
  *   2. Fetch each event detail page and extract title, date, time, venue,
  *      description, image, and registration link using og:* meta tags plus
  *      regex-based content parsing.
+ *
+ * 2026-06 restructure: AUL moved its events under /get-involved/events-workshops/
+ * (the old /home/events/ listing now redirects there) and currently surfaces
+ * workshops through an embedded calendar with no per-event detail pages. When no
+ * detail URLs are found we record a clean zero run rather than a hard error, so
+ * the scraper lights up automatically if standalone event pages return.
  *
  * Date/time notes:
  *   - AUL events are published on a small-batch basis; typically 5-15 active events.
@@ -42,8 +49,13 @@ import {
   upsertEventSafe,
 } from './lib/normalize.js'
 
-const BASE_URL    = 'https://www.akronurbanleague.org'
-const LISTING_URL = `${BASE_URL}/home/events/`
+const BASE_URL     = 'https://www.akronurbanleague.org'
+const LISTING_URL  = `${BASE_URL}/get-involved/events-workshops/`
+// Workshop sub-pages that may carry their own event links.
+const EXTRA_LISTINGS = [
+  `${BASE_URL}/get-involved/events-workshops/wfd-workshop-calendar/`,
+  `${BASE_URL}/get-involved/events-workshops/mbac-workshop-calendar/`,
+]
 const SOURCE_KEY  = 'akron_urban_league'
 const DAYS_AHEAD  = 365
 
@@ -387,16 +399,27 @@ async function main() {
       description: 'The Akron Urban League improves the quality of life of Summit County residents, particularly African Americans, through economic self-reliance and social empowerment.',
     })
 
-    console.log(`\n🔍  Fetching events listing from ${LISTING_URL}…`)
-    const listingHtml = await fetchHtml(LISTING_URL)
-    const eventUrls   = extractEventUrls(listingHtml)
+    console.log(`\n🔍  Fetching events listing from ${LISTING_URL} (+${EXTRA_LISTINGS.length} sub-pages)…`)
+    const seenUrls = new Set()
+    const eventUrls = []
+    for (const listing of [LISTING_URL, ...EXTRA_LISTINGS]) {
+      try {
+        const html = await fetchHtml(listing)
+        for (const u of extractEventUrls(html)) {
+          if (!seenUrls.has(u)) { seenUrls.add(u); eventUrls.push(u) }
+        }
+      } catch (err) {
+        console.warn(`  ⚠ Could not fetch ${listing}: ${err.message}`)
+      }
+    }
     console.log(`  Found ${eventUrls.length} event URL(s)`)
 
     if (eventUrls.length === 0) {
-      console.warn('  ⚠ No event URLs found — listing page structure may have changed.')
+      // The current site surfaces workshops via an embedded calendar with no
+      // standalone event pages, so an empty result is expected — record a clean
+      // zero run (not an error) so it self-heals if detail pages return.
+      console.warn('  ⚠ No standalone event URLs found (embedded calendar / none posted).')
       await logUpsertResult(SOURCE_KEY, 0, 0, 0, {
-        status:       'error',
-        errorMessage: 'No event URLs found on listing page',
         durationMs:   Date.now() - start,
         eventsFound:  0,
       })

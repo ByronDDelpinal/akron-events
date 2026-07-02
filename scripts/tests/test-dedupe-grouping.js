@@ -14,6 +14,7 @@ import assert from 'node:assert/strict'
 import {
   locationKey, fuzzyTitlesMatch,
   sharedNamePrefixMatch, toSecondKey, findDuplicateGroups, priority,
+  venuelessTitleMatch,
 } from '../dedupe-cross-source.js'
 import { normalizeStreetAddress } from '../lib/normalize.js'
 import { resolveVenueAlias } from '../scrape-better-kenmore.js'
@@ -116,6 +117,71 @@ describe('dedupe: whole-second bucketing', () => {
     })
     const { groups } = findDuplicateGroups([mk('a', 'Toddler Storytime'), mk('b', 'Teen Coding Club')])
     assert.equal(groups.length, 0)
+  })
+})
+
+describe('dedupe: cross-source headliner match (Pass 1, different sources only)', () => {
+  const venue = { name: 'Akron Civic Theatre', address: '182 S Main St' }
+  const mk = (id, title, source) => ({
+    id, title, source, start_at: '2026-09-19T23:00:00+00:00', end_at: null,
+    event_venues: [{ venue_id: 'civic-1', venues: venue }],
+  })
+
+  it('merges an aggregator re-listing that only shares the headliner (tagline drift)', () => {
+    const { groups } = findDuplicateGroups([
+      mk('a', 'Ray LaMontagne: Trouble 20th Anniversary Tour', 'akron_civic'),
+      mk('b', 'Ray LaMontagne at Akron Civic Theatre', 'visit_akron_cvb'),
+    ])
+    assert.equal(groups.length, 1)
+    assert.equal(groups[0].length, 2)
+  })
+
+  it('does NOT merge two different SAME-source programs sharing a series prefix at the same second', () => {
+    const lib = { name: 'Akron-Summit County Public Library', address: '60 S High St' }
+    const mkLib = (id, title) => ({
+      id, title, source: 'akron_library', start_at: '2026-07-09T14:30:00+00:00', end_at: null,
+      event_venues: [{ venue_id: 'lib-1', venues: lib }],
+    })
+    const { groups } = findDuplicateGroups([
+      mkLib('a', 'Job Readiness - Ace Your Next Interview'),
+      mkLib('b', 'Job Readiness - Learn How to Find Unadvertised Jobs'),
+    ])
+    assert.equal(groups.length, 0)
+  })
+})
+
+describe('dedupe: venue-less aggregator copies (Pass 4)', () => {
+  const venued = (id, title, source, venueId = 'v-fest') => ({
+    id, title, source, start_at: '2026-08-15T18:00:00+00:00', end_at: null,
+    event_venues: [{ venue_id: venueId, venues: { name: 'Boettler Park', address: '5300 Massillon Rd' } }],
+  })
+  const venueless = (id, title, source) => ({
+    id, title, source, start_at: '2026-08-15T16:00:00+00:00', end_at: null,
+    event_venues: [],
+  })
+
+  it('groups a venue-less ohio_festivals copy with the venue-linked first-party row (same day, strict title)', () => {
+    const { groups } = findDuplicateGroups([
+      venued('a', 'Art-A-Palooza', 'city_of_green'),
+      venueless('b', 'Art-A-Palooza', 'ohio_festivals'),
+    ])
+    assert.equal(groups.length, 1)
+    assert.equal(groups[0].length, 2)
+  })
+
+  it('does NOT group a venue-less row with a different-title event on the same day', () => {
+    const { groups } = findDuplicateGroups([
+      venued('a', 'Summer Concert: Wilco', 'city_of_green'),
+      venueless('b', 'Twisted Wilderfest', 'ohio_festivals'),
+    ])
+    assert.equal(groups.length, 0)
+  })
+
+  it('venuelessTitleMatch: exact/containment yes, generic-headliner drift no', () => {
+    assert.equal(venuelessTitleMatch('Akron Oatmeal Festival', 'Akron Oatmeal Festival'), true)
+    assert.equal(venuelessTitleMatch('Twisted Wilderfest', 'Twisted Wilderfest 2026'), true) // containment
+    // shares only a 2-token headliner then diverges — allowed by strongTitlesMatch, NOT here
+    assert.equal(venuelessTitleMatch('Summer Concert: Wilco', 'Summer Concert: Phish'), false)
   })
 })
 

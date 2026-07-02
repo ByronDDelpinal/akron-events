@@ -53,6 +53,7 @@ import {
   linkOrganizationVenue,
   easternToIso,
 } from './lib/normalize.js'
+import { withBrowser, newConfiguredPage } from './lib/puppeteer.js'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -136,7 +137,9 @@ function h6Values(region) {
     .filter(Boolean)
 }
 
-/** Parse "Weekday, Month D, YYYY at H:MM AM/PM" → { datePart, time }. */
+/** Parse "Weekday, Month D, YYYY at H:MM AM/PM" → { datePart, time }.
+ *  `time` is '' when the page lists a date but no showtime (stub pages); the
+ *  caller treats that as undatable rather than defaulting to midnight. */
 export function parseCivicDateTime(text) {
   if (!text) return null
   const m = String(text).match(/([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})/)
@@ -144,8 +147,14 @@ export function parseCivicDateTime(text) {
   const month = MONTHS[m[1].toLowerCase()]
   if (!month) return null
   const datePart = `${m[3]}-${String(month).padStart(2, '0')}-${String(+m[2]).padStart(2, '0')}`
-  const tm = String(text).match(/(\d{1,2}:\d{2}\s*[AaPp][Mm])/)
-  return { datePart, time: tm ? tm[1] : '' }
+  // Tolerant time match — "8:00 PM", "8 PM", "8:00PM", "7:30 p.m." — normalized
+  // to "H:MM AM/PM" for easternToIso. Requires the date/"at" context to precede
+  // it (via the \bat\b or a comma+year already matched) so a stray "2 PM" in
+  // marketing copy on the same line is unlikely; the h6 the caller feeds here is
+  // just the date line.
+  const tm = String(text).match(/\b(\d{1,2})(?::(\d{2}))?\s*([AaPp])\.?\s*[Mm]\.?\b/)
+  const time = tm ? `${tm[1]}:${tm[2] ?? '00'} ${tm[3].toUpperCase()}M` : ''
+  return { datePart, time }
 }
 
 /** Upsize a Bolt /thumbs/{w}×{h}×{q}/ rendition (the only size the CMS serves)
@@ -208,6 +217,12 @@ export function parseDetail(html, pageUrl) {
 
   const dt = parseCivicDateTime(dateText || '')
   if (!dt) return null
+  // A page with a date but no showtime is a stub/placeholder (every real Civic
+  // show lists a time). Skip it: emitting a time-less row defaults to midnight,
+  // which lands on the WRONG day (8pm ET the day before) AND duplicates the real
+  // timed page for the same show — e.g. the bare "/ray-lamontagne-2026-09-19"
+  // stub vs the real "…-trouble-20th-anniversary-tour-…" page.
+  if (!dt.time) return null
   const startIso = easternToIso(dt.datePart, dt.time)
   if (!startIso) return null
 
@@ -236,22 +251,14 @@ function deriveTags(title, venueKeyName) {
 
 // ── HTML fetch ────────────────────────────────────────────────────────────
 
-async function fetchHtml(url) {
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': USER_AGENT,
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.9',
-      'Upgrade-Insecure-Requests': '1',
-      'Sec-Fetch-Dest': 'document',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Site': 'none',
-      'Sec-Fetch-User': '?1',
-    },
-    redirect: 'follow',
-  })
-  if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`)
-  return res.text()
+// akroncivic.com's WAF serves an anti-bot interstitial to plain server-side
+// fetches: the request returns 200 but the body has no show listings, so a raw
+// fetch parses zero events (the symptom that broke this scraper). We drive a
+// real headless browser instead, which clears the challenge; one page is reused
+// for the listing and every detail page.
+async function pageHtml(page, url, { waitUntil = 'domcontentloaded' } = {}) {
+  await page.goto(url, { waitUntil, timeout: 45_000 })
+  return page.content()
 }
 
 // ── Process + upsert ─────────────────────────────────────────────────────
@@ -267,67 +274,75 @@ async function main() {
     const mainVenueId = await ensureVenueGeneric(CIVIC_VENUES.main.name, CIVIC_VENUES.main.details)
     if (organizerId && mainVenueId) await linkOrganizationVenue(organizerId, mainVenueId)
 
-    console.log(`\n🔍  Fetching listing ${LIST_URL}…`)
-    const listHtml = await fetchHtml(LIST_URL)
-    const showUrls = extractShowPaths(listHtml)
-    console.log(`  Found ${showUrls.length} show detail links`)
+    let inserted = 0, skipped = 0, found = 0
 
-    const now = Date.now()
-    const venueCache = new Map() // venue name → id
-    const seen = new Set()
-    let inserted = 0, skipped = 0
+    await withBrowser(async (browser) => {
+      const page = await newConfiguredPage(browser, { userAgent: USER_AGENT })
 
-    for (const url of showUrls) {
-      try {
-        const slug = new URL(url).pathname.replace(/^\//, '')
-        if (seen.has(slug)) { skipped++; continue }
-        seen.add(slug)
+      console.log(`\n🔍  Fetching listing ${LIST_URL}…`)
+      // networkidle2 on the listing lets any WAF challenge resolve + set its
+      // cookie; detail pages then load directly with the faster domcontentloaded.
+      const listHtml = await pageHtml(page, LIST_URL, { waitUntil: 'networkidle2' })
+      const showUrls = extractShowPaths(listHtml)
+      found = showUrls.length
+      console.log(`  Found ${showUrls.length} show detail links`)
 
-        const html = await fetchHtml(url)
-        const parsed = parseDetail(html, url)
-        if (!parsed) { skipped++; continue }
+      const now = Date.now()
+      const venueCache = new Map() // venue name → id
+      const seen = new Set()
 
-        // Past-event guard (1-day grace)
-        if (new Date(parsed.startIso).getTime() < now - 86_400_000) { skipped++; continue }
+      for (const url of showUrls) {
+        try {
+          const slug = new URL(url).pathname.replace(/^\//, '')
+          if (seen.has(slug)) { skipped++; continue }
+          seen.add(slug)
 
-        let venueId = venueCache.get(parsed.venue.name)
-        if (venueId === undefined) {
-          venueId = await ensureVenueGeneric(parsed.venue.name, parsed.venue.details)
-          venueCache.set(parsed.venue.name, venueId)
+          const html = await pageHtml(page, url)
+          const parsed = parseDetail(html, url)
+          if (!parsed) { skipped++; continue }
+
+          // Past-event guard (1-day grace)
+          if (new Date(parsed.startIso).getTime() < now - 86_400_000) { skipped++; continue }
+
+          let venueId = venueCache.get(parsed.venue.name)
+          if (venueId === undefined) {
+            venueId = await ensureVenueGeneric(parsed.venue.name, parsed.venue.details)
+            venueCache.set(parsed.venue.name, venueId)
+          }
+
+          const category = inferCategory(parsed.title, parsed.description || '') || 'theater'
+          const row = {
+            title:           parsed.title,
+            description:     parsed.description,
+            start_at:        parsed.startIso,
+            end_at:          null,
+            category:        category === 'other' ? 'theater' : category,
+            tags:            deriveTags(parsed.title, parsed.venue.name),
+            price_min:       parsed.isFree ? 0 : null,   // never assume free; only when stated
+            price_max:       null,
+            age_restriction: 'not_specified',
+            image_url:       parsed.imageUrl,
+            ticket_url:      url,           // official Civic page (box office), never resale
+            source:          SOURCE_KEY,
+            source_id:       slug,
+            status:          'published',
+            featured:        false,
+          }
+
+          const { data: upserted, error } = await upsertEventSafe(await enrichWithImageDimensions(row))
+          if (error) { console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message); skipped++; continue }
+          if (venueId)     await linkEventVenue(upserted.id, venueId)
+          if (organizerId) await linkEventOrganization(upserted.id, organizerId)
+          inserted++
+        } catch (err) {
+          console.warn(`  ⚠ Error processing ${url}:`, err.message)
+          skipped++
         }
-
-        const category = inferCategory(parsed.title, parsed.description || '') || 'theater'
-        const row = {
-          title:           parsed.title,
-          description:     parsed.description,
-          start_at:        parsed.startIso,
-          end_at:          null,
-          category:        category === 'other' ? 'theater' : category,
-          tags:            deriveTags(parsed.title, parsed.venue.name),
-          price_min:       parsed.isFree ? 0 : null,   // never assume free; only when stated
-          price_max:       null,
-          age_restriction: 'not_specified',
-          image_url:       parsed.imageUrl,
-          ticket_url:      url,           // official Civic page (box office), never resale
-          source:          SOURCE_KEY,
-          source_id:       slug,
-          status:          'published',
-          featured:        false,
-        }
-
-        const { data: upserted, error } = await upsertEventSafe(await enrichWithImageDimensions(row))
-        if (error) { console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message); skipped++; continue }
-        if (venueId)     await linkEventVenue(upserted.id, venueId)
-        if (organizerId) await linkEventOrganization(upserted.id, organizerId)
-        inserted++
-      } catch (err) {
-        console.warn(`  ⚠ Error processing ${url}:`, err.message)
-        skipped++
       }
-    }
+    })
 
     await logUpsertResult(SOURCE_KEY, inserted, 0, skipped, {
-      eventsFound: showUrls.length,
+      eventsFound: found,
       durationMs:  Date.now() - start,
     })
     console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s — ${inserted} inserted, ${skipped} skipped`)

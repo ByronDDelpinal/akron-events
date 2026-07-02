@@ -17,7 +17,7 @@ import 'dotenv/config'
 import {
   logUpsertResult,
   logScraperError,
-  stripHtml,
+  htmlToText,
   enrichWithImageDimensions,
   upsertEventSafe,
   linkEventVenue,
@@ -142,6 +142,22 @@ async function fetchHtml(url) {
 
 // ── Parse events ───────────────────────────────────────────────────────────
 
+// A real class title contains letters and is not a bare number, a price, a
+// time, a time-range/duration ("9:00 AM - 12:00 PM"), or a logistics fragment.
+// The calendar-grid markup interleaves duration lines next to event links, so
+// without this guard those leak in as titles.
+const PWT_NON_TITLE = [
+  /^\d+$/,
+  /^\$/,
+  /^\d{1,2}(?::\d{2})?\s*[ap]\.?m\.?(?:\s*[-–]\s*\d{1,2}(?::\d{2})?\s*[ap]\.?m\.?)?$/i,
+  /spots?\s+left|loyalty|notifications|sold\s*out|waitlist/i,
+]
+export function isLikelyTitle(line = '') {
+  const s = String(line).trim()
+  if (s.length <= 3 || !/[A-Za-z]/.test(s)) return false
+  return !PWT_NON_TITLE.some((re) => re.test(s))
+}
+
 /**
  * The PWT calendar page renders events in a list.
  * Each event has:
@@ -182,7 +198,10 @@ function parseEvents(html) {
   for (const [id, chunk] of idContextMap) {
     if (seen.has(id)) continue
 
-    const text  = stripHtml(chunk)
+    // htmlToText (not stripHtml) keeps block boundaries as newlines so the
+    // date / price / title each land on their own line; stripHtml collapses
+    // them into one line and the field detection below finds nothing.
+    const text  = htmlToText(chunk)
     const lines = text.split(/[\n\t]+/).map(l => l.trim()).filter(Boolean)
 
     // Find date line
@@ -199,11 +218,10 @@ function parseEvents(html) {
         priceStr = line
         continue
       }
-      // Title: first non-empty line after we've seen a date (and optionally price)
-      if (dateTimeStr && !title && line.length > 3 && !/^\d+$/.test(line) &&
-          !line.toLowerCase().includes('spots left') &&
-          !line.toLowerCase().includes('loyalty') &&
-          !line.toLowerCase().includes('notifications')) {
+      // Title: first real class name after we've seen a date (and optionally
+      // price). isLikelyTitle rejects time/duration/price fragments so the
+      // calendar grid's "9:00 AM - 12:00 PM" duration lines aren't ingested.
+      if (dateTimeStr && !title && isLikelyTitle(line)) {
         title = line
       }
     }
@@ -227,7 +245,7 @@ function parseEvents(html) {
   if (events.length === 0) {
     console.warn('  ⚠ Link-context parsing found 0 events — trying regex text approach')
 
-    const cleanText = stripHtml(html)
+    const cleanText = htmlToText(html)
     const blocks    = cleanText.split(/\n{2,}/).map(b => b.trim()).filter(Boolean)
 
     let currentDate = null
@@ -252,14 +270,10 @@ function parseEvents(html) {
           const priceMatch = block.match(/\$[\d.]+-?\$?[\d.]*/)
           const { price_min, price_max } = priceMatch ? parsePrice(priceMatch[0]) : { price_min: null, price_max: null }
 
-          // Find title — non-price, non-date, non-logistics line
+          // Find title — a real class name, not a price/date/duration/logistics line.
           const titleLine = block.split('\n').map(l => l.trim()).find(l =>
-            l.length > 3 &&
-            !l.match(/^\$/) &&
-            !l.match(/[A-Za-z]{2,3},\s+[A-Za-z]{3,}\s+\d/) &&
-            !l.toLowerCase().includes('spots left') &&
-            !l.toLowerCase().includes('loyalty') &&
-            !l.toLowerCase().includes('notifications')
+            isLikelyTitle(l) &&
+            !l.match(/[A-Za-z]{2,3},\s+[A-Za-z]{3,}\s+\d/)
           )
 
           if (!titleLine) continue

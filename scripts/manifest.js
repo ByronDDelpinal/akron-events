@@ -86,6 +86,7 @@ export const SCRAPERS = [
   { key: 'north_hill_cdc',       script: 'scripts/scrape-north-hill-cdc.js',          label: 'North Hill CDC',               group: 'ics',            active: true  },
   { key: 'akron_pride',          script: 'scripts/scrape-akron-pride.js',             label: 'Akron Pride Festival',         group: 'ics',            active: true, defaultCategory: 'festival' },
   { key: 'habitat_summit',       script: 'scripts/scrape-habitat-summit.js',          label: 'Habitat for Humanity Summit',  group: 'html',           active: true, defaultCategory: 'civic' },
+  { key: 'ohio_festivals',       script: 'scripts/scrape-ohio-festivals.js',          label: 'Ohio Festivals',               group: 'html',           active: true, defaultCategory: 'festival' },
   { key: 'leadership_akron',     script: 'scripts/scrape-leadership-akron.js',        label: 'Leadership Akron',             group: 'squarespace',    active: true  },
   { key: 'artisan_coffee',       script: 'scripts/scrape-artisan-coffee.js',          label: 'Artisan Coffee',               group: 'squarespace',    active: true  },
   { key: 'musica',               script: 'scripts/scrape-musica.js',                  label: 'Musica',                       group: 'dice',           active: true  },
@@ -98,7 +99,11 @@ export const SCRAPERS = [
   { key: 'royal_palace',         script: 'scripts/scrape-royal-palace.js',            label: 'Royal Palace Akron',           group: 'tribe',          active: true, defaultCategory: 'music' },
   { key: 'release_yoga',         script: 'scripts/scrape-release-yoga.js',            label: 'Release Yoga',                 group: 'mindbody',       active: true, defaultCategory: 'fitness' },
   { key: 'life_gurukula',        script: 'scripts/scrape-life-gurukula.js',           label: 'Life Gurukula',                group: 'ics',            active: true  },
-  { key: 'torchbearers',         script: 'scripts/scrape-torchbearers.js',            label: 'Torchbearers',        group: 'custom',         active: true, defaultCategory: 'civic' },
+  // PAUSED 2026-06-05: public Tribe feed surfaces members-only internal events
+  // (board/committee/GMM meetings). Not in scrape:all; marked inactive so the
+  // nightly health report doesn't flag it as "did not run". Re-enable after
+  // adding a public/internal filter (see scrape-torchbearers.js header).
+  { key: 'torchbearers',         script: 'scripts/scrape-torchbearers.js',            label: 'Torchbearers',        group: 'custom',         active: false, defaultCategory: 'civic' },
   { key: 'indivisible_akron',    script: 'scripts/scrape-indivisible-akron.js',       label: 'Indivisible Akron',            group: 'tribe',          active: true, defaultCategory: 'civic' },
   { key: 'house_three_thirty',   script: 'scripts/scrape-house-three-thirty.js',      label: 'House Three Thirty',           group: 'lrmr',           active: true  },
 

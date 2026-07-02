@@ -193,10 +193,15 @@ async function main() {
     console.log(`  ${future.length} upcoming (dropped ${parsed.length - future.length} past)`)
 
     if (future.length === 0) {
+      // Distinguish a real parser break from a page that simply has no events
+      // posted: only treat 0 parsed as an error when the Divi event headers ARE
+      // present (so date/venue parsing is what failed). If the headers are
+      // absent, nothing is listed right now — a clean zero run, not an error.
+      const hasEventMarkup = /et_pb_module_header/i.test(html)
       await logUpsertResult(SOURCE_KEY, 0, 0, 0, {
-        status: parsed.length === 0 ? 'error' : 'ok',
-        errorMessage: parsed.length === 0
-          ? 'Page fetched but 0 events parsed — the Divi markup may have changed (expected h4.et_pb_module_header + <strong> date/venue).'
+        status: parsed.length === 0 && hasEventMarkup ? 'error' : 'ok',
+        errorMessage: parsed.length === 0 && hasEventMarkup
+          ? 'Found event headers (h4.et_pb_module_header) but parsed 0 events — the date/venue markup likely changed.'
           : undefined,
         durationMs:  Date.now() - start,
         eventsFound: parsed.length,

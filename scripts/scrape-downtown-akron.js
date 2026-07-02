@@ -19,7 +19,7 @@ import 'dotenv/config'
 import {
   logUpsertResult,
   logScraperError,
-  stripHtml,
+  decodeEntities,
   enrichWithImageDimensions,
   upsertEventSafe,
   linkEventVenue,
@@ -99,6 +99,68 @@ function parseCategory(title = '') {
   return null
 }
 
+// ── Directly-scraped venue suppression ───────────────────────────────────────
+//
+// downtownakron.com re-lists events hosted at venues we already scrape directly.
+// The direct scraper owns the canonical rows (full recurring schedule, real
+// venue, descriptions, prices), so the DAP copy is a thinner duplicate. Worse,
+// the two sources often name the same event differently (DAP "Casual Commander
+// Days" vs Full Grip's own "MTG - Commander"), which defeats title-based
+// dedupe. So we suppress DAP events whose venue is one we scrape directly,
+// rather than publishing a second, lower-quality copy. Same pattern as Better
+// Kenmore suppressing First-Glance-venue events.
+//
+// Only venues where the direct scraper is a verified COMPLETE superset of what
+// DAP lists are suppressed — otherwise we'd drop DAP-only content. Audited
+// 2026-06-29 (events at the same venue + date across sources):
+//   - full_grip_games  — owns every TCG night (Commander/Modern/Standard/One
+//                         Piece/Pokémon/drafts); DAP retitles them ("Casual
+//                         Commander Days" vs "MTG - Commander"), defeating dedupe.
+//   - blu_jazz         — full show calendar; DAP's lone "BLU-esday" copy is a
+//                         hyphen-drift dupe of blu_jazz's "BLUesday".
+//   - akron_childrens_museum — both sources carry only the recurring Delight
+//                         Nights; DAP's "Delight Night" is a title-drift dupe.
+// NOT suppressed (DAP carries unique content the direct scraper lacks): Akron
+// Art Museum (exhibitions), Akron Soul Train (exhibitions), Musica/Jilly's
+// (one-off shows), The Nightlight (its scraper is currently empty), Library.
+const DIRECTLY_SCRAPED_VENUES = [
+  { pattern: /full\s*grip\s*games/i,        scraper: 'full_grip_games' },
+  { pattern: /blu\s*jazz/i,                 scraper: 'blu_jazz' },
+  { pattern: /children.?s\s+museum/i,       scraper: 'akron_childrens_museum' },
+  // nightlight_cinema carries the full film schedule; DAP re-lists the same
+  // films with drifted titles ("8 1/2" vs "8½"), which defeats dedupe even after
+  // the venue records were merged. Matches "The Nightlight" / "The Nightlight Cinema".
+  { pattern: /night\s*light/i,              scraper: 'nightlight_cinema' },
+]
+
+/** Returns the direct scraper key that owns this venue, or null. */
+function directlyScrapedVenue(venueName) {
+  if (!venueName) return null
+  for (const v of DIRECTLY_SCRAPED_VENUES) {
+    if (v.pattern.test(venueName)) return v.scraper
+  }
+  return null
+}
+
+// Some events a direct source owns arrive here with NO usable venue (the DAP
+// card omits it), so venue-name suppression can't catch them and dedupe skips
+// venue-less rows entirely. Match those by title instead. Keep patterns tight
+// so only the owned events match: /rubberducks\s+vs/ hits home games (owned by
+// the `rubberducks` feed with the real venue + price) but leaves DAP-only promos
+// like "Win RubberDucks Tickets at the Lockview" alone.
+const DIRECTLY_SCRAPED_TITLE_PATTERNS = [
+  { pattern: /\brubberducks\s+vs\b/i, scraper: 'rubberducks' },
+]
+
+/** Returns the direct scraper key that owns this event by title, or null. */
+function directlyScrapedTitle(title) {
+  if (!title) return null
+  for (const t of DIRECTLY_SCRAPED_TITLE_PATTERNS) {
+    if (t.pattern.test(title)) return t.scraper
+  }
+  return null
+}
+
 // ── Venue cache ────────────────────────────────────────────────────────────
 
 const venueCache = new Map()
@@ -164,9 +226,15 @@ function parseCalendarHtml(html) {
     const linkHref  = BASE_URL + match[1]
     const innerHtml = match[3]
 
-    // Extract text content and split into parts
-    const text = stripHtml(innerHtml)
-    const parts = text.split(/[\n\t]+/).map(p => p.trim()).filter(Boolean)
+    // Split the card's inner HTML on tag boundaries so each field (title, time,
+    // venue, weekday, day, month) becomes its own part. The previous approach
+    // (stripHtml + split on /[\n\t]+/) broke when the ctycms markup stopped
+    // emitting literal tabs/newlines between fields and stripHtml started
+    // collapsing whitespace — every card flattened to a single part.
+    const parts = innerHtml
+      .split(/<[^>]+>/)
+      .map(p => decodeEntities(p).replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
 
     if (parts.length < 3) continue
 
@@ -174,15 +242,34 @@ function parseCalendarHtml(html) {
     const title = parts.find(p => p.toLowerCase() !== 'view details' && p.length > 2)
     if (!title) continue
 
-    // Find the time/venue line (contains " / " separator)
-    const timeVenuePart = parts.find(p => p.includes(' / '))
     let   timeStr  = '12:00:00'
     let   venueName = null
 
+    // Legacy layout: a single "<time> / <venue>" part.
+    const timeVenuePart = parts.find(p => p.includes(' / '))
     if (timeVenuePart) {
       const [timePart, ...venueParts] = timeVenuePart.split(' / ')
       timeStr   = parseTime(timePart)
       venueName = venueParts.join(' / ').trim() || null
+    } else {
+      // Current layout: time and venue are separate parts.
+      const timePart = parts.find(p => /\d\s*(?:a\.?m\.?|p\.?m\.?)|noon|midnight/i.test(p))
+      if (timePart) timeStr = parseTime(timePart)
+      const WEEKDAY = /^(?:sun|mon|tues?|wed(?:nes)?|thur?s?|fri|sat(?:ur)?)(?:day)?$/i
+      venueName = parts.find(p =>
+        p !== title &&
+        p !== timePart &&
+        p.toLowerCase() !== 'view details' &&
+        !/\d/.test(p) &&
+        !WEEKDAY.test(p) &&
+        !MONTH_MAP[p.toLowerCase()] &&
+        // Exclude bare time words only. The previous /(?:a\.?m\.?|p\.?m\.?)/i
+        // test matched "am"/"pm" anywhere in a string, so venues like "Full Grip
+        // Games" (the "am" inside "Games") or "Programs" were silently dropped
+        // and left null. Real clock times like "12pm" still carry a digit and
+        // are already excluded by the !/\d/ test above.
+        !/^(?:noon|midnight)$/i.test(p)
+      ) || null
     }
 
     // Find date parts — look for day number and month abbreviation
@@ -340,11 +427,27 @@ async function main() {
       console.warn('  ⚠ No future events found. Calendar page structure may have changed.')
     }
 
-    console.log(`\n📥  Processing ${future.length} events…`)
-    const { inserted, skipped } = await processEvents(future, organizerId)
+    // Drop events hosted at venues we scrape directly (see DIRECTLY_SCRAPED_VENUES).
+    let suppressed = 0
+    const visible = future.filter(ev => {
+      const owner = directlyScrapedVenue(ev.venueName) || directlyScrapedTitle(ev.title)
+      if (owner) {
+        suppressed++
+        console.log(`  ⤷ Suppressing "${ev.title}" — covered directly by ${owner}`)
+        return false
+      }
+      return true
+    })
+    if (suppressed > 0) {
+      console.log(`\n  Suppressed ${suppressed} event(s) at directly-scraped venues.`)
+    }
+
+    console.log(`\n📥  Processing ${visible.length} events…`)
+    const { inserted, skipped } = await processEvents(visible, organizerId)
 
     await logUpsertResult('downtown_akron', inserted, 0, skipped, {
       eventsFound: future.length,
+      suppressed,
       durationMs:  Date.now() - start,
     })
     console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s`)
@@ -353,6 +456,9 @@ async function main() {
     process.exit(1)
   }
 }
+
+// Pure parsers exported for unit tests (no live run on import).
+export { parseCalendarHtml, parseTime, reconstructDate, directlyScrapedVenue, directlyScrapedTitle }
 
 // Run only when invoked directly (`node scripts/scrape-downtown-akron.js`); importing the module
 // for tests exposes the pure parsers without triggering a live run.

@@ -82,7 +82,7 @@ const SOURCE_PRIORITY = [
 // venue scrapers we haven't explicitly ranked still beat an aggregator copy
 // (the bug that let an Eventbrite "…at Crown Point" win canonical over Crown
 // Point's own "…- Alex Bevan").
-const AGGREGATOR_PRIORITY = ['ticketmaster', 'eventbrite', 'visit_akron_cvb', 'akron_life', 'runsignup']
+const AGGREGATOR_PRIORITY = ['ticketmaster', 'eventbrite', 'visit_akron_cvb', 'akron_life', 'runsignup', 'ohio_festivals']
 
 export function priority(source) {
   const i = SOURCE_PRIORITY.indexOf(source)
@@ -215,6 +215,26 @@ export function strongTitlesMatch(a, b) {
   // Safe only because Pass 3 additionally requires same venue + same day + a
   // placeholder aggregator copy — it never merges two trusted-time events.
   return ta[0] === tb[0] && ta[1] === tb[1]
+}
+
+/**
+ * Strict title match for the venue-less pass (Pass 4). Same as strongTitlesMatch
+ * MINUS the shared-headliner (first-two-tokens) fallback — that fallback is only
+ * safe under Pass 1's exact-second gate, and Pass 4 matches on the calendar day,
+ * so we require exact normalized equality, containment, or ≥0.9 token overlap.
+ */
+export function venuelessTitleMatch(a, b) {
+  const na = normalizeTitle(a)
+  const nb = normalizeTitle(b)
+  if (!na || !nb) return false
+  if (na === nb) return true
+  const [s, l] = na.length <= nb.length ? [na, nb] : [nb, na]
+  if (l.startsWith(s + ' ') || l.endsWith(' ' + s) || l.includes(' ' + s + ' ')) return true
+  const ta = tokenizeTitle(a)
+  const tb = tokenizeTitle(b)
+  if (ta.length >= MIN_MEANINGFUL_TOKENS && tb.length >= MIN_MEANINGFUL_TOKENS &&
+      tokenOverlap(ta, tb) >= 0.9) return true
+  return false
 }
 
 // ── Existing exact-match helpers ──────────────────────────────────────────────
@@ -360,10 +380,15 @@ export function toSecondKey(ts) {
  */
 export function findDuplicateGroups(events) {
   const byVenue = new Map()
+  const venueless = []            // events with no linked venue (Pass 4 candidates)
   let withoutVenue = 0
   for (const e of events) {
     const key = locationKey(e)
-    if (!key) { withoutVenue++; continue }
+    if (!key) {
+      withoutVenue++
+      if (e.title) venueless.push({ ...e, _titleKey: normalizeTitle(e.title) })
+      continue
+    }
     if (!e.title) continue
     if (!byVenue.has(key)) byVenue.set(key, [])
     byVenue.get(key).push({ ...e, _titleKey: normalizeTitle(e.title) })
@@ -386,8 +411,20 @@ export function findDuplicateGroups(events) {
     for (const e of bucket) {
       // Same venue + same exact second is a hard gate; a title match can be the
       // flexible prefix/peel form OR a shared series-name leading prefix.
-      const existing = clusters.find(c =>
-        titlesMatch(c[0]._titleKey, e._titleKey) || sharedNamePrefixMatch(c[0].title, e.title))
+      const existing = clusters.find(c => {
+        if (titlesMatch(c[0]._titleKey, e._titleKey) || sharedNamePrefixMatch(c[0].title, e.title)) return true
+        // Cross-source only: a shared headliner (strongTitlesMatch — same first
+        // two meaningful tokens, etc.) is enough at the same venue + exact
+        // second. This catches aggregator re-listings that drift the tagline
+        // ("Ray LaMontagne at Akron Civic Theatre" vs "Ray LaMontagne: Trouble
+        // 20th Anniversary Tour"). Gated to DIFFERENT sources so two distinct
+        // same-source programs that share a series prefix ("Job Readiness — Ace
+        // Your Interview" vs "Job Readiness — Find Unadvertised Jobs") at a
+        // multi-room venue are never collapsed — one source won't list the same
+        // event twice at the same second.
+        if (c[0].source !== e.source && strongTitlesMatch(c[0].title, e.title)) return true
+        return false
+      })
       if (existing) existing.push(e)
       else clusters.push([e])
     }
@@ -439,6 +476,40 @@ export function findDuplicateGroups(events) {
           if (strongTitlesMatch(anchor.title, cand.title)) cluster.push(cand)
         }
         if (cluster.length > 1) { groups.push(cluster); cluster.forEach(e => matchedIds.add(e.id)) }
+      }
+    }
+  }
+
+  // ── Pass 4: venue-less aggregator/listing copies (same Eastern day + strict title)
+  // Passes 1–3 bucket by venue, so an event with NO linked venue is invisible to
+  // them. Thin feeds (ohio_festivals, downtown_akron, intake_email, …) often
+  // republish an event we already have from a venue-linked source but drop the
+  // venue, so that copy survives. Match a venue-less row to a venue-linked row
+  // from a DIFFERENT source on the same Eastern day with a STRICT title match;
+  // the venue-linked row wins canonical (see venueScore in main). Distinctive
+  // festival titles + same-day + strict match keep unrelated same-titled events
+  // (e.g. "LEGO Club" at two branches — both have venues, so neither is
+  // venue-less here) from merging.
+  const venuedByDay = new Map()
+  for (const evs of byVenue.values()) {
+    for (const e of evs) {
+      if (matchedIds.has(e.id)) continue
+      const day = easternDay(e.start_at)
+      if (!venuedByDay.has(day)) venuedByDay.set(day, [])
+      venuedByDay.get(day).push(e)
+    }
+  }
+  for (const vless of venueless) {
+    if (matchedIds.has(vless.id)) continue
+    const candidates = venuedByDay.get(easternDay(vless.start_at)) || []
+    for (const cand of candidates) {
+      if (matchedIds.has(cand.id)) continue
+      if (cand.source === vless.source) continue
+      if (venuelessTitleMatch(vless.title, cand.title)) {
+        groups.push([cand, vless])
+        matchedIds.add(cand.id)
+        matchedIds.add(vless.id)
+        break
       }
     }
   }
@@ -517,9 +588,14 @@ async function main() {
     // canonical when a trusted-time copy exists — otherwise the surviving row
     // would carry the fabricated time. It still donates its image/description
     // to the canonical via the merge step below.
+    // A venue-less copy (Pass 4) must never be chosen canonical over the
+    // venue-linked row — the whole point is to keep the row that has a venue.
+    const venueScore = (e) => (e.event_venues?.[0]?.venue_id ? 0 : 1)
     const sorted = [...group].sort((a, b) => {
       const lcDiff = (isLowConfidenceAggregatorTime(a) ? 1 : 0) - (isLowConfidenceAggregatorTime(b) ? 1 : 0)
       if (lcDiff !== 0) return lcDiff
+      const vDiff = venueScore(a) - venueScore(b)
+      if (vDiff !== 0) return vDiff
       const scoreDiff = dataScore(a) - dataScore(b)
       if (scoreDiff !== 0) return scoreDiff
       return priority(a.source) - priority(b.source)

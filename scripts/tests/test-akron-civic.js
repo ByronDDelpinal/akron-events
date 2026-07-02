@@ -70,8 +70,34 @@ describe('parseCivicDateTime', () => {
     assert.deepEqual(parseCivicDateTime('Saturday, October 3, 2026'),
       { datePart: '2026-10-03', time: '' })
   })
+  it('normalizes tolerant time formats to "H:MM AM/PM"', () => {
+    assert.equal(parseCivicDateTime('Saturday, October 24, 2026 at 8:00 PM').time, '8:00 PM')
+    assert.equal(parseCivicDateTime('Saturday, October 24, 2026 at 8 PM').time, '8:00 PM')
+    assert.equal(parseCivicDateTime('Saturday, October 24, 2026 at 7:30 p.m.').time, '7:30 PM')
+    assert.equal(parseCivicDateTime('Saturday, October 24, 2026 at 8:00PM').time, '8:00 PM')
+  })
   it('returns null for a non-date (venue line)', () => {
     assert.equal(parseCivicDateTime('PNC Plaza at The Civic'), null)
+  })
+})
+
+describe('parseDetail: skips time-less stub pages', () => {
+  // Same shape as DETAIL but the date <h6> carries NO showtime — the stub
+  // pattern that previously produced a midnight-defaulted, wrong-day duplicate
+  // of the real timed page (e.g. "/ray-lamontagne-2026-09-19").
+  const STUB = `
+    <div><h1>Ray LaMontagne</h1></div>
+    <div><div><div>
+      <h6>Friday, September 19, 2026</h6>
+      <h6>Akron Civic Theatre</h6>
+      <div><p>An evening with Ray LaMontagne.</p></div>
+    </div></div></div>`
+  it('returns null when the page has a date but no time', () => {
+    assert.equal(parseDetail(STUB, 'https://www.akroncivic.com/ray-lamontagne-2026-09-19'), null)
+  })
+  it('still parses a real page that has a showtime', () => {
+    const row = parseDetail(DETAIL, 'https://www.akroncivic.com/party-on-the-plaza-afi-scruggs-2026-06-19')
+    assert.ok(row && row.startIso)
   })
 })
 

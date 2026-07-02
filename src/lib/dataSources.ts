@@ -537,6 +537,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'ohio_festivals',
+    method:      'HTML scrape',
+    methodDetail:'ohiofestivals.net/ohio-festivals/ — parses the statewide festival guide (one festival per line) and gates to Summit County by city',
+    venue:       'Various Summit County cities (city only — no venue/address in the listing)',
+    notes:       "Ohio Festivals is a hand-curated statewide festival directory (WordPress). Its 2,600+ listings are a single chronological guide, one festival per line: \"M/D[-M/D][*] – Festival Name – City [– My Review]\" (trailing * = unconfirmed date). As an aggregator we gate every entry to Summit County by city via lib/summit-county.js (~100 local festivals; the bare 'Springfield' entries are Clark County and correctly excluded since only Summit municipalities are in the allowlist). Data is thin — date + name + city only, no time/venue/description/image — so we set a midday default start, leave the venue null (city goes in the description), infer the year from the month vs today, and rank ohio_festivals at the bottom of the dedupe AGGREGATOR_PRIORITY so any richer first-party source wins a merge. Category festival; price never assumed.",
+    status:      'active',
+  },
+  {
     key:         'get_away_with_murder',
     method:      'HTML scrape',
     methodDetail:'Schema.org Event JSON-LD on the 330tix.com/organizations/get-away-with-murder-killer-parties listing',
@@ -1006,6 +1014,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   north_hill_cdc:      'ics',
   akron_pride:         'ics',
   habitat_summit:      'html',
+  ohio_festivals:      'html',
   akron_public_schools:'ics',
   life_gurukula:       'ics',
 

@@ -17,7 +17,7 @@ import 'dotenv/config'
 import {
   logUpsertResult,
   logScraperError,
-  stripHtml,
+  htmlToText,
   enrichWithImageDimensions,
   upsertEventSafe,
   linkEventVenue,
@@ -61,8 +61,9 @@ function parseDateString(raw) {
   if (!raw) return null
   const s = raw.trim().toUpperCase()
 
-  // Skip obvious season headers: ranges spanning multiple years
-  if (/\d{4}\s*[-–]\s*\w+\s+\d+,?\s*\d{4}/.test(s)) return null
+  // Skip obvious season headers: ranges spanning two explicit years, joined by
+  // a dash OR the word "to" (e.g. "AUGUST 20, 2026 TO JULY 11, 2027").
+  if (/\d{4}\s*(?:[-–]|TO)\s*\w+\s+\d+,?\s*\d{4}/.test(s)) return null
 
   // Strip leading day-of-week
   const stripped = s.replace(/^(MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY|SUNDAY),?\s*/i, '')
@@ -81,7 +82,10 @@ function parseDateString(raw) {
     const [, mon, day] = rangeMatch
     const m = MONTH_MAP[mon.toLowerCase()]
     if (m) {
-      const year = inferYear(m, parseInt(day))
+      // Prefer an explicit year in the range (e.g. "JUNE 18 - JULY 12, 2026")
+      // over inference, so a currently-running show isn't rolled to next year.
+      const explicit = stripped.match(/\b(\d{4})\b/)
+      const year = explicit ? parseInt(explicit[1], 10) : inferYear(m, parseInt(day))
       if (!year) return null
       return `${year}-${String(m).padStart(2,'0')}-${String(parseInt(day)).padStart(2,'0')}`
     }
@@ -141,8 +145,12 @@ function parseShows(html) {
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')
 
-  // Extract text
-  const rawText = stripHtml(clean)
+  // Extract text. Use htmlToText (not stripHtml) so block-level boundaries stay
+  // as newlines — the show title and its date sit in separate elements, and the
+  // walker below pairs them by adjacent lines. stripHtml collapses all
+  // whitespace to single spaces, which flattened the page to one line and made
+  // the parser find zero shows.
+  const rawText = htmlToText(clean)
   const lines   = rawText
     .split(/[\n\r]+/)
     .map(l => l.trim())

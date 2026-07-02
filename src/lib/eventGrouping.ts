@@ -36,13 +36,16 @@ export const SOURCE_CAP = 3
 
 /**
  * Sources subject to the per-day cap. The "+N more from …" overflow
- * affordance only exists to keep the Akron-Summit County Public
- * Library's ~400-program calendar from drowning out everything else;
- * no other source is high-volume enough to warrant hiding events.
+ * affordance keeps a single high-volume venue from drowning out
+ * everything else on a busy day:
+ *   - akron_library          — the ~400-program library calendar
+ *   - highland_square_theatre — the cinema's many daily showtimes,
+ *                               which otherwise crowd the Highland
+ *                               Square neighborhood hub
  * Anything not listed here renders every event uncapped (e.g. Akron
  * Life can surface as many events as it has).
  */
-export const CAPPED_SOURCES = new Set<string>(['akron_library'])
+export const CAPPED_SOURCES = new Set<string>(['akron_library', 'highland_square_theatre'])
 
 /**
  * applySourceCap(dayEvents, expandedSources, dateKey)
