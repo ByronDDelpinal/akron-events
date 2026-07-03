@@ -18,6 +18,7 @@ import {
   logUpsertResult,
   logScraperError,
   htmlToText,
+  stripHtml,
   enrichWithImageDimensions,
   upsertEventSafe,
   linkEventVenue,
@@ -291,6 +292,80 @@ function parseEvents(html) {
   return events
 }
 
+// ── Detail-page enrichment ────────────────────────────────────────────────
+//
+// The calendar list page only has title/date/price. Each event's own detail
+// page (/studio/akron-fairlawn/event/{id}/) carries the description, artwork
+// image, and end time — verified 2026-07-02 against event 4310618. Extract
+// via og:meta tags (reliable, server-rendered) rather than parsing the
+// ASP.NET-rendered "About This Event" markup, which is noisier.
+
+// Content values routinely contain a raw apostrophe ("You'll leave…"), so the
+// capture must stop at the SAME quote character that opened it (backreference),
+// not at either quote type — otherwise an apostrophe truncates the match.
+function extractMetaContent(html, property) {
+  const patterns = [
+    new RegExp(`<meta[^>]+property=["']${property}["'][^>]+content=(["'])([\\s\\S]*?)\\1`, 'i'),
+    new RegExp(`<meta[^>]+content=(["'])([\\s\\S]*?)\\1[^>]+property=["']${property}["']`, 'i'),
+  ]
+  for (const re of patterns) {
+    const m = html.match(re)
+    if (m?.[2]?.trim()) return m[2].trim()
+  }
+  return null
+}
+
+/**
+ * og:description meta tag — a short, reliable event blurb. Exported for tests.
+ */
+export function extractPwtDescription(html) {
+  const raw = extractMetaContent(html, 'og:description')
+  if (!raw) return null
+  return stripHtml(raw).trim() || null
+}
+
+/**
+ * og:image meta tag — the class artwork photo. Exported for tests.
+ */
+export function extractPwtImage(html) {
+  const raw = extractMetaContent(html, 'og:image')
+  return raw && /^https?:\/\//i.test(raw) ? raw : null
+}
+
+/**
+ * The detail page renders "Thursday, Jul 02 | 7:00 pm to 9:00 pm" near the
+ * title. Pull the second time as the end time. Returns "HH:MM:00" or null.
+ * Exported for tests.
+ */
+export function extractPwtEndTime(html) {
+  const text = htmlToText(html)
+  const m = text.match(/\d{1,2}:\d{2}\s*[ap]m\s+to\s+(\d{1,2}):(\d{2})\s*(am|pm)/i)
+  if (!m) return null
+  let hr = parseInt(m[1], 10)
+  if (m[3].toLowerCase() === 'pm' && hr !== 12) hr += 12
+  if (m[3].toLowerCase() === 'am' && hr === 12) hr = 0
+  return `${String(hr).padStart(2, '0')}:${m[2]}:00`
+}
+
+/**
+ * Fetch and parse one event's detail page. Never throws — on failure it
+ * returns nulls so the event still ingests with what the list page gave us.
+ */
+async function fetchEventDetail(id) {
+  const url = `${STUDIO_BASE}/event/${id}/`
+  try {
+    const html = await fetchHtml(url)
+    return {
+      description: extractPwtDescription(html),
+      imageUrl:    extractPwtImage(html),
+      endTimeStr:  extractPwtEndTime(html),
+    }
+  } catch (err) {
+    console.warn(`  ⚠ Detail-page fetch failed for event ${id}:`, err.message)
+    return { description: null, imageUrl: null, endTimeStr: null }
+  }
+}
+
 // ── Process ────────────────────────────────────────────────────────────────
 
 async function processEvents(events, venueId, organizerId) {
@@ -301,23 +376,29 @@ async function processEvents(events, venueId, organizerId) {
       const startAt = easternToIso(ev.dateStr, ev.timeStr)
       if (!startAt) { skipped++; continue }
 
+      const detail = await fetchEventDetail(ev.id)
+      const endAt  = detail.endTimeStr ? easternToIso(ev.dateStr, detail.endTimeStr) : null
+
       const row = {
         title:           ev.title,
-        description:     null,
+        description:     detail.description,
         start_at:        startAt,
-        end_at:          null,
+        end_at:          endAt,
         category:        'visual-art',
         tags:            ['paint-and-sip', 'art', 'fairlawn', 'social', 'date-night', 'girls-night'],
         price_min:       ev.price_min,
         price_max:       ev.price_max,
         age_restriction: 'all_ages',
-        image_url:       null,
+        image_url:       detail.imageUrl,
         ticket_url:      `${STUDIO_BASE}/event/${ev.id}/`,
         source:          'painting_twist',
         source_id:       ev.id,
         status:          'published',
         featured:        false,
       }
+
+      // Polite delay between detail-page requests (matches other per-event scrapers).
+      await new Promise((r) => setTimeout(r, 300))
 
       const enrichedRow = await enrichWithImageDimensions(row)
       const { data: upserted, error } = await upsertEventSafe(enrichedRow)

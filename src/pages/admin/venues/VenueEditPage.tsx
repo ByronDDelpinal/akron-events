@@ -141,7 +141,7 @@ function VenueForm({ seed, isNew, allOrgs, venueId, areas, onAreasChange, onNavi
           </FormField>
         </FormFieldRow>
 
-        <FormField label="Neighborhood">
+        <FormField label="Community">
           <FormSelect
             value={form.neighborhood_slug}
             onChange={(e) => setField('neighborhood_slug', e.target.value || null)}

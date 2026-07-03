@@ -34,7 +34,7 @@ export default function NeighborhoodMapMockup({ activeLabel, hotspot }: Neighbor
   const y = hotspot?.y ?? 50
 
   return (
-    <figure className="neighborhood-map-mockup" aria-label={`Map of City of Akron neighborhoods, with ${activeLabel} highlighted`}>
+    <figure className="neighborhood-map-mockup" aria-label={`Map of City of Akron communities, with ${activeLabel} highlighted`}>
       <div className="neighborhood-map-frame">
         <img
           src={MAP_SRC}
@@ -55,7 +55,7 @@ export default function NeighborhoodMapMockup({ activeLabel, hotspot }: Neighbor
 
       <figcaption className="neighborhood-map-caption">
         Interactive map coming soon. Hover &amp; click navigation will ship
-        with the City of Akron neighborhood polygons.
+        with the City of Akron community polygons.
       </figcaption>
     </figure>
   )

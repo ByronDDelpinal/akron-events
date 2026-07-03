@@ -184,7 +184,11 @@ export function buildRow(card, now = new Date()) {
       price_min: 0,
       price_max: null,
       age_restriction: 'not_specified',
-      image_url: null,
+      // The feed's `image`/`event_image` fields are consistently empty in
+      // practice (verified 2026-07-02) — the platform has no per-event photo
+      // for this library. Read defensively anyway in case that ever changes;
+      // otherwise a source-level fallback applies (lib/fallback-images.js).
+      image_url: card.imageUrl || null,
       ticket_url: card.detailUrl || BASE,
       source: SOURCE_KEY,
       source_id: card.eventId ? `cfl_${card.eventId}` : `cfl_${when.dateYmd}_${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}`,
@@ -211,6 +215,12 @@ function easternTodayYmd(now = new Date()) {
 export function eventToCard(e = {}) {
   const datestring = String(e.datestring || '').trim()
   const timeString = String(e.time_string || '').trim()
+  // `image`/`event_image` are almost always "" in this feed, but on the rare
+  // chance one is populated, only trust it if it's already an absolute URL —
+  // we don't know this platform's asset base path, so a bare filename (like
+  // akron_library's separate `services.akronlibrary.org` feed uses) is left
+  // for the source-level fallback rather than guessed at.
+  const rawImage = e.image || e.event_image || ''
   return {
     title:        e.title || '',
     subtitle:     e.sub_title || '',
@@ -220,6 +230,7 @@ export function eventToCard(e = {}) {
     eventType:    '',                                   // feed has no program-type field; title drives category
     description:  e.long_description || e.description || '',
     detailUrl:    e.url || (e.id != null ? `${DETAIL_BASE}/${e.id}` : null),
+    imageUrl:     /^https?:\/\//i.test(rawImage) ? rawImage : null,
     // Per-instance id so recurring occurrences don't collide on source_id.
     eventId:      e.id != null ? `${e.id}_${String(e.raw_start_time || '').slice(0, 10)}` : null,
   }

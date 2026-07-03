@@ -121,7 +121,7 @@ export const CATEGORY_HUBS = [
       "Outdoor events, festivals, hikes, runs, and park programs in Akron, OH and Summit County — including Summit Metro Parks and CVNP.",
     h1: 'Outdoor & Festival Events in Akron',
     intro:
-      "Akron sits at the gateway to Cuyahoga Valley National Park and is wrapped in the Summit Metro Parks system — which means the outdoor and festival calendar is unusually deep for a city this size. Hikes, guided walks, running events, riverfront festivals, outdoor concerts at Lock 3, neighborhood block parties, conservancy events at CVNP, and seasonal gatherings in Cuyahoga Falls and downtown all show up here. This page filters Akron Pulse to outdoor, festival, fitness, and nature events so you can plan something that gets you outside.",
+      "Akron sits at the gateway to Cuyahoga Valley National Park and is wrapped in the Summit Metro Parks system — which means the outdoor and festival calendar is unusually deep for a city this size. Hikes, guided walks, running events, riverfront festivals, outdoor concerts at Lock 3, community block parties, conservancy events at CVNP, and seasonal gatherings in Cuyahoga Falls and downtown all show up here. This page filters Akron Pulse to outdoor, festival, fitness, and nature events so you can plan something that gets you outside.",
     relatedSlugs: ['family', 'this-weekend', 'free'],
     categoryFilter: ['outdoors', 'sports', 'fitness', 'festival'],
   },
@@ -184,10 +184,10 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'Highland Square',
     title: 'Highland Square Events & Things To Do',
     metaDescription:
-      'Events in the Highland Square neighborhood of Akron, OH — the Highland Theatre, PorchRokr Festival, Countryside Farmers’ Market at Will Christy Park, Mustard Seed Market, restaurants, bars, and community gatherings.',
+      'Events in the Highland Square community of Akron, OH — the Highland Theatre, PorchRokr Festival, Countryside Farmers’ Market at Will Christy Park, Mustard Seed Market, restaurants, bars, and community gatherings.',
     h1: 'Highland Square Events & Things To Do',
     intro:
-      "Highland Square is Akron's walkable arts-and-coffee neighborhood, a stretch of West Market Street where more than half the homes were built before 1940. The calendar's headline event is the annual PorchRokr Festival every August — a free music and art showcase with more than 150 bands playing from neighborhood front porches across one Saturday — and the Highland Theatre (826 W. Market St.) anchors the year-round calendar as a restored 1938 art house and concert venue. The Countryside Farmers' Market at Highland Square runs Thursdays in season at Will Christy Park, and day-to-day life turns on a tight cluster of independent businesses: Mustard Seed Market & Café, Angel Falls Coffee, Mary Coyle Ice Cream, Square Records, and the row of bars and restaurants along West Market. The Portage Path — the Native American canoe portage between the Cuyahoga and Tuscarawas Rivers that served as the western boundary of white and Native lands from 1785 to 1805 — still runs straight through the neighborhood.",
+      "Highland Square is Akron's walkable arts-and-coffee community, a stretch of West Market Street where more than half the homes were built before 1940. The calendar's headline event is the annual PorchRokr Festival every August — a free music and art showcase with more than 150 bands playing from community front porches across one Saturday — and the Highland Theatre (826 W. Market St.) anchors the year-round calendar as a restored 1938 art house and concert venue. The Countryside Farmers' Market at Highland Square runs Thursdays in season at Will Christy Park, and day-to-day life turns on a tight cluster of independent businesses: Mustard Seed Market & Café, Angel Falls Coffee, Mary Coyle Ice Cream, Square Records, and the row of bars and restaurants along West Market. The Portage Path — the Native American canoe portage between the Cuyahoga and Tuscarawas Rivers that served as the western boundary of white and Native lands from 1785 to 1805 — still runs straight through the community.",
     relatedSlugs: ['wallhaven', 'west-hill', 'west-akron', 'food-drink', 'art'],
     cityMatch: ['Akron'],
   },
@@ -196,10 +196,10 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'Wallhaven',
     title: 'Wallhaven Events',
     metaDescription:
-      'Events in the Wallhaven neighborhood of Akron, OH — community programs, small-business pop-ups, and gatherings along West Market Street.',
+      'Events in the Wallhaven community of Akron, OH — community programs, small-business pop-ups, and gatherings along West Market Street.',
     h1: 'Wallhaven Events',
     intro:
-      "About four miles northwest of downtown at the busy crossroads of West Market Street, West Exchange Street, and Hawkins Avenue, Wallhaven is the commercial heart of Akron's western neighborhoods. Roughly 5,000 residents share two square miles of dense retail and dining — Swensons Drive-In, Ken Stewart's Grille, the Eye Opener diner, Graf's Garden Shop, Whole Foods, and Acme Fresh Market all sit within a few blocks of each other. Hardesty Park hosts the annual Akron Arts Expo every July, drawing artists from across the region. The neighborhood pulls a steady calendar of library programs at the Wallhaven branch, neighborhood-association gatherings, and West Market storefront events.",
+      "About four miles northwest of downtown at the busy crossroads of West Market Street, West Exchange Street, and Hawkins Avenue, Wallhaven is the commercial heart of Akron's western communities. Roughly 5,000 residents share two square miles of dense retail and dining — Swensons Drive-In, Ken Stewart's Grille, the Eye Opener diner, Graf's Garden Shop, Whole Foods, and Acme Fresh Market all sit within a few blocks of each other. Hardesty Park hosts the annual Akron Arts Expo every July, drawing artists from across the region. The community pulls a steady calendar of library programs at the Wallhaven branch, community-association gatherings, and West Market storefront events.",
     relatedSlugs: ['highland-square', 'west-akron', 'northwest-akron'],
     cityMatch: ['Akron'],
   },
@@ -208,7 +208,7 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'West Hill',
     title: 'West Hill Events',
     metaDescription:
-      'Events in the West Hill neighborhood of Akron, OH — between downtown and Highland Square. Community gatherings, historic-district programs, and more.',
+      'Events in the West Hill community of Akron, OH — between downtown and Highland Square. Community gatherings, historic-district programs, and more.',
     h1: 'West Hill Events',
     intro:
       "The historic residential ridge climbing west out of downtown that filled in as middle-class residents fled the smoke of East Side rubber plants in the early 20th century. The Hall Park Allotment Historic District is the centerpiece — American Foursquare, Craftsman, Colonial, and Medieval Revival homes developed by Philander Hall between 1902 and 1919 at the height of Akron's rubber boom. Glendale Cemetery (founded 1839, on the National Register since 2001) sits on the western edge with its Gothic Revival Civil War Memorial Chapel, and the WPA-built Glendale Steps — 242 hand-laid sandstone steps from 1936–37 — descend the hillside as a Depression-era monument to stonecraft. Expect community gatherings, historic-home programs, and outdoor events on the steps.",
@@ -220,10 +220,10 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'West Akron',
     title: 'West Akron Events',
     metaDescription:
-      'Events in West Akron — community programs, neighborhood gatherings, school events, and family activities west of downtown.',
+      'Events in West Akron — community programs, community gatherings, school events, and family activities west of downtown.',
     h1: 'West Akron Events',
     intro:
-      "A sprawling residential grid about three miles west of downtown, with tree-lined streets and one of Akron's most deliberate civic histories. West Side Neighbors, Inc. ran one of the city's most successful integration efforts here from 1967 to 1990 — a biracial and interfaith project to demonstrate that an integrated neighborhood could thrive with full services and engaged residents. Anchors today include the Maple Valley Branch Library, the John Brown home (preserved by the Summit County Historical Society), and the Dr. Bob house — boyhood home of one of the co-founders of Alcoholics Anonymous. The calendar runs on library programs, school events, neighborhood-association gatherings, and faith-community events.",
+      "A sprawling residential grid about three miles west of downtown, with tree-lined streets and one of Akron's most deliberate civic histories. West Side Neighbors, Inc. ran one of the city's most successful integration efforts here from 1967 to 1990 — a biracial and interfaith project to demonstrate that an integrated community could thrive with full services and engaged residents. Anchors today include the Maple Valley Branch Library, the John Brown home (preserved by the Summit County Historical Society), and the Dr. Bob house — boyhood home of one of the co-founders of Alcoholics Anonymous. The calendar runs on library programs, school events, community-association gatherings, and faith-community events.",
     relatedSlugs: ['highland-square', 'wallhaven', 'sherbondy-hill', 'kenmore'],
     cityMatch: ['Akron'],
   },
@@ -234,10 +234,10 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'North Hill',
     title: 'North Hill Community Events',
     metaDescription:
-      'Events in the North Hill neighborhood of Akron, OH — community festivals, cultural events, food, and gatherings.',
+      'Events in the North Hill community of Akron, OH — community festivals, cultural events, food, and gatherings.',
     h1: 'North Hill Community Events',
     intro:
-      "One of Akron's most culturally rich neighborhoods and home to the second-largest Nepali-Bhutanese community in the United States — more than 5,000 refugees have resettled here since the first family arrived in 2008. The North Hill Community Development Corporation and the Exchange House (a multicultural gathering space opened by the Better Block Foundation in February 2017) anchor a calendar of ESL classes, health workshops, concerts by the Nepali Druk Fusion band, a community garden, and multicultural festivals. North High School is roughly half South Asian and fields one of the region's strongest soccer teams; storefronts that sat empty for years have filled with immigrant-owned small businesses.",
+      "One of Akron's most culturally rich communities and home to the second-largest Nepali-Bhutanese community in the United States — more than 5,000 refugees have resettled here since the first family arrived in 2008. The North Hill Community Development Corporation and the Exchange House (a multicultural gathering space opened by the Better Block Foundation in February 2017) anchor a calendar of ESL classes, health workshops, concerts by the Nepali Druk Fusion band, a community garden, and multicultural festivals. North High School is roughly half South Asian and fields one of the region's strongest soccer teams; storefronts that sat empty for years have filled with immigrant-owned small businesses.",
     relatedSlugs: ['chapel-hill', 'merriman-hills', 'cascade-valley', 'family', 'free'],
     cityMatch: ['Akron'],
   },
@@ -246,10 +246,10 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'Chapel Hill',
     title: 'Chapel Hill Events',
     metaDescription:
-      'Events in the Chapel Hill neighborhood of northeast Akron — community gatherings, parks programs, and family activities.',
+      'Events in the Chapel Hill community of northeast Akron — community gatherings, parks programs, and family activities.',
     h1: 'Chapel Hill Events',
     intro:
-      "In northeast Akron, named after the Chapel Hill Mall that opened in 1967 and shaped the neighborhood for more than fifty years before closing and converting into a business park. The neighborhood's character is in transition — about 5,600 residents, 60% non-white, and a third Asian, making Chapel Hill the Akron neighborhood with the highest percentage of Asian residents. Roughly 70% of housing is rental, and the area sits at a junction of national retailers and a major highway with strong transit access. Expect a calendar of community gatherings, library events, and immigrant-led cultural programs.",
+      "In northeast Akron, named after the Chapel Hill Mall that opened in 1967 and shaped the community for more than fifty years before closing and converting into a business park. The community's character is in transition — about 5,600 residents, 60% non-white, and a third Asian, making Chapel Hill the Akron community with the highest percentage of Asian residents. Roughly 70% of housing is rental, and the area sits at a junction of national retailers and a major highway with strong transit access. Expect a calendar of community gatherings, library events, and immigrant-led cultural programs.",
     relatedSlugs: ['north-hill', 'goodyear-heights', 'merriman-hills'],
     cityMatch: ['Akron'],
   },
@@ -258,10 +258,10 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'Cascade Valley',
     title: 'Cascade Valley Events',
     metaDescription:
-      'Events in the Cascade Valley neighborhood of Akron — Little Cuyahoga River corridor, Cascade Locks Park, outdoor programs.',
+      'Events in the Cascade Valley community of Akron — Little Cuyahoga River corridor, Cascade Locks Park, outdoor programs.',
     h1: 'Cascade Valley Events',
     intro:
-      "Until recently called Elizabeth Park Valley, Cascade Valley fills the Little Cuyahoga River corridor between downtown Akron and the northern neighborhoods. It grew up around the Ohio & Erie Canal in the mid-19th century, and that history shapes its calendar today: Cascade Locks Park (locks 10–16 of the canal), the restored Mustill House & Store (a general store that served canal traffic from the 1820s onward), the Cascade Locks Historic District, and the Towpath Trail running north–south through the neighborhood. Cascade Valley Metro Park sits just upstream. Expect outdoor events, towpath programs, conservation gatherings, and Akron-history walks.",
+      "Until recently called Elizabeth Park Valley, Cascade Valley fills the Little Cuyahoga River corridor between downtown Akron and the northern communities. It grew up around the Ohio & Erie Canal in the mid-19th century, and that history shapes its calendar today: Cascade Locks Park (locks 10–16 of the canal), the restored Mustill House & Store (a general store that served canal traffic from the 1820s onward), the Cascade Locks Historic District, and the Towpath Trail running north–south through the community. Cascade Valley Metro Park sits just upstream. Expect outdoor events, towpath programs, conservation gatherings, and Akron-history walks.",
     relatedSlugs: ['downtown-akron', 'north-hill', 'west-hill', 'outdoor'],
     cityMatch: ['Akron'],
   },
@@ -270,10 +270,10 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'Merriman Hills',
     title: 'Merriman Hills Events',
     metaDescription:
-      'Events in the Merriman Hills neighborhood of Akron, OH — community programs and family gatherings in the city’s northern hills.',
+      'Events in the Merriman Hills community of Akron, OH — community programs and family gatherings in the city’s northern hills.',
     h1: 'Merriman Hills Events',
     intro:
-      "A small residential neighborhood in the northern hills, between Merriman Valley to the north and Wallhaven / Northwest Akron to the south. Merriman Hills is one of the three neighborhoods added in the 2017 redesign of Akron's neighborhood map, and current rankings list it as the city's safest neighborhood with a median household income above $120,000. The calendar is quiet by Akron standards, leaning on neighborhood-association programs, parks events, and family gatherings.",
+      "A small residential community in the northern hills, between Merriman Valley to the north and Wallhaven / Northwest Akron to the south. Merriman Hills is one of the three communities added in the 2017 redesign of Akron's community map, and current rankings list it as the city's safest community with a median household income above $120,000. The calendar is quiet by Akron standards, leaning on community-association programs, parks events, and family gatherings.",
     relatedSlugs: ['merriman-valley', 'northwest-akron', 'fairlawn-heights'],
     cityMatch: ['Akron'],
   },
@@ -282,7 +282,7 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'Merriman Valley',
     title: 'Merriman Valley Events',
     metaDescription:
-      'Events in the Merriman Valley neighborhood of Akron, OH — outdoor recreation, parks events, and Cuyahoga Valley access.',
+      'Events in the Merriman Valley community of Akron, OH — outdoor recreation, parks events, and Cuyahoga Valley access.',
     h1: 'Merriman Valley Events',
     intro:
       "Lines the Cuyahoga River northwest of downtown and serves as Akron's main gateway into Cuyahoga Valley National Park. Liberty Commons anchors the dining and retail strip — about twenty restaurants and bars (The Blue Door, Sushi Katsu, Vasili's Greek, Portal West Coffee, Sal's Gelato, Blimp City Bike & Hike, The Merchant Tavern, Merriman Valley Pizza) with shops covering everything from holistic stones to handmade tacos. Sand Run Metro Park sits just over the line. Expect a calendar weighted toward outdoor events, dining-district pop-ups, river programs, and seasonal markets, with a steady nightlife scene threaded through.",
@@ -294,10 +294,10 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'High Hampton',
     title: 'High Hampton Events',
     metaDescription:
-      'Events in the High Hampton neighborhood at the northern edge of Akron, OH — community programs and parks events.',
+      'Events in the High Hampton community at the northern edge of Akron, OH — community programs and parks events.',
     h1: 'High Hampton Events',
     intro:
-      "One of the three neighborhoods added in the 2017 redesign of Akron's map, High Hampton sits on the city's northern edge against the Cuyahoga Falls line. Rolling hills, large homes, and spacious lawns give it a quieter character than the dense central neighborhoods — and some residents even carry Cuyahoga Falls mailing addresses. The events calendar is small and residential, built around neighborhood-association programs and family gatherings.",
+      "One of the three communities added in the 2017 redesign of Akron's map, High Hampton sits on the city's northern edge against the Cuyahoga Falls line. Rolling hills, large homes, and spacious lawns give it a quieter character than the dense central communities — and some residents even carry Cuyahoga Falls mailing addresses. The events calendar is small and residential, built around community-association programs and family gatherings.",
     relatedSlugs: ['merriman-valley', 'chapel-hill'],
     cityMatch: ['Akron'],
   },
@@ -311,7 +311,7 @@ export const NEIGHBORHOOD_HUBS = [
       'Events in Northwest Akron — Stan Hywet Hall & Gardens, Sand Run Metro Park, community programs, and family activities.',
     h1: 'Northwest Akron Events',
     intro:
-      "Anchored by Stan Hywet Hall & Gardens — the 70-acre Tudor Revival estate of Goodyear co-founder F.A. Seiberling, with a name that means \"stone quarry\" in Old English — and Sand Run Metro Park's nearly 1,000 acres of trails, picnic shelters, and the Sand Run Lodge. Portage Country Club rounds out the green space. Most homes were built in the 1920s as smaller variations on the Stan Hywet workers' housing pattern. The calendar runs heavily on Stan Hywet's year-round programming (the Ohio Mart, Murder Mystery weekends, Deck the Hall during the holidays), outdoor events in the metro parks, and neighborhood-association gatherings.",
+      "Anchored by Stan Hywet Hall & Gardens — the 70-acre Tudor Revival estate of Goodyear co-founder F.A. Seiberling, with a name that means \"stone quarry\" in Old English — and Sand Run Metro Park's nearly 1,000 acres of trails, picnic shelters, and the Sand Run Lodge. Portage Country Club rounds out the green space. Most homes were built in the 1920s as smaller variations on the Stan Hywet workers' housing pattern. The calendar runs heavily on Stan Hywet's year-round programming (the Ohio Mart, Murder Mystery weekends, Deck the Hall during the holidays), outdoor events in the metro parks, and community-association gatherings.",
     relatedSlugs: ['fairlawn-heights', 'merriman-hills', 'wallhaven', 'outdoor'],
     cityMatch: ['Akron'],
   },
@@ -320,10 +320,10 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'Fairlawn Heights',
     title: 'Fairlawn Heights Events',
     metaDescription:
-      'Events in the Fairlawn Heights neighborhood of Akron, OH — community gatherings and family activities just inside the western city line.',
+      'Events in the Fairlawn Heights community of Akron, OH — community gatherings and family activities just inside the western city line.',
     h1: 'Fairlawn Heights Events',
     intro:
-      "Built in the 1910s by F.A. Seiberling's Fairlawn Heights Company as a home neighborhood for Goodyear executives, planned by Boston landscape architect Harold S. Wagner alongside a 150-acre country club. Akron annexed the area in 1932 when residents needed city water; the bones of the original plan — winding hillside streets, mature trees, and a thoughtful mix of Tudor, Georgian, French Norman, Chateaux, and later Bauhaus and ranch homes ranging from 3,000 to 10,000 square feet — are still visible everywhere. Bordered by West Market, I-77, Miller Road, and Frank Boulevard. The calendar centers on neighborhood-association programs and small West Market events. Not to be confused with the separate city of Fairlawn just to the west — those events live on the Fairlawn & Copley page.",
+      "Built in the 1910s by F.A. Seiberling's Fairlawn Heights Company as a home community for Goodyear executives, planned by Boston landscape architect Harold S. Wagner alongside a 150-acre country club. Akron annexed the area in 1932 when residents needed city water; the bones of the original plan — winding hillside streets, mature trees, and a thoughtful mix of Tudor, Georgian, French Norman, Chateaux, and later Bauhaus and ranch homes ranging from 3,000 to 10,000 square feet — are still visible everywhere. Bordered by West Market, I-77, Miller Road, and Frank Boulevard. The calendar centers on community-association programs and small West Market events. Not to be confused with the separate city of Fairlawn just to the west — those events live on the Fairlawn & Copley page.",
     relatedSlugs: ['northwest-akron', 'merriman-hills', 'wallhaven', 'fairlawn'],
     cityMatch: ['Akron'],
   },
@@ -334,10 +334,10 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'Goodyear Heights',
     title: 'Goodyear Heights Events',
     metaDescription:
-      'Events in the Goodyear Heights neighborhood of Akron, OH — Goodyear Heights Metro Park, community gatherings, and family programs.',
+      'Events in the Goodyear Heights community of Akron, OH — Goodyear Heights Metro Park, community gatherings, and family programs.',
     h1: 'Goodyear Heights Events',
     intro:
-      "Akron's most nationally recognized historic neighborhood, designed in 1912–13 by landscape architect Warren Manning as a Garden City model for Goodyear factory workers. The plan favored sweeping curves over a street grid and wove in churches, schools, parks, and shops within walking distance — a state-of-the-art example of company-town planning that turned up in books and architecture journals nationwide. Goodyear Heights Metro Park sits at its core. Housing styles range across American Foursquare, Craftsman, Colonial, and Medieval Revival, with mature trees lining brick streets and hilly topography giving the neighborhood its name. Expect a calendar of park programs, historic-home events, and tight-knit community gatherings.",
+      "Akron's most nationally recognized historic community, designed in 1912–13 by landscape architect Warren Manning as a Garden City model for Goodyear factory workers. The plan favored sweeping curves over a street grid and wove in churches, schools, parks, and shops within walking distance — a state-of-the-art example of company-town planning that turned up in books and architecture journals nationwide. Goodyear Heights Metro Park sits at its core. Housing styles range across American Foursquare, Craftsman, Colonial, and Medieval Revival, with mature trees lining brick streets and hilly topography giving the community its name. Expect a calendar of park programs, historic-home events, and tight-knit community gatherings.",
     relatedSlugs: ['east-akron', 'chapel-hill', 'ellet', 'outdoor'],
     cityMatch: ['Akron'],
   },
@@ -346,7 +346,7 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'East Akron',
     title: 'East Akron Events',
     metaDescription:
-      'Events in the East Akron neighborhood — community programs, church gatherings, school events, and family activities east of downtown.',
+      'Events in the East Akron community — community programs, church gatherings, school events, and family activities east of downtown.',
     h1: 'East Akron Events',
     intro:
       "Stretches east of downtown between Middlebury and Goodyear Heights with deep ties to the rubber industry. The intersection of Goodyear Boulevard and East Market Street was the commercial anchor for East Akron through most of the 20th century, with the old Goodyear buildings holding a company school, multiple recreation facilities, a theater, a bank, and storefronts. That historic Goodyear campus has been redeveloped as The East End — a 1.4-million-square-foot mixed-use district that now includes more than 100 loft apartments and a Hilton Garden Inn — and the corner is filling back in as a hub again. The calendar pulls from community-association programs, faith-community gatherings, school events, and East End commercial events.",
@@ -358,10 +358,10 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'Middlebury',
     title: 'Middlebury Events',
     metaDescription:
-      'Events in the historic Middlebury neighborhood of Akron, OH — community programs and gatherings east of downtown.',
+      'Events in the historic Middlebury community of Akron, OH — community programs and gatherings east of downtown.',
     h1: 'Middlebury Events',
     intro:
-      "The oldest neighborhood in Akron — its own community until officially merging with the city in 1872, and founded by sea captain Joseph Hart and miller Aaron Norton in 1807 when they built a grist mill on the Little Cuyahoga. The Merrill family started Middlebury's pottery industry in 1847; in 1898 the Seiberling brothers founded Goodyear Tire & Rubber Company here, and Mohawk, Phoenix, and Kelly-Springfield followed by 1921. Today the neighborhood borders the University of Akron, the former Goodyear HQ (now The East End), and Summa Hospital, and it's a focus of active community revitalization efforts. Expect a calendar of community-association programs, small-venue events, and history walks.",
+      "The oldest community in Akron — its own community until officially merging with the city in 1872, and founded by sea captain Joseph Hart and miller Aaron Norton in 1807 when they built a grist mill on the Little Cuyahoga. The Merrill family started Middlebury's pottery industry in 1847; in 1898 the Seiberling brothers founded Goodyear Tire & Rubber Company here, and Mohawk, Phoenix, and Kelly-Springfield followed by 1921. Today the community borders the University of Akron, the former Goodyear HQ (now The East End), and Summa Hospital, and it's a focus of active community revitalization efforts. Expect a calendar of community-association programs, small-venue events, and history walks.",
     relatedSlugs: ['downtown-akron', 'east-akron', 'university-park'],
     cityMatch: ['Akron'],
   },
@@ -370,10 +370,10 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'Ellet',
     title: 'Ellet Events',
     metaDescription:
-      'Events in the Ellet neighborhood of east Akron, OH — community gatherings, parks programs, and family activities.',
+      'Events in the Ellet community of east Akron, OH — community gatherings, parks programs, and family activities.',
     h1: 'Ellet Events',
     intro:
-      "Akron's largest neighborhood — more than 19,000 residents spread across seven square miles in the city's southeast corner — and arguably its most independent in character, often described as a small town within the city. Englishman Samuel Elliott (sometimes spelled Ellet) bought 500-plus acres here from Col. Simon Perkins in the early 1800s, and the neighborhood wasn't annexed by Akron until 1929. Derby Downs sits in Ellet — the WPA-built three-lane asphalt track that has hosted the All-American Soap Box Derby World Championship every July since 1934 — alongside the Goodyear Airdock, whose thirteen 211-foot steel arches enclose 364,000 square feet of column-free interior. When it was finished in 1929 it was the largest building in the world without interior supports, and the Navy's USS Akron and USS Macon airships were both built inside it. Expect family events, parks programs, school events, and Derby Downs racing weeks each summer.",
+      "Akron's largest community — more than 19,000 residents spread across seven square miles in the city's southeast corner — and arguably its most independent in character, often described as a small town within the city. Englishman Samuel Elliott (sometimes spelled Ellet) bought 500-plus acres here from Col. Simon Perkins in the early 1800s, and the community wasn't annexed by Akron until 1929. Derby Downs sits in Ellet — the WPA-built three-lane asphalt track that has hosted the All-American Soap Box Derby World Championship every July since 1934 — alongside the Goodyear Airdock, whose thirteen 211-foot steel arches enclose 364,000 square feet of column-free interior. When it was finished in 1929 it was the largest building in the world without interior supports, and the Navy's USS Akron and USS Macon airships were both built inside it. Expect family events, parks programs, school events, and Derby Downs racing weeks each summer.",
     relatedSlugs: ['east-akron', 'goodyear-heights'],
     cityMatch: ['Akron'],
   },
@@ -384,10 +384,10 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'University Park',
     title: 'University Park Events',
     metaDescription:
-      'Events in the University Park neighborhood of Akron, OH — University of Akron campus events, E.J. Thomas Hall performances, and student gatherings.',
+      'Events in the University Park community of Akron, OH — University of Akron campus events, E.J. Thomas Hall performances, and student gatherings.',
     h1: 'University Park Events',
     intro:
-      "Built around the University of Akron's main campus and the working-class neighborhood that wraps around it. Over 90% of residents are under 45, and the several blocks immediately around campus may be the most-walked stretch in Akron. E.J. Thomas Performing Arts Hall, the John S. Knight Center, university lectures, Zips athletics, performances, the Goodyear Polymer Center, and student-organization events drive a calendar that's busy year-round and especially dense during the academic year. South and east of campus the working-class character holds steady, with a significant mix of student rental housing folded in.",
+      "Built around the University of Akron's main campus and the working-class community that wraps around it. Over 90% of residents are under 45, and the several blocks immediately around campus may be the most-walked stretch in Akron. E.J. Thomas Performing Arts Hall, the John S. Knight Center, university lectures, Zips athletics, performances, the Goodyear Polymer Center, and student-organization events drive a calendar that's busy year-round and especially dense during the academic year. South and east of campus the working-class character holds steady, with a significant mix of student rental housing folded in.",
     relatedSlugs: ['downtown-akron', 'middlebury', 'south-akron'],
     cityMatch: ['Akron'],
   },
@@ -398,7 +398,7 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'South Akron',
     title: 'South Akron Events',
     metaDescription:
-      'Events in the South Akron neighborhood — community gatherings, parks programs, and family activities south of downtown.',
+      'Events in the South Akron community — community gatherings, parks programs, and family activities south of downtown.',
     h1: 'South Akron Events',
     intro:
       "Laid out in December 1825, when Irish laborers building the Ohio & Erie Canal threw up roughly 100 cabins along the right-of-way. It was called \"South\" because Eliakim Crosby founded \"North Akron\" (today's Cascade) in 1833, and the two villages merged and incorporated together in 1836 — making South Akron's bones older than the city itself. Modern South Akron mixes residential blocks with light industry along the South Main Street corridor between downtown and Firestone Park. The calendar pulls from community-association programs, faith-community events, and parks programming.",
@@ -410,10 +410,10 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'Firestone Park',
     title: 'Firestone Park Events',
     metaDescription:
-      'Events in the historic Firestone Park neighborhood of Akron, OH — Derby Downs (All-American Soap Box Derby), Firestone Park itself, and family events.',
+      'Events in the historic Firestone Park community of Akron, OH — Derby Downs (All-American Soap Box Derby), Firestone Park itself, and family events.',
     h1: 'Firestone Park Events',
     intro:
-      "Planned over a century ago by Harvey S. Firestone as a model neighborhood for his tire-company workers, with landscape architect Alling S. DeForest laying out tree-lined boulevards that curve around the central Firestone Park itself — a public park literally shaped like the Firestone shield emblem. The original concept was families of different income levels living together in varied housing styles, with churches, schools, and shops all within walking distance — and that walkability still defines the neighborhood. Three neighborhood parks, charming early-20th-century architecture, and a calendar weighted toward family events, parks programming, and historic-home gatherings.",
+      "Planned over a century ago by Harvey S. Firestone as a model community for his tire-company workers, with landscape architect Alling S. DeForest laying out tree-lined boulevards that curve around the central Firestone Park itself — a public park literally shaped like the Firestone shield emblem. The original concept was families of different income levels living together in varied housing styles, with churches, schools, and shops all within walking distance — and that walkability still defines the community. Three community parks, charming early-20th-century architecture, and a calendar weighted toward family events, parks programming, and historic-home gatherings.",
     relatedSlugs: ['south-akron', 'kenmore', 'coventry-crossing'],
     cityMatch: ['Akron'],
   },
@@ -422,10 +422,10 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'Kenmore',
     title: 'Kenmore Events',
     metaDescription:
-      'Events in the Kenmore neighborhood of southwest Akron, OH — Kenmore Boulevard music district, community gatherings, and small-business events.',
+      'Events in the Kenmore community of southwest Akron, OH — Kenmore Boulevard music district, community gatherings, and small-business events.',
     h1: 'Kenmore Events',
     intro:
-      "Was its own city before being annexed by Akron in 1929, with a commercial spine along Kenmore Boulevard that became the first Akron neighborhood business district added to the National Register of Historic Places (2019). The Better Kenmore CDC has driven a deep revitalization since 2016: at last count there were a dozen music-related businesses inside a three-block radius — two guitar shops, six recording studios, two live music venues, plus music schools — earning the corridor the nickname Akron's \"Music Row.\" Most of the new businesses are owned by Kenmore residents, and more than half are female- or minority-owned. Expect a calendar of independent music shows, neighborhood pop-ups, business-district events, and community-development programs.",
+      "Was its own city before being annexed by Akron in 1929, with a commercial spine along Kenmore Boulevard that became the first Akron community business district added to the National Register of Historic Places (2019). The Better Kenmore CDC has driven a deep revitalization since 2016: at last count there were a dozen music-related businesses inside a three-block radius — two guitar shops, six recording studios, two live music venues, plus music schools — earning the corridor the nickname Akron's \"Music Row.\" Most of the new businesses are owned by Kenmore residents, and more than half are female- or minority-owned. Expect a calendar of independent music shows, community pop-ups, business-district events, and community-development programs.",
     relatedSlugs: ['firestone-park', 'sherbondy-hill', 'west-akron', 'coventry-crossing'],
     cityMatch: ['Akron'],
   },
@@ -434,10 +434,10 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'Sherbondy Hill',
     title: 'Sherbondy Hill Events',
     metaDescription:
-      'Events in the Sherbondy Hill neighborhood of Akron, OH — community programs and gatherings southwest of downtown.',
+      'Events in the Sherbondy Hill community of Akron, OH — community programs and gatherings southwest of downtown.',
     h1: 'Sherbondy Hill Events',
     intro:
-      "Adjacent to downtown and bordered by Kenmore, West Akron, and Highland Square. The name traces back to Melcher Sherbondy, who bought 368 acres here around 1816; the neighborhood was briefly renamed Lane-Wooster before being restored to Sherbondy Hill in 2017 in recognition of its history as one of Akron's most historically Black neighborhoods and its early ties to Akron's Jewish community. Anchors include Perkins Woods pool, Miller South School for the Visual and Performing Arts, the Akron Zoo, the Odom Branch Library, the Helen Arnold CLC, the Akron Urban League, and Cleveland Clinic Akron General just over the line — and the corridor is one of the city's \"Great Streets\" investment targets.",
+      "Adjacent to downtown and bordered by Kenmore, West Akron, and Highland Square. The name traces back to Melcher Sherbondy, who bought 368 acres here around 1816; the community was briefly renamed Lane-Wooster before being restored to Sherbondy Hill in 2017 in recognition of its history as one of Akron's most historically Black communities and its early ties to Akron's Jewish community. Anchors include Perkins Woods pool, Miller South School for the Visual and Performing Arts, the Akron Zoo, the Odom Branch Library, the Helen Arnold CLC, the Akron Urban League, and Cleveland Clinic Akron General just over the line — and the corridor is one of the city's \"Great Streets\" investment targets.",
     relatedSlugs: ['west-akron', 'kenmore', 'summit-lake'],
     cityMatch: ['Akron'],
   },
@@ -458,10 +458,10 @@ export const NEIGHBORHOOD_HUBS = [
     label: 'Coventry Crossing',
     title: 'Coventry Crossing Events',
     metaDescription:
-      'Events in the Coventry Crossing neighborhood at the southern edge of Akron, OH — community programs and family activities.',
+      'Events in the Coventry Crossing community at the southern edge of Akron, OH — community programs and family activities.',
     h1: 'Coventry Crossing Events',
     intro:
-      "One of the three neighborhoods added in the 2017 redesign of Akron's neighborhood map, Coventry Crossing sits at the city's far southern edge against the Coventry Township line. The neighborhood was built as a planned community — new traditional homes with colonial influences put up between the 1980s and the early 2000s, organized around an HOA, with a small neighborhood park (including a splash pad) and direct access to Firestone Metro Park's 258 acres. The calendar is quiet by Akron standards and skews toward family activities and parks programming.",
+      "One of the three communities added in the 2017 redesign of Akron's community map, Coventry Crossing sits at the city's far southern edge against the Coventry Township line. The community was built as a planned community — new traditional homes with colonial influences put up between the 1980s and the early 2000s, organized around an HOA, with a small community park (including a splash pad) and direct access to Firestone Metro Park's 258 acres. The calendar is quiet by Akron standards and skews toward family activities and parks programming.",
     relatedSlugs: ['firestone-park', 'kenmore'],
     cityMatch: ['Akron'],
   },
@@ -487,10 +487,10 @@ export const CITY_HUBS = [
     label: 'Akron',
     title: 'Akron, OH Events',
     metaDescription:
-      'Every event happening across Akron, OH — concerts, festivals, art shows, community gatherings, fitness, family activities, and more, drilled down by neighborhood when you want it.',
+      'Every event happening across Akron, OH — concerts, festivals, art shows, community gatherings, fitness, family activities, and more, drilled down by community when you want it.',
     h1: 'Akron, OH Events',
     intro:
-      "Akron is the largest city in Summit County and the only one with a neighborhood drill-down on Akron Pulse — 24 City-recognized neighborhoods stretching from Merriman Valley in the north to Coventry Crossing in the south, anchored by downtown's Civic Theatre / Lock 3 / Knight Center cluster. Built by the rubber industry between 1910 and 1920 (Goodyear, Firestone, BFGoodrich, General Tire all started here) and reshaped over the last decade by the University of Akron, Cleveland Clinic Akron General, Bridgestone Americas, and a renewed Reach Akron / Civic Commons investment in the southern lakefront. This page lists every event happening anywhere in Akron — tap a neighborhood on the map below to narrow further.",
+      "Akron is the largest city in Summit County and the only one with a community drill-down on Akron Pulse — 24 City-recognized communities stretching from Merriman Valley in the north to Coventry Crossing in the south, anchored by downtown's Civic Theatre / Lock 3 / Knight Center cluster. Built by the rubber industry between 1910 and 1920 (Goodyear, Firestone, BFGoodrich, General Tire all started here) and reshaped over the last decade by the University of Akron, Cleveland Clinic Akron General, Bridgestone Americas, and a renewed Reach Akron / Civic Commons investment in the southern lakefront. This page lists every event happening anywhere in Akron — tap a community on the map below to narrow further.",
     relatedSlugs: ['cuyahoga-falls', 'stow', 'concerts', 'free', 'this-weekend'],
     cityMatch: ['Akron'],
   },
@@ -576,7 +576,7 @@ export const CITY_HUBS = [
       'Events in Fairlawn and Copley, OH — Summit Mall, Cleveland-Massillon Road, community programs, school events, parks gatherings, and family activities just west of Akron.',
     h1: 'Fairlawn & Copley Events',
     intro:
-      "Fairlawn (~7,000) is a small city directly west of Akron that punches well above its weight as a regional commercial center — Summit Mall, the West Market Street restaurant corridor, and a cluster of hotels make it a frequent destination from across Summit County. Copley Township (~17,000) wraps around its western side, anchored by the Cleveland-Massillon Road commercial corridor and sharing the highly regarded Copley-Fairlawn City Schools with Fairlawn proper. The combined calendar runs on Summit Mall events and Fairlawn restaurant happenings, Copley Community Park programs (movies in the park, food-truck nights, summer concerts), Copley-Fairlawn school concerts and athletics, and year-round library programming at the Fairlawn-Bath Branch on West Market Street that serves both communities. Not to be confused with Fairlawn Heights, the Akron neighborhood inside the city line.",
+      "Fairlawn (~7,000) is a small city directly west of Akron that punches well above its weight as a regional commercial center — Summit Mall, the West Market Street restaurant corridor, and a cluster of hotels make it a frequent destination from across Summit County. Copley Township (~17,000) wraps around its western side, anchored by the Cleveland-Massillon Road commercial corridor and sharing the highly regarded Copley-Fairlawn City Schools with Fairlawn proper. The combined calendar runs on Summit Mall events and Fairlawn restaurant happenings, Copley Community Park programs (movies in the park, food-truck nights, summer concerts), Copley-Fairlawn school concerts and athletics, and year-round library programming at the Fairlawn-Bath Branch on West Market Street that serves both communities. Not to be confused with Fairlawn Heights, the Akron community inside the city line.",
     relatedSlugs: ['fairlawn-heights', 'akron', 'barberton'],
     cityMatch: ['Fairlawn', 'Copley'],
   },
@@ -687,7 +687,7 @@ export const CITY_HUBS = [
       'Events in southeast Summit County — Springfield Township, Lakemore Village, the Summit-County portion of Mogadore. Lakefront events, parks programs, school events.',
     h1: 'Southeast Summit County Events',
     intro:
-      "Southeast Summit County stretches from Akron's eastern edge down toward the Portage County line: Springfield Township just east of Akron (home to Akron Fulton International Airport and the Derby Downs corridor that flows up into Ellet), Lakemore Village on Springfield Lake, and the Summit-County portion of Mogadore Village along the Portage line. The calendar is weighted toward the lakes — Springfield Lake events, Lakemore's summer festivals — plus Springfield Local Schools events and the Springfield-Lake fire-and-ambulance community gatherings that anchor neighborhood life. This page lists every Akron Pulse event in the southeast quadrant.",
+      "Southeast Summit County stretches from Akron's eastern edge down toward the Portage County line: Springfield Township just east of Akron (home to Akron Fulton International Airport and the Derby Downs corridor that flows up into Ellet), Lakemore Village on Springfield Lake, and the Summit-County portion of Mogadore Village along the Portage line. The calendar is weighted toward the lakes — Springfield Lake events, Lakemore's summer festivals — plus Springfield Local Schools events and the Springfield-Lake fire-and-ambulance community gatherings that anchor community life. This page lists every Akron Pulse event in the southeast quadrant.",
     relatedSlugs: ['akron', 'tallmadge', 'new-franklin', 'outdoor'],
     cityMatch: ['Springfield', 'Springfield Township', 'Lakemore', 'Mogadore'],
   },

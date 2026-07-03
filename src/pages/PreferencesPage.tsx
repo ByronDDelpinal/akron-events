@@ -564,14 +564,14 @@ export default function PreferencesPage() {
             className={`pill pill-sm ${locationMode === 'area' ? 'pill-active' : ''}`}
             onClick={() => { setLocationMode('area'); setZipcode('') }}
           >
-            Neighborhood
+            Community
           </button>
         </div>
 
         {locationMode === 'area' && (
           <>
             <p className="form-hint prefs-hint prefs-hint-inline">
-              Select one or more neighborhoods. Events near any selected area will be included.
+              Select one or more communities. Events near any selected area will be included.
             </p>
             <div className="area-grid">
               {AREA_PRESETS.map((area) => (

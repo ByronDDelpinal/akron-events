@@ -28,6 +28,7 @@ import {
   ensureOrganization,
   easternToIso,
 } from './lib/normalize.js'
+import { getTrustedEventsAtVenue, classifyAgainstTrusted } from './lib/source-tiers.js'
 
 const BASE_URL = 'https://www.downtownakron.com'
 
@@ -335,15 +336,44 @@ function getMonthUrls() {
 }
 
 // ── Process ────────────────────────────────────────────────────────────────
+//
+// Aggregator precedence (2026-07-02 data-quality plan, task 3): DAP is a
+// Tier-3 aggregator. DIRECTLY_SCRAPED_VENUES above suppresses the handful of
+// venues we've manually audited as a complete superset. For every other
+// venue, classify against whatever Tier-1/2 (trusted) events are already
+// linked to it:
+//   - no trusted events at this venue at all      → publish normally
+//   - a trusted event within 3 days at this venue → suppress (real duplicate)
+//   - trusted events exist, but none nearby        → publish + needs_review
+//     (a scraper gap or a genuine DAP-only program — human decides; never
+//     silently drop, per "Free Thursday at Akron Art Museum" — DAP's only
+//     copy even though akron_art_museum is scraped)
+// One venue lookup per unique venue per run, cached below.
+const trustedEventsCache = new Map()
+async function trustedEventsFor(venueId) {
+  if (!venueId) return []
+  if (!trustedEventsCache.has(venueId)) {
+    trustedEventsCache.set(venueId, await getTrustedEventsAtVenue(venueId))
+  }
+  return trustedEventsCache.get(venueId)
+}
 
 async function processEvents(events, organizerId) {
-  let inserted = 0, skipped = 0
+  let inserted = 0, skipped = 0, suppressedByTier = 0, flaggedForReview = 0
 
   for (const ev of events) {
     try {
       const venueId = await ensureVenueByName(ev.venueName)
       const startAt = easternToIso(ev.dateStr, ev.timeStr)
       if (!startAt) { skipped++; continue }
+
+      const trusted = await trustedEventsFor(venueId)
+      const { suppress, needsReview } = classifyAgainstTrusted(trusted, startAt)
+      if (suppress) {
+        suppressedByTier++
+        console.log(`  ⤷ Suppressing "${ev.title}" — a Tier-1/2 event covers this venue within 3 days`)
+        continue
+      }
 
       const row = {
         title:           ev.title,
@@ -361,7 +391,9 @@ async function processEvents(events, organizerId) {
         source_id:       ev.slug,
         status:          'published',
         featured:        false,
+        ...(needsReview ? { needs_review: true } : {}),
       }
+      if (needsReview) flaggedForReview++
 
       const enrichedRow = await enrichWithImageDimensions(row)
       const { data: upserted, error } = await upsertEventSafe(enrichedRow)
@@ -380,7 +412,7 @@ async function processEvents(events, organizerId) {
     }
   }
 
-  return { inserted, skipped }
+  return { inserted, skipped, suppressedByTier, flaggedForReview }
 }
 
 // ── Entry point ────────────────────────────────────────────────────────────
@@ -443,11 +475,14 @@ async function main() {
     }
 
     console.log(`\n📥  Processing ${visible.length} events…`)
-    const { inserted, skipped } = await processEvents(visible, organizerId)
+    const { inserted, skipped, suppressedByTier, flaggedForReview } = await processEvents(visible, organizerId)
+    if (suppressedByTier > 0) console.log(`  Suppressed ${suppressedByTier} event(s) — a Tier-1/2 source covers the venue within 3 days.`)
+    if (flaggedForReview > 0) console.log(`  Flagged ${flaggedForReview} event(s) needs_review — venue has Tier-1/2 coverage but nothing nearby.`)
 
     await logUpsertResult('downtown_akron', inserted, 0, skipped, {
       eventsFound: future.length,
-      suppressed,
+      suppressed: suppressed + suppressedByTier,
+      flaggedForReview,
       durationMs:  Date.now() - start,
     })
     console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s`)

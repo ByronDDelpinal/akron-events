@@ -106,9 +106,12 @@
   border: var(--border-width-thick) solid var(--amber-on-dark);
 }
 .btn-nav-cta-outline:hover {
-  background: var(--amber-tint-10);
-  color: var(--amber);
-  border-color: var(--amber);
+  /* Fill with the bright on-dark accent on hover. The old amber-tint-10
+     wash + dark --amber text fell below AA on the dark nav (~4.3:1 on
+     several themes); a solid fill with --bg-nav text passes on all. */
+  background: var(--amber-on-dark);
+  color: var(--bg-nav);
+  border-color: var(--amber-on-dark);
 }
 
 /* ── FEEDBACK NAV (prominent during beta) ── */
@@ -311,21 +314,36 @@
 .mobile-nav-link.active { color: var(--amber); }
 .mobile-menu-cta {
   margin-top: var(--space-sm);
-  background: var(--amber); color: var(--bg-nav);
+  /* The mobile sheet is always --bg-nav (dark). The label text on the old
+     --amber fill was legible (white on #0E5163 = 8.5:1), but the FILL
+     itself was near-identical to the sheet on dark-primary themes (Civic
+     Teal: #0E5163 fill on #0A3B48 sheet = 1.37:1, well under the 3:1 WCAG
+     1.4.11 non-text minimum for UI components). The button silhouette
+     vanished, so the CTA read as disabled. Fill with the bright on-dark
+     accent + --bg-nav text — the same on-dark treatment as
+     .mobile-menu-cta-outline:hover — which clears both 3:1 (fill vs sheet)
+     and 4.5:1 (text) on every theme (Civic Teal: 4.84:1 for both). */
+  background: var(--amber-on-dark); color: var(--bg-nav);
   border: none; border-radius: var(--radius-md);
   padding: var(--space-md); font-family: var(--font-display);
   font-size: var(--text-base); font-weight: 700;
   cursor: pointer; transition: background var(--transition-medium);
 }
-.mobile-menu-cta:hover { background: var(--amber-hover); }
+/* Lighten to the pale accent on hover (text stays --bg-nav; 9.6:1 on Civic
+   Teal). --amber-hover would darken the fill back toward the sheet. */
+.mobile-menu-cta:hover { background: var(--amber-pale); }
 .mobile-menu-cta-outline {
+  /* Outline sits on the dark sheet too — use the brighter on-dark accent
+     for text/border (matches desktop .btn-nav-cta-outline) instead of the
+     dark --amber, which looked muted/disabled on Civic Teal. */
   background: transparent;
-  color: var(--amber);
-  border: var(--border-width-thick) solid var(--amber);
+  color: var(--amber-on-dark);
+  border: var(--border-width-thick) solid var(--amber-on-dark);
 }
 .mobile-menu-cta-outline:hover {
-  background: var(--amber-tint-10);
-  color: var(--amber);
+  background: var(--amber-on-dark);
+  color: var(--bg-nav);
+  border-color: var(--amber-on-dark);
 }
 
 /* Switch to hamburger menu below Tailwind's xl breakpoint (1280px). The full

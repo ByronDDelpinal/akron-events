@@ -123,7 +123,7 @@ export default function AboutPage() {
           <p className="about-p">
             So we built what we wished existed: one free, complete view of
             everything going on across Akron and Summit County. Big concerts and
-            quiet neighborhood gatherings, markets, fundraisers, classes, games,
+            quiet community gatherings, markets, fundraisers, classes, games,
             all of it. It will always be free, and it will never run ads. It&apos;s
             for everyone here, no exceptions.
           </p>

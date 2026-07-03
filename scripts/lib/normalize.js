@@ -14,6 +14,7 @@ import { resolveNeighborhoodSlug } from './neighborhood-resolver.js'
 import { inferCategories as _inferCategories } from './category-inference.js'
 import { V1_TO_V2, CATEGORY_SLUGS } from '../../src/lib/categories.js'
 import { defaultCategoryFor } from '../manifest.js'
+import { fallbackImageFor } from './fallback-images.js'
 
 // ════════════════════════════════════════════════════════════════════════════
 // HTML / TEXT UTILITIES
@@ -290,10 +291,14 @@ export async function fetchSchemaDescription(url) {
 
 export async function enrichWithImageDimensions(row) {
   if (!await _hasImageDimensionColumns()) return row
-  if (!row.image_url) {
+  // Sources whose platform structurally can't supply a per-event photo get a
+  // curated static fallback (scripts/lib/fallback-images.js) — a no-op until
+  // Byron fills one in. Never overrides a real image_url from the scraper.
+  const sourceImageUrl = row.image_url || fallbackImageFor(row.source)
+  if (!sourceImageUrl) {
     return { ...row, image_width: null, image_height: null, image_file_size: null }
   }
-  const normalizedUrl = normalizeImageUrl(row.image_url, row.source)
+  const normalizedUrl = normalizeImageUrl(sourceImageUrl, row.source)
   const meta = await getImageDimensions(normalizedUrl)
 
   if (meta) {
@@ -966,6 +971,70 @@ export async function ensureVenue(name, details = {}, opts = {}) {
  *                       are now in junction tables)
  * @returns {{ data, error, isNew: boolean }}
  */
+// Small connector words stay lowercase in title case, except as the first or
+// last word. Standard title-case style guide list, kept short/uncontroversial.
+const TITLE_CASE_MINOR_WORDS = new Set([
+  'a', 'an', 'and', 'as', 'at', 'but', 'by', 'for', 'from', 'in', 'into',
+  'nor', 'of', 'on', 'onto', 'or', 'over', 'per', 'the', 'to', 'vs', 'vs.',
+  'via', 'with',
+])
+
+// Short tokens that are almost always acronyms/initialisms rather than a
+// word that happens to be shouted — kept fully uppercase rather than
+// title-cased into "Dj", "Bbq", etc. Not exhaustive; a deliberately small,
+// low-risk list rather than a general acronym detector.
+const TITLE_CASE_KEEP_UPPER = new Set([
+  'DJ', 'DJS', 'MC', 'BBQ', 'VIP', 'EDM', 'TV', 'CD', 'USA', 'OH', 'NYE',
+  'LGBTQ', 'LGBTQ+', 'Q&A', 'ASL', 'ID',
+])
+
+/**
+ * Convert an ALL-CAPS title to standard title case (2026-07-02 data-quality
+ * plan, task 7 — 28 shouted titles across eventbrite/rialto/killbox_comedy).
+ * Only fires when the title has no lowercase letters at all and is longer
+ * than 25 characters, so normal mixed-case titles (the vast majority) are
+ * never touched. Small connector words are lowercased except at the ends; a
+ * short allowlist of common acronyms stays uppercase. Exported for tests.
+ */
+export function titleCaseIfShouting(title) {
+  if (!title || title.length <= 25) return title
+  if (/[a-z]/.test(title)) return title // already has lowercase — not shouting
+  if (!/[A-Z]/.test(title)) return title // no letters at all (pure punctuation/numbers)
+
+  const words = title.split(/(\s+)/) // keep whitespace runs so spacing is preserved exactly
+  let seenWord = false
+  const wordCount = words.filter((w) => !/^\s+$/.test(w)).length
+  let wordIndex = 0
+
+  return words
+    .map((chunk) => {
+      if (/^\s+$/.test(chunk) || chunk === '') return chunk
+      wordIndex++
+      const isFirst = !seenWord
+      seenWord = true
+      const isLast = wordIndex === wordCount
+
+      // Hyphenated compounds ("STATE-OF-THE-ART") — title-case each segment.
+      // isFirst/isLast only apply to the outer segment at that edge (e.g. the
+      // "ART" in a first-word "STATE-OF-THE-ART" isn't the title's last word,
+      // so "of"/"the" inside it still lowercase per the minor-word rule).
+      const segments = chunk.split('-')
+      return segments
+        .map((segment, segIdx) => {
+          if (!segment) return segment
+          if (TITLE_CASE_KEEP_UPPER.has(segment)) return segment
+          const lower = segment.toLowerCase()
+          const isSegFirst = isFirst && segIdx === 0
+          const isSegLast  = isLast && segIdx === segments.length - 1
+          if (!isSegFirst && !isSegLast && TITLE_CASE_MINOR_WORDS.has(lower)) return lower
+          // Preserve a leading apostrophe/quote, then capitalize the first letter.
+          return lower.replace(/^([^a-z0-9]*)([a-z])/, (_m, pre, c) => pre + c.toUpperCase())
+        })
+        .join('-')
+    })
+    .join('')
+}
+
 /**
  * Sanitize text fields on an event row before upsert.
  * Decodes HTML entities and strips stray tags from title and description.
@@ -974,7 +1043,7 @@ export async function ensureVenue(name, details = {}, opts = {}) {
 export function sanitizeEventText(row) {
   return {
     ...row,
-    title:       row.title       ? stripHtml(row.title)       : row.title,
+    title:       row.title       ? titleCaseIfShouting(stripHtml(row.title)) : row.title,
     // Use htmlToText for descriptions so paragraph breaks (\n\n) and list
     // markers are preserved. stripHtml collapses all whitespace to a single
     // space, which flattens multi-paragraph descriptions into one long string.

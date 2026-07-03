@@ -1,7 +1,12 @@
 /**
  * scrape-weathervane.js
  *
- * Scrapes the season lineup from Weathervane Playhouse's upcoming-shows page.
+ * Scrapes the season lineup from Weathervane Playhouse's upcoming-shows page,
+ * then crawls each show's own detail page (/events/{slug}) for its synopsis
+ * and "Buy Tickets" link — the listing page alone has no description, and its
+ * generic /tickets link was being reused as ticket_url/source_url for every
+ * show (2026-07-02 data-quality plan, task 4). The poster image comes from
+ * the listing page itself, which already embeds it per show.
  * Platform: Drupal 11 — static HTML season listing.
  *
  * Usage:
@@ -18,6 +23,8 @@ import {
   logUpsertResult,
   logScraperError,
   htmlToText,
+  stripHtml,
+  decodeEntities,
   enrichWithImageDimensions,
   upsertEventSafe,
   linkEventVenue,
@@ -27,7 +34,8 @@ import {
   easternToIso,
 } from './lib/normalize.js'
 
-const SOURCE_URL = 'https://www.weathervaneplayhouse.com/upcoming-shows'
+const BASE_URL    = 'https://www.weathervaneplayhouse.com'
+const SOURCE_URL  = `${BASE_URL}/upcoming-shows`
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -136,8 +144,23 @@ function isDateLine(line) {
 }
 
 // ── Parse shows ────────────────────────────────────────────────────────────
+//
+// The listing page renders each show as a single <a href="/events/{slug}">
+// wrapping a poster <img> and the title/date text — verified 2026-07-02.
+// Parsing per-anchor (rather than walking the whole page's text lines) both
+// fixes a title/date mis-pairing risk at block boundaries AND gives us the
+// show's own detail-page URL and poster image for free, without an extra
+// request per show.
+//
+// Title and date aren't reliably split by htmlToText's block-newline rules
+// (they land in whatever tag the theme happens to use — <div>, <span>, plain
+// text — and htmlToText only breaks on <p>/<br>/<li>/heading closes). So
+// instead of relying on a line break between them, find the first month name
+// in the flattened text and split there — robust even if the two run
+// together with no whitespace at all.
+const MONTH_NAME_RE = /(JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)/i
 
-function parseShows(html) {
+export function parseShows(html) {
   const shows = []
 
   // Remove scripts and styles
@@ -145,59 +168,84 @@ function parseShows(html) {
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')
 
-  // Extract text. Use htmlToText (not stripHtml) so block-level boundaries stay
-  // as newlines — the show title and its date sit in separate elements, and the
-  // walker below pairs them by adjacent lines. stripHtml collapses all
-  // whitespace to single spaces, which flattened the page to one line and made
-  // the parser find zero shows.
-  const rawText = htmlToText(clean)
-  const lines   = rawText
-    .split(/[\n\r]+/)
-    .map(l => l.trim())
-    .filter(l => l.length > 0)
-
   const seen    = new Set()
   const now     = new Date()
   const todayMs = new Date(now.toISOString().split('T')[0] + 'T00:00:00Z').getTime()
 
-  // Walk lines looking for (title, date) pairs
-  // The page alternates: title line → date line (or date → title in some layouts)
-  // We look for date lines and infer the title from adjacent non-date lines.
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
+  const linkPattern = /<a[^>]+href="(\/events\/([a-z0-9-]+))"[^>]*>([\s\S]*?)<\/a>/gi
 
-    if (isSeasonHeader(line)) continue
+  for (const match of clean.matchAll(linkPattern)) {
+    const href       = BASE_URL + match[1]
+    const slug       = match[2]
+    const innerHtml  = match[3]
 
-    if (isDateLine(line)) {
-      const dateStr = parseDateString(line)
-      if (!dateStr) continue
+    // Nav/footer links to /events/* with no poster image aren't show cards.
+    const imgMatch = innerHtml.match(/<img[^>]+src="([^"]+)"/i)
+    if (!imgMatch) continue
+    const posterUrl = decodeEntities(imgMatch[1])
 
-      // Skip past shows
-      if (new Date(dateStr).getTime() < todayMs) continue
+    const blob = htmlToText(innerHtml).replace(/\s+/g, ' ').trim()
+    const monthMatch = blob.match(MONTH_NAME_RE)
+    if (!monthMatch) continue
 
-      // Look backward and forward for a title
-      const prevLine = i > 0 ? lines[i - 1] : ''
-      const nextLine = i < lines.length - 1 ? lines[i + 1] : ''
+    const title    = blob.slice(0, monthMatch.index).trim()
+    const dateLine = blob.slice(monthMatch.index).trim()
+    if (!title || title.length <= 3) continue
+    if (!isDateLine(dateLine) || isSeasonHeader(dateLine) || isSeasonHeader(title)) continue
 
-      // Title is the adjacent non-date, non-header line
-      let title = null
-      if (prevLine && !isDateLine(prevLine) && !isSeasonHeader(prevLine) && prevLine.length > 3) {
-        title = prevLine
-      } else if (nextLine && !isDateLine(nextLine) && !isSeasonHeader(nextLine) && nextLine.length > 3) {
-        title = nextLine
-      }
+    const dateStr = parseDateString(dateLine)
+    if (!dateStr) continue
 
-      if (!title) continue
+    // Skip past shows
+    if (new Date(dateStr).getTime() < todayMs) continue
 
-      const id = slugify(title)
-      if (seen.has(id)) continue
-      seen.add(id)
+    if (seen.has(slug)) continue
+    seen.add(slug)
 
-      shows.push({ title, dateStr })
-    }
+    shows.push({ title, dateStr, slug, href, posterUrl })
   }
 
   return shows
+}
+
+/**
+ * The show's own page (e.g. /events/parade) carries the synopsis paragraph
+ * and, for musicals/plays with a licensor, a "Buy Tickets" link to the box
+ * office system (OvationTix). Verified 2026-07-02 against /events/parade.
+ * Never throws — callers get nulls on failure so the show still ingests with
+ * what the listing page gave us (title/date/poster).
+ */
+function parseShowDetail(html) {
+  return {
+    description: extractWvDescription(html),
+    ticketUrl:   extractWvTicketUrl(html),
+  }
+}
+
+/**
+ * The synopsis is a plain <p> in the page body. Distinguish it from the
+ * surrounding noise (byline block, content warning, licensor credit, cast
+ * list) with a few cheap heuristics rather than a brittle DOM path, since
+ * this is server-rendered Drupal markup we don't control. Exported for tests.
+ */
+export function extractWvDescription(html) {
+  const paragraphs = [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)].map(m => stripHtml(m[1]).trim())
+  for (const text of paragraphs) {
+    if (!text || text.length < 60) continue
+    if (/^content warning/i.test(text)) continue
+    if (/presented (through|by) special arrangement|all authorized performance materials/i.test(text)) continue
+    // Real prose has lowercase words followed by punctuation; a byline/cast
+    // block is mostly short, capitalized name fragments.
+    if (!/[a-z]{4,}[.,]/.test(text)) continue
+    return text
+  }
+  return null
+}
+
+/** The "Buy Tickets" CTA link on a show's page, or null. Exported for tests. */
+export function extractWvTicketUrl(html) {
+  const m = html.match(/<a[^>]+href="([^"]+)"[^>]*>\s*Buy Tickets\s*<\/a>/i)
+  return m ? decodeEntities(m[1]) : null
 }
 
 // ── Venue / Organizer ──────────────────────────────────────────────────────
@@ -246,9 +294,22 @@ async function processShows(shows, venueId, organizerId) {
       const startAt = easternToIso(show.dateStr, '19:30:00')
       if (!startAt) { skipped++; continue }
 
+      let description = null
+      let ticketUrl    = show.href
+      try {
+        const detailHtml = await fetchHtml(show.href)
+        const detail      = parseShowDetail(detailHtml)
+        description = detail.description
+        ticketUrl   = detail.ticketUrl || show.href
+      } catch (err) {
+        console.warn(`  ⚠ Detail-page fetch failed for "${show.title}":`, err.message)
+      }
+      // Polite delay between detail-page requests.
+      await new Promise((r) => setTimeout(r, 300))
+
       const row = {
         title:           show.title,
-        description:     null,
+        description,
         start_at:        startAt,
         end_at:          null,
         category:        'theater',
@@ -256,8 +317,9 @@ async function processShows(shows, venueId, organizerId) {
         price_min:       20,
         price_max:       null,
         age_restriction: 'all_ages',
-        image_url:       null,
-        ticket_url:      'https://www.weathervaneplayhouse.com/tickets',
+        image_url:       show.posterUrl || null,
+        ticket_url:      ticketUrl,
+        source_url:      show.href,
         source:          'weathervane',
         source_id:       slugify(show.title),
         status:          'published',

@@ -12,7 +12,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-const { to24h, parseListDateTime, mapCategory, parseIsFamily, venueFor, buildRow, SOURCE_KEY } =
+const { to24h, parseListDateTime, mapCategory, parseIsFamily, venueFor, buildRow, eventToCard, SOURCE_KEY } =
   await import('../scrape-cuyahoga-falls-library.js')
 
 describe('CFL to24h', () => {
@@ -104,5 +104,40 @@ describe('CFL buildRow', () => {
   })
   it('returns null when undatable', () => {
     assert.equal(buildRow({ title: 'Mystery', datetimeText: 'Ongoing' }), null)
+  })
+})
+
+// 2026-07-02 data-quality plan (task 6): the feed's `image`/`event_image`
+// fields are empty in practice, so image_url had been hardcoded null. Read
+// them defensively in case that ever changes — but only trust an already-
+// absolute URL, since we don't know this platform's asset base path. A
+// source-level static fallback (lib/fallback-images.js) covers the rest.
+describe('CFL image field (defensive, 2026-07-02)', () => {
+  it('leaves imageUrl null when the feed field is empty (current reality)', () => {
+    const card = eventToCard({ title: 'Play Cafe', image: '', event_image: '' })
+    assert.equal(card.imageUrl, null)
+  })
+
+  it('picks up an absolute image URL if the feed ever populates one', () => {
+    const card = eventToCard({ title: 'Play Cafe', image: 'https://fallslibrary.libnet.info/img/x.jpg' })
+    assert.equal(card.imageUrl, 'https://fallslibrary.libnet.info/img/x.jpg')
+  })
+
+  it('ignores a bare filename (unknown asset base path) rather than guessing', () => {
+    const card = eventToCard({ title: 'Play Cafe', image: 'x.jpg' })
+    assert.equal(card.imageUrl, null)
+  })
+
+  it('carries the image through eventToCard into buildRow', () => {
+    const card = eventToCard({
+      title: 'Play Cafe',
+      datestring: 'Thursday, July 02',
+      time_string: '10:00am - 11:30am',
+      location: 'Cuyahoga Falls Library',
+      image: 'https://fallslibrary.libnet.info/img/x.jpg',
+    })
+    const built = buildRow(card, new Date('2026-06-01T12:00:00Z'))
+    assert.ok(built, 'row built')
+    assert.equal(built.row.image_url, 'https://fallslibrary.libnet.info/img/x.jpg')
   })
 })

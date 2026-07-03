@@ -250,7 +250,7 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     method:      'REST API',
     methodDetail:'Squarespace Events Collection JSON (?format=json&view=upcoming)',
     venue:       'Artisan Coffee — 662 Canton Rd, Akron',
-    notes:       'Uses the shared Squarespace Events Collection module. Live music, open mic nights, and author talks at the Ellet-neighborhood coffee shop. Squarespace stores absolute (epoch-ms) timestamps.',
+    notes:       'Uses the shared Squarespace Events Collection module. Live music, open mic nights, and author talks at the Ellet-community coffee shop. Squarespace stores absolute (epoch-ms) timestamps.',
     status:      'active',
   },
   {
@@ -266,7 +266,7 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     method:      'REST API',
     methodDetail:'Squarespace Events Collection JSON (?format=json&view=upcoming)',
     venue:       'The Rialto Theatre — 1000 Kenmore Blvd',
-    notes:       "Kenmore-neighborhood live-music venue run by musicians for musicians. Pulls the /calendar Squarespace collection, strips the trailing date stamp Rialto appends to every title (\"Band Name - 05/27/2026\" → \"Band Name\"), and tags recurring series — Living Room (acoustic), Emerging Sounds (local artists), Irish session, and the spoken-word Angry Cow Poetry night.",
+    notes:       "Kenmore-community live-music venue run by musicians for musicians. Pulls the /calendar Squarespace collection, strips the trailing date stamp Rialto appends to every title (\"Band Name - 05/27/2026\" → \"Band Name\"), and tags recurring series — Living Room (acoustic), Emerging Sounds (local artists), Irish session, and the spoken-word Angry Cow Poetry night.",
     status:      'active',
   },
   {
@@ -296,8 +296,8 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     key:         'north_hill_cdc',
     method:      'ICS feed',
     methodDetail:'Native iCalendar subscription — /events page',
-    venue:       'North Hill neighborhood — multiple venues',
-    notes:       'NHCDC exposes a public ICS export. Covers Maker Mondays, community markets, and neighborhood meetings. Venue is per-event from the VEVENT LOCATION field.',
+    venue:       'North Hill community — multiple venues',
+    notes:       'NHCDC exposes a public ICS export. Covers Maker Mondays, community markets, and community meetings. Venue is per-event from the VEVENT LOCATION field.',
     status:      'active',
   },
   {
@@ -492,8 +492,8 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     key:         'akron_promise',
     method:      'HTML scrape',
     methodDetail:'City Series page on akronpromise.org/cityseries (Drupal 10) — parses each div.item race card',
-    venue:       'Various Akron neighborhoods (no per-race venue listed)',
-    notes:       "Akron Promise is an education nonprofit (scholarships + student support); its public events are the City Series — a season of neighborhood 5K/run-walk races that support community organizations. The /events page is just a Google Form, so we scrape the City Series landing page (/cityseries, Drupal 10, server-rendered). Each \"Upcoming Races\" card carries a logo image, an <h3> title, a div.date (M/D/YY H:MM), free-text detail lines (Dog Friendly / Finisher Medal / Kids Run), and a RunSignup \"Register Now\" link. Each RunSignup race is then enriched via the shared lib/runsignup.js (page → race_id → /rest/race/{id}): full description, address, logo, the authoritative start time (RunSignup wins over the sometimes-stale card time), and the registration fee. RunSignup's address.street is freeform — a real place name (e.g. \"Kohl Family YMCA\") becomes a normal venue, while a bare street address is minted UNLISTED (hidden from the venues index, still navigable). Categorised fitness.",
+    venue:       'Various Akron communities (no per-race venue listed)',
+    notes:       "Akron Promise is an education nonprofit (scholarships + student support); its public events are the City Series — a season of community 5K/run-walk races that support community organizations. The /events page is just a Google Form, so we scrape the City Series landing page (/cityseries, Drupal 10, server-rendered). Each \"Upcoming Races\" card carries a logo image, an <h3> title, a div.date (M/D/YY H:MM), free-text detail lines (Dog Friendly / Finisher Medal / Kids Run), and a RunSignup \"Register Now\" link. Each RunSignup race is then enriched via the shared lib/runsignup.js (page → race_id → /rest/race/{id}): full description, address, logo, the authoritative start time (RunSignup wins over the sometimes-stale card time), and the registration fee. RunSignup's address.street is freeform — a real place name (e.g. \"Kohl Family YMCA\") becomes a normal venue, while a bare street address is minted UNLISTED (hidden from the venues index, still navigable). Categorised fitness.",
     status:      'active',
   },
   {
@@ -625,7 +625,7 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     method:      'HTML scrape',
     methodDetail:'Divi page builder (WordPress) — /events/ blurb modules',
     venue:       'The East End, Mason Park CLC, 647 E Market St — Middlebury, Akron',
-    notes:       "Akron's place-based community development corporation for the Middlebury neighborhood. The events page is built with Divi; each event is an et_pb_blurb module with an h4 title and a description block whose first two <strong> runs are the date/time line (\"JUNE 4, 2026 | 5:30PM\") and the venue/address (\"THE EAST END – 1200 E MARKET ST\"). We parse those off the stable Divi classes and infer category from the title. Surfaces the Taste of Middlebury fundraiser, Akron Hope's Juneteenth celebration and Wrapping Night, Middlebury Fall Fest, and Coffee & Career Development sessions. Venues sit in Middlebury, so the neighborhood resolver tags them automatically.",
+    notes:       "Akron's place-based community development corporation for the Middlebury community. The events page is built with Divi; each event is an et_pb_blurb module with an h4 title and a description block whose first two <strong> runs are the date/time line (\"JUNE 4, 2026 | 5:30PM\") and the venue/address (\"THE EAST END – 1200 E MARKET ST\"). We parse those off the stable Divi classes and infer category from the title. Surfaces the Taste of Middlebury fundraiser, Akron Hope's Juneteenth celebration and Wrapping Night, Middlebury Fall Fest, and Coffee & Career Development sessions. Venues sit in Middlebury, so the neighborhood resolver tags them automatically.",
     status:      'active',
   },
   {
@@ -633,7 +633,7 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     method:      'HTML scrape',
     methodDetail:'WordPress Events Manager — /upcoming-events/ list for permalinks + dates, then per-event detail-page Open Graph tags',
     venue:       'Kenmore Boulevard district + Kenmore Senior Community Center — Kenmore, Akron',
-    notes:       "Community development corporation for Akron's Kenmore neighborhood and the historic Kenmore Boulevard business district. The site runs the Events Manager plugin. Its /upcoming-events/ list carries each event's .em-event-date, .em-event-time, .em-event-location, and a /events/{slug} permalink — but the only per-item link text it exposes is a \"More Info\" button, and the list has no description. So we use the list purely to harvest the permalink + date/time, then fetch each event's detail page and read its og:title / og:description / og:image for the real title, full copy, and hero image. source_id is the permalink's final path segment (stable + unique; recurring occurrences carry the date in the slug). Surfaces the BLVD Block Party, Kenmore First Friday Festival, the Rialto Living Room concert series, and recurring Kenmore Senior Community Center programming (Chair Yoga, Popcorn & Movie Fridays).",
+    notes:       "Community development corporation for Akron's Kenmore community and the historic Kenmore Boulevard business district. The site runs the Events Manager plugin. Its /upcoming-events/ list carries each event's .em-event-date, .em-event-time, .em-event-location, and a /events/{slug} permalink — but the only per-item link text it exposes is a \"More Info\" button, and the list has no description. So we use the list purely to harvest the permalink + date/time, then fetch each event's detail page and read its og:title / og:description / og:image for the real title, full copy, and hero image. source_id is the permalink's final path segment (stable + unique; recurring occurrences carry the date in the slug). Surfaces the BLVD Block Party, Kenmore First Friday Festival, the Rialto Living Room concert series, and recurring Kenmore Senior Community Center programming (Chair Yoga, Popcorn & Movie Fridays).",
     status:      'active',
   },
   {
@@ -681,7 +681,7 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     method:      'HTML scrape',
     methodDetail:'WordPress — /programs/ index for program permalinks, then each /program/ page\'s og tags + weekly schedule line',
     venue:       'First Glance Student Center — 943 Kenmore Blvd, Kenmore, Akron',
-    notes:       "Youth/student center in Akron's Kenmore neighborhood. There is no events-calendar plugin; instead each recurring program (Rec Night, The Connect, Soul Sisters, Hip Hop Night, etc.) is a /program/{slug} page carrying a fixed weekly schedule line (\"Thursdays 7:00-9:00pm\"), an og:description, and an og:image. We harvest the program links from /programs/, parse the day-of-week + time range from each page, and expand it into individual dated occurrences for a rolling 8-week horizon — reflecting First Glance's own published schedule and linking back to their page. Programs with no parseable schedule line are skipped. Price is left null (the pages state none). Replaces the indirect path through the Better Kenmore aggregator for this venue.",
+    notes:       "Youth/student center in Akron's Kenmore community. There is no events-calendar plugin; instead each recurring program (Rec Night, The Connect, Soul Sisters, Hip Hop Night, etc.) is a /program/{slug} page carrying a fixed weekly schedule line (\"Thursdays 7:00-9:00pm\"), an og:description, and an og:image. We harvest the program links from /programs/, parse the day-of-week + time range from each page, and expand it into individual dated occurrences for a rolling 8-week horizon — reflecting First Glance's own published schedule and linking back to their page. Programs with no parseable schedule line are skipped. Price is left null (the pages state none). Replaces the indirect path through the Better Kenmore aggregator for this venue.",
     status:      'active',
   },
   {
@@ -721,14 +721,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     method:      'HTML scrape',
     methodDetail:'WordPress (server-rendered) — homepage showtime listing',
     venue:       'Highland Square Theatre — 826 W. Market St',
-    notes:       "Independent neighborhood cinema dating to 1938. The homepage is a plain WordPress HTML page listing currently-playing films as quoted-title blocks (title, MPAA rating, runtime, showtime schedule). All times are PM per the site footer. The scraper fetches the homepage, decodes &ldquo;/&rdquo; entities, and parses each film's showtime schedule: single-day entries (\"Monday June 8: 4:15, 7:00\"), packed multi-day lines (multiple day-segments separated by whitespace), and date ranges (\"Mon thru Wed, June 15-17: 7:00\"). Each showtime becomes its own event row at $5 admission. source_id is keyed on film title slug + ISO start timestamp.",
+    notes:       "Independent community cinema dating to 1938. The homepage is a plain WordPress HTML page listing currently-playing films as quoted-title blocks (title, MPAA rating, runtime, showtime schedule). All times are PM per the site footer. The scraper fetches the homepage, decodes &ldquo;/&rdquo; entities, and parses each film's showtime schedule: single-day entries (\"Monday June 8: 4:15, 7:00\"), packed multi-day lines (multiple day-segments separated by whitespace), and date ranges (\"Mon thru Wed, June 15-17: 7:00\"). Each showtime becomes its own event row at $5 admission. source_id is keyed on film title slug + ISO start timestamp.",
     status:      'active',
   },
   {
     key:         'highland_square',
     method:      'HTML scrape',
     methodDetail:'Wix (server-rendered date/meta) — homepage festival promo',
-    venue:       'Highland Square neighborhood district — West Akron',
+    venue:       'Highland Square community district — West Akron',
     notes:       "The Highland Square Neighborhood Association runs essentially one marquee public event a year: PorchROKR, the porch-music-and-arts festival on the third Saturday of August. The site is Wix, which is normally client-rendered, but it server-side renders the festival date heading (\"AUGUST 15, 2026\") plus og:description and og:image into the initial HTML, so a plain fetch sees them. We extract that single dated festival (porch sets ~11 a.m.–7 p.m., headliner to ~9 p.m.) rather than a recurring list, so we hold the canonical PorchROKR date from HSNA rather than depending on Eventbrite. The Highland Square Film Festival lives on a separate page when active and isn't yet ingested.",
     status:      'active',
   },

@@ -247,6 +247,15 @@ export async function runCivicPlusScraper(config) {
         })
         if (!row || !row.start_at || !row.source_id) { skipped++; continue }
 
+        // The VEVENT URL field points back at the feed, not the event (a
+        // CivicPlus quirk). Replace it with the reconstructed detail-page
+        // deep link so the card links straight to the event.
+        const eventUrl = civicPlusEventUrl(ev, origin)
+        if (eventUrl) {
+          row.ticket_url = eventUrl
+          row.source_url = eventUrl
+        }
+
         // CivicPlus LOCATION often arrives as "Venue Name - 123 St  City OH 44000"
         // (and sometimes wrapped in an HTML <p>). Clean it into a venue name.
         let venueId = defaultVenueId
@@ -296,6 +305,27 @@ export async function runCivicPlusScraper(config) {
  *   "<p>7:30 AM - Holy Family Church...</p> - 3179 Kent Rd. ..." → stripped + first segment
  * Returns null when nothing usable remains.
  */
+/**
+ * Build the canonical CivicPlus event-detail URL from a VEVENT.
+ *
+ * CivicPlus iCalendar feeds ship a *broken* per-event URL field: every
+ * VEVENT sets `URL:/common/modules/iCalendar/iCalendar.aspx?feed=calendar&catID=N`,
+ * i.e. a link back to the whole feed, not the event. Following it downloads
+ * the entire .ics calendar instead of opening the event page. The real
+ * detail page lives at `/calendar.aspx?EID={id}`, and CivicPlus uses the
+ * numeric event id as the VEVENT UID — so we can reconstruct a working deep
+ * link from the UID. (Confirmed against Hudson, Stow, Fairlawn, New Franklin;
+ * the `EID=<UID>` page returns HTTP 200 with the correct event title.)
+ *
+ * Returns null when the UID isn't a plain numeric EID, so callers fall back
+ * to whatever normaliseIcsEvent produced rather than minting a bad link.
+ */
+export function civicPlusEventUrl(ev, origin) {
+  const uid = (ev?.UID || '').trim()
+  if (!origin || !/^\d+$/.test(uid)) return null
+  return `${origin.replace(/\/$/, '')}/calendar.aspx?EID=${uid}`
+}
+
 export function cleanLocationName(raw) {
   if (!raw) return null
   let s = stripHtml(String(raw)).trim()
@@ -303,11 +333,21 @@ export function cleanLocationName(raw) {
   // A leading "-" means the venue-name slot was empty: the feed emitted
   // " - <street>  City ST ZIP" with no name. Nothing usable → fall back.
   if (/^[-–]/.test(s)) return null
-  // CivicPlus uses " - " to separate the venue name from its street address.
-  // Take everything before the first " - " that is followed by a digit
-  // (street number) — keeps "Council Chambers - 3760 Darrow" → name only.
-  const dashAddr = s.search(/\s[-–]\s+\d/)
-  if (dashAddr !== -1) s = s.slice(0, dashAddr)
+  // CivicPlus uses " - " to separate the venue name from its street address,
+  // formatted "<Name> - <Street>  <City> <ST> <ZIP>". At this point the raw
+  // string has no other " - " (the "Building > Room" hierarchy is still ">",
+  // converted below), so the first spaced dash is the name/address boundary.
+  // Split there when the remainder looks like an address — either it starts
+  // with a street number ("Council Chambers - 3760 Darrow") or it carries the
+  // trailing "City ST ZIP" tail ("First & Main Green - First Street  Hudson
+  // OH 44236", where the street name is a word, not a number).
+  const dashIdx = s.search(/\s[-–]\s/)
+  if (dashIdx !== -1) {
+    const after = s.slice(dashIdx)
+    if (/^\s[-–]\s+\d/.test(after) || /\b[A-Za-z]{2}\s+\d{5}\b/.test(after)) {
+      s = s.slice(0, dashIdx)
+    }
+  }
   // "Building > Room" hierarchy → "Building - Room"
   s = s.replace(/\s*>\s*/g, ' - ').trim()
   // Drop a trailing bare state/zip fragment if it slipped through.

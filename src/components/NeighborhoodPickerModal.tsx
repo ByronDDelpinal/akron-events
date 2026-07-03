@@ -30,7 +30,7 @@ function ShortcutHintGraphic() {
       viewBox="0 0 220 178"
       className="onboard-hint-graphic"
       role="img"
-      aria-label="Tip: press and hold the Akron Pulse app icon to reveal shortcuts like My Neighborhood"
+      aria-label="Tip: press and hold the Akron Pulse app icon to reveal shortcuts like My Community"
     >
       <rect x="24" y="6" width="190" height="104" rx="14" fill="var(--bg-nav)" />
       <path d="M44 110 L56 110 L44 124 Z" fill="var(--bg-nav)" />
@@ -40,7 +40,7 @@ function ShortcutHintGraphic() {
           <path d="M16 27 C16 27 25 19.5 25 13 C25 8 21 4.5 16 4.5 C11 4.5 7 8 7 13 C7 19.5 16 27 16 27 Z" />
           <circle cx="16" cy="13" r="3.4" />
         </g>
-        <text x="70" y="33" fontSize="13" fontWeight="600" fill="#FFFFFF" opacity="0.95">My Neighborhood</text>
+        <text x="70" y="33" fontSize="13" fontWeight="600" fill="#FFFFFF" opacity="0.95">My Community</text>
       </g>
       <g>
         <circle cx="48" cy="58" r="12" fill="#FFFFFF" />
@@ -102,7 +102,7 @@ export default function NeighborhoodPickerModal() {
         className="onboard-card"
         role="dialog"
         aria-modal="true"
-        aria-label="Choose your neighborhood"
+        aria-label="Choose your community"
       >
         <div className="onboard-map-pane">
           {drilledIn ? (
@@ -132,26 +132,26 @@ export default function NeighborhoodPickerModal() {
         <div className="onboard-content">
           <ShortcutHintGraphic />
           <p className="onboard-title">
-            {hasSavedHub ? 'Update My Neighborhood' : 'Check your Pulse'}
+            {hasSavedHub ? 'Update My Community' : 'Check your Pulse'}
           </p>
           <p className="onboard-sub">
             Select your city for a more personal view around you. We'll
             keep it one tap away in the menu, and long-press the app icon
-            anytime for "My Neighborhood."
+            anytime for "My Community."
           </p>
           <select
             className="onboard-select"
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
-            aria-label="Choose your city or Akron neighborhood"
+            aria-label="Choose your city or Akron community"
           >
-            <option value="" disabled>Choose your neighborhood</option>
+            <option value="" disabled>Choose your community</option>
             <optgroup label="Cities">
               {CITIES.map((c) => (
                 <option key={c.slug} value={c.slug}>{c.label}</option>
               ))}
             </optgroup>
-            <optgroup label="Akron Neighborhoods">
+            <optgroup label="Akron Communities">
               {NEIGHBORHOODS.map((n) => (
                 <option key={n.slug} value={n.slug}>{n.label}</option>
               ))}
@@ -167,7 +167,7 @@ export default function NeighborhoodPickerModal() {
           </button>
           {hasSavedHub && (
             <button type="button" className="onboard-clear" onClick={onClear}>
-              Clear My Neighborhood
+              Clear My Community
             </button>
           )}
           <button type="button" className="onboard-skip" onClick={closePicker}>

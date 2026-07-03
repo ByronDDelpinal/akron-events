@@ -14,7 +14,8 @@ import assert from 'node:assert/strict'
 import {
   locationKey, fuzzyTitlesMatch,
   sharedNamePrefixMatch, toSecondKey, findDuplicateGroups, priority,
-  venuelessTitleMatch,
+  venuelessTitleMatch, typoTolerantTitlesMatch, withinOneEdit,
+  collectLinkDonations,
 } from '../dedupe-cross-source.js'
 import { normalizeStreetAddress } from '../lib/normalize.js'
 import { resolveVenueAlias } from '../scrape-better-kenmore.js'
@@ -185,6 +186,70 @@ describe('dedupe: venue-less aggregator copies (Pass 4)', () => {
   })
 })
 
+// 2026-07-01: seven live cross-source dupes evaded dedupe. Three exposed real
+// matching gaps, pinned here with the actual production titles; the other four
+// were already matchable and survived only because no dedupe pass had
+// completed (see the pagination-stability fix in main's fetch loop).
+describe('dedupe: 2026-07 evasion regressions', () => {
+  const at = (venueId, name, address) => [{ venue_id: venueId, venues: { name, address } }]
+  const mk = (id, title, source, start, venues, end = null) =>
+    ({ id, title, source, start_at: start, end_at: end, event_venues: venues })
+
+  it('compound-word split: "Preschool Storytime" groups with "Preschool Story Time" (distinct venue records, same address)', () => {
+    const { groups } = findDuplicateGroups([
+      mk('lib', 'Preschool Storytime', 'akron_library', '2026-07-02T14:30:00+00:00',
+        at('v1', 'Akron Summit Library (Main Branch)', '60 S. High Street')),
+      mk('dt', 'Preschool Story Time', 'downtown_akron', '2026-07-02T14:30:00+00:00',
+        at('v2', 'Akron-Summit County Public Library', '60 South High Street')),
+    ])
+    assert.equal(groups.length, 1)
+  })
+
+  it('one-character typo in an act name: "Ridanym" vs "Ridanyn" groups at same venue+second', () => {
+    const lock3 = at('v3', 'Lock 3', '200 S Main St')
+    const { groups } = findDuplicateGroups([
+      mk('cvb', 'Gospel Sunday - Ridanym', 'visit_akron_cvb', '2026-07-12T20:00:00+00:00', lock3, '2026-07-12T22:00:00+00:00'),
+      mk('l3', 'Gospel Sunday w Ridanyn', 'city_of_akron_lock3', '2026-07-12T20:00:00+00:00', lock3, '2026-07-12T22:00:00+00:00'),
+    ])
+    assert.equal(groups.length, 1)
+  })
+
+  it('ordinal edition marker is noise: "41st Annual Juried Exhibition" groups with "CVAC: Juried Exhibition"', () => {
+    const cvac = at('v4', 'Cuyahoga Valley Art Center', '2131 Front St')
+    const { groups } = findDuplicateGroups([
+      mk('eb', '41st Annual Juried Exhibition', 'eventbrite', '2026-07-28T14:00:00+00:00', cvac),
+      mk('al', 'CVAC: Juried Exhibition', 'akron_life', '2026-07-28T14:00:00+00:00', cvac),
+    ])
+    assert.equal(groups.length, 1)
+  })
+
+  it('reordered lineup + word split: Orleans/Firefall bill groups in Pass 1', () => {
+    const lock3 = at('v3', 'Lock 3', '200 S Main St')
+    const { groups } = findDuplicateGroups([
+      mk('tm', 'Orleans, Firefall, Pure Prairie League, Atlanta Rhythm Section', 'ticketmaster', '2026-08-02T23:00:00+00:00', lock3),
+      mk('l3', 'Pure Prairie League, Orleans, Fire Fall and Atlanta Rhythm Section', 'city_of_akron_lock3', '2026-08-02T23:00:00+00:00', lock3),
+    ])
+    assert.equal(groups.length, 1)
+  })
+
+  it('typo tolerance does NOT merge genuinely different acts at the same venue+second', () => {
+    const lock3 = at('v3', 'Lock 3', '200 S Main St')
+    const { groups } = findDuplicateGroups([
+      mk('a', 'Wilco and Special Guests Tour', 'ticketmaster', '2026-08-09T23:00:00+00:00', lock3),
+      mk('b', 'Phish and Special Guests Tour', 'city_of_akron_lock3', '2026-08-09T23:00:00+00:00', lock3),
+    ])
+    assert.equal(groups.length, 0)
+    // and the helper itself: short/different tokens never fuzzy-match
+    assert.equal(typoTolerantTitlesMatch('Summer Jam: Wilco', 'Summer Jam: Phish'), false)
+  })
+
+  it('withinOneEdit: substitution/insertion yes, two edits no, short words guarded by caller', () => {
+    assert.equal(withinOneEdit('ridanym', 'ridanyn'), true)   // substitution
+    assert.equal(withinOneEdit('storytime', 'storytimes'), true) // insertion
+    assert.equal(withinOneEdit('ridanym', 'ridann'), false)   // two edits
+  })
+})
+
 describe('dedupe: first-party beats aggregators in priority', () => {
   it('an unlisted first-party source outranks Eventbrite/CVB/Akron Life', () => {
     assert.ok(priority('crown_point_ecology') < priority('eventbrite'))
@@ -195,6 +260,46 @@ describe('dedupe: first-party beats aggregators in priority', () => {
     assert.ok(priority('akron_civic') < priority('ticketmaster'))
     assert.ok(priority('ticketmaster') < priority('eventbrite'))
     assert.ok(priority('eventbrite') < priority('akron_life'))
+  })
+  it('newly ranked first-party venue/municipal sources beat aggregator copies', () => {
+    assert.ok(priority('ejthomas_hall') < priority('ticketmaster'))
+    assert.ok(priority('city_of_hudson') < priority('eventbrite'))
+  })
+})
+
+// 2026-07-01: three festival groups (Fairlawn Fest, Akron Pride, Nightmare on
+// Front Street) each kept a venue-LESS ohio_festivals copy — its trusted time
+// beat the CVB copy's placeholder time — and deleting the CVB copy destroyed
+// the group's only venue link. Junction links now get donated like
+// image/description. These tests pin that behavior.
+describe('dedupe: junction-link donation (collectLinkDonations)', () => {
+  const ev = (venueIds = [], orgIds = []) => ({
+    event_venues:        venueIds.map(venue_id => ({ venue_id })),
+    event_organizations: orgIds.map(organization_id => ({ organization_id })),
+  })
+
+  it('donates venue and org links when the canonical has none', () => {
+    const { venueIds, orgIds } = collectLinkDonations(ev(), [ev(['v1'], ['o1'])])
+    assert.deepEqual(venueIds, ['v1'])
+    assert.deepEqual(orgIds, ['o1'])
+  })
+
+  it('donates NOTHING of a link type the canonical already has (split-venue safety)', () => {
+    const { venueIds, orgIds } = collectLinkDonations(ev(['vKeep']), [ev(['vSplitTwin'], ['o1'])])
+    assert.deepEqual(venueIds, [])           // never union a possible venue-split twin
+    assert.deepEqual(orgIds, ['o1'])         // org donation is independent
+  })
+
+  it('dedupes across multiple donors and ignores empty/malformed link rows', () => {
+    const donors = [ev(['v1']), ev(['v1', 'v2']), { event_venues: [{}] }]
+    const { venueIds } = collectLinkDonations(ev(), donors)
+    assert.deepEqual(venueIds.sort(), ['v1', 'v2'])
+  })
+
+  it('handles rows with no junction arrays at all', () => {
+    const { venueIds, orgIds } = collectLinkDonations({}, [{}])
+    assert.deepEqual(venueIds, [])
+    assert.deepEqual(orgIds, [])
   })
 })
 

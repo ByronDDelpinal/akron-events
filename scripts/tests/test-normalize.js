@@ -28,6 +28,7 @@ const {
   parseTagsFromTribe,
   parseEventbritePrice,
   canonicalVenueName,
+  titleCaseIfShouting,
 } = await import('../lib/normalize.js')
 
 describe('canonicalVenueName', () => {
@@ -696,5 +697,74 @@ describe('sanitizeEventText', () => {
       source_id: '9',
     })
     assert.equal(row.title, 'Too Many Spaces')
+  })
+
+  it('title-cases a long ALL-CAPS title (2026-07-02 data-quality plan, task 7)', () => {
+    const row = sanitizeEventText({
+      title: 'SUMMER BLOWOUT COMEDY SHOWCASE AT THE KILLBOX',
+      description: null,
+      source: 'killbox_comedy',
+      source_id: '10',
+    })
+    assert.equal(row.title, 'Summer Blowout Comedy Showcase at the Killbox')
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// titleCaseIfShouting — 2026-07-02 data-quality plan, task 7
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('titleCaseIfShouting', () => {
+  it('title-cases a long shouted title', () => {
+    assert.equal(
+      titleCaseIfShouting('SUMMER BLOWOUT COMEDY SHOWCASE AT THE KILLBOX'),
+      'Summer Blowout Comedy Showcase at the Killbox'
+    )
+  })
+
+  it('capitalizes the first and last word even if they are minor words', () => {
+    assert.equal(titleCaseIfShouting('OF MICE AND MEN LIVE ON STAGE TONIGHT'), 'Of Mice and Men Live on Stage Tonight')
+  })
+
+  it('leaves short titles alone (<=25 chars), even if shouted', () => {
+    assert.equal(titleCaseIfShouting('LIVE MUSIC NIGHT'), 'LIVE MUSIC NIGHT')
+  })
+
+  it('leaves mixed-case titles alone entirely', () => {
+    const t = 'Rialto Presents: An Evening With The Band'
+    assert.equal(titleCaseIfShouting(t), t)
+  })
+
+  it('leaves null/empty untouched', () => {
+    assert.equal(titleCaseIfShouting(null), null)
+    assert.equal(titleCaseIfShouting(''), '')
+  })
+
+  it('keeps a short acronym uppercase inside a shouted title', () => {
+    assert.equal(
+      titleCaseIfShouting('DJ SPINS ALL NIGHT AT THE SUMMER BLOCK PARTY'),
+      'DJ Spins All Night at the Summer Block Party'
+    )
+  })
+
+  it('preserves an apostrophe and capitalizes the letter after it', () => {
+    assert.equal(
+      titleCaseIfShouting("AKRON'S BIGGEST SUMMER BLOCK PARTY DOWNTOWN"),
+      "Akron's Biggest Summer Block Party Downtown"
+    )
+  })
+
+  it('title-cases each segment of a hyphenated compound', () => {
+    assert.equal(
+      titleCaseIfShouting('STATE-OF-THE-ART LASER LIGHT SHOW THIS FRIDAY'),
+      'State-of-the-Art Laser Light Show This Friday'
+    )
+  })
+
+  it('preserves exact whitespace/spacing between words', () => {
+    assert.equal(
+      titleCaseIfShouting('BIG   SUMMER  COMEDY NIGHT AT THE KILLBOX CLUB'),
+      'Big   Summer  Comedy Night at the Killbox Club'
+    )
   })
 })

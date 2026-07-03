@@ -15,7 +15,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY  || 'dummy-key'
 
-import { isPublicCivicPlusEvent, cleanLocationName } from '../lib/civicplus.js'
+import { isPublicCivicPlusEvent, cleanLocationName, civicPlusEventUrl } from '../lib/civicplus.js'
 
 // ════════════════════════════════════════════════════════════════════════════
 // isPublicCivicPlusEvent
@@ -104,7 +104,49 @@ describe('cleanLocationName', () => {
     )
   })
 
+  it('strips a word-first street address (no leading number)', () => {
+    // Regression: "First Street" starts with a letter, so the old digit-only
+    // split left the address glued onto the venue name.
+    assert.equal(
+      cleanLocationName('<p>First &amp; Main Green</p> - First Street  Hudson OH 44236'),
+      'First & Main Green',
+    )
+  })
+
+  it('keeps a hyphenated name that has no address after it', () => {
+    assert.equal(cleanLocationName('Kent - Ravenna Community Room'), 'Kent - Ravenna Community Room')
+  })
+
   it('returns null for address-only strings', () => {
     assert.equal(cleanLocationName(' -   Stow OH 44224'), null)
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// civicPlusEventUrl — reconstruct the real event-detail deep link
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('civicPlusEventUrl', () => {
+  it('builds /calendar.aspx?EID=<UID> from a numeric UID', () => {
+    assert.equal(
+      civicPlusEventUrl({ UID: '5211' }, 'https://www.hudson.oh.us'),
+      'https://www.hudson.oh.us/calendar.aspx?EID=5211',
+    )
+  })
+
+  it('trims whitespace and a trailing slash on origin', () => {
+    assert.equal(
+      civicPlusEventUrl({ UID: ' 763 ' }, 'https://www.newfranklin.org/'),
+      'https://www.newfranklin.org/calendar.aspx?EID=763',
+    )
+  })
+
+  it('returns null for a non-numeric UID (falls back to normalised URL)', () => {
+    assert.equal(civicPlusEventUrl({ UID: 'abc-guid' }, 'https://x.com'), null)
+  })
+
+  it('returns null when UID or origin is missing', () => {
+    assert.equal(civicPlusEventUrl({}, 'https://x.com'), null)
+    assert.equal(civicPlusEventUrl({ UID: '10' }, ''), null)
   })
 })

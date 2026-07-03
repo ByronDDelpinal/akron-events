@@ -12,8 +12,10 @@
  * config, so a plain fetch can't see them. We therefore render the calendar
  * with Puppeteer to read each event's start/end (the `.eventon_list_event`
  * blocks carry a `data-time="<startUnix>-<endUnix>"`), then enrich every event
- * with its title, permalink, category, venue, and image from the clean WP REST
- * endpoint (`/wp-json/wp/v2/ajde_events?include=<ids>`), joining on event id.
+ * with its title, permalink, category, venue, image, and short description
+ * (the post's own `content.rendered`, e.g. "Americana, Blues, Folk") from the
+ * clean WP REST endpoint (`/wp-json/wp/v2/ajde_events?include=<ids>`), joining
+ * on event id.
  *
  * Two physical locations are disambiguated from EventON's `event_location-…`
  * class: the Highland Square café (867 W Market St — live-music venue) and the
@@ -133,10 +135,11 @@ export function buildRow(dateEntry, meta = {}) {
   const title = stripHtml(meta.title || dateEntry.title || '').trim()
   if (!title || !dateEntry.start) return null
   const venue = venueForLocation(locationSlug(meta.class_list))
+  const description = stripHtml(meta.content || '').trim() || null
   return {
     row: {
       title,
-      description: null,
+      description,
       start_at: new Date(dateEntry.start * 1000).toISOString(),
       end_at:   dateEntry.end ? new Date(dateEntry.end * 1000).toISOString() : null,
       category: mapCategory(typeSlug(meta.class_list)),
@@ -214,6 +217,10 @@ async function fetchEventMeta(ids) {
       link: e.link ?? null,
       class_list: Array.isArray(e.class_list) ? e.class_list : [],
       image_url: e._embedded?.['wp:featuredmedia']?.[0]?.source_url ?? null,
+      // Event Details blurb (e.g. "80's, 90's, Classic Hip Hop, R&B, Reggae, and Pop")
+      // — verified 2026-07-02 to live in the post's own content field, so no
+      // extra per-event fetch is needed.
+      content: e.content?.rendered ?? null,
     })
   }
   return map

@@ -100,7 +100,7 @@ export default function Footer() {
         <div className="footer-expandable-inner">
           <p className="footer-tagline">Everything happening in Akron &amp; Summit County, all in one place.</p>
 
-          <nav className="footer-hub-nav" aria-label="Browse events by category and neighborhood">
+          <nav className="footer-hub-nav" aria-label="Browse events by category and community">
             {ENABLED_CATEGORY_HUBS.length > 0 && (
               <details className="footer-hub-col">
                 <summary className="footer-hub-label">
@@ -119,7 +119,7 @@ export default function Footer() {
             {ENABLED_NEIGHBORHOOD_HUBS.length > 0 && (
               <details className="footer-hub-col">
                 <summary className="footer-hub-label">
-                  Browse by neighborhood
+                  Browse by community
                   <ChevronIcon />
                 </summary>
                 <ul>

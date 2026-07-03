@@ -257,7 +257,7 @@ async function sendPreferencesEmail(email: string, token: string) {
     reply_to: THEME.replyTo,
     subject: `Your ${THEME.brandName} preferences link`,
     html: renderEmailShell({
-      preheader: 'Tune your digest: vibe, cadence, and neighborhoods.',
+      preheader: 'Tune your digest: vibe, cadence, and communities.',
       content: `
         <h1 style="font-family:${f.display};font-size:22px;font-weight:700;color:${c.textPrimary};margin:0 0 12px;line-height:1.3;">
           Here's your preferences link
@@ -275,7 +275,7 @@ async function sendPreferencesEmail(email: string, token: string) {
     text: [
       `${THEME.brandName} — ${THEME.tagline}`,
       '',
-      `Manage your email preferences (vibes, cadence, neighborhoods):`,
+      `Manage your email preferences (vibes, cadence, communities):`,
       prefsUrl,
     ].join('\n'),
   })

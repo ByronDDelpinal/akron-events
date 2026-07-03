@@ -386,7 +386,7 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
           value={akronMapView}
           onChange={(e) => setAkronMapView(e.target.value)}
         >
-          <option value="neighborhoods">Akron Neighborhoods</option>
+          <option value="neighborhoods">Akron Communities</option>
           <option value="summit-county">Summit County</option>
         </select>
       </div>

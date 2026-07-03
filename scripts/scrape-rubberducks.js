@@ -4,6 +4,13 @@
  * Fetches the Akron RubberDucks home game schedule for the current season
  * using the public MLB Stats API. No authentication required.
  *
+ * 2026-07-02 data-quality plan (task 5): per-game promotion images were
+ * silently dropped because the scraper read a field name (`thumbnailUrl`)
+ * that doesn't exist on this endpoint — the real field is `imageUrl`, fixed
+ * in pickPromoImage(). ticket_url was a single generic team page for every
+ * game; the `tickets` hydration on this same API call carries a real
+ * per-game purchase link, used via pickTicketUrl().
+ *
  * Usage:
  *   node scripts/scrape-rubberducks.js
  *
@@ -27,6 +34,13 @@ import {
 
 const TEAM_ID     = 402     // Akron RubberDucks
 const MLB_API_BASE = 'https://statsapi.mlb.com/api/v1/schedule'
+const GENERIC_TICKET_URL = 'https://www.milb.com/akron/tickets'
+
+// One team/stadium photo to use when a game has no usable promotion image at
+// all (2026-07-02 data-quality plan, task 5). Left unset until Byron supplies
+// a real photo — see pickPromoImage below, which already recovers most games
+// via the imageUrl field-name fix, so this is a rarer fallback than it looks.
+const FALLBACK_IMAGE_URL = null
 
 // ── Venue / Organizer ──────────────────────────────────────────────────────
 
@@ -61,7 +75,7 @@ async function fetchSchedule() {
   const url = new URL(MLB_API_BASE)
   url.searchParams.set('lang',          'en')
   url.searchParams.set('sportId',       '12')   // Double-A only
-  url.searchParams.set('hydrate',       'team,venue,game(promotions)')
+  url.searchParams.set('hydrate',       'team,venue,game(promotions,tickets)')
   url.searchParams.set('season',        year)
   url.searchParams.set('startDate',     startDate)
   url.searchParams.set('endDate',       endDate)
@@ -89,6 +103,34 @@ async function fetchSchedule() {
   return games
 }
 
+// ── Pure helpers (unit-tested) ───────────────────────────────────────────────
+
+/**
+ * First promotion with a real, usable image. The MLB Stats API's own field is
+ * `imageUrl` (the scraper previously read `thumbnailUrl`, which doesn't exist
+ * on this endpoint — every promo image was silently dropped). Some
+ * promotions also carry the literal string "undefined" instead of omitting
+ * the field, so that's filtered too. Exported for tests.
+ */
+export function pickPromoImage(promotions = []) {
+  for (const p of promotions) {
+    const url = p?.imageUrl
+    if (typeof url === 'string' && /^https?:\/\//i.test(url)) return url
+  }
+  return null
+}
+
+/**
+ * The per-game purchase link from the API's `tickets` hydration, preferring
+ * the "wired" (desktop) link type, then "mobile", then any link present.
+ * Falls back to the generic team ticket page when a game has no tickets
+ * entry yet (e.g. far-future games not yet on sale). Exported for tests.
+ */
+export function pickTicketUrl(tickets = [], fallbackUrl = GENERIC_TICKET_URL) {
+  const byType = (type) => tickets.find((t) => t?.ticketType === type)?.ticketLinks?.home
+  return byType('wired') || byType('mobile') || tickets.find((t) => t?.ticketLinks?.home)?.ticketLinks?.home || fallbackUrl
+}
+
 // ── Process games ──────────────────────────────────────────────────────────
 
 async function processGames(games, venueId, organizerId) {
@@ -114,7 +156,8 @@ async function processGames(games, venueId, organizerId) {
       let description = `Home game at 7 17 Credit Union Park. ${awayTeam} visits Akron.`
       if (promoNames.length) description += ` Promotions: ${promoNames.join(', ')}.`
 
-      const imageUrl   = promotions[0]?.thumbnailUrl ?? null
+      const imageUrl   = pickPromoImage(promotions) ?? FALLBACK_IMAGE_URL
+      const ticketUrl  = pickTicketUrl(game.tickets)
       const startAt    = game.gameDate  // already UTC ISO from MLB API
 
       const row = {
@@ -128,7 +171,7 @@ async function processGames(games, venueId, organizerId) {
         price_max:       null,
         age_restriction: 'all_ages',
         image_url:       imageUrl,
-        ticket_url:      'https://www.milb.com/akron/tickets',
+        ticket_url:      ticketUrl,
         source:          'rubberducks',
         source_id:       String(game.gamePk),
         status:          'published',

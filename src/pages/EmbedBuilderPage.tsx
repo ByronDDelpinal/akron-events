@@ -293,13 +293,13 @@ export default function EmbedBuilderPage() {
                     <option key={c.slug} value={c.slug}>{c.label}</option>
                   ))}
                 </optgroup>
-                <optgroup label="Akron Neighborhoods">
+                <optgroup label="Akron Communities">
                   {NEIGHBORHOODS.map((n) => (
                     <option key={n.slug} value={n.slug}>{n.label}</option>
                   ))}
                 </optgroup>
               </select>
-              <span className="builder-hint">Scope the calendar to one city or Akron neighborhood. Visitors can't change it.</span>
+              <span className="builder-hint">Scope the calendar to one city or Akron community. Visitors can't change it.</span>
             </div>
 
             <div className="builder-field">

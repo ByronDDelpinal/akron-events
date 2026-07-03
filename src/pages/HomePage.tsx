@@ -299,15 +299,15 @@ export default function HomePage() {
               className="location-jump-select"
               value=""
               onChange={handleLocationChange}
-              aria-label="Choose a city or neighborhood"
+              aria-label="Choose a city or community"
             >
-              <option value="" disabled>Choose a city or neighborhood</option>
+              <option value="" disabled>Choose a city or community</option>
               <optgroup label="Cities">
                 {CITIES.map((c) => (
                   <option key={c.slug} value={c.slug}>{c.label}</option>
                 ))}
               </optgroup>
-              <optgroup label="Akron Neighborhoods">
+              <optgroup label="Akron Communities">
                 {NEIGHBORHOODS.map((n) => (
                   <option key={n.slug} value={n.slug}>{n.label}</option>
                 ))}
@@ -319,7 +319,7 @@ export default function HomePage() {
 
       {/* ── HUB STRIP ── */}
       {(ENABLED_CATEGORY_HUBS.length + ENABLED_NEIGHBORHOOD_HUBS.length) > 0 && (
-        <nav className="home-hub-strip" aria-label="Browse Akron events by category and neighborhood">
+        <nav className="home-hub-strip" aria-label="Browse Akron events by category and community">
           <p className="home-hub-strip-label">Popular searches</p>
           <div className="home-hub-strip-scroll-wrap">
           <ul className="home-hub-strip-list">

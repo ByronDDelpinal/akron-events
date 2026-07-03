@@ -90,7 +90,7 @@ export default function Header() {
               onClick={() => (hubSlug ? navigate(`/events/${hubSlug}`) : openPicker())}
             >
               <PinIcon />
-              {hubName ? `My Neighborhood: ${hubName}` : 'My Neighborhood'}
+              {hubName ? `My Community: ${hubName}` : 'My Community'}
             </button>
           )}
           <Link to="/about" className={`nav-link ${isActive('/about') ? 'active' : ''}`}>About</Link>
@@ -124,7 +124,7 @@ export default function Header() {
                   >
                     <PinIcon />
                     <span className="mobile-myhood-text">
-                      <span className="mobile-myhood-eyebrow">My Neighborhood</span>
+                      <span className="mobile-myhood-eyebrow">My Community</span>
                       <span className="mobile-myhood-name">{hubName ?? 'View your area'}</span>
                     </span>
                   </button>
@@ -148,7 +148,7 @@ export default function Header() {
                 >
                   <PinIcon />
                   <span className="mobile-myhood-text">
-                    <span className="mobile-myhood-name">Set My Neighborhood</span>
+                    <span className="mobile-myhood-name">Set My Community</span>
                     <span className="mobile-myhood-eyebrow">Pick your area for a personal view</span>
                   </span>
                 </button>

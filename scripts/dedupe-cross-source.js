@@ -35,7 +35,7 @@
 import 'dotenv/config'
 import { pathToFileURL } from 'node:url'
 import { supabaseAdmin } from './lib/supabase-admin.js'
-import { normalizeStreetAddress } from './lib/normalize.js'
+import { normalizeStreetAddress, logUpsertResult, logScraperError } from './lib/normalize.js'
 
 const APPLY = process.argv.includes('--apply')
 
@@ -60,7 +60,8 @@ const SOURCE_PRIORITY = [
   'akron_public_schools',
   'blu_jazz',
   'city_of_akron_lock3',     // first-party source for city programming
-  'downtown_akron',
+  'city_of_hudson',          // first-party municipal calendar (CivicPlus)
+  'ejthomas_hall',           // first-party venue calendar (E.J. Thomas Hall)
   'jillys',
   'leadership_akron',
   'missing_falls',
@@ -82,7 +83,13 @@ const SOURCE_PRIORITY = [
 // venue scrapers we haven't explicitly ranked still beat an aggregator copy
 // (the bug that let an Eventbrite "…at Crown Point" win canonical over Crown
 // Point's own "…- Alex Bevan").
-const AGGREGATOR_PRIORITY = ['ticketmaster', 'eventbrite', 'visit_akron_cvb', 'akron_life', 'runsignup', 'ohio_festivals']
+//
+// 2026-07-02: downtown_akron (DAP) moved here from SOURCE_PRIORITY — it's a
+// Tier-3 aggregator (see lib/source-tiers.js), not a first-party source. It
+// had been ranked ahead of several real first-party scrapers (weathervane,
+// stan_hywet, rubberducks, …), so an exact-match DAP dupe could have won
+// canonical over the venue's own, richer copy.
+const AGGREGATOR_PRIORITY = ['ticketmaster', 'eventbrite', 'visit_akron_cvb', 'akron_life', 'runsignup', 'ohio_festivals', 'downtown_akron']
 
 export function priority(source) {
   const i = SOURCE_PRIORITY.indexOf(source)
@@ -125,12 +132,19 @@ const STOPWORDS = new Set([
   'doors','open','free','admission','tickets','register','rsvp',
 ])
 
+// Ordinal edition markers ("41st Annual…", "3rd Saturday…") are noise like
+// 'annual' itself: they mark the edition, not the event's identity. Dropping
+// them lets "41st Annual Juried Exhibition" match "CVAC: Juried Exhibition".
+// Two DIFFERENT events distinguished only by ordinal would be a year apart,
+// so the venue+time gates on every pass keep this safe.
+const ORDINAL_RE = /^\d+(st|nd|rd|th)$/
+
 function tokenizeTitle(title) {
   return (title || '')
     .toLowerCase()
     .replace(/[^a-z0-9 ]/g, ' ')
     .split(/\s+/)
-    .filter(w => w.length > 1 && !STOPWORDS.has(w))
+    .filter(w => w.length > 1 && !STOPWORDS.has(w) && !ORDINAL_RE.test(w))
 }
 
 const FUZZY_THRESHOLD       = 0.75
@@ -204,6 +218,7 @@ export function strongTitlesMatch(a, b) {
   const nb = normalizeTitle(b)
   if (!na || !nb) return false
   if (na === nb) return true
+  if (squashTitle(na) === squashTitle(nb)) return true   // "Storytime" vs "Story Time"
   const [short, long] = na.length <= nb.length ? [na, nb] : [nb, na]
   if (long.startsWith(short + ' ') || long.endsWith(' ' + short) || long.includes(' ' + short + ' ')) return true
   const ta = tokenizeTitle(a)
@@ -228,6 +243,7 @@ export function venuelessTitleMatch(a, b) {
   const nb = normalizeTitle(b)
   if (!na || !nb) return false
   if (na === nb) return true
+  if (squashTitle(na) === squashTitle(nb)) return true   // compound-word split tolerance
   const [s, l] = na.length <= nb.length ? [na, nb] : [nb, na]
   if (l.startsWith(s + ' ') || l.endsWith(' ' + s) || l.includes(' ' + s + ' ')) return true
   const ta = tokenizeTitle(a)
@@ -280,6 +296,83 @@ function normalizeTitle(title) {
 }
 
 /**
+ * Space-free form of an already-normalized title. Compound-word splits are a
+ * real cross-source divergence pattern ("Preschool Storytime" vs "Preschool
+ * Story Time", "Firefall" vs "Fire Fall") that defeats both string equality
+ * and token overlap. Squashed EQUALITY is the strictest possible fuzzy match
+ * — identical letters in identical order — so it is safe everywhere.
+ */
+function squashTitle(normalized) {
+  return normalized.replace(/ /g, '')
+}
+
+// ── Pass-1-only typo/word-split tolerant matching ────────────────────────────
+//
+// Real-world cross-source pairs at the SAME venue and the SAME start second
+// still diverge by (a) a single-character typo in a name ("Gospel Sunday -
+// Ridanym" vs "Gospel Sunday w Ridanyn") or (b) one source splitting a
+// compound word ("Firefall" vs "Fire Fall") while also reordering a lineup.
+// These helpers tolerate exactly those two patterns and nothing more, and are
+// used ONLY under Pass 1's hard gate (same venue + exact start second +
+// different sources). Two genuinely different events would have to start on
+// the same second at the same venue AND have ≥90% of their meaningful tokens
+// within edit distance 1 to false-merge — effectively impossible.
+
+/** True when a and b are within a single insert/delete/substitute edit. */
+export function withinOneEdit(a, b) {
+  if (a === b) return true
+  if (Math.abs(a.length - b.length) > 1) return false
+  const [s, l] = a.length <= b.length ? [a, b] : [b, a]
+  let i = 0, j = 0, edits = 0
+  while (i < s.length && j < l.length) {
+    if (s[i] === l[j]) { i++; j++; continue }
+    if (++edits > 1) return false
+    if (s.length === l.length) { i++; j++ }   // substitution
+    else j++                                  // skip the extra char in the longer string
+  }
+  edits += (s.length - i) + (l.length - j)    // any unconsumed tail is more edits
+  return edits <= 1
+}
+
+// Fuzzy token equality only for tokens long enough that a 1-char slip is a
+// typo, not a different word ("ridanym"/"ridanyn" yes; "cat"/"car" no).
+const MIN_TYPO_TOKEN_LEN = 5
+
+/**
+ * tokenOverlap variant that additionally counts a shorter-side token as
+ * matched when (a) it equals the concatenation of two ADJACENT longer-side
+ * tokens (word-split tolerance, strict string equality) or (b) it is within
+ * one edit of a longer-side token of ≥ MIN_TYPO_TOKEN_LEN chars.
+ */
+function typoTolerantOverlap(tokensA, tokensB) {
+  if (!tokensA.length || !tokensB.length) return 0
+  const [shorter, longer] =
+    tokensA.length <= tokensB.length ? [tokensA, tokensB] : [tokensB, tokensA]
+  const longerSet = new Set(longer)
+  for (let k = 0; k < longer.length - 1; k++) longerSet.add(longer[k] + longer[k + 1])
+  let hits = 0
+  for (const t of shorter) {
+    if (longerSet.has(t)) { hits++; continue }
+    if (t.length >= MIN_TYPO_TOKEN_LEN &&
+        longer.some(u => u.length >= MIN_TYPO_TOKEN_LEN && withinOneEdit(t, u))) hits++
+  }
+  return hits / shorter.length
+}
+
+/**
+ * Near-identical token sets under typo/word-split tolerance. Threshold 0.9 —
+ * same bar as strongTitlesMatch's overlap arm, NOT the loose 0.75 fuzzy bar,
+ * because the tolerance itself already relaxes token equality. Exported for
+ * tests. Use only under Pass 1's exact venue+second gate.
+ */
+export function typoTolerantTitlesMatch(a, b) {
+  const ta = tokenizeTitle(a)
+  const tb = tokenizeTitle(b)
+  if (ta.length < MIN_MEANINGFUL_TOKENS || tb.length < MIN_MEANINGFUL_TOKENS) return false
+  return typoTolerantOverlap(ta, tb) >= 0.9
+}
+
+/**
  * Flexible title comparison that tolerates two common cross-source title
  * divergence patterns at the SAME venue and start_at:
  *
@@ -305,6 +398,9 @@ const MAX_PREFIX_WORDS = 2
 
 function titlesMatch(a, b) {
   if (a === b) return true
+  // Compound-word split ("preschool storytime" vs "preschool story time"):
+  // identical letters, different word boundaries. Strictest fuzzy form there is.
+  if (squashTitle(a) === squashTitle(b)) return true
   // Ensure `longer` is always the title we'll inspect.
   const [longer, shorter] = a.length >= b.length ? [a, b] : [b, a]
 
@@ -423,6 +519,11 @@ export function findDuplicateGroups(events) {
         // multi-room venue are never collapsed — one source won't list the same
         // event twice at the same second.
         if (c[0].source !== e.source && strongTitlesMatch(c[0].title, e.title)) return true
+        // Cross-source only: tolerate a single-character typo in a name and
+        // compound-word splits ("Ridanym"/"Ridanyn", "Firefall"/"Fire Fall")
+        // when ≥90% of meaningful tokens line up. Safe solely because of the
+        // same-venue + exact-second + different-source gate above.
+        if (c[0].source !== e.source && typoTolerantTitlesMatch(c[0].title, e.title)) return true
         return false
       })
       if (existing) existing.push(e)
@@ -517,7 +618,48 @@ export function findDuplicateGroups(events) {
   return { groups: groups.filter(g => g.length > 1), withoutVenue }
 }
 
+/**
+ * Junction-link donation: when the canonical event has NO venue links (or no
+ * organization links), collect them from the copies being deleted so deleting
+ * a dupe never destroys the group's only venue/organization linkage.
+ *
+ * This mirrors the image/description merge: the canonical is chosen for its
+ * trustworthy time and richer content, but a dropped aggregator copy is often
+ * the only member that was matched to a venue (Pass 4 exists precisely because
+ * thin feeds drop the venue — and sometimes the ONLY venue-linked copy loses
+ * canonical to a trusted-time venue-less one, e.g. visit_akron_cvb placeholder
+ * copies of festivals).
+ *
+ * Donation is deliberately all-or-nothing per link type: if the canonical
+ * already has ANY venue link we donate nothing, because "same building, two
+ * venue records" splits are real (see locationKey) and blindly unioning links
+ * would re-attach the split twin we're trying to retire.
+ *
+ * Pure + exported for tests.
+ *
+ * @param {object} canonical the event row that survives
+ * @param {object[]} donors  the rows being DELETED (already excludes
+ *                           manual_overrides-preserved rows)
+ * @returns {{ venueIds: string[], orgIds: string[] }}
+ */
+export function collectLinkDonations(canonical, donors) {
+  const canonicalVenues = (canonical.event_venues ?? []).filter(v => v?.venue_id)
+  const canonicalOrgs   = (canonical.event_organizations ?? []).filter(o => o?.organization_id)
+  const venueIds = new Set()
+  const orgIds   = new Set()
+  for (const d of donors) {
+    if (canonicalVenues.length === 0) {
+      for (const v of d.event_venues ?? []) if (v?.venue_id) venueIds.add(v.venue_id)
+    }
+    if (canonicalOrgs.length === 0) {
+      for (const o of d.event_organizations ?? []) if (o?.organization_id) orgIds.add(o.organization_id)
+    }
+  }
+  return { venueIds: [...venueIds], orgIds: [...orgIds] }
+}
+
 async function main() {
+  const runStart = Date.now()
   console.log(`🔍  ${APPLY ? 'APPLYING' : 'DRY RUN —'} cross-source duplicate cleanup`)
   console.log(`    Match rule: same venue + same start_at across different sources`)
   console.log('')
@@ -530,8 +672,14 @@ async function main() {
   for (;;) {
     const { data, error } = await supabaseAdmin
       .from('events')
-      .select('id, title, description, image_url, start_at, source, source_id, ticket_url, manual_overrides, event_venues(venue_id, venues(name, address))')
+      .select('id, title, description, image_url, start_at, source, source_id, ticket_url, manual_overrides, event_venues(venue_id, venues(name, address)), event_organizations(organization_id)')
+      // `id` tiebreaker makes the page ordering STABLE. Without it, rows that
+      // share a start_at (very common — venues cluster on the hour) have
+      // nondeterministic order between the separate per-page queries, so
+      // events at page boundaries can be silently skipped — and a skipped
+      // event means its duplicate partner survives the whole run.
       .order('start_at', { ascending: true })
+      .order('id', { ascending: true })
       .range(from, from + pageSize - 1)
     if (error) {
       console.error('Query failed:', error.message)
@@ -567,6 +715,7 @@ async function main() {
   let preserved    = 0
   const deletes    = []
   const merges     = []  // { id, fields } — canonical events that need a field merge
+  const linkMerges = []  // { id, venueIds, orgIds } — junction links donated by deleted dupes
 
   for (const group of dupeGroups) {
     // Sort to find the canonical event — data quality wins over source priority.
@@ -624,11 +773,21 @@ async function main() {
         mergeFields.description = d.description
       }
     }
-    const mergeNote = Object.keys(mergeFields).length > 0
-      ? ` [will merge: ${Object.keys(mergeFields).join(', ')}]`
+    // Junction-link donation — only from copies that will actually be deleted
+    // (manual_overrides-preserved rows keep their own links).
+    const donors = dupes.filter(d => !hasManualOverrides(d))
+    const { venueIds: donatedVenueIds, orgIds: donatedOrgIds } =
+      collectLinkDonations(canonical, donors)
+
+    const mergeParts = Object.keys(mergeFields)
+    if (donatedVenueIds.length > 0) mergeParts.push(`venue link×${donatedVenueIds.length}`)
+    if (donatedOrgIds.length > 0)   mergeParts.push(`org link×${donatedOrgIds.length}`)
+    const mergeNote = mergeParts.length > 0
+      ? ` [will merge: ${mergeParts.join(', ')}]`
       : ''
 
-    console.log(`Group: ${sorted[0].start_at}  venue=${sorted[0].event_venues?.[0]?.venue_id?.slice(0, 8)}…`)
+    const groupVenueId = sorted[0].event_venues?.[0]?.venue_id
+    console.log(`Group: ${sorted[0].start_at}  venue=${groupVenueId ? groupVenueId.slice(0, 8) + '…' : '(none)'}`)
     console.log(`  KEEP  [${canonical.source}/${canonical.source_id}] (${qualityLabel(canonical)})${mergeNote} ${canonical.title?.slice(0, 50)}`)
     for (const d of dupes) {
       const protect = hasManualOverrides(d)
@@ -639,14 +798,20 @@ async function main() {
     }
 
     if (Object.keys(mergeFields).length > 0) merges.push({ id: canonical.id, fields: mergeFields })
+    if (donatedVenueIds.length > 0 || donatedOrgIds.length > 0) {
+      linkMerges.push({ id: canonical.id, venueIds: donatedVenueIds, orgIds: donatedOrgIds })
+    }
   }
 
+  // A canonical may appear in `merges`, `linkMerges`, or both — count it once.
+  const enrichedCount = new Set([...merges, ...linkMerges].map(m => m.id)).size
+
   console.log('')
-  console.log(`Summary: ${totalToDelete} to delete, ${merges.length} to enrich, ${preserved} preserved by manual_overrides`)
+  console.log(`Summary: ${totalToDelete} to delete, ${enrichedCount} to enrich, ${preserved} preserved by manual_overrides`)
 
   if (!APPLY) {
     console.log('')
-    console.log(`(Dry run — pass --apply to delete ${totalToDelete} and enrich ${merges.length} canonical events.)`)
+    console.log(`(Dry run — pass --apply to delete ${totalToDelete} and enrich ${enrichedCount} canonical events.)`)
     return
   }
 
@@ -661,9 +826,29 @@ async function main() {
     console.log(`✅  Merged fields into ${merged} canonical event(s).`)
   }
 
-  if (deletes.length === 0) {
-    console.log('Nothing to delete.')
-    return
+  // Donate junction links from soon-to-be-deleted dupes to canonicals that
+  // have none, BEFORE the deletes below cascade those junction rows away.
+  // Only ever fires when the canonical had zero links of that type, so plain
+  // inserts cannot collide with existing rows.
+  if (linkMerges.length > 0) {
+    let linked = 0
+    for (const { id, venueIds, orgIds } of linkMerges) {
+      let ok = true
+      if (venueIds.length > 0) {
+        const { error } = await supabaseAdmin
+          .from('event_venues')
+          .insert(venueIds.map(venue_id => ({ event_id: id, venue_id })))
+        if (error) { console.warn(`  ⚠ Venue-link donation failed for ${id}: ${error.message}`); ok = false }
+      }
+      if (orgIds.length > 0) {
+        const { error } = await supabaseAdmin
+          .from('event_organizations')
+          .insert(orgIds.map(organization_id => ({ event_id: id, organization_id })))
+        if (error) { console.warn(`  ⚠ Org-link donation failed for ${id}: ${error.message}`); ok = false }
+      }
+      if (ok) linked++
+    }
+    console.log(`✅  Donated junction links to ${linked} canonical event(s).`)
   }
 
   // Batch deletes
@@ -681,15 +866,28 @@ async function main() {
     }
     deleted += count ?? batch.length
   }
-  console.log(`✅  Deleted ${deleted} events. Junction-table rows cascaded.`)
+  if (deleted === 0) console.log('Nothing to delete.')
+  else console.log(`✅  Deleted ${deleted} events. Junction-table rows cascaded.`)
+
+  // Record the pass in scraper_runs like every scraper does. Before this,
+  // a dedupe crash at the end of a scrape:all / run-all chain was completely
+  // invisible — no row anywhere said whether dedupe ever completed.
+  // Columns repurposed: updated = canonicals enriched, skipped = dupes deleted.
+  await logUpsertResult('dedupe_cross_source', 0, enrichedCount, deleted, {
+    eventsFound: dupeGroups.length,
+    durationMs:  Date.now() - runStart,
+  })
 }
 
 // Run only when invoked directly (`node scripts/dedupe-cross-source.js`);
 // importing the module (tests) must never trigger a live dedupe — the same
 // import-safety contract every scraper follows.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch(err => {
+  main().catch(async (err) => {
     console.error('Dedupe failed:', err)
+    // Surface the failure in scraper_runs so a broken dedupe step at the end
+    // of a chain shows up in health checks instead of failing silently.
+    try { await logScraperError('dedupe_cross_source', err) } catch { /* best effort */ }
     process.exit(1)
   })
 }

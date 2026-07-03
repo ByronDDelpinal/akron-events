@@ -199,7 +199,7 @@ export default function NeighborhoodMap({ activeSlug, activeLabelOverride, class
       <div
         className={`neighborhood-map neighborhood-map--loading ${className ?? ''}`}
         aria-busy="true"
-        aria-label="Loading neighborhood map"
+        aria-label="Loading community map"
       />
     )
   }
@@ -230,7 +230,7 @@ export default function NeighborhoodMap({ activeSlug, activeLabelOverride, class
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         className="neighborhood-map-svg"
         role="img"
-        aria-label={`Interactive map of City of Akron neighborhoods${activeLabel ? `, ${activeLabel} currently selected` : ''}`}
+        aria-label={`Interactive map of City of Akron communities${activeLabel ? `, ${activeLabel} currently selected` : ''}`}
       >
         {features.map((f) => {
           const isActive   = f.slug === activeSlug

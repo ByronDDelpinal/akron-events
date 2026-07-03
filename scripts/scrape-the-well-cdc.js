@@ -18,6 +18,13 @@
  *     </div>
  *   </div>
  *
+ * 2026 markup drift: newer listings drop the year, prefix a weekday, and put
+ * the time in its own bold run — e.g. "THURSDAY, JUNE 18" / "4 – 7PM" /
+ * "Located at Mason Park Community Center" (this is the format on the
+ * homepage event blocks and broke the old strongs[0]/strongs[1] positional
+ * parsing). parseEvents now scans the bold runs for a date, a time-only
+ * line, and a short venue-ish line, and infers the year when missing.
+ *
  * Events: the Taste of Middlebury fundraiser, Juneteenth celebration (Akron
  * Hope), Middlebury Fall Fest, Coffee & Career Development, the annual Wrapping
  * Night, and other neighborhood programming. Venues are mostly in/around
@@ -53,18 +60,61 @@ const EVENTS_URL = 'https://thewellakron.com/events/'
 const MONTH_MAP = {
   january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7,
   august: 8, september: 9, october: 10, november: 11, december: 12,
+  jan: 1, feb: 2, mar: 3, apr: 4, jun: 6, jul: 7,
+  aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12,
 }
 
 // ── Date / time parsing ──────────────────────────────────────────────────────
 
-/** "JUNE 4, 2026" → "2026-06-04" (null if unparseable). */
-export function parseDate(text) {
+const pad2 = (n) => String(n).padStart(2, '0')
+
+/**
+ * Infer the year for a year-less date ("JUNE 18").
+ *
+ * Default to the current year. Only roll forward to next year when the
+ * current-year candidate is a long way (>6 months) in the past — i.e. a
+ * December page listing a January event. Deliberately NOT the 1-day roll
+ * used by scrape-house-three-thirty.js: The Well leaves past events on the
+ * page for weeks, and a naive roll would resurrect each of them as a
+ * phantom event a year out instead of letting the past-event filter drop
+ * them.
+ */
+function inferYear(month, day, now = new Date()) {
+  const year = now.getFullYear()
+  const candidate = new Date(year, month - 1, day)
+  const sixMonthsMs = 183 * 86_400_000
+  if (now.getTime() - candidate.getTime() > sixMonthsMs) return year + 1
+  return year
+}
+
+/**
+ * Find the first "MONTH D[, YYYY]" in `text` (tolerating a leading weekday,
+ * e.g. "THURSDAY, JUNE 18"). Returns { dateStr, rest } where `rest` is
+ * whatever follows the date match (used for same-line time extraction),
+ * or null if no date is present. Year is optional — The Well dropped it
+ * from event listings — and is inferred relative to `now` when absent.
+ */
+function matchDate(text, now = new Date()) {
   if (!text) return null
-  const m = String(text).match(/([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/)
-  if (!m) return null
-  const month = MONTH_MAP[m[1].toLowerCase()]
-  if (!month) return null
-  return `${m[3]}-${String(month).padStart(2, '0')}-${String(parseInt(m[2], 10)).padStart(2, '0')}`
+  const s = String(text)
+  const re = /([A-Za-z]+)\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?/g
+  for (const m of s.matchAll(re)) {
+    const month = MONTH_MAP[m[1].toLowerCase()]
+    if (!month) continue                       // skips weekday tokens
+    const day = parseInt(m[2], 10)
+    if (!day || day > 31) continue
+    const year = m[3] ? parseInt(m[3], 10) : inferYear(month, day, now)
+    return {
+      dateStr: `${year}-${pad2(month)}-${pad2(day)}`,
+      rest:    s.slice(m.index + m[0].length),
+    }
+  }
+  return null
+}
+
+/** "JUNE 4, 2026" → "2026-06-04"; "JUNE 18" → year inferred (null if unparseable). */
+export function parseDate(text, now = new Date()) {
+  return matchDate(text, now)?.dateStr ?? null
 }
 
 /**
@@ -95,10 +145,28 @@ export function parseTime(text) {
   return `${String(hr).padStart(2, '0')}:${min}:00`
 }
 
+/**
+ * True when a string is nothing but a clock time / time range —
+ * "4 – 7PM", "5:30PM", "10 – 11:30AM", "12 NOON". Used to tell the
+ * standalone time line apart from a venue line.
+ */
+export function isTimeOnly(text) {
+  const s = stripHtml(String(text || '')).trim()
+  if (!s || !/\d/.test(s)) return false
+  if (!/(a\.?m\.?|p\.?m\.?|noon)\b/i.test(s)) return false
+  // Strip meridians/fillers, then digits/punctuation — letters left ⇒ not a
+  // time. No \b before the meridian: "7PM" has no boundary between 7 and P.
+  return s
+    .replace(/(a\.?m\.?|p\.?m\.?|noon|to|until)/gi, '')
+    .replace(/[\d:.\s|–—-]/g, '') === ''
+}
+
 /** "THE EAST END – 1200 E MARKET ST" → "The East End". */
 function parseVenue(text) {
   if (!text) return null
   let s = stripHtml(text).trim()
+  // Strip a "Located at" / "@" prefix (newer listings use this phrasing).
+  s = s.replace(/^(?:located\s+at|at|@)\s+/i, '')
   // Venue name precedes the street address, separated by en/em dash or hyphen.
   s = s.split(/\s[–—-]\s/)[0].trim()
   if (!s) return null
@@ -120,7 +188,7 @@ function mapCategory(title = '', desc = '') {
 
 // ── Parse ────────────────────────────────────────────────────────────────────
 
-export function parseEvents(html) {
+export function parseEvents(html, now = new Date()) {
   const events = []
   // Each event is a Divi blurb whose title is an h4.et_pb_module_header.
   const chunks = html.split(/<h4[^>]*class="[^"]*et_pb_module_header[^"]*"[^>]*>/i)
@@ -130,16 +198,49 @@ export function parseEvents(html) {
     const title = titleRaw ? stripHtml(titleRaw) : null
     if (!title) continue
 
-    // The date and venue are the first two <strong> runs in the description.
-    const strongs = [...chunk.matchAll(/<strong>([\s\S]*?)<\/strong>/gi)]
-      .map(m => stripHtml(m[1])).filter(Boolean)
-    const dateLine = strongs[0] || ''
-    const dateStr = parseDate(dateLine)
+    // Bold runs carry the metadata. Older markup: strongs[0] = "JUNE 4, 2026
+    // | 5:30PM" and strongs[1] = "VENUE – ADDRESS". Newer markup drops the
+    // year, may prefix a weekday, and splits date and time into separate
+    // strongs ("THURSDAY, JUNE 18" / "4 – 7PM"), so scan instead of relying
+    // on fixed positions. <b> is matched too — Divi editors flip between them.
+    const strongs = [...chunk.matchAll(/<(?:strong|b)\b[^>]*>([\s\S]*?)<\/(?:strong|b)>/gi)]
+      .map(m => stripHtml(m[1]).trim()).filter(Boolean)
+
+    // 1. Date: first strong containing a "MONTH D[, YYYY]".
+    let dateStr = null, dateRest = '', dateIdx = -1
+    for (let s = 0; s < strongs.length; s++) {
+      const dm = matchDate(strongs[s], now)
+      if (dm) { dateStr = dm.dateStr; dateRest = dm.rest; dateIdx = s; break }
+    }
     if (!dateStr) continue
-    // Time is whatever follows the date in the same line ("… | 5:30PM").
-    const afterDate = dateLine.replace(/.*?\d{4}\s*/, '')
-    const timeStr = parseTime(afterDate)
-    const venueName = parseVenue(strongs[1] || '')
+
+    // 2. Time: remainder of the date line ("… | 5:30PM"), else the next
+    //    strong that is purely a time ("4 – 7PM").
+    let timeIdx = -1
+    let timeSource = /\d/.test(dateRest) ? dateRest : null
+    if (!timeSource) {
+      for (let s = dateIdx + 1; s < strongs.length; s++) {
+        if (isTimeOnly(strongs[s])) { timeSource = strongs[s]; timeIdx = s; break }
+      }
+    }
+    const timeStr = parseTime(timeSource || '')
+
+    // 3. Venue: first non-time strong after the date line (checked within the
+    //    next few strongs so a bolded run deep in the description can't be
+    //    mistaken for a venue). Venue lines are short name-ish strings —
+    //    reject anything long or sentence-like (bolded description copy).
+    let venueName = null
+    for (let s = dateIdx + 1; s < Math.min(strongs.length, dateIdx + 4); s++) {
+      if (s === timeIdx || isTimeOnly(strongs[s])) continue
+      const raw = parseVenue(strongs[s])
+      if (!raw) continue
+      const v = raw.split(/\s*,\s*/)[0].trim()   // "People's Park, 760 Elma St" → name only
+      const wordy = v.split(/\s+/).length > 8    // sentence-like ⇒ bolded description copy
+      if (v && v.length <= 60 && /[A-Za-z]{3}/.test(v) && !/[!?]/.test(v) && !wordy) {
+        venueName = v
+        break
+      }
+    }
 
     // Description: first <p> that isn't the date/venue strongs and isn't a
     // "email … for more info" line.
