@@ -184,6 +184,68 @@ describe('dedupe: venue-less aggregator copies (Pass 4)', () => {
     // shares only a 2-token headliner then diverges — allowed by strongTitlesMatch, NOT here
     assert.equal(venuelessTitleMatch('Summer Concert: Wilco', 'Summer Concert: Phish'), false)
   })
+
+  // 2026-07-03 launch-day regression: DAP listed the festival umbrella AND its
+  // sub-events venue-less; intake_email carried the venue-linked sub-event.
+  it('umbrella "X" never matches sub-event "X: Y"; suffix act-extraction still does', () => {
+    assert.equal(venuelessTitleMatch(
+      'All American Burger & BBQ Festival',
+      "All American Burger & BBQ Festival: JT's Electrik Blackout"), false)
+    assert.equal(venuelessTitleMatch(
+      'All American Burger & BBQ Festival',
+      'All American Burger & BBQ Festival - Dirty Lookz'), false)
+    // suffix direction is the same act, must keep matching
+    assert.equal(venuelessTitleMatch(
+      'The Michael Weber Show',
+      'All American Burger & BBQ Festival: The Michael Weber Show'), true)
+  })
+
+  it('exact-title pair claims the candidate before an umbrella containment can consume it', () => {
+    const lock4 = (id, title, source, start, venues = []) =>
+      ({ id, title, source, start_at: start, end_at: null, event_venues: venues })
+    const atLock4 = [{ venue_id: 'v-l4', venues: { name: 'Lock 4', address: '200 S Main St' } }]
+    const { groups } = findDuplicateGroups([
+      // venue-less umbrella listed FIRST (earlier start) — old code let it grab
+      // the intake copy via containment and the exact twin survived
+      lock4('umbrella', 'All American Burger & BBQ Festival', 'downtown_akron', '2026-07-03T15:00:00+00:00'),
+      lock4('dap-jts', "All American Burger & BBQ Festival: JT's Electrik Blackout", 'downtown_akron', '2026-07-03T22:00:00+00:00'),
+      lock4('intake-jts', "All American Burger & BBQ Festival: JT's Electrik Blackout", 'intake_email', '2026-07-03T22:00:00+00:00', atLock4),
+    ])
+    assert.equal(groups.length, 1)
+    const ids = groups[0].map(e => e.id).sort()
+    assert.deepEqual(ids, ['dap-jts', 'intake-jts'])   // umbrella survives ungrouped
+  })
+
+  it('same-second venue-less pair tolerates singular/plural drift ("Burger"/"Burgers")', () => {
+    const { groups } = findDuplicateGroups([
+      {
+        id: 'lock3', title: 'All American Burgers & BBQ Festival', source: 'city_of_akron_lock3',
+        start_at: '2026-07-03T15:00:00+00:00', end_at: '2026-07-04T03:00:00+00:00',
+        event_venues: [{ venue_id: 'v-l3', venues: { name: 'Lock 3', address: '200 S Main St' } }],
+      },
+      {
+        id: 'dap', title: 'All American Burger & BBQ Festival', source: 'downtown_akron',
+        start_at: '2026-07-03T15:00:00+00:00', end_at: null, event_venues: [],
+      },
+    ])
+    assert.equal(groups.length, 1)
+    assert.deepEqual(groups[0].map(e => e.id).sort(), ['dap', 'lock3'])
+  })
+
+  it('different-second typo drift does NOT match (same-second gate holds)', () => {
+    const { groups } = findDuplicateGroups([
+      {
+        id: 'lock3', title: 'All American Burgers & BBQ Festival', source: 'city_of_akron_lock3',
+        start_at: '2026-07-03T15:00:00+00:00', end_at: null,
+        event_venues: [{ venue_id: 'v-l3', venues: { name: 'Lock 3', address: '200 S Main St' } }],
+      },
+      {
+        id: 'dap', title: 'All American Burger & BBQ Festival', source: 'downtown_akron',
+        start_at: '2026-07-03T16:00:00+00:00', end_at: null, event_venues: [],
+      },
+    ])
+    assert.equal(groups.length, 0)
+  })
 })
 
 // 2026-07-01: seven live cross-source dupes evaded dedupe. Three exposed real

@@ -233,10 +233,32 @@ export function strongTitlesMatch(a, b) {
 }
 
 /**
+ * Umbrella/sub-event detector for the venue-less pass. Festival feeds list an
+ * umbrella event ("All American Burger & BBQ Festival") ALONGSIDE its
+ * sub-events ("All American Burger & BBQ Festival: JT's Electrik Blackout").
+ * A bare containment match would merge the umbrella into one arbitrary
+ * sub-event and delete the umbrella listing — a real loss (2026-07-03).
+ * True when one RAW title is exactly the other's pre-delimiter umbrella name.
+ * The reverse pattern (shorter title == the SUFFIX after the delimiter, e.g.
+ * "The Michael Weber Show" vs "…Festival: The Michael Weber Show") is the
+ * same act and stays matchable.
+ */
+export function isUmbrellaSubEventPair(rawA, rawB) {
+  for (const [shortRaw, longRaw] of [[rawA, rawB], [rawB, rawA]]) {
+    const m = (longRaw || '').match(/^(.+?)(?::|\s[—–-]\s)(.+)$/)
+    if (!m) continue
+    if (normalizeTitle(m[1]) === normalizeTitle(shortRaw) && normalizeTitle(m[2])) return true
+  }
+  return false
+}
+
+/**
  * Strict title match for the venue-less pass (Pass 4). Same as strongTitlesMatch
  * MINUS the shared-headliner (first-two-tokens) fallback — that fallback is only
  * safe under Pass 1's exact-second gate, and Pass 4 matches on the calendar day,
  * so we require exact normalized equality, containment, or ≥0.9 token overlap.
+ * The containment arm additionally refuses umbrella/sub-event pairs — "X" must
+ * never merge with "X: Y" (see isUmbrellaSubEventPair).
  */
 export function venuelessTitleMatch(a, b) {
   const na = normalizeTitle(a)
@@ -244,6 +266,10 @@ export function venuelessTitleMatch(a, b) {
   if (!na || !nb) return false
   if (na === nb) return true
   if (squashTitle(na) === squashTitle(nb)) return true   // compound-word split tolerance
+  // Umbrella/sub-event pairs are distinct events; the containment arm AND the
+  // token-overlap arm (shorter side of a subset title always scores 1.0) would
+  // both false-match them, so the guard sits ahead of both.
+  if (isUmbrellaSubEventPair(a, b)) return false
   const [s, l] = na.length <= nb.length ? [na, nb] : [nb, na]
   if (l.startsWith(s + ' ') || l.endsWith(' ' + s) || l.includes(' ' + s + ' ')) return true
   const ta = tokenizeTitle(a)
@@ -600,19 +626,43 @@ export function findDuplicateGroups(events) {
       venuedByDay.get(day).push(e)
     }
   }
+  // Score every possible (venue-less, venue-linked) pair and assign GLOBALLY,
+  // best match first — never first-encountered-wins. With sequential
+  // assignment, a festival umbrella row could consume the venue-linked copy
+  // via a loose containment match before the sub-event's EXACT-title twin was
+  // even considered, leaving the real duplicate alive (2026-07-03 launch-day
+  // bug: "…Festival" grabbed "…Festival: JT's Electrik Blackout" and the
+  // exact DAP duplicate of JT's survived to the homepage).
+  //   tier 0 — exact/squashed normalized title equality
+  //   tier 1 — venuelessTitleMatch (containment / ≥0.9 overlap), or a
+  //            typo-tolerant match gated to the SAME start second (singular/
+  //            plural drift like "Burger"/"Burgers" — safe only because the
+  //            same-second gate mirrors Pass 1's hard gate, minus the venue
+  //            the venue-less row doesn't have)
+  //   time distance breaks ties within a tier.
+  const pairs = []
   for (const vless of venueless) {
     if (matchedIds.has(vless.id)) continue
     const candidates = venuedByDay.get(easternDay(vless.start_at)) || []
     for (const cand of candidates) {
-      if (matchedIds.has(cand.id)) continue
       if (cand.source === vless.source) continue
-      if (venuelessTitleMatch(vless.title, cand.title)) {
-        groups.push([cand, vless])
-        matchedIds.add(cand.id)
-        matchedIds.add(vless.id)
-        break
-      }
+      const exact = vless._titleKey === cand._titleKey ||
+                    squashTitle(vless._titleKey) === squashTitle(cand._titleKey)
+      const sameSecond = toSecondKey(vless.start_at) === toSecondKey(cand.start_at)
+      const loose = venuelessTitleMatch(vless.title, cand.title) ||
+                    (sameSecond && !isUmbrellaSubEventPair(vless.title, cand.title) &&
+                     typoTolerantTitlesMatch(vless.title, cand.title))
+      if (!exact && !loose) continue
+      const dt = Math.abs(new Date(vless.start_at) - new Date(cand.start_at))
+      pairs.push({ vless, cand, tier: exact ? 0 : 1, dt })
     }
+  }
+  pairs.sort((p, q) => (p.tier - q.tier) || (p.dt - q.dt))
+  for (const { vless, cand } of pairs) {
+    if (matchedIds.has(vless.id) || matchedIds.has(cand.id)) continue
+    groups.push([cand, vless])
+    matchedIds.add(cand.id)
+    matchedIds.add(vless.id)
   }
 
   return { groups: groups.filter(g => g.length > 1), withoutVenue }
