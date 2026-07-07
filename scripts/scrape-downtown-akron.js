@@ -20,6 +20,7 @@ import {
   logUpsertResult,
   logScraperError,
   decodeEntities,
+  htmlToText,
   enrichWithImageDimensions,
   upsertEventSafe,
   linkEventVenue,
@@ -28,7 +29,7 @@ import {
   ensureOrganization,
   easternToIso,
 } from './lib/normalize.js'
-import { getTrustedEventsAtVenue, classifyAgainstTrusted } from './lib/source-tiers.js'
+import { getPublishedEventsAtVenue, classifyAggregatorEvent } from './lib/source-tiers.js'
 
 const BASE_URL = 'https://www.downtownakron.com'
 
@@ -320,6 +321,42 @@ function parseCalendarHtml(html) {
   return events
 }
 
+// ── Detail page ──────────────────────────────────────────────────────────────
+
+/**
+ * Parse a DAP (ctycms) event detail page for the description + poster image.
+ * The list-view calendar cards carry neither, so we crawl each event's own page.
+ *   • description — the <p> blocks under the "<h2>Details</h2>" heading (the
+ *     Location section sits ABOVE it and is excluded), cut off before the site
+ *     footer ("Greystone Hall").
+ *   • image — the img.ctykit.com/…/images/ poster rendition.
+ * Both are server-rendered, so a raw-HTML parse (no browser) sees them. Pure +
+ * exported for tests.
+ */
+export function parseDetailPage(html) {
+  const s = String(html || '')
+
+  let description = null
+  const dh = s.search(/<h2[^>]*>\s*Details\s*<\/h2>/i)
+  if (dh !== -1) {
+    let region = s.slice(dh)
+    const cut = region.search(/Greystone Hall|Subscribe to our newsletter/i)
+    if (cut !== -1) region = region.slice(0, cut)
+    const paras = [...region.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
+      .map((m) => htmlToText(m[1]).replace(/\u00a0/g, " ").trim())
+      .filter((t) => t && !/^visit website$/i.test(t))
+    const joined = paras.join('\n\n').replace(/\n{3,}/g, '\n\n').trim()
+    description = joined ? joined.slice(0, 3000) : null
+  }
+
+  // Poster: the event image is an img.ctykit.com "/images/" rendition (the site
+  // logo is a ctycms.com .svg, so it won't match).
+  const img = s.match(/<img[^>]+src="([^"]*img\.ctykit\.com[^"]*\/images\/[^"]+)"/i)
+  const imageUrl = img ? decodeEntities(img[1]) : null
+
+  return { description, imageUrl }
+}
+
 // ── Build month URLs ───────────────────────────────────────────────────────
 
 function getMonthUrls() {
@@ -340,22 +377,26 @@ function getMonthUrls() {
 // Aggregator precedence (2026-07-02 data-quality plan, task 3): DAP is a
 // Tier-3 aggregator. DIRECTLY_SCRAPED_VENUES above suppresses the handful of
 // venues we've manually audited as a complete superset. For every other
-// venue, classify against whatever Tier-1/2 (trusted) events are already
-// linked to it:
+// venue, classify against the events already linked to it
+// (classifyAggregatorEvent in lib/source-tiers.js):
 //   - no trusted events at this venue at all      → publish normally
 //   - a trusted event within 3 days at this venue → suppress (real duplicate)
+//   - a higher-priority AGGREGATOR copy at the same second with the same
+//     title → suppress (2026-07-07: an eventbrite-covered "Vinyasa Yoga on
+//     the Plaza" published from DAP between dedupe runs — ingest now closes
+//     that window instead of waiting for dedupe)
 //   - trusted events exist, but none nearby        → publish + needs_review
 //     (a scraper gap or a genuine DAP-only program — human decides; never
 //     silently drop, per "Free Thursday at Akron Art Museum" — DAP's only
 //     copy even though akron_art_museum is scraped)
 // One venue lookup per unique venue per run, cached below.
-const trustedEventsCache = new Map()
-async function trustedEventsFor(venueId) {
+const venueEventsCache = new Map()
+async function venueEventsFor(venueId) {
   if (!venueId) return []
-  if (!trustedEventsCache.has(venueId)) {
-    trustedEventsCache.set(venueId, await getTrustedEventsAtVenue(venueId))
+  if (!venueEventsCache.has(venueId)) {
+    venueEventsCache.set(venueId, await getPublishedEventsAtVenue(venueId))
   }
-  return trustedEventsCache.get(venueId)
+  return venueEventsCache.get(venueId)
 }
 
 async function processEvents(events, organizerId) {
@@ -367,17 +408,35 @@ async function processEvents(events, organizerId) {
       const startAt = easternToIso(ev.dateStr, ev.timeStr)
       if (!startAt) { skipped++; continue }
 
-      const trusted = await trustedEventsFor(venueId)
-      const { suppress, needsReview } = classifyAgainstTrusted(trusted, startAt)
+      const atVenue = await venueEventsFor(venueId)
+      const { suppress, needsReview, reason } = classifyAggregatorEvent(
+        atVenue,
+        { source: 'downtown_akron', startAt, title: ev.title }
+      )
       if (suppress) {
         suppressedByTier++
-        console.log(`  ⤷ Suppressing "${ev.title}" — a Tier-1/2 event covers this venue within 3 days`)
+        console.log(`  ⤷ Suppressing "${ev.title}" — ${reason === 'higher-priority-aggregator'
+          ? 'a higher-priority aggregator has the same event (same venue/second/title)'
+          : 'a Tier-1/2 event covers this venue within 3 days'}`)
         continue
       }
 
+      // Crawl the event's own detail page for the description + poster image —
+      // the calendar list cards carry neither, which is why DAP events showed up
+      // blank (e.g. "Ghost Slime in the Biergarten"). Best-effort: on failure we
+      // keep the event with null description/image rather than dropping it.
+      let description = null, imageUrl = null
+      try {
+        const detailHtml = await fetchHtml(ev.linkHref)
+        ;({ description, imageUrl } = parseDetailPage(detailHtml))
+      } catch (detailErr) {
+        console.warn(`  ⚠ Detail fetch failed for "${ev.title}": ${detailErr.message}`)
+      }
+      await new Promise((r) => setTimeout(r, 250)) // polite delay between detail pages
+
       const row = {
         title:           ev.title,
-        description:     null,
+        description,
         start_at:        startAt,
         end_at:          null,
         category:        parseCategory(ev.title),
@@ -385,7 +444,7 @@ async function processEvents(events, organizerId) {
         price_min:       null,
         price_max:       null,
         age_restriction: 'not_specified',
-        image_url:       null,
+        image_url:       imageUrl,
         ticket_url:      ev.linkHref,
         source:          'downtown_akron',
         source_id:       ev.slug,
@@ -476,7 +535,7 @@ async function main() {
 
     console.log(`\n📥  Processing ${visible.length} events…`)
     const { inserted, skipped, suppressedByTier, flaggedForReview } = await processEvents(visible, organizerId)
-    if (suppressedByTier > 0) console.log(`  Suppressed ${suppressedByTier} event(s) — a Tier-1/2 source covers the venue within 3 days.`)
+    if (suppressedByTier > 0) console.log(`  Suppressed ${suppressedByTier} event(s) — covered by a trusted source or higher-priority aggregator.`)
     if (flaggedForReview > 0) console.log(`  Flagged ${flaggedForReview} event(s) needs_review — venue has Tier-1/2 coverage but nothing nearby.`)
 
     await logUpsertResult('downtown_akron', inserted, 0, skipped, {

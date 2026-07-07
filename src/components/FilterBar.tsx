@@ -164,7 +164,7 @@ export default function FilterBar({
                   aria-pressed={view === 'list'}
                   title="List view"
                 >
-                  <ListIcon /> List
+                  <ListIcon /> <span className="view-toggle-label">List</span>
                 </button>
                 {showCalendarView && (
                   <button
@@ -173,7 +173,7 @@ export default function FilterBar({
                     aria-pressed={view === 'calendar'}
                     title="Calendar view"
                   >
-                    <CalendarIcon /> Calendar
+                    <CalendarIcon /> <span className="view-toggle-label">Calendar</span>
                   </button>
                 )}
                 {showMapView && (
@@ -183,7 +183,7 @@ export default function FilterBar({
                     aria-pressed={view === 'map'}
                     title="Map view"
                   >
-                    <MapIcon /> Map
+                    <MapIcon /> <span className="view-toggle-label">Map</span>
                   </button>
                 )}
               </div>

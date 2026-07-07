@@ -303,4 +303,13 @@
   .date-tab { padding: var(--space-md) var(--space-md); font-size: var(--text-sm); }
 
   .view-toggle { border-left: none; padding-left: var(--space-sm); }
+
+  /* Icon-only toggle: drop the text labels so List / Calendar / Map all fit on
+     one row beside Filter & Sort. Accessible names remain via each button's
+     title + aria-pressed. */
+  .view-toggle-label { display: none; }
+  .view-toggle-btn {
+    padding: var(--space-xs) var(--space-sm);
+    gap: 0;
+  }
 }

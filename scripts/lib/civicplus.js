@@ -355,5 +355,10 @@ export function cleanLocationName(raw) {
   // Reject pure addresses, time fragments, and empties.
   if (!s || /^\d/.test(s) || !/[a-z]/i.test(s) || s.length < 3) return null
   if (/^\d{1,2}(:\d{2})?\s*[ap]\.?m\.?/i.test(s)) return null
+  // Reject a LOCATION field stuffed with a full event description (a CMS
+  // data-entry error — e.g. Copley crammed a paragraph into LOCATION). A real
+  // venue name is short; anything sentence-length is not a venue, so fall back
+  // to the default venue rather than minting a paragraph-named row.
+  if (s.length > 80) return null
   return s
 }

@@ -67,24 +67,77 @@ export function isTrustedSource(source) {
   return sourceTier(source) !== TIER_AGGREGATOR
 }
 
+// ── Aggregator precedence ──────────────────────────────────────────────────
+// Internal ranking WITHIN Tier 3 — which aggregator's copy of the same event
+// wins. Lower index = more trusted. This is the single source of truth;
+// dedupe-cross-source.js imports it for canonical selection, and
+// classifyAggregatorEvent below uses it for ingest-time suppression.
+export const AGGREGATOR_PRIORITY = [
+  'ticketmaster',
+  'eventbrite',
+  'visit_akron_cvb',
+  'akron_life',
+  'runsignup',
+  'ohio_festivals',
+  'downtown_akron',
+]
+
+/** Rank within Tier 3. Unlisted sources rank last (least trusted). */
+export function aggregatorRank(source) {
+  const i = AGGREGATOR_PRIORITY.indexOf(source)
+  return i === -1 ? AGGREGATOR_PRIORITY.length : i
+}
+
+// ── Local mirrors of dedupe-cross-source helpers ───────────────────────────
+// dedupe-cross-source.js imports AGGREGATOR_PRIORITY from this module, so
+// this module cannot import dedupe's normalizeTitle/toSecondKey without a
+// cycle. These are deliberate small copies — keep semantics in sync.
+
+/** Punctuation/case-insensitive title key (mirrors dedupe's normalizeTitle). */
+export function titleKey(title) {
+  return (title || '')
+    .toLowerCase()
+    .replace(/['']/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Whole-second UTC key (mirrors dedupe's toSecondKey). */
+function secondKey(ts) {
+  const d = new Date(ts)
+  return Number.isNaN(d.getTime()) ? String(ts) : d.toISOString().slice(0, 19)
+}
+
 // ── Venue coverage (I/O) ──────────────────────────────────────────────────
 
 /**
- * All currently-published Tier 1/2 events linked to a venue, as
- * { source, start_at } pairs. Read-only. Callers should fetch once per venue
- * and reuse across that venue's events in the same run (see
- * classifyAgainstTrusted below for the pure per-event decision).
+ * All currently-published events linked to a venue, as
+ * { source, start_at, title } rows. Read-only. Callers should fetch once per
+ * venue and reuse across that venue's events in the same run (see
+ * classifyAggregatorEvent below for the pure per-event decision).
  */
-export async function getTrustedEventsAtVenue(venueId) {
+export async function getPublishedEventsAtVenue(venueId) {
   if (!venueId) return []
   const { data, error } = await supabaseAdmin
     .from('event_venues')
-    .select('events!inner(source, start_at, status)')
+    .select('events!inner(source, start_at, status, title)')
     .eq('venue_id', venueId)
   if (error || !data) return []
   return data
     .map((row) => row.events)
-    .filter((ev) => ev && ev.status === 'published' && isTrustedSource(ev.source))
+    .filter((ev) => ev && ev.status === 'published')
+    .map((ev) => ({ source: ev.source, start_at: ev.start_at, title: ev.title }))
+}
+
+/**
+ * All currently-published Tier 1/2 events linked to a venue.
+ * Kept for callers that only need the trusted subset.
+ */
+export async function getTrustedEventsAtVenue(venueId) {
+  const events = await getPublishedEventsAtVenue(venueId)
+  return events
+    .filter((ev) => isTrustedSource(ev.source))
     .map((ev) => ({ source: ev.source, start_at: ev.start_at }))
 }
 
@@ -126,4 +179,62 @@ export function classifyAgainstTrusted(trustedEventsAtVenue, startAtIso, { windo
   return hasNearbyMatch
     ? { suppress: true, needsReview: false }
     : { suppress: false, needsReview: true }
+}
+
+/**
+ * Full ingest-time decision for a single Tier-3 (aggregator) event, given
+ * ALL published events already linked to its venue. Extends
+ * classifyAgainstTrusted with aggregator-vs-aggregator suppression:
+ *
+ *   1. Trusted (Tier 1/2) copy within `windowDays` at this venue →
+ *      suppress (reason 'trusted-nearby'). Same as classifyAgainstTrusted.
+ *   2. Else: a copy from a STRICTLY higher-priority aggregator (see
+ *      AGGREGATOR_PRIORITY) at the same venue, same start SECOND, with the
+ *      same normalized title → suppress (reason 'higher-priority-aggregator').
+ *      This is the gap that let a downtown_akron copy of an
+ *      eventbrite-covered event publish between dedupe runs (Vinyasa Yoga
+ *      on the Plaza, 2026-07-04): dedupe only runs at the end of scrape:all,
+ *      so an aggregator dupe inserted out-of-band went live for days.
+ *      The gate is deliberately strict (exact second + exact title key,
+ *      mirroring dedupe Pass 1's hard gate) because ingest suppression drops
+ *      silently — looser matches (promoter prefixes, doors-vs-show drift)
+ *      stay dedupe's job, where merges preserve the richer copy.
+ *      Strictly-higher rank means a source never suppresses itself on
+ *      re-scrape, and two aggregators can never mutually suppress.
+ *   3. Else: trusted coverage exists at the venue but nothing nearby →
+ *      publish + needs_review (reason 'trusted-not-nearby'), never
+ *      silently drop.
+ *   4. Else: publish normally.
+ *
+ * @param {{source:string, start_at:string, title?:string}[]} eventsAtVenue
+ *   from getPublishedEventsAtVenue()
+ * @param {{source:string, startAt:string, title?:string}} candidate
+ * @param {{windowDays?: number}} [opts]
+ * @returns {{ suppress: boolean, needsReview: boolean, reason: string|null }}
+ */
+export function classifyAggregatorEvent(eventsAtVenue, candidate, { windowDays = 3 } = {}) {
+  const events = eventsAtVenue ?? []
+  const trusted = events.filter((ev) => isTrustedSource(ev.source))
+
+  const base = classifyAgainstTrusted(trusted, candidate.startAt, { windowDays })
+  if (base.suppress) {
+    return { suppress: true, needsReview: false, reason: 'trusted-nearby' }
+  }
+
+  const candRank   = aggregatorRank(candidate.source)
+  const candSecond = secondKey(candidate.startAt)
+  const candTitle  = titleKey(candidate.title)
+  const higherPriorityCopy = candTitle && events.some((ev) =>
+    isAggregatorSource(ev.source) &&
+    aggregatorRank(ev.source) < candRank &&
+    secondKey(ev.start_at) === candSecond &&
+    titleKey(ev.title) === candTitle
+  )
+  if (higherPriorityCopy) {
+    return { suppress: true, needsReview: false, reason: 'higher-priority-aggregator' }
+  }
+
+  return base.needsReview
+    ? { suppress: false, needsReview: true, reason: 'trusted-not-nearby' }
+    : { suppress: false, needsReview: false, reason: null }
 }

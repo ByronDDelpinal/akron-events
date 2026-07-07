@@ -120,6 +120,14 @@ describe('cleanLocationName', () => {
   it('returns null for address-only strings', () => {
     assert.equal(cleanLocationName(' -   Stow OH 44224'), null)
   })
+
+  it('returns null when a full description was crammed into LOCATION (Copley Game Night)', () => {
+    // A CMS data-entry error: the LOCATION field holds a paragraph, not a venue.
+    const junk = '<p>Copley Heritage Day kicks off this evening with Game Night at Brighten ' +
+      'Brewing Company! Cornhole and euchre tournaments will be held, registration beginning ' +
+      'at 6:30.</p> - 1374 S. Cleveland-Massillon Rd  Copley OH 44321'
+    assert.equal(cleanLocationName(junk), null)
+  })
 })
 
 // ════════════════════════════════════════════════════════════════════════════

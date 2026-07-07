@@ -36,6 +36,7 @@ import 'dotenv/config'
 import { pathToFileURL } from 'node:url'
 import { supabaseAdmin } from './lib/supabase-admin.js'
 import { normalizeStreetAddress, logUpsertResult, logScraperError } from './lib/normalize.js'
+import { AGGREGATOR_PRIORITY } from './lib/source-tiers.js'
 
 const APPLY = process.argv.includes('--apply')
 
@@ -58,6 +59,7 @@ const SOURCE_PRIORITY = [
   'akron_childrens_museum',
   'akron_library',
   'akron_public_schools',
+  'akron_roller_derby',      // first-party (home bouts at Summit County Fairgrounds)
   'blu_jazz',
   'city_of_akron_lock3',     // first-party source for city programming
   'city_of_hudson',          // first-party municipal calendar (CivicPlus)
@@ -67,11 +69,15 @@ const SOURCE_PRIORITY = [
   'missing_falls',
   'nightlight',
   'north_hill_cdc',
+  'northfield_park',         // first-party venue (Center Stage) — displaces Ticketmaster copies
+  'ohio_erie_canalway',      // first-party (Canalway Coalition towpath events)
   'ohio_shakespeare',
   'painting_twist',
   'rubberducks',
   'stan_hywet',              // first-party venue calendar
   'summit_artspace',
+  'summit_county_fairgrounds', // first-party venue (Tallmadge)
+  'summit_humane',           // first-party (Humane Society) — Give Back events
   'summit_metro_parks',
   'torchbearers',
   'uakron_calendar',
@@ -89,7 +95,10 @@ const SOURCE_PRIORITY = [
 // had been ranked ahead of several real first-party scrapers (weathervane,
 // stan_hywet, rubberducks, …), so an exact-match DAP dupe could have won
 // canonical over the venue's own, richer copy.
-const AGGREGATOR_PRIORITY = ['ticketmaster', 'eventbrite', 'visit_akron_cvb', 'akron_life', 'runsignup', 'ohio_festivals', 'downtown_akron']
+//
+// 2026-07-07: the list itself now lives in lib/source-tiers.js (imported
+// above) so ingest-time aggregator suppression (classifyAggregatorEvent)
+// and dedupe canonical selection can never drift apart.
 
 export function priority(source) {
   const i = SOURCE_PRIORITY.indexOf(source)
