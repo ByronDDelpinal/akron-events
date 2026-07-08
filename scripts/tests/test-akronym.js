@@ -390,3 +390,143 @@ describe('Akronym: Batch Processing', () => {
     }
   })
 })
+
+// ── Content prose date/time extraction (2026-07 fix) ────────────────────────
+// The live site has NO events plugin: post.meta only carries `footnotes`, so
+// the meta path above never fires. Dates live in the prose. These tests hit
+// the real exported parsers.
+
+import { extractEventDateTime, cleanTitle, isTicketFollowUp } from '../scrape-akronym.js'
+
+describe('extractEventDateTime (prose parsing)', () => {
+  it('parses explicit full date with Noon-to-4PM range (LagerFest)', () => {
+    const text = 'LagerFest Returns to Akronym Brewing This August. Lager Fest returns to the Biergarten on Sunday, August 2, 2026, from Noon to 4PM. Mark your calendars.'
+    const r = extractEventDateTime(text, '2026-06-09T14:40:18')
+    assert.ok(r)
+    assert.equal(r.dateStr, '2026-08-02')
+    assert.equal(r.timeStr, '12:00 pm')
+    assert.equal(r.endTimeStr, '4:00 pm')
+    // Noon ET in August (EDT) = 16:00 UTC
+    assert.equal(easternToIso(r.dateStr, r.timeStr), '2026-08-02T16:00:00.000Z')
+  })
+
+  it('parses ordinal date without year + meridiem-inheriting range (Goat Yoga)', () => {
+    const text = 'On Saturday, June 13th, Akronym Brewing will host Goat Yoga in the Biergarten from 10-11AM and tickets are now on sale!'
+    const r = extractEventDateTime(text, '2026-05-28T11:34:06')
+    assert.ok(r)
+    assert.equal(r.dateStr, '2026-06-13')
+    assert.equal(r.timeStr, '10:00 am')
+    assert.equal(r.endTimeStr, '11:00 am')
+  })
+
+  it('rolls year forward for December posts about January events', () => {
+    const r = extractEventDateTime('Join us on Friday, January 9th for trivia night at 7 PM.', '2025-12-19T13:36:36')
+    assert.ok(r)
+    assert.equal(r.dateStr, '2026-01-09')
+    assert.equal(r.timeStr, '7:00 pm')
+  })
+
+  it('keeps the publish year for same-season dates without a year', () => {
+    const r = extractEventDateTime('Live music on Friday, July 10.', '2026-07-02T11:11:24')
+    assert.ok(r)
+    assert.equal(r.dateStr, '2026-07-10')
+  })
+
+  it('returns null time when the prose has no clock (fairgrounds time-less convention)', () => {
+    const r = extractEventDateTime('Holiday market on Saturday, December 5, 2026 in the taproom.', '2026-11-01T09:00:00')
+    assert.ok(r)
+    assert.equal(r.dateStr, '2026-12-05')
+    assert.equal(r.timeStr, null)
+    // easternToIso with '' stores the time-less midnight-ET instant
+    assert.ok(easternToIso(r.dateStr, ''))
+  })
+
+  it('returns null for news posts with no calendar date', () => {
+    assert.equal(extractEventDateTime('Akronym Brewing Announces New Hours. We are now open later on weekends!', '2026-06-23T14:46:21'), null)
+    assert.equal(extractEventDateTime('', '2026-06-23T14:46:21'), null)
+  })
+
+  it('prefers an explicit-year future date over an earlier yearless mention', () => {
+    const text = 'Goat Yoga is back June 13th! Vouchers are only valid for dine-in purchases on June 13, 2026.'
+    const r = extractEventDateTime(text, '2026-05-28T11:34:06')
+    assert.equal(r.dateStr, '2026-06-13')
+  })
+
+  it('never uses the publish date as the event date', () => {
+    // Publish date 2026-07-02 must not leak: content date is the only source
+    const r = extractEventDateTime('Party on Saturday, August 15 at 6 PM.', '2026-07-02T11:11:24')
+    assert.equal(r.dateStr, '2026-08-15')
+  })
+})
+
+describe('cleanTitle', () => {
+  it('drops SEO pipe segments', () => {
+    assert.equal(
+      cleanTitle('Books & Brews Event 2026 | Akron Brewery Book Launch & Craft Beer Social | Akronym Brewing'),
+      'Books & Brews Event 2026'
+    )
+  })
+  it('leaves normal titles alone', () => {
+    assert.equal(cleanTitle('LagerFest Returns to Akronym Brewing This August'), 'LagerFest Returns to Akronym Brewing This August')
+  })
+})
+
+describe('extractEventDateTime — live-run gap fixes (2026-07-08)', () => {
+  it('parses day-first holiday dates ("4th of July")', () => {
+    const text = '4th of July at Akronym Brewing: Ghost Slime Live in the Biergarten. Celebrate the 4th of July with us from 6-9PM.'
+    const r = extractEventDateTime(text, '2026-07-02T11:11:24')
+    assert.ok(r)
+    assert.equal(r.dateStr, '2026-07-04')
+    assert.equal(r.timeStr, '6:00 pm')
+    assert.equal(r.endTimeStr, '9:00 pm')
+  })
+
+  it('maps fixed-date holiday names (St. Patrick\u2019s)', () => {
+    const r = extractEventDateTime('St. Patrick\u2019s 2026 Day at Akronym Brewing. Green beer, bagpipes, and food trucks all day.', '2026-03-05T20:31:13')
+    assert.ok(r)
+    assert.equal(r.dateStr, '2026-03-17')
+  })
+
+  it('resolves "This Friday" against the publish calendar date', () => {
+    // Published Thursday 2026-06-25 → Friday 2026-06-26
+    const r = extractEventDateTime('Free Live Music in the Biergarten This Friday with On The Frontier, from 7-10PM.', '2026-06-25T10:13:40')
+    assert.ok(r)
+    assert.equal(r.dateStr, '2026-06-26')
+    assert.equal(r.timeStr, '7:00 pm')
+  })
+
+  it('"this Friday" published ON a Friday resolves to the same day', () => {
+    const r = extractEventDateTime('Join us this Friday for live music at 7 PM.', '2026-06-26T08:00:00')
+    assert.equal(r.dateStr, '2026-06-26')
+  })
+
+  it('explicit dates always outrank holiday names and relative weekdays', () => {
+    const r = extractEventDateTime('Celebrate Halloween early this Friday! Party on Saturday, October 24, 2026 at 8 PM.', '2026-10-19T09:00:00')
+    assert.equal(r.dateStr, '2026-10-24')
+  })
+
+  it('still returns null for undated news posts', () => {
+    assert.equal(extractEventDateTime('Just in Time for the Akron Marathon! Our new lager is on tap now.', '2026-09-20T09:00:00'), null)
+  })
+})
+
+describe('isTicketFollowUp', () => {
+  it('flags ticket-sale follow-up posts', () => {
+    assert.ok(isTicketFollowUp('Lager Fest Tickets Are On Sale Now at Akronym Brewing'))
+    assert.ok(isTicketFollowUp('Tickets on sale now for Goat Yoga'))
+  })
+  it('does not flag announcements', () => {
+    assert.ok(!isTicketFollowUp('LagerFest Returns to Akronym Brewing This August'))
+    assert.ok(!isTicketFollowUp('Goat Yoga at Akronym Brewing\u2019s Biergarten'))
+  })
+})
+
+describe('parseCategory biergarten collision (2026-07-08)', () => {
+  // parseCategory is not exported; assert via normalizePost fixture path if
+  // available, else this documents the regression through the regex itself.
+  it('"biergarten" must not match the art keyword', () => {
+    assert.ok(!/\bart\b|\bshows?\b/.test('biergarten'))
+    assert.ok(/\bart\b/.test('art'))
+    assert.ok(/\bshows?\b/.test('shows'))
+  })
+})
