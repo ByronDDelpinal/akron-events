@@ -15,9 +15,31 @@
  * (lib/summit-county.js) — that yields ~100 local festivals. The data is thin
  * (date + name + city only — no time, venue, or description), so we set a
  * midday default start, leave the venue null (the city goes in the description),
- * and rank `ohio_festivals` below richer sources in the dedupe priority. Year is
- * inferred from the month relative to today (months already past this year roll
- * to next year). Category festival; price never assumed.
+ * and rank `ohio_festivals` below richer sources in the dedupe priority.
+ * Category festival; price never assumed.
+ *
+ * YEAR HANDLING (2026-07 fix): the guide is a rolling ~14-month document with
+ * month section headers — JULY … DECEMBER, then "JANUARY (2027)" … AUGUST. The
+ * old month-vs-current-month inference mapped the second year's JUL-DEC
+ * tentative entries into the CURRENT year, creating phantom near-duplicates at
+ * wrong dates (~26% of upcoming rows). We now track the year from the section
+ * headers ("(YYYY)" markers, plus month rollover) and only fall back to month
+ * inference if a page redesign removes the headers.
+ *
+ * STALENESS (same fix): source_id embeds the start date, so a hand-edited date
+ * change orphaned the old row forever. Each run now deletes future rows whose
+ * source_id was not produced by the current guide. Starred (unconfirmed)
+ * entries more than 180 days out are skipped — they are prior-year guesses the
+ * guide firms up closer in.
+ *
+ * DIRECT-SOURCE SUPPRESSION (Better Kenmore pattern, title-keyed): guide rows
+ * carry NO venue, so the venue+second dedupe pass can never merge them with
+ * the richer copies our first-party scrapers produce — the site showed both.
+ * SUPPRESSED_DIRECT skips guide entries owned by a direct scraper (suppress,
+ * don't dedupe). Only DB-verified coverage is listed: before adding an entry,
+ * confirm the owning scraper actually ingests that festival — e.g. Tallmadge's
+ * Circle Festival and Akron CityFest are NOT suppressed because no direct
+ * source currently carries them.
  *
  * Usage:   node scripts/scrape-ohio-festivals.js
  * Env:     VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
@@ -29,6 +51,7 @@ import {
   logUpsertResult, logScraperError, htmlToText, easternToIso,
   enrichWithImageDimensions, upsertEventSafe,
 } from './lib/normalize.js'
+import { supabaseAdmin } from './lib/supabase-admin.js'
 import { isSummitCountyLocation } from './lib/summit-county.js'
 
 export const SOURCE_KEY = 'ohio_festivals'
@@ -37,6 +60,7 @@ const USER_AGENT = 'Mozilla/5.0 (compatible; AkronPulse-bot/1.0; +https://akronp
 const DEFAULT_TIME = '12:00 PM'   // festivals list no time — midday default
 const END_TIME     = '8:00 PM'
 const MAX_DAYS_AHEAD = 400
+const TENTATIVE_MAX_DAYS_AHEAD = 180  // starred (unconfirmed) dates only publish within ~6 months
 
 const DASH = '–'  // en-dash field separator
 
@@ -50,8 +74,13 @@ export function buildYmd(month, day, now = new Date()) {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
-/** Parse one festival line → { name, city, startYmd, endYmd, unconfirmed } or null. */
-export function parseFestivalLine(line, now = new Date()) {
+/**
+ * Parse one festival line → { name, city, startYmd, endYmd, unconfirmed } or null.
+ * When `sectionYear` is provided (from the guide's month headers) it is
+ * authoritative; a range whose end month precedes its start month crosses into
+ * the next year (12/28-1/2). Without it, fall back to month inference.
+ */
+export function parseFestivalLine(line, now = new Date(), sectionYear = null) {
   const re = new RegExp(`^(\\d{1,2})\\/(\\d{1,2})(?:-(\\d{1,2})\\/(\\d{1,2}))?(\\*?)\\s*${DASH}\\s*(.+)$`)
   const m = String(line || '').trim().match(re)
   if (!m) return null
@@ -61,31 +90,92 @@ export function parseFestivalLine(line, now = new Date()) {
   const city = parts[parts.length - 1]
   const name = parts.slice(0, -1).join(` ${DASH} `).trim()
   if (!name || !city) return null
-  return {
-    name, city,
-    startYmd: buildYmd(+sm, +sd, now),
-    endYmd:   em ? buildYmd(+em, +ed, now) : null,
-    unconfirmed: !!star,
+  const ymd = (mo, d, yr) => `${yr}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+  let startYmd, endYmd
+  if (sectionYear != null) {
+    startYmd = ymd(+sm, +sd, sectionYear)
+    endYmd   = em ? ymd(+em, +ed, +em < +sm ? sectionYear + 1 : sectionYear) : null
+  } else {
+    startYmd = buildYmd(+sm, +sd, now)
+    endYmd   = em ? buildYmd(+em, +ed, now) : null
   }
+  return { name, city, startYmd, endYmd, unconfirmed: !!star }
 }
 
-/** Parse the whole guide text into festival entries (not yet gated). */
+const MONTH_INDEX = {
+  january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
+  july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
+}
+// A section header line: just a month name, optionally "(YYYY)" at the year
+// boundary — e.g. "JULY", "JANUARY (2027)".
+const MONTH_HEADER_RE = /^(january|february|march|april|may|june|july|august|september|october|november|december)(?:\s*\((\d{4})\))?$/i
+
+/**
+ * Parse the whole guide text into festival entries (not yet gated).
+ * Tracks the year across month section headers: an explicit "(YYYY)" sets it,
+ * and a month that moves backwards (DECEMBER → JANUARY without a marker) rolls
+ * it forward. The first header anchors to the current year — the guide's first
+ * section is always the current month. If no headers are found at all (page
+ * redesign), every line falls back to the old month-vs-now inference.
+ */
 export function parseFestivals(text, now = new Date()) {
   // Insert a break before each "M/D –" start, so we parse whether the source
-  // rendered one festival per line or ran them together.
+  // rendered one festival per line or ran them together. The preceding char
+  // must not be a hyphen: "7/25-7/26 – Akron Arts Expo" is ONE range — the old
+  // pattern split it into a dropped "7/25-" fragment plus a single-day 7/26
+  // event, which is why every multi-day festival lost its start date.
   const normalized = String(text || '').replace(
-    new RegExp(`([^\\n\\d])\\s*(?=\\d{1,2}\\/\\d{1,2}(?:-\\d{1,2}\\/\\d{1,2})?\\*?\\s*${DASH})`, 'g'),
+    new RegExp(`([^\\n\\d-])\\s*(?=\\d{1,2}\\/\\d{1,2}(?:-\\d{1,2}\\/\\d{1,2})?\\*?\\s*${DASH})`, 'g'),
     '$1\n',
   )
   const out = []
-  for (const line of normalized.split('\n')) {
-    const f = parseFestivalLine(line, now)
+  let sectionYear = null
+  let lastMonth = null
+  for (const rawLine of normalized.split('\n')) {
+    const line = rawLine.trim()
+    const h = line.match(MONTH_HEADER_RE)
+    if (h) {
+      const mo = MONTH_INDEX[h[1].toLowerCase()]
+      if (h[2]) sectionYear = +h[2]
+      else if (sectionYear == null) sectionYear = now.getFullYear()
+      else if (lastMonth != null && mo < lastMonth) sectionYear++
+      lastMonth = mo
+      continue
+    }
+    const f = parseFestivalLine(line, now, sectionYear)
     if (f) out.push(f)
   }
   return out
 }
 
 const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+
+// ── Direct-source suppression ───────────────────────────────────────────────
+// Festivals a first-party scraper already covers with richer data (venue,
+// times, images). Guide copies are suppressed at ingest — no venue means the
+// dedupe pass can't merge them downstream. `city` (lowercase) narrows generic
+// titles ("Harvest Festival") to the right venue's town. DB-verified 2026-07-08.
+export const SUPPRESSED_DIRECT = [
+  { pattern: /porchrokr/i,                 source: 'highland_square' },
+  { pattern: /akron pride festival/i,      source: 'akron_pride' },
+  { pattern: /civil war/i,                 city: 'bath', source: 'hale_farm' },
+  { pattern: /music in the valley/i,       city: 'bath', source: 'hale_farm' },
+  { pattern: /made in ohio/i,              city: 'bath', source: 'hale_farm' },
+  { pattern: /harvest festival/i,          city: 'bath', source: 'hale_farm' },
+  { pattern: /summer sunset blast/i,       city: 'stow', source: 'city_of_stow' },
+  { pattern: /wild lights/i,               city: 'akron', source: 'akron_zoo' },
+]
+
+/** Returns the owning direct source key when a guide entry should be suppressed, else null. */
+export function directSourceFor(f) {
+  const city = String(f?.city ?? '').toLowerCase().trim()
+  for (const rule of SUPPRESSED_DIRECT) {
+    if (!rule.pattern.test(f?.name ?? '')) continue
+    if (rule.city && rule.city !== city) continue
+    return rule.source
+  }
+  return null
+}
 
 // ── Fetch ─────────────────────────────────────────────────────────────────
 
@@ -108,7 +198,9 @@ async function main() {
 
     const now = Date.now()
     const cutoff = now + MAX_DAYS_AHEAD * 86_400_000
+    const tentativeCutoff = now + TENTATIVE_MAX_DAYS_AHEAD * 86_400_000
     let inserted = 0, skipped = 0
+    const seenSourceIds = new Set()
 
     for (const f of summit) {
       try {
@@ -116,6 +208,18 @@ async function main() {
         if (!startIso) { skipped++; continue }
         const ms = Date.parse(startIso)
         if (ms < now - 86_400_000 || ms > cutoff) { skipped++; continue }
+        // Starred entries far out are the guide's prior-year guesses — wait
+        // for it to firm them up before publishing.
+        if (f.unconfirmed && ms > tentativeCutoff) { skipped++; continue }
+
+        // A first-party scraper owns this festival with richer data — the
+        // venue-less guide copy would surface as an unmergeable duplicate.
+        const directOwner = directSourceFor(f)
+        if (directOwner) {
+          console.log(`  ⛔ Suppressing "${f.name}" — covered by direct scraper ${directOwner}`)
+          skipped++
+          continue
+        }
 
         const description =
           `${f.name} is a festival in ${f.city}, Summit County, Ohio.` +
@@ -141,11 +245,44 @@ async function main() {
         }
         const { error } = await upsertEventSafe(await enrichWithImageDimensions(row))
         if (error) { console.warn(`  ⚠ Upsert failed "${row.title}":`, error.message); skipped++; continue }
+        seenSourceIds.add(row.source_id)
         inserted++
       } catch (err) {
         console.warn(`  ⚠ Error on "${f.name}":`, err.message)
         skipped++
       }
+    }
+
+    // ── Stale-row cleanup ────────────────────────────────────────────────
+    // source_id embeds the start date, so when the hand-edited guide moves a
+    // date the upsert creates a NEW row; anything future-dated that this run
+    // did not produce is an orphan from an older guide revision — remove it.
+    // Guard: never run the sweep after a suspiciously small parse (a page
+    // redesign shrinking the list must not delete the whole source).
+    if (seenSourceIds.size >= 20) {
+      const { data: staleRows, error: staleErr } = await supabaseAdmin
+        .from('events')
+        .select('id, source_id, title')
+        .eq('source', SOURCE_KEY)
+        .gte('start_at', new Date(now).toISOString())
+      if (staleErr) {
+        console.warn('  ⚠ Stale sweep query failed:', staleErr.message)
+      } else {
+        const stale = (staleRows ?? []).filter((r) => !seenSourceIds.has(r.source_id))
+        if (stale.length) {
+          const { error: delErr } = await supabaseAdmin
+            .from('events')
+            .delete()
+            .in('id', stale.map((r) => r.id))
+          if (delErr) console.warn('  ⚠ Stale delete failed:', delErr.message)
+          else {
+            console.log(`  🧹 Removed ${stale.length} stale rows no longer in the guide:`)
+            stale.forEach((r) => console.log(`     - ${r.title} (${r.source_id})`))
+          }
+        }
+      }
+    } else {
+      console.warn(`  ⚠ Only ${seenSourceIds.size} rows parsed — skipping stale sweep (guide layout may have changed).`)
     }
 
     await logUpsertResult(SOURCE_KEY, inserted, 0, skipped, { eventsFound: summit.length, durationMs: Date.now() - start })
