@@ -4,22 +4,20 @@
  * Akron Community Foundation — "Upcoming Events" page.
  *   https://www.akroncf.org/news-and-events/acf-events/
  *
- * ACF is Greater Akron's community foundation. Its events page is a custom
- * WordPress theme (acf-custom-theme) that renders each event as a server-side
- * HTML block — no Tribe Events REST API, no ICS feed — so we parse the markup
- * directly. The structure is clean and class-stable:
+ * ACF is Greater Akron's community foundation. As of July 2026 the site
+ * migrated off the old acf-custom-theme server-side event markup
+ * (h2.event-title / .event-start-date) to the "Blocks for Eventbrite"
+ * WordPress plugin. Event cards are rendered CLIENT-SIDE, but the full
+ * Eventbrite API v3 payload is embedded in the page source as an inline
+ * script assignment:
  *
- *   <h2 class="event-title">…</h2>
- *   <div class="event-details">
- *     <div class="event-details-left">
- *       <div class="event-start-date">June 5, 2026</div>
- *       <div class="event-start-time">6:00 pm</div>        (optional — all-day events omit)
- *       <div class="event-location">Venue<br>Street, City, ST ZIP</div>
- *       <div class="event-fund-affiliation">The Gay Community Endowment Fund</div>  (optional)
- *       <div class="event-website"><a class="btn" href="…eventbrite…">Get Tickets</a></div>
- *     </div>
- *   </div>
- *   <div class="event-description">…</div>
+ *   blocksForEventbrite = {"events":[{ id, name:{text}, summary,
+ *     description:{text}, url, start:{local,utc,timezone}, end:{…},
+ *     is_free, logo:{original:{url}}, venue:{name, address:{…}} }, …]}
+ *
+ * There may be multiple assignments on the page (an empty placeholder plus
+ * the real one), so we scan all of them and merge their events arrays.
+ * The legacy DOM parser is kept as a fallback in case the theme reverts.
  *
  * Events: annual meetings, fund anniversary celebrations, the Polsky Award,
  * the ACF Annual Meeting, and affiliate-fund gatherings (Bath, Black Giving
@@ -112,9 +110,92 @@ function slugify(str) {
   return String(str).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80)
 }
 
+// ── Inline Eventbrite JSON extraction ────────────────────────────────────────
+
+/**
+ * Balanced-brace scan: return the JSON object literal starting at `start`
+ * (which must point at '{'), string- and escape-aware. Null if unterminated.
+ */
+function scanJsonObject(str, start) {
+  let depth = 0, inStr = false, esc = false
+  for (let i = start; i < str.length; i++) {
+    const c = str[i]
+    if (inStr) {
+      if (esc) esc = false
+      else if (c === '\\') esc = true
+      else if (c === '"') inStr = false
+    } else if (c === '"') inStr = true
+    else if (c === '{') depth++
+    else if (c === '}') {
+      depth--
+      if (depth === 0) return str.slice(start, i + 1)
+    }
+  }
+  return null
+}
+
+/**
+ * Find every `blocksForEventbrite = {…}` assignment in the page and merge
+ * their `events` arrays (the plugin emits an empty placeholder assignment
+ * before the populated one). Returns [] if none parse.
+ */
+export function extractEventbriteEvents(html) {
+  const events = []
+  const seen = new Set()
+  let idx = 0
+  while ((idx = html.indexOf('blocksForEventbrite', idx)) !== -1) {
+    idx += 'blocksForEventbrite'.length
+    const eq = html.slice(idx, idx + 10).indexOf('=')
+    if (eq === -1) continue
+    const braceStart = html.indexOf('{', idx + eq)
+    if (braceStart === -1) continue
+    const raw = scanJsonObject(html, braceStart)
+    if (!raw) continue
+    try {
+      const parsed = JSON.parse(raw)
+      for (const ev of parsed.events || []) {
+        const key = ev.id || ev.url
+        if (key && seen.has(key)) continue
+        if (key) seen.add(key)
+        events.push(ev)
+      }
+    } catch { /* not the assignment we want — keep scanning */ }
+  }
+  return events
+}
+
+/** Map one Eventbrite API v3 event object to the internal parsed shape. */
+function mapEventbriteEvent(ev) {
+  const title = ev.name?.text?.trim()
+  const local = ev.start?.local // "2026-07-14T17:30:00"
+  if (!title || !local) return null
+  return {
+    title,
+    dateStr:   local.slice(0, 10),
+    timeStr:   local.length >= 19 ? local.slice(11, 19) : '00:00:00',
+    endLocal:  ev.end?.local || null,
+    venueName: ev.venue?.name?.trim() || null,
+    fund:      null, // fund affiliation isn't carried in the Eventbrite payload
+    ticketUrl: ev.url || null,
+    description: (ev.description?.text || ev.summary || '').trim().slice(0, 5000) || null,
+    imageUrl:  ev.logo?.original?.url || ev.logo?.url || null,
+    isFree:    ev.is_free === true,
+    sourceId:  ev.id ? String(ev.id) : slugify(`${ev.name?.text}-${local.slice(0, 10)}`),
+  }
+}
+
 // ── Parse the events page ────────────────────────────────────────────────────
 
 export function parseEvents(html) {
+  // Primary path: inline Blocks-for-Eventbrite JSON.
+  const ebEvents = extractEventbriteEvents(html).map(mapEventbriteEvent).filter(Boolean)
+  if (ebEvents.length > 0) return ebEvents
+
+  // Legacy fallback: old acf-custom-theme server-side markup.
+  return parseEventsLegacy(html)
+}
+
+export function parseEventsLegacy(html) {
   const events = []
   // Split on the event-title heading; first chunk is page preamble.
   const chunks = html.split(/<h2[^>]*class="[^"]*event-title[^"]*"[^>]*>/i)
@@ -195,7 +276,7 @@ async function main() {
       await logUpsertResult(SOURCE_KEY, 0, 0, 0, {
         status: parsed.length === 0 ? 'error' : 'ok',
         errorMessage: parsed.length === 0
-          ? 'Page fetched but 0 event blocks parsed — the acf-custom-theme markup may have changed (expected h2.event-title / .event-start-date).'
+          ? 'Page fetched but 0 events parsed — expected inline blocksForEventbrite JSON (Blocks for Eventbrite plugin) or legacy acf-custom-theme markup.'
           : undefined,
         durationMs:  Date.now() - start,
         eventsFound: parsed.length,
@@ -217,6 +298,11 @@ async function main() {
         const startAt = easternToIso(`${ev.dateStr} ${ev.timeStr}`)
         if (!startAt) { skipped++; continue }
 
+        // Eventbrite payload carries an end time; legacy markup didn't.
+        const endAt = ev.endLocal
+          ? easternToIso(`${ev.endLocal.slice(0, 10)} ${ev.endLocal.slice(11, 19)}`)
+          : null
+
         let venueId = null
         if (ev.venueName) {
           if (venueCache.has(ev.venueName)) {
@@ -235,12 +321,12 @@ async function main() {
           title:           ev.title,
           description:     ev.description,
           start_at:        startAt,
-          end_at:          null,
+          end_at:          endAt,
           category:        parseCategory(ev.title, ev.description || ''),
           is_fundraiser:   parseIsFundraiser(ev.title, ev.description || ''),
           tags,
-          price_min:       null,
-          price_max:       null,
+          price_min:       ev.isFree ? 0 : null,
+          price_max:       ev.isFree ? 0 : null,
           age_restriction: 'not_specified',
           image_url:       ev.imageUrl || null,
           ticket_url:      ev.ticketUrl || EVENTS_URL,

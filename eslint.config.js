@@ -80,6 +80,7 @@ export default tseslint.config(
       'scripts/scrape-cuyahoga-falls-library.js',
       'scripts/scrape-gather-round-games.js',
       'scripts/scrape-life-gurukula.js',
+      'scripts/scrape-north-hill-cdc.js',
     ],
     languageOptions: {
       globals: { ...globals.node, ...globals.browser },

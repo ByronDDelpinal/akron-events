@@ -4,13 +4,15 @@
  * Fetches North Hill Community Development Corporation events from their
  * public iCalendar feed (WordPress + The Events Calendar / Tribe).
  *
- * 403/HTML handling: northhillcdc.org started serving an HTML block page
- * (no BEGIN:VCALENDAR) to the generic "AkronPulse-bot" User-Agent that
- * lib/ics.js sends by default — the feed itself is unchanged and still
- * serves text/calendar to a normal browser fingerprint. So this scraper
- * now fetches the feed itself with realistic browser headers (same
- * layer-1 approach as scrape-life-gurukula.js) and tries a couple of
- * known-good Tribe feed URLs in order.
+ * Bot-protection handling (two layers, same as scrape-life-gurukula.js):
+ *   1. Direct fetch with realistic Chrome headers against each candidate
+ *      feed URL. This stopped working ~2026-07: SiteGround now serves an
+ *      HTTP 202 meta-refresh to /.well-known/sgcaptcha/ (a passive JS
+ *      challenge) to ALL non-browser clients regardless of headers.
+ *   2. Puppeteer fallback — render /events/ in headless Chrome, wait for
+ *      the sgcaptcha challenge to clear (it sets a clearance cookie and
+ *      redirects back), then fetch the ICS URL from inside the page
+ *      context so the cookie is sent.
  *
  * Usage:
  *   node scripts/scrape-north-hill-cdc.js
@@ -26,6 +28,7 @@
 import 'dotenv/config'
 import { inferCategory } from './lib/category-inference.js'
 import { runIcsScraper } from './lib/ics.js'
+import { withBrowser, newConfiguredPage } from './lib/puppeteer.js'
 
 const SOURCE_KEY = 'north_hill_cdc'
 
@@ -69,7 +72,57 @@ async function fetchFeedCandidate(url) {
   return text
 }
 
+/**
+ * Headless-Chrome fallback for the SiteGround sgcaptcha challenge.
+ * Render /events/ first so the passive JS challenge runs and sets its
+ * clearance cookie, then fetch each candidate feed URL from inside the
+ * page context (inherits cookies + the realistic UA on the page).
+ */
+async function fetchIcsViaBrowser() {
+  return withBrowser(async (browser) => {
+    const page = await newConfiguredPage(browser, { userAgent: BROWSER_UA })
+    await page.goto(EVENTS_PAGE_URL, { waitUntil: 'networkidle2', timeout: 30_000 })
+
+    // The sgcaptcha interstitial is a PASSIVE check for normal browsers: it
+    // runs, sets a clearance cookie, and redirects back within a few seconds.
+    // waitForFunction resolves instantly when we're not on the challenge.
+    try {
+      await page.waitForFunction(
+        () =>
+          !/\/\.well-known\/(?:sgcaptcha|captcha)\//.test(location.href) &&
+          !/robot challenge/i.test(document.title || ''),
+        { timeout: 25_000, polling: 500 },
+      )
+    } catch {
+      throw new Error(
+        'sgcaptcha challenge did not clear within 25s — likely an interactive ' +
+        'CAPTCHA was served to the headless browser rather than the passive ' +
+        'JS challenge a normal browser receives.',
+      )
+    }
+
+    // The challenge may redirect to the site root; return to /events/ so the
+    // in-page fetches below are same-origin with the clearance cookie set.
+    if (!page.url().includes('/events')) {
+      await page.goto(EVENTS_PAGE_URL, { waitUntil: 'networkidle2', timeout: 30_000 })
+    }
+
+    const failures = []
+    for (const url of FEED_CANDIDATES) {
+      const text = await page.evaluate(async (u) => {
+        const r = await fetch(u, { credentials: 'include' })
+        if (!r.ok) return { error: `HTTP ${r.status}` }
+        return { body: await r.text() }
+      }, url)
+      if (text.body && text.body.includes('BEGIN:VCALENDAR')) return text.body
+      failures.push(`${url} → ${text.error || 'non-iCalendar body'}`)
+    }
+    throw new Error(`Browser-context fetch failed for all candidates:\n  ${failures.join('\n  ')}`)
+  })
+}
+
 async function getIcsText() {
+  // 1. Cheap path: direct fetch with browser-like headers.
   const failures = []
   for (const url of FEED_CANDIDATES) {
     try {
@@ -81,8 +134,19 @@ async function getIcsText() {
       failures.push(`${url} → ${err.message}`)
     }
   }
+
+  // 2. Headless Chrome — clears the sgcaptcha challenge, then fetches with cookies.
+  console.warn('  ↳ All direct fetches failed; falling back to Puppeteer…')
+  try {
+    const text = await fetchIcsViaBrowser()
+    console.log(`  ✓ Puppeteer fetch succeeded (${text.length} bytes)`)
+    return text
+  } catch (err) {
+    failures.push(`puppeteer → ${err.message}`)
+  }
+
   throw new Error(
-    `All North Hill CDC ICS feed candidates failed:\n  ${failures.join('\n  ')}\n` +
+    `All North Hill CDC ICS feed candidates failed (direct + puppeteer):\n  ${failures.join('\n  ')}\n` +
     `Verify the subscribe link on ${EVENTS_PAGE_URL} and update FEED_CANDIDATES ` +
     `or set NORTH_HILL_CDC_ICS_URL.`
   )
