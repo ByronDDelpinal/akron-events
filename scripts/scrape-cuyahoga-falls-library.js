@@ -110,7 +110,11 @@ const TYPE_CATEGORY = [
   [/food|cooking|culinary/i,               'food'],
   [/book sale|sale|market/i,               'market'],
   [/board of trustees|meeting|civic|government|community discussion|town hall/i, 'civic'],
-  [/theater|theatre|play|drama|performance/i, 'theater'],
+  // "play" needs theatrical context: the bare /play/ keyword tagged the
+  // baby-storytime "Play Cafe" as theater (fixed 2026-07-08). Playhouse,
+  // drama, and puppet shows stay decisive; bare "play" only counts as a
+  // noun phrase ("a play", "one-act play", "stage play").
+  [/theat(er|re)|\bplayhouse\b|\bdrama\b|\bpuppet show\b|\b(?:a|the|one[- ]act|stage) play\b|\bperformance\b/i, 'theater'],
 ]
 
 /** Map the EVENT TYPE string (+ title fallback) to a v2 category, or null. */

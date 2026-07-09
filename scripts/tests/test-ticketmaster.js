@@ -47,3 +47,34 @@ describe('Ticketmaster: Category Parsing', () => {
     assert.equal(parseCategory(F4.classifications), F4.expCat)
   })
 })
+
+// ── Summit County locality gate (The Isaacs fix 2026-07-08) ────────────────
+// The 25-mile radius search reaches Hartville (Stark), Canton (Stark), and
+// Rootstown (Portage); 28 of 140 upcoming rows were out-of-county. These
+// tests import the REAL module (env dummied) and use REAL venue coords from
+// the audit.
+
+describe('isSummitVenue locality gate', async () => {
+  process.env.TICKETMASTER_API_KEY = process.env.TICKETMASTER_API_KEY || 'dummy-key'
+  const { isSummitVenue } = await import('../fetch-ticketmaster.js')
+  const { preloadSummitCountyBoundary } = await import('../lib/summit-county.js')
+  await preloadSummitCountyBoundary()
+
+  it('rejects Hartville Kitchen (Stark County) despite being inside the radius', () => {
+    assert.equal(isSummitVenue({ city: { name: 'Hartville' }, location: { latitude: '40.972228', longitude: '-81.360164' } }), false)
+  })
+  it('accepts Akron Civic Theatre coords', () => {
+    assert.equal(isSummitVenue({ city: { name: 'Akron' }, location: { latitude: '41.0805', longitude: '-81.5214' } }), true)
+  })
+  it('coordinates beat the city label (coords win even when city text is odd)', () => {
+    // MGM Northfield Park sits in Summit even if TM labels the city oddly
+    assert.equal(isSummitVenue({ city: { name: 'Northfield' }, location: { latitude: '41.3084', longitude: '-81.5266' } }), true)
+  })
+  it('coord-less venues fall back to the city allowlist', () => {
+    assert.equal(isSummitVenue({ city: { name: 'Canton' } }), false)
+    assert.equal(isSummitVenue({ city: { name: 'Cuyahoga Falls' } }), true)
+  })
+  it('defaults in only when neither coords nor city exist', () => {
+    assert.equal(isSummitVenue({}), true)
+  })
+})

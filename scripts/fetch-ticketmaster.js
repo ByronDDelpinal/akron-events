@@ -17,6 +17,7 @@ import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
 import { logUpsertResult, enrichWithImageDimensions, upsertEventSafe, linkEventVenue, linkEventOrganization } from './lib/normalize.js'
+import { preloadSummitCountyBoundary, pointInSummitCounty, SUMMIT_COUNTY_CITIES } from './lib/summit-county.js'
 
 const TM_KEY = process.env.TICKETMASTER_API_KEY
 if (!TM_KEY) {
@@ -266,6 +267,26 @@ function isDedicatedlyScraped(ev) {
   return DEDICATED_SCRAPER_KEYWORDS.some(kw => name.includes(kw))
 }
 
+/**
+ * Summit County locality gate — NEVER trust the API's radius search (the
+ * 25-mile circle around Akron reaches Hartville, Canton, and Rootstown; the
+ * 2026-07-08 audit found 28 of 140 upcoming rows out-of-county, cf. the
+ * Eventbrite NE-Ohio incident). Coordinates win via point-in-polygon;
+ * coord-less venues fall back to the city allowlist; with neither we default
+ * in (the stated keep-over-drop preference — TM venues virtually always
+ * carry coords, so that path is rare).
+ */
+export function isSummitVenue(tmVenue) {
+  const lat = Number(tmVenue?.location?.latitude)
+  const lng = Number(tmVenue?.location?.longitude)
+  if (Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0)) {
+    return pointInSummitCounty(lat, lng)
+  }
+  const city = String(tmVenue?.city?.name ?? '').toLowerCase().trim()
+  if (city) return SUMMIT_COUNTY_CITIES.has(city)
+  return true
+}
+
 async function processEvents(rawEvents) {
   let inserted = 0
   let skipped  = 0
@@ -279,6 +300,13 @@ async function processEvents(rawEvents) {
       }
 
       const venue     = ev._embedded?.venues?.[0]
+
+      if (!isSummitVenue(venue)) {
+        console.log(`  ⛔ Skipping "${ev.name}" — outside Summit County (${venue?.city?.name ?? 'unknown city'})`)
+        skipped++
+        continue
+      }
+
       const venueId   = await upsertVenue(venue)
       const orgId     = await upsertOrganizer(ev._embedded?.attractions)
 
@@ -338,6 +366,9 @@ async function main() {
   const start = Date.now()
 
   try {
+    // Polygon for the locality gate — pointInSummitCounty() throws if unloaded.
+    await preloadSummitCountyBoundary()
+
     const rawEvents = await fetchAllPages()
     console.log(`\n📥  Processing ${rawEvents.length} events…`)
 

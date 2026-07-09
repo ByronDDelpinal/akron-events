@@ -591,3 +591,29 @@ describe('Library: Batch Processing', () => {
     }
   })
 })
+
+describe('feed audience field is `ages`, plural (Glow Party fix 2026-07-08)', async () => {
+  const mod = await import('../scrape-akron-library.js')
+
+  // REAL event captured from /eeventcaldata on 2026-07-08: a kids glow party
+  // whose only audience signal is the ages field (title carries no kid words).
+  // The call sites read `ev.age` (singular, nonexistent) for over a month,
+  // silently disabling the authoritative signal — this pins the field name.
+  const GLOW_PARTY = {
+    id: '16138021',
+    title: 'Glow Party With DJ Goosey-Noodles',
+    ages: 'Tween, School Age (Grades K-2), School Age (Grades 3-5), Preschool',
+    tags: 'Summer Reading, Special Events',
+  }
+
+  it('parseIsFamily flags the glow party from its ages field', () => {
+    assert.equal(mod.parseIsFamily(GLOW_PARTY.ages, GLOW_PARTY.tags), true)
+  })
+  it('parseTags derives kids/teens audience tags from the ages field', () => {
+    const tags = mod.parseTags(GLOW_PARTY.tags, GLOW_PARTY.ages)
+    assert.ok(tags.includes('kids'))
+  })
+  it('the singular `age` field never existed — undefined must NOT flag family', () => {
+    assert.equal(mod.parseIsFamily(GLOW_PARTY.age, GLOW_PARTY.tags), undefined)
+  })
+})

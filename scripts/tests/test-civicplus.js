@@ -158,3 +158,14 @@ describe('civicPlusEventUrl', () => {
     assert.equal(civicPlusEventUrl({ UID: '10' }, ''), null)
   })
 })
+
+describe('cleanLocationName rejects schedule prose (Springfield Twp fix 2026-07-08)', () => {
+  it('a clock time anywhere in the string is not a venue', () => {
+    assert.equal(cleanLocationName('Beginners 10AM then it advances from 10:30 Am on to 1:30 PM'), null)
+    assert.equal(cleanLocationName('Doors open 6:30 pm at the pavilion'), null)
+  })
+  it('still accepts real venue names with plain numbers', () => {
+    assert.equal(cleanLocationName('Fire Station 2'), 'Fire Station 2')
+    assert.equal(cleanLocationName('Townhall'), 'Townhall')
+  })
+})

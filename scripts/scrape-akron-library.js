@@ -173,7 +173,7 @@ export function parseIsFamily(ageStr = '', tagStr = '') {
   return /\b(bab(y|ies)|toddlers?|preschool|kids?|child(ren)?|family|families|grades? [k0-9]|tweens?|teens?|youth)\b/.test(t) || undefined
 }
 
-function parseTags(tagStr = '', ageStr = '') {
+export function parseTags(tagStr = '', ageStr = '') {
   const tags = []
   if (tagStr) tags.push(...tagStr.toLowerCase().split(',').map(t => t.trim()).filter(Boolean))
   if (ageStr) {
@@ -276,7 +276,11 @@ async function processEvents(rawEvents, organizerId) {
 
       const title    = stripHtml(ev.title || '')
       const category = parseCategory(ev.tags, title)
-      const tags     = parseTags(ev.tags, ev.age)
+      // Feed field is `ages` (PLURAL) — `ev.age` does not exist. The singular
+      // read shipped silently and disabled the authoritative audience signal
+      // for every event until 2026-07-08 (Glow Party leaked past the no-kids
+      // toggle with Ages "Tween, School Age, Preschool").
+      const tags     = parseTags(ev.tags, ev.ages)
       const startAt  = easternToIso(ev.raw_start_time)
       const endAt    = easternToIso(ev.raw_end_time)
       let   descText = stripHtml(ev.long_description || ev.description || '')
@@ -298,7 +302,7 @@ async function processEvents(rawEvents, organizerId) {
         category,
         // Authoritative audience signal from the library's Ages field;
         // undefined (not false) when absent so inference still decides.
-        is_family:       parseIsFamily(ev.age, ev.tags),
+        is_family:       parseIsFamily(ev.ages, ev.tags),
         tags,
         price_min:       0,
         price_max:       null,

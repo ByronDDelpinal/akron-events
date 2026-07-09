@@ -354,7 +354,11 @@ export function cleanLocationName(raw) {
   s = s.replace(/\s+OH\s+\d{5}.*$/i, '').trim()
   // Reject pure addresses, time fragments, and empties.
   if (!s || /^\d/.test(s) || !/[a-z]/i.test(s) || s.length < 3) return null
-  if (/^\d{1,2}(:\d{2})?\s*[ap]\.?m\.?/i.test(s)) return null
+  // A clock time ANYWHERE marks schedule prose, not a place — Springfield
+  // Township stuffed "Beginners 10AM then it advances from 10:30 Am on to
+  // 1:30 PM" into LOCATION (2026-07-08), short enough to pass the length
+  // guard below. No real venue name contains a time of day.
+  if (/\b\d{1,2}(:\d{2})?\s*[ap]\.?m\.?\b/i.test(s)) return null
   // Reject a LOCATION field stuffed with a full event description (a CMS
   // data-entry error — e.g. Copley crammed a paragraph into LOCATION). A real
   // venue name is short; anything sentence-length is not a venue, so fall back

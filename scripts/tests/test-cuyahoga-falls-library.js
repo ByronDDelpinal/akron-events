@@ -141,3 +141,22 @@ describe('CFL image field (defensive, 2026-07-02)', () => {
     assert.equal(built.row.image_url, 'https://fallslibrary.libnet.info/img/x.jpg')
   })
 })
+
+describe('theater keyword needs theatrical context (Play Cafe fix 2026-07-08)', async () => {
+  const { mapCategory } = await import('../scrape-cuyahoga-falls-library.js')
+
+  it('baby-storytime "Play Cafe" is NOT theater', () => {
+    // feed has no event type; the title drives the mapping
+    assert.notEqual(mapCategory('', 'Play Cafe'), 'theater')
+  })
+  it('playtime/sensory-play/display titles are NOT theater', () => {
+    assert.notEqual(mapCategory('', 'Sensory Play for Toddlers'), 'theater')
+    assert.notEqual(mapCategory('', 'LEGO Display Showcase'), 'theater')
+  })
+  it('real theatrical programs still map to theater', () => {
+    assert.equal(mapCategory('', 'Stomp, Roar, Act! with Weathervane Playhouse'), 'theater')
+    assert.equal(mapCategory('', 'Puppet Show: The Three Bears'), 'theater')
+    assert.equal(mapCategory('', 'Write a One-Act Play Workshop'), 'learning') // class wins first-match
+    assert.equal(mapCategory('Drama Club', ''), 'theater')
+  })
+})
