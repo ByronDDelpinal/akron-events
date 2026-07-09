@@ -37,6 +37,8 @@ describe('canonicalVenueName', () => {
     assert.equal(canonicalVenueName('lock 3 live'), 'Lock 3')
     assert.equal(canonicalVenueName('First and Main Green'), 'First & Main Green - First Street Hudson')
     assert.equal(canonicalVenueName('The Nightlight'), 'The Nightlight Cinema')
+    assert.equal(canonicalVenueName('The Akron RubberDucks Duck Club'), '7 17 Credit Union Park')
+    assert.equal(canonicalVenueName('The Duck Club by Firestone at 7 17 Credit Union Park'), '7 17 Credit Union Park')
   })
   it('returns the input unchanged for unknown names', () => {
     assert.equal(canonicalVenueName('Akron Civic Theatre'), 'Akron Civic Theatre')

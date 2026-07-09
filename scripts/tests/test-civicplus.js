@@ -159,6 +159,41 @@ describe('civicPlusEventUrl', () => {
   })
 })
 
+describe('cleanLocationName handles multi-block HTML LOCATION (Richfield fix 2026-07-09)', () => {
+  it('keeps only the first block when name and address live in separate <p> blocks', () => {
+    // Real Richfield LOCATION: stripHtml alone glues the blocks into
+    // "Village Green Pavilion Corner of Route 303 & Broadview Rd" with no
+    // " - " boundary, minting the whole string as a junk venue name.
+    assert.equal(
+      cleanLocationName(
+        '<p><span style="color: rgb(0, 0, 0)">Village Green Pavilion</span></p><p>Corner of Route 303 &amp; Broadview Rd</p>',
+      ),
+      'Village Green Pavilion',
+    )
+  })
+
+  it('splits on an em dash before a street address (Richfield uses — not -)', () => {
+    assert.equal(
+      cleanLocationName('Eastwood Preserve — 4712 W. Streetsboro Rd'),
+      'Eastwood Preserve',
+    )
+  })
+
+  it('keeps a parenthetical venue name intact', () => {
+    assert.equal(
+      cleanLocationName('Jan Weber Social Center (Formerly Richfield Senior Center)'),
+      'Jan Weber Social Center (Formerly Richfield Senior Center)',
+    )
+  })
+
+  it('still strips a hyphen-separated address on a single-block LOCATION', () => {
+    assert.equal(
+      cleanLocationName('Village Hall - 4410 W. Streetsboro Road Richfield OH 44286'),
+      'Village Hall',
+    )
+  })
+})
+
 describe('cleanLocationName rejects schedule prose (Springfield Twp fix 2026-07-08)', () => {
   it('a clock time anywhere in the string is not a venue', () => {
     assert.equal(cleanLocationName('Beginners 10AM then it advances from 10:30 Am on to 1:30 PM'), null)

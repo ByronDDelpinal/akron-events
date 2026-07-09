@@ -5,24 +5,25 @@
  * grouped from the current filtered event list. Clicking a marker opens a
  * popup showing every event at that venue.
  *
- * Requires: react-map-gl + mapbox-gl. Token: VITE_MAPBOX_TOKEN in .env.
+ * Requires: react-map-gl + maplibre-gl. Tiles: OpenFreeMap public instance
+ * (free, unlimited, no API key — https://openfreemap.org). Attribution is
+ * added automatically by MapLibre.
  */
 
 import type { LooseRow } from '@/types'
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
-import MapGL, { Marker, Popup, NavigationControl, Source, Layer, type MapRef } from 'react-map-gl/mapbox'
+import MapGL, { Marker, Popup, NavigationControl, Source, Layer, type MapRef } from 'react-map-gl/maplibre'
 import { format } from 'date-fns'
 import { useEventNavigator } from '@/hooks/useEventNavigator'
 import { formatPrice } from '@/lib/eventFormatting'
 import { loadNeighborhoodGeo, type NeighborhoodGeo, type BBox } from '@/lib/neighborhoodGeo'
 import Modal from '@/components/Modal'
-import 'mapbox-gl/dist/mapbox-gl.css'
+import 'maplibre-gl/dist/maplibre-gl.css'
 import './MapView.css'
 import { BackIcon } from '@/components/icons'
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
 const AKRON_CENTER = { longitude: -81.519, latitude: 41.081 }
-const MAP_STYLE    = 'mapbox://styles/mapbox/dark-v11'
+const MAP_STYLE    = 'https://tiles.openfreemap.org/styles/dark'
 const DEFAULT_ZOOM = 13
 
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -182,15 +183,6 @@ export default function MapView({ events, onBackToList, neighborhoodSlug = null 
     return dLng > 0.01 || dLat > 0.01 || (!geo && dZoom > 1.5)
   }, [viewState, recenterTarget, geo])
 
-  if (!MAPBOX_TOKEN) {
-    return (
-      <div className="map-token-missing">
-        <p>Add <code>VITE_MAPBOX_TOKEN</code> to your <code>.env</code> file to enable the map.</p>
-        <p>Get a free token at <a href="https://mapbox.com" target="_blank" rel="noopener noreferrer">mapbox.com</a>.</p>
-      </div>
-    )
-  }
-
   return (
     <div className="map-section" ref={sectionRef}>
       <div
@@ -211,7 +203,6 @@ export default function MapView({ events, onBackToList, neighborhoodSlug = null 
           onLoad={() => setMapLoaded(true)}
           style={{ width: '100%', height: '100%' }}
           mapStyle={MAP_STYLE}
-          mapboxAccessToken={MAPBOX_TOKEN}
           scrollZoom={mapActive}
           onClick={() => setPopupVenueId(null)}
         >
@@ -430,7 +421,7 @@ interface VenueMapProps {
 export function VenueMap({ lat, lng, venueName, venueAddress, directionsUrl }: VenueMapProps) {
   const [expanded, setExpanded] = useState(false)
 
-  if (!MAPBOX_TOKEN || lat == null || lng == null) return null
+  if (lat == null || lng == null) return null
 
   return (
     <>
@@ -450,7 +441,6 @@ export function VenueMap({ lat, lng, venueName, venueAddress, directionsUrl }: V
           }}
           style={{ width: '100%', height: '100%' }}
           mapStyle={MAP_STYLE}
-          mapboxAccessToken={MAPBOX_TOKEN}
           interactive={false}
           attributionControl={false}
         >
@@ -502,7 +492,6 @@ function InteractiveVenueMap({ lat, lng, venueName, venueAddress, directionsUrl 
           }}
           style={{ width: '100%', height: '100%' }}
           mapStyle={MAP_STYLE}
-          mapboxAccessToken={MAPBOX_TOKEN}
         >
           <NavigationControl position="top-right" showCompass={false} />
           <Marker

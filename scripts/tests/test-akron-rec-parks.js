@@ -16,6 +16,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ||
 const {
   parseDetailHtml, parseDescription, parseFees, parseSchedule,
   mdyToYmd, to24h, decodeEntities, KNOWN_FACILITIES,
+  resolveFacilityName, facilityFromTitle,
 } = await import('../scrape-akron-rec-parks.js')
 
 // Canonical Akron neighborhood slugs (mirror of src/lib/neighborhoods.ts /
@@ -134,6 +135,54 @@ describe('KNOWN_FACILITIES map', () => {
   })
   it('Kenmore Community Center is tagged kenmore (the polygon resolver gets this wrong)', () => {
     assert.equal(KNOWN_FACILITIES['Kenmore Community Center'].neighborhood_slug, 'kenmore')
+  })
+})
+
+describe('resolveFacilityName', () => {
+  it('maps exact facility names', () => {
+    assert.equal(resolveFacilityName('Ellet Community Center'), 'Ellet Community Center')
+    assert.equal(resolveFacilityName('Northwest Family Recreation Center'), 'Northwest Family Recreation Center')
+  })
+  it('maps room-level Location cells to their facility (the RecDesk norm)', () => {
+    assert.equal(resolveFacilityName('Northwest Tot Room'), 'Northwest Family Recreation Center')
+    assert.equal(resolveFacilityName('Northwest Multi-Purpose Room'), 'Northwest Family Recreation Center')
+    assert.equal(resolveFacilityName('Balch Street Fitness Center'), 'Balch Street Community Center')
+    assert.equal(resolveFacilityName('Ellet Art & Crafts Room'), 'Ellet Community Center')
+    assert.equal(resolveFacilityName('Reservoir Park Multi-purpose Room'), 'Reservoir Park Community Center')
+    assert.equal(resolveFacilityName('Kenmore Multi-purpose'), 'Kenmore Community Center')
+    assert.equal(resolveFacilityName('Cascade Valley softball fields'), 'Cascade Valley Softball Fields')
+    assert.equal(resolveFacilityName('Hardesty Park'), 'Hardesty Park')
+  })
+  it('returns null for unknown or empty locations', () => {
+    assert.equal(resolveFacilityName('No location set'), null)
+    assert.equal(resolveFacilityName('Lock 3'), null)
+    assert.equal(resolveFacilityName(''), null)
+    assert.equal(resolveFacilityName(null), null)
+  })
+  it('every resolvable canonical name exists in KNOWN_FACILITIES', () => {
+    for (const probe of ['Northwest Tot Room', 'Balch Street Fitness Center', 'Ellet Meeting Room', 'Hardesty Park']) {
+      const canonical = resolveFacilityName(probe)
+      assert.ok(KNOWN_FACILITIES[canonical], `${probe} → ${canonical} missing from KNOWN_FACILITIES`)
+    }
+  })
+})
+
+describe('facilityFromTitle', () => {
+  it('reads the leading "Facility -" segment used by schedule-less programs', () => {
+    assert.equal(facilityFromTitle('Ellet CC - Week 1: Dinosaur Digs'), 'Ellet Community Center')
+    assert.equal(facilityFromTitle('Northwest CC - Snapology - Real World Robotics'), 'Northwest Family Recreation Center')
+    assert.equal(facilityFromTitle('Balch St - Tuesday 3:15 - 4:00pm - Junior Olympians'), 'Balch Street Community Center')
+    assert.equal(facilityFromTitle('Joy Park CC - Week 1 - Golf Camp'), 'Joy Park Community Center')
+    assert.equal(facilityFromTitle('Firestone CC - Week 1 - Tot Summer Fun Camp'), 'Firestone Park Community Center')
+  })
+  it('reads a trailing "@ Facility" segment', () => {
+    assert.equal(facilityFromTitle('Cheernastics Camp @ Balch St.'), 'Balch Street Community Center')
+  })
+  it('leaves facility-less titles unmapped (generic venue is correct)', () => {
+    assert.equal(facilityFromTitle('Adult Softball - Friday Coed Fall Softball (Rec)'), null)
+    assert.equal(facilityFromTitle("Arts Expo Saturday Sip 'n Paint"), null)
+    assert.equal(facilityFromTitle('CHEER CLINIC - Stunts'), null)
+    assert.equal(facilityFromTitle(null), null)
   })
 })
 

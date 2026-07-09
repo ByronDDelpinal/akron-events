@@ -117,29 +117,6 @@
   font-size: var(--text-sm);
 }
 
-/* ── Missing token fallback ───────────────────────────────────────────── */
-.map-token-missing {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-md);
-  color: var(--text-muted);
-  font-family: var(--font-body);
-  text-align: center;
-  padding: var(--space-xl);
-  background: var(--bg-nav);
-}
-.map-token-missing code {
-  font-family: monospace;
-  background: var(--overlay-light-05);
-  padding: var(--space-2xs) var(--space-sm);
-  border-radius: var(--radius-xs);
-  color: var(--amber);
-}
-.map-token-missing a { color: var(--amber); }
-
 /* ── Event count badge (inline in .map-top-bar) ──────────────────────── */
 .map-count-badge {
   background: var(--bg-nav);
@@ -249,13 +226,16 @@
 
 /* ── Popup ───────────────────────────────────────────────────────────── */
 
-/* Override Mapbox's popup chrome */
+/* Override the GL popup chrome (MapLibre emits maplibregl-*; the mapboxgl-*
+   selectors are kept for safety should the renderer ever change back) */
+.map-popup-outer .maplibregl-popup-content,
 .map-popup-outer .mapboxgl-popup-content {
   background: transparent !important;
   padding: 0 !important;
   border-radius: var(--radius-xl) !important;
   box-shadow: 0 8px 32px var(--overlay-dark-55), 0 0 0 1px var(--overlay-light-05) !important;
 }
+.map-popup-outer .maplibregl-popup-tip,
 .map-popup-outer .mapboxgl-popup-tip { display: none !important; }
 
 .map-popup {
@@ -335,7 +315,7 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-md);
-  padding: var(--space-md) var(--space-lg);
+  padding: var(--space-lg) var(--space-lg);
   border: none;
   background: none;
   cursor: pointer;
@@ -343,6 +323,10 @@
   border-bottom: var(--border-width-thin) solid var(--overlay-light-05);
   transition: background var(--transition-fast);
   min-height: 44px;
+  /* The list is a max-height flex column; without this the rows shrink below
+     their content height and the title/date collide. Keep natural height and
+     let the list scroll instead. */
+  flex-shrink: 0;
 }
 .map-popup-event:last-child { border-bottom: none; }
 .map-popup-event:hover { background: var(--overlay-light-05); }
@@ -359,7 +343,7 @@
 .map-popup-event-body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2xs);
+  gap: var(--space-xs);
   flex: 1;
   min-width: 0;
 }
@@ -377,8 +361,9 @@
 }
 
 .map-popup-date {
-  font-size: var(--text-xxs);
-  color: var(--overlay-light-50);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--overlay-light-70);
   line-height: 1.3;
 }
 

@@ -50,8 +50,10 @@ async function ensureDucksVenue() {
     city:          'Akron',
     state:         'OH',
     zip:           '44308',
-    lat:           41.0765,
-    lng:           -81.5185,
+    // Canal Park ballpark centroid. The prior 41.0765/-81.5185 sat ~200m SE of
+    // the stadium (on a Main St service road), so the games pin missed the park.
+    lat:           41.078080,
+    lng:           -81.522020,
     parking_type:  'lot',
     parking_notes: 'Paid parking available in lots surrounding the stadium.',
     website:       'https://www.milb.com/akron',

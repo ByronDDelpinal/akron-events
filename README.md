@@ -41,7 +41,7 @@ cp .env.example .env
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API | scrapers only — **never commit / never ship to the browser** |
 | `TICKETMASTER_API_KEY` | [developer.ticketmaster.com](https://developer.ticketmaster.com) (free, instant) | `ingest:ticketmaster` |
 | `EVENTBRITE_API_KEY` | Eventbrite private token (search API is restricted for new keys) | `scrape:eventbrite` |
-| `VITE_MAPBOX_TOKEN` | [account.mapbox.com](https://account.mapbox.com) (free tier) | frontend maps |
+| `VITE_MAPBOX_TOKEN` | [account.mapbox.com](https://account.mapbox.com) (free tier) | `geocode:venues` only — the map itself needs no key |
 | `VITE_GA_MEASUREMENT_ID` | [analytics.google.com](https://analytics.google.com) | frontend analytics (optional) |
 
 ### 4. Run
@@ -133,7 +133,7 @@ The full file-by-file checklist — with the exact files, variables, and Akron v
 - **Frontend:** React 18 + Vite, React Router v6
 - **Language:** TypeScript (see below) — the React frontend is fully TypeScript
 - **Database / Auth / API:** Supabase (PostgreSQL with RLS)
-- **Maps:** Mapbox GL + react-map-gl; boundaries from US Census TIGER/Line and city GIS shapefiles
+- **Maps:** MapLibre GL + react-map-gl with OpenFreeMap vector tiles (free, no API key); Mapbox Geocoding API for venue coordinate backfill; boundaries from US Census TIGER/Line and city GIS shapefiles
 - **Dates:** date-fns (event times are normalized in US Eastern — see ADAPTING.md if your city is in another timezone)
 - **Email:** Resend (via Supabase edge functions)
 - **Hosting (production):** Vercel (frontend + `/api` edge functions) + Supabase cloud

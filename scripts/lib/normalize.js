@@ -762,6 +762,13 @@ const VENUE_NAME_ALIASES = new Map([
   ['lock 3 live',                                'Lock 3'],
   ['first and main green',                       'First & Main Green - First Street Hudson'],
   ['the nightlight',                             'The Nightlight Cinema'],
+  // The RubberDucks' Duck Club is a room inside the ballpark. Feeds that name it
+  // (Habitat's "Bourbon Build", Leadership Akron) minted a separate, address-less
+  // venue that mis-geocoded ~360m off — fold them onto the stadium venue so all
+  // events share the one pin at 300 S Main St.
+  ['the akron rubberducks duck club',                      '7 17 Credit Union Park'],
+  ['the duck club by firestone at 7 17 credit union park', '7 17 Credit Union Park'],
+  ['the duck club',                                        '7 17 Credit Union Park'],
 ])
 
 /** Resolve a venue name to its canonical form via VENUE_NAME_ALIASES, or return

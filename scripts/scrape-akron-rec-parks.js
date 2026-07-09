@@ -99,25 +99,95 @@ const KNOWN_FACILITIES = {
   'Lawton Street Community Center':     { address: '1225 Lawton St',        zip: '44320', neighborhood_slug: 'west-akron' },
   'Mason Park Community Center':        { address: '700 E Exchange St',     zip: '44306' },
   'Northwest Family Recreation Center': { address: '1730 Shatto Ave',       zip: '44313' },
+  // Addresses below verified against the city's own RecDesk facility pages
+  // (akron.recdesk.com/Community/Facility/Detail) on 2026-07-08.
+  'Balch Street Community Center':      { address: '220 S Balch St',        zip: '44302' },
+  'Hardesty Park':                      { address: '1615 Wallhaven Dr',     zip: '44313' },
+  'Cascade Valley Softball Fields':     { address: '1690 Cuyahoga St',      zip: '44313' },
+}
+
+// RecDesk usually puts the ROOM in the schedule Location cell ("Northwest Tot
+// Room", "Balch Street Fitness Center", "Ellet Art & Crafts Room"), so an
+// exact-match lookup misses most programs. These ordered prefixes map any
+// room/variant back to its canonical KNOWN_FACILITIES entry. Longer prefixes
+// first where one is a prefix of another.
+const FACILITY_PREFIXES = [
+  ['summit lake',    'Summit Lake Community Center'],
+  ['joy park',       'Joy Park Community Center'],
+  ['ed davis',       'Ed Davis Community Center'],
+  ['cascade valley', 'Cascade Valley Softball Fields'],
+  ['northwest',      'Northwest Family Recreation Center'],
+  ['balch',          'Balch Street Community Center'],
+  ['ellet',          'Ellet Community Center'],
+  ['reservoir',      'Reservoir Park Community Center'],
+  ['kenmore',        'Kenmore Community Center'],
+  ['patterson',      'Patterson Park Community Center'],
+  ['firestone',      'Firestone Park Community Center'],
+  ['lawton',         'Lawton Street Community Center'],
+  ['mason',          'Mason Park Community Center'],
+  ['hardesty',       'Hardesty Park'],
+]
+
+/**
+ * Map a raw location string (schedule Location cell, room name, or title
+ * fragment) to a canonical KNOWN_FACILITIES key, or null when unknown.
+ */
+export function resolveFacilityName(raw) {
+  if (!raw) return null
+  const s = String(raw).replace(/\s+/g, ' ').trim()
+  if (!s) return null
+  if (KNOWN_FACILITIES[s]) return s
+  const lower = s.toLowerCase()
+  for (const [prefix, canonical] of FACILITY_PREFIXES) {
+    if (lower.startsWith(prefix)) return canonical
+  }
+  return null
+}
+
+/**
+ * Some programs have no schedule table, but the facility is embedded in the
+ * program title — "Ellet CC - Week 1: Dinosaur Digs", "Balch St - Tuesday…",
+ * "Cheernastics Camp @ Balch St.". Try the leading "Facility -" segment, then
+ * a trailing "@ Facility" segment.
+ */
+export function facilityFromTitle(title) {
+  if (!title) return null
+  const lead = String(title).split(/\s+-\s+/)[0]
+  const fromLead = resolveFacilityName(lead)
+  if (fromLead) return fromLead
+  const at = String(title).match(/@\s*([^@]+)$/)
+  return at ? resolveFacilityName(at[1].replace(/[.\s]+$/, '')) : null
 }
 
 export { KNOWN_FACILITIES }
 
 const facilityVenueCache = new Map()
+const warnedUnmapped = new Set()
 
 /**
- * Resolve a program's real community-center venue from its schedule Location.
- * Returns a venue id, or null when the facility is unknown (caller falls back
- * to the generic department venue).
+ * Resolve a program's real community-center venue from its schedule Location,
+ * falling back to a facility named in the program title. Returns a venue id,
+ * or null when the facility is unknown (caller falls back to the generic
+ * department venue).
  */
-async function ensureFacilityVenue(locationName) {
-  if (!locationName) return null
-  if (facilityVenueCache.has(locationName)) return facilityVenueCache.get(locationName)
+async function ensureFacilityVenue(locationName, title) {
+  const canonical = resolveFacilityName(locationName) ?? facilityFromTitle(title)
 
-  const f = KNOWN_FACILITIES[locationName]
-  if (!f) { facilityVenueCache.set(locationName, null); return null }
+  if (!canonical) {
+    // Surface brand-new facilities in scrape logs instead of silently pinning
+    // programs to the generic downtown venue.
+    if (locationName && !warnedUnmapped.has(locationName) && locationName !== 'No location set') {
+      warnedUnmapped.add(locationName)
+      console.warn(`  ⚠ Unmapped facility location "${locationName}" — using generic department venue`)
+    }
+    return null
+  }
 
-  const id = await ensureVenue(locationName, {
+  if (facilityVenueCache.has(canonical)) return facilityVenueCache.get(canonical)
+
+  const f = KNOWN_FACILITIES[canonical]
+
+  const id = await ensureVenue(canonical, {
     address:           f.address,
     city:              'Akron',
     state:             'OH',
@@ -128,7 +198,7 @@ async function ensureFacilityVenue(locationName) {
     website:           VENUE_INFO.website,
     parking_type:      'lot',
   })
-  facilityVenueCache.set(locationName, id)
+  facilityVenueCache.set(canonical, id)
   return id
 }
 
@@ -594,8 +664,9 @@ async function main() {
         }
 
         // Prefer the program's real community-center venue (from the schedule
-        // Location); fall back to the generic department venue when unknown.
-        const facilityVenueId = await ensureFacilityVenue(sched?.location)
+        // Location, or a facility named in the title); fall back to the
+        // generic department venue when unknown.
+        const facilityVenueId = await ensureFacilityVenue(sched?.location, prog.title)
         const eventVenueId    = facilityVenueId || venueId
 
         const enriched = await enrichWithImageDimensions(row)

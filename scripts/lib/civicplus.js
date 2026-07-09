@@ -328,11 +328,31 @@ export function civicPlusEventUrl(ev, origin) {
 
 export function cleanLocationName(raw) {
   if (!raw) return null
-  let s = stripHtml(String(raw)).trim()
+  let s
+  const rawStr = String(raw)
+  // Some sites (Richfield, 2026-07-09) store LOCATION as rich-text HTML with
+  // the venue name and its street address in SEPARATE block elements, e.g.
+  //   <p><span style="color: rgb(0, 0, 0)">Village Green Pavilion</span></p>
+  //   <p>Corner of Route 303 &amp; Broadview Rd</p>
+  // stripHtml alone flattens that to one line ("Village Green Pavilion Corner
+  // of Route 303 & Broadview Rd") with no " - " boundary to split on, which
+  // would mint the whole string as a junk venue name. Split on block
+  // boundaries FIRST and keep only the first non-empty block — the venue-name
+  // slot; later blocks are address/detail lines the address-tail logic below
+  // can't see. Single-block HTML (name and address on one line) falls through
+  // to the normal dash-splitting path unchanged.
+  if (/<\/(?:p|div)>|<br\s*\/?>/i.test(rawStr)) {
+    s = rawStr
+      .split(/<\/(?:p|div)>|<br\s*\/?>/i)
+      .map(part => stripHtml(part))
+      .find(part => part) || ''
+  } else {
+    s = stripHtml(rawStr).trim()
+  }
   if (!s) return null
   // A leading "-" means the venue-name slot was empty: the feed emitted
   // " - <street>  City ST ZIP" with no name. Nothing usable → fall back.
-  if (/^[-–]/.test(s)) return null
+  if (/^[-–—]/.test(s)) return null
   // CivicPlus uses " - " to separate the venue name from its street address,
   // formatted "<Name> - <Street>  <City> <ST> <ZIP>". At this point the raw
   // string has no other " - " (the "Building > Room" hierarchy is still ">",
@@ -341,10 +361,13 @@ export function cleanLocationName(raw) {
   // with a street number ("Council Chambers - 3760 Darrow") or it carries the
   // trailing "City ST ZIP" tail ("First & Main Green - First Street  Hudson
   // OH 44236", where the street name is a word, not a number).
-  const dashIdx = s.search(/\s[-–]\s/)
+  // The dash class covers hyphen, en dash, AND em dash — Richfield writes
+  // "Eastwood Preserve — 4712 W. Streetsboro Rd" (em dash, 2026-07-09), which
+  // a hyphen/en-dash-only class left glued to the venue name.
+  const dashIdx = s.search(/\s[-–—]\s/)
   if (dashIdx !== -1) {
     const after = s.slice(dashIdx)
-    if (/^\s[-–]\s+\d/.test(after) || /\b[A-Za-z]{2}\s+\d{5}\b/.test(after)) {
+    if (/^\s[-–—]\s+\d/.test(after) || /\b[A-Za-z]{2}\s+\d{5}\b/.test(after)) {
       s = s.slice(0, dashIdx)
     }
   }

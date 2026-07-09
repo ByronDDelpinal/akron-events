@@ -254,6 +254,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'russos',
+    method:      'REST API',
+    methodDetail:'Squarespace Events Collection JSON (?format=json&view=upcoming) via lib/squarespace.js',
+    venue:       "Russo's Restaurant — 4895 State Rd, Peninsula",
+    notes:       'Italian restaurant in Peninsula running a weekly Wednesday live-music series (6–8 PM) on its Bacchus Bar Patio. Uses the shared Squarespace Events Collection module. Event bodies state "No cover", so series events are priced free; anything else stays null (never assumed). The feed\'s location omits state/zip, so events pin to the verified venue record rather than trusting source-side geo. Some CMS-duplicated titles carry a "(Copy)" suffix that the scraper strips.',
+    status:      'active',
+  },
+  {
     key:         'musica',
     method:      'REST API',
     methodDetail:'Squarespace Events Collection JSON (?format=json&view=upcoming)',
@@ -521,6 +529,22 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'dilly_ds',
+    method:      'HTML scrape',
+    methodDetail:'dillyds.com GoDaddy static single-page site — raw-source tag-split of the trivia schedule statement + themed-night blocks, weekly occurrences generated via lib/weekly-occurrences.js',
+    venue:       "Dilly D's Sports Grill — 9750 Olde Eight Road, Northfield",
+    notes:       "Dilly D's Sports Grill is a family-run sports bar & grill in Northfield. Its GoDaddy site publishes no per-date listings — just a standing statement (\"Last Call Trivia every Wednesday at 7PM\", prizes, all ages, up to 8 players per team) plus occasional dated themed editions (\"August 12th - Decades\") with detail blocks. We parse the statement (weekday and time never hardcoded) and GENERATE the next 8 Wednesday occurrences via lib/weekly-occurrences.js (Eastern-anchored calendar math, immune to the UTC-rollover footgun); each themed night becomes its own event and owns its date, displacing the plain weekly occurrence that night. Month/day-only themed dates get roll-forward year inference. Category games; price null (no admission stated); all_ages parsed from the page, not assumed.",
+    status:      'active',
+  },
+  {
+    key:         'old_stone_jail',
+    method:      'HTML scrape',
+    methodDetail:'theoldstonejail.com static single-page site — tag-split raw HTML, parse the stated weekly schedule, generate the next 8 occurrences via lib/weekly-occurrences.js',
+    venue:       'Old Stone Jail Bar and Grill — 5640 Wooster Rd W, Norton',
+    notes:       "The Old Stone Jail is Norton's local bar & grill, set up in the historic Norton Jailhouse (burgers, wings, full bar, jail-themed menu). Its hand-built single-page site has no feed and no dated listings — just one standing 'Weekly Event' block: Trivia Night, every Thursday at 8 PM. We parse that statement from the page (weekday and time are never hardcoded, so a reschedule follows automatically on the next scrape) and generate the next 8 weekly occurrences with Eastern-anchored calendar math, date-keyed source_ids keeping the twice-daily run idempotent. If the trivia block leaves the page the run yields zero and the future rows age out. Category games; no cover charge or age policy is stated, so price stays null and age_restriction not_specified.",
+    status:      'active',
+  },
+  {
     key:         'akron_pride',
     method:      'iCal feed',
     methodDetail:'Events Manager all-events iCal feed (/events/ical/) parsed via lib/ics.js runIcsScraper',
@@ -656,6 +680,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     methodDetail:'CivicPlus iCalendar — Center on the Lake (catID=23) + Town Hall Calendar (catID=14)',
     venue:       'Center on the Lake (default) — 2491 Canfield Rd, Akron 44312',
     notes:       "Springfield Township's calendar splits into two CivicPlus category feeds. Center on the Lake (catID=23) is the volume calendar: the township community/senior center's dense weekly grid of public programming — community meal program, bingo, line dancing, euchre, coin club, exercise classes — plus seasonal specials; entries carry no LOCATION, so the default venue covers them. The Town Hall Calendar (catID=14) is mostly trustees/zoning meetings (dropped by the shared admin filter) with occasional public items like shred days that flow through. Note: centeronthelake.com (the center's own site) carries no feed — this CivicPlus calendar is the authoritative source for its programming.",
+    status:      'active',
+  },
+  {
+    key:         'village_of_richfield',
+    method:      'ICS feed',
+    methodDetail:'CivicPlus iCalendar — Main Calendar (catID=14) + Parks & Recreation (catID=28) + Senior Center (catID=30)',
+    venue:       'Village Green Pavilion (default) — Route 303 & Broadview Rd, Richfield 44286',
+    notes:       "Richfield's Main Calendar (catID=14) aggregates everything on the site — council, zoning, and cemetery board meetings alongside the public lineup we want: Fall Fest, Summer Concerts on the Green, Community Days, the Senior Center's Luau Party, Magical Butterfly Camp, police blood drives, and the Fourth of July symphonic-winds concert. We also ingest the Parks & Recreation (catID=28) and Senior Center (catID=30) calendars defensively (both subsets of 14, deduped by UID), and the shared filter drops the governance rows; the Service Department, Village Council, and Planning & Zoning calendars (31/33/34) carry only meetings and are skipped. Richfield stores LOCATION as rich-text HTML with the venue name and address in separate paragraph blocks, so cleanLocationName splits on block boundaries to keep venue names clean.",
     status:      'active',
   },
   {
@@ -1136,6 +1168,8 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   ohio_festivals:      'html',
   summit_county_fairgrounds: 'html',
   magic_city_drivein:  'html',
+  dilly_ds:            'html',
+  old_stone_jail:      'html',
   ohio_erie_canalway:  'html',
   akron_roller_derby:  'html',
   akron_public_schools:'ics',
@@ -1150,6 +1184,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   city_of_norton:       'civicplus',
   copley_township:      'civicplus',
   springfield_township: 'civicplus',
+  village_of_richfield: 'civicplus',
   city_of_fairlawn:     'civicplus',
 
   // Evvnt (Akron Life) — its own group; ICS isn't accurate
@@ -1158,6 +1193,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   // Squarespace Events Collection
   leadership_akron:    'squarespace',
   artisan_coffee:      'squarespace',
+  russos:              'squarespace',
   rialto:              'squarespace',
   crown_point_ecology: 'squarespace',
   cascade_locks:       'squarespace',
