@@ -8,7 +8,7 @@
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/api/sitemap.xml" },
     { "source": "/feed.xml",    "destination": "/api/feed.xml" },
-    { "source": "/((?!api|robots\\.txt|sitemap\\.xml|feed\\.xml|favicon\\.svg|og-default\\.jpg|akron-pulse-embed\\.js).*)", "destination": "/index.html" }
+    { "source": "/((?!api|robots\\.txt|sitemap\\.xml|feed\\.xml|favicon\\.svg|og-default\\.jpg|akron-pulse-embed\\.js).*)", "destination": "/app.html" }
   ],
   "headers": [
     {

@@ -6,7 +6,9 @@
   "license": "MIT",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/prerender.js",
+    "build:spa-only": "vite build && SKIP_PRERENDER=1 node scripts/prerender.js",
+    "prerender": "node scripts/prerender.js",
     "preview": "vite preview",
     "lint": "eslint scripts/ --max-warnings 0",
     "lint:src": "eslint src/ --max-warnings 0",
