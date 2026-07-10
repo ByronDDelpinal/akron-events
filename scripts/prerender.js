@@ -183,38 +183,51 @@ async function renderRoute(browser, route, { metaTimeout = META_TIMEOUT } = {}) 
 
 // ── Main ───────────────────────────────────────────────────────────────────
 
-async function main() {
-  if (!existsSync(join(DIST, 'index.html'))) {
-    throw new Error('dist/index.html not found — run `vite build` first')
+// We render CONCURRENCY tabs in parallel and only one can be
+// "frontmost". Without these flags Chrome throttles rAF/timers in
+// background tabs, which starves react-helmet-async's deferred
+// (rAF-batched) tag commits — pages then time out waiting for their
+// meta tags even though React mounted fine.
+const LAUNCH_ARGS = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-dev-shm-usage',
+  '--disable-background-timer-throttling',
+  '--disable-backgrounding-occluded-windows',
+  '--disable-renderer-backgrounding',
+]
+
+/**
+ * Launch Chrome. Locally, Puppeteer's own Chrome (installed by the
+ * postinstall hook) works. Vercel's build image can't run it — it lacks
+ * Chrome's shared system libraries (libnspr4.so etc.) — so there we
+ * fall back to @sparticuz/chromium, a statically-linked Chromium built
+ * for exactly this kind of bare Linux environment.
+ */
+async function launchBrowser(puppeteer) {
+  try {
+    return await puppeteer.launch({ args: LAUNCH_ARGS })
+  } catch (err) {
+    console.warn(`bundled Chrome failed to launch (${err.message.split('\n')[0]}); trying @sparticuz/chromium`)
+    const { default: chromium } = await import('@sparticuz/chromium')
+    return await puppeteer.launch({
+      args: [...chromium.args, ...LAUNCH_ARGS],
+      executablePath: await chromium.executablePath(),
+      headless: true,
+    })
   }
+}
 
-  // ALWAYS create the SPA fallback, even when skipping the browser pass:
-  // the vercel.json catch-all rewrite targets /app.html and must never 404.
-  copyFileSync(join(DIST, 'index.html'), join(DIST, 'app.html'))
-  console.log('✓ dist/app.html (SPA fallback for dynamic routes)')
-
-  if (process.env.SKIP_PRERENDER === '1') {
-    console.log('SKIP_PRERENDER=1 — skipping browser prerender pass')
-    return
-  }
-
+async function prerenderAll() {
   const { default: puppeteer } = await import('puppeteer')
   const server = await startServer()
-  const browser = await puppeteer.launch({
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      // We render CONCURRENCY tabs in parallel and only one can be
-      // "frontmost". Without these flags Chrome throttles rAF/timers in
-      // background tabs, which starves react-helmet-async's deferred
-      // (rAF-batched) tag commits — pages then time out waiting for
-      // their meta tags even though React mounted fine.
-      '--disable-background-timer-throttling',
-      '--disable-backgrounding-occluded-windows',
-      '--disable-renderer-backgrounding',
-    ],
-  })
+  let browser
+  try {
+    browser = await launchBrowser(puppeteer)
+  } catch (err) {
+    server.close()
+    throw err
+  }
 
   const queue = [...ROUTES]
   const results = []
@@ -257,6 +270,34 @@ async function main() {
     console.error(`FAILED: ${failed.map((f) => f.route).join(', ')}`)
     if (STRICT) process.exit(1)
     console.error('(non-strict mode: build continues; failed routes fall back to the SPA shell)')
+  }
+}
+
+async function main() {
+  if (!existsSync(join(DIST, 'index.html'))) {
+    throw new Error('dist/index.html not found — run `vite build` first')
+  }
+
+  // ALWAYS create the SPA fallback, even when skipping the browser pass:
+  // the vercel.json catch-all rewrite targets /app.html and must never 404.
+  copyFileSync(join(DIST, 'index.html'), join(DIST, 'app.html'))
+  console.log('✓ dist/app.html (SPA fallback for dynamic routes)')
+
+  if (process.env.SKIP_PRERENDER === '1') {
+    console.log('SKIP_PRERENDER=1 — skipping browser prerender pass')
+    return
+  }
+
+  try {
+    await prerenderAll()
+  } catch (err) {
+    // app.html exists at this point, so shipping without prerendered
+    // pages degrades to plain-SPA behavior instead of a broken deploy.
+    if (STRICT) throw err
+    console.error('━'.repeat(60))
+    console.error(`PRERENDER SKIPPED — ${err.message}`)
+    console.error('Deploy will serve the SPA shell only. SEO pages are NOT prerendered.')
+    console.error('━'.repeat(60))
   }
 }
 
