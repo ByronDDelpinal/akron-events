@@ -97,21 +97,92 @@ export const SUMMIT_COUNTY_CITIES = new Set([
   'coventry township', 'boston township', 'uniontown',
 ])
 
+// Known NON-Summit cities/townships that show up in regional feeds. Used by
+// classifySummitLocation() to return a confident 'out' for coord-less venues
+// instead of 'unknown'. Moved here 2026-07-14 from scrape-akron-life.js so
+// every aggregator shares one list. Never treat absence from this list as
+// in-county — it only upgrades 'unknown' to 'out'.
+export const NOT_SUMMIT_COUNTY_CITIES = new Set([
+  // Cuyahoga County (Cleveland metro)
+  'cleveland', 'east cleveland', 'cleveland heights', 'shaker heights',
+  'university heights', 'south euclid', 'lyndhurst', 'mayfield',
+  'mayfield heights', 'gates mills', 'pepper pike', 'beachwood',
+  'orange', 'moreland hills', 'hunting valley', 'chagrin falls',
+  'solon', 'bedford', 'bedford heights', 'oakwood village',
+  'walton hills', 'glenwillow', 'maple heights', 'garfield heights',
+  'newburgh heights', 'cuyahoga heights', 'valley view', 'independence',
+  'brecksville', 'broadview heights', 'north royalton', 'seven hills',
+  'parma', 'parma heights', 'strongsville', 'brooklyn', 'brook park',
+  'middleburg heights', 'berea', 'olmsted falls', 'north olmsted',
+  'fairview park', 'rocky river', 'lakewood', 'bay village',
+  'westlake', 'avon', 'avon lake', 'north ridgeville', 'euclid',
+  'richmond heights', 'highland heights', 'willowick',
+  // Portage / Medina / Stark / Lake / Lorain / Wayne
+  'kent', 'aurora', 'streetsboro', 'ravenna', 'mantua', 'garrettsville',
+  'hiram', 'rootstown', 'windham',
+  'medina', 'wadsworth', 'brunswick', 'lodi', 'seville',
+  'sharon center', 'rittman', 'spencer',
+  'canton', 'north canton', 'massillon', 'alliance', 'louisville',
+  'east canton', 'minerva', 'hartville', 'magnolia',
+  'navarre', 'brewster',
+  'mentor', 'painesville', 'willoughby', 'eastlake', 'wickliffe',
+  'kirtland', 'lorain', 'elyria', 'amherst', 'wooster', 'orrville',
+  // Trumbull / Mahoning (Youngstown metro) — added 2026-07 after Mahoning
+  // Valley Scrappers games leaked through a coord-less Niles venue.
+  'niles', 'warren', 'youngstown', 'boardman', 'austintown', 'canfield',
+  'girard', 'hubbard', 'struthers', 'campbell', 'poland', 'cortland',
+  'newton falls', 'mcdonald', 'mineral ridge', 'howland', 'vienna',
+])
+
+// NOTE: 'uniontown' straddles the county line and is deliberately in the
+// ALLOWLIST (see SUMMIT_COUNTY_CITIES above), so it must never appear here.
+
+/** Strip a trailing "Township"/"Twp." so 'coventry township' ≡ 'coventry'. */
+function normalizeCity(city) {
+  return String(city ?? '').toLowerCase().trim().replace(/\s+(township|twp\.?)$/i, '')
+}
+
 /**
- * Source-agnostic locality gate. Coordinates win (point-in-polygon, requires
- * preloadSummitCountyBoundary()); otherwise fall back to the city allowlist.
- * Returns false when neither is usable — unknown locality is NOT trusted (a
- * feed's own geo scoping has burned us before), so an event with no resolvable
- * Summit County location simply isn't posted.
+ * Three-way locality classification — the primitive behind the strict
+ * Summit County mandate (2026-07-14: "everything inside listed, nothing
+ * outside, period"):
+ *
+ *   'in'      → coords inside the county polygon, or city on the allowlist.
+ *   'out'     → coords outside the polygon, or city on the known-non-Summit
+ *               blocklist. Never ingest.
+ *   'unknown' → no coords and city missing/unrecognized. Callers on regional
+ *               aggregators should ingest these as status 'pending_review' so
+ *               real Summit events with sloppy geo data land in the admin
+ *               queue instead of silently vanishing — and leaks never publish.
+ *
+ * Coords are only trusted when genuinely present (Number(null) is 0 —
+ * finite!) and not the (0,0) placeholder some feeds emit.
  */
-export function isSummitCountyLocation({ lat, lng, city } = {}) {
-  // Coords only when genuinely present — Number(null) is 0 (finite!), so guard
-  // null/undefined/'' explicitly before trusting the polygon path.
+export function classifySummitLocation({ lat, lng, city } = {}) {
   const hasCoords = lat != null && lat !== '' && lng != null && lng !== ''
   const la = Number(lat), ln = Number(lng)
-  if (hasCoords && Number.isFinite(la) && Number.isFinite(ln)) return pointInSummitCounty(la, ln)
+  if (hasCoords && Number.isFinite(la) && Number.isFinite(ln) && (la !== 0 || ln !== 0)) {
+    return pointInSummitCounty(la, ln) ? 'in' : 'out'
+  }
   const c = String(city ?? '').toLowerCase().trim()
-  return c ? SUMMIT_COUNTY_CITIES.has(c) : false
+  if (!c) return 'unknown'
+  const base = normalizeCity(c)
+  if (SUMMIT_COUNTY_CITIES.has(c) || SUMMIT_COUNTY_CITIES.has(base)) return 'in'
+  if (NOT_SUMMIT_COUNTY_CITIES.has(c) || NOT_SUMMIT_COUNTY_CITIES.has(base)) return 'out'
+  return 'unknown'
+}
+
+/**
+ * Source-agnostic BOOLEAN locality gate (strict): only 'in' passes. Kept for
+ * call sites where unknown locality is out-of-scope by policy rather than
+ * reviewable — e.g. meetup (unknown = online/TBD sessions, not missing data)
+ * and ohio_festivals (statewide guide where every row carries a real city, so
+ * an off-allowlist city means genuinely out-of-county). Regional aggregators
+ * with patchy geo data should prefer classifySummitLocation() and route
+ * 'unknown' to the review queue.
+ */
+export function isSummitCountyLocation({ lat, lng, city } = {}) {
+  return classifySummitLocation({ lat, lng, city }) === 'in'
 }
 
 export function pointInSummitCounty(lat, lng) {

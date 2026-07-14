@@ -99,6 +99,8 @@ export default function HomePage() {
   const [searchInput, setSearchInput] = useState(filters.search)
   const [searchFocused, setSearchFocused] = useState(false)
   const searchWrapRef = useRef<HTMLDivElement>(null)
+  // Anchor for the results grid so committing a search can scroll to it.
+  const resultsRef = useRef<HTMLDivElement>(null)
 
   // Keep the <input> in sync when ?q= changes externally (e.g. Back button).
   useEffect(() => { setSearchInput(filters.search) }, [filters.search])
@@ -144,15 +146,29 @@ export default function HomePage() {
     return ALL_HUB_ENTRIES.find((h) => normalise(h.label) === needle || normalise(h.slug) === needle)?.slug ?? null
   }, [ALL_HUB_ENTRIES])
 
+  // Smooth-scroll to the results grid, unless the visitor prefers reduced
+  // motion (mirrors the hero-video / HeroRotator reduced-motion guards).
+  const scrollToResults = useCallback(() => {
+    const el = resultsRef.current
+    if (!el) return
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+  }, [])
+
   const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Enter') return
     const hubSlug = resolveHubSlug(searchInput)
     if (hubSlug) {
       setSearchInput('')
       navigate(`/events/${hubSlug}`)
-    } else {
-      filters.setSearch(searchInput)
+      return
     }
+    filters.setSearch(searchInput)
+    // Collapse the suggestion tray, drop focus, then scroll down to the
+    // results once the committed query has re-rendered the grid.
+    setSearchFocused(false)
+    e.currentTarget.blur()
+    requestAnimationFrame(scrollToResults)
   }
 
   const handleLocationChange = (e: ChangeEvent<HTMLSelectElement>) => {
@@ -339,15 +355,17 @@ export default function HomePage() {
       )}
 
       {/* ── BROWSING SURFACE (shared with the embed) ── */}
-      <EventsBrowser
-        filters={filters}
-        view={view}            onView={setView}
-        density={cardViewMode} onDensity={handleCardViewMode}
-        renderPromoMid={() => <GridPromo />}
-        renderPromoEnd={() => <GridPromo />}
-        onFirstPageLoad={handleFirstPageLoad}
-        onItemsChange={handleItemsChange}
-      />
+      <div ref={resultsRef}>
+        <EventsBrowser
+          filters={filters}
+          view={view}            onView={setView}
+          density={cardViewMode} onDensity={handleCardViewMode}
+          renderPromoMid={() => <GridPromo />}
+          renderPromoEnd={() => <GridPromo />}
+          onFirstPageLoad={handleFirstPageLoad}
+          onItemsChange={handleItemsChange}
+        />
+      </div>
     </>
   )
 }

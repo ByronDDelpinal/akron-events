@@ -20,32 +20,15 @@ process.env.SUPABASE_SERVICE_ROLE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY  
 
 // ── Re-implement scraper logic for testability ────────────────────────────
 
-// Mirrors scrape-akron-life.js: primary check is point-in-polygon
-// against the actual Summit County boundary; town blocklist is the
-// fallback for coord-less venues.
-import { preloadSummitCountyBoundary, pointInSummitCounty } from '../lib/summit-county.js'
+// Real import — since the 2026-07-14 strict Summit mandate the geo gate is
+// the scraper's exported classifyAkronArea (shared classifySummitLocation):
+// 'in' publishes, 'out' drops, 'unknown' routes to the review queue.
+import { preloadSummitCountyBoundary } from '../lib/summit-county.js'
+const { classifyAkronArea } = await import('../scrape-akron-life.js')
 
-const NOT_SUMMIT_COUNTY_TOWNS = new Set([
-  'cleveland', 'strongsville', 'brecksville', 'broadview heights',
-  'independence', 'north royalton', 'parma', 'parma heights',
-  'seven hills', 'solon', 'bedford', 'lakewood', 'westlake',
-  'beachwood', 'shaker heights', 'cleveland heights',
-  'kent', 'aurora', 'streetsboro', 'ravenna',
-  'medina', 'wadsworth', 'brunswick',
-  'canton', 'north canton', 'massillon', 'alliance', 'louisville',
-  'uniontown',
-])
-
-function isInAkronArea(venue) {
-  if (!venue) return false
-  const lat = Number(venue.latitude), lng = Number(venue.longitude)
-  if (Number.isFinite(lat) && Number.isFinite(lng)) {
-    return pointInSummitCounty(lat, lng)
-  }
-  const town = String(venue.town ?? '').toLowerCase().trim()
-  if (town && NOT_SUMMIT_COUNTY_TOWNS.has(town)) return false
-  return true
-}
+// Boolean shim so the polygon/blocklist assertions below read naturally:
+// only a confident 'in' passes. 'unknown' is asserted separately.
+const isInAkronArea = (venue) => classifyAkronArea(venue) === 'in'
 
 // Tests reference the polygon — make sure it's loaded before the suite runs.
 await preloadSummitCountyBoundary()
@@ -188,20 +171,36 @@ describe('Akron Life — isInAkronArea (town fallback when no coords)', () => {
     }
   })
 
+  it('returns false for Youngstown-metro towns (2026-07 Scrappers leak)', () => {
+    for (const town of ['Niles', 'Warren', 'Youngstown', 'Boardman']) {
+      assert.equal(isInAkronArea({ town }), false, `Expected ${town} to be blocked`)
+    }
+  })
+
   it('is case-insensitive on the town field', () => {
     assert.equal(isInAkronArea({ town: 'STRONGSVILLE' }), false)
     assert.equal(isInAkronArea({ town: '  strongsville  ' }), false)
   })
 
-  it('returns true when neither coords nor a known town — permissive default', () => {
-    assert.equal(isInAkronArea({ town: '' }), true)
-    assert.equal(isInAkronArea({ town: null }), true)
-    assert.equal(isInAkronArea({}), true)
+  it("classifies missing/unrecognized geo as 'unknown' — review queue, not published (strict mandate)", () => {
+    // Replaces the old permissive default that published unknowns — the
+    // path the Mahoning Valley Scrappers games leaked through.
+    assert.equal(classifyAkronArea({ town: '' }), 'unknown')
+    assert.equal(classifyAkronArea({ town: null }), 'unknown')
+    assert.equal(classifyAkronArea({}), 'unknown')
+    assert.equal(classifyAkronArea({ town: 'Some Hamlet Nobody Heard Of' }), 'unknown')
+    assert.equal(isInAkronArea({ town: '' }), false)   // never publishes as-is
   })
 
-  it('returns false when venue is null or undefined', () => {
+  it("classifies Summit townships with a 'Township' suffix as in-county", () => {
+    assert.equal(classifyAkronArea({ town: 'Coventry Township' }), 'in')
+    assert.equal(classifyAkronArea({ town: 'Bath Township' }), 'in')
+  })
+
+  it("returns 'out' when venue is null or undefined (nothing to anchor)", () => {
+    assert.equal(classifyAkronArea(null), 'out')
+    assert.equal(classifyAkronArea(undefined), 'out')
     assert.equal(isInAkronArea(null), false)
-    assert.equal(isInAkronArea(undefined), false)
   })
 })
 
@@ -231,6 +230,47 @@ describe('Akron Life — findCoveringScraper', async () => {
 
   it('returns null for an event we do not scrape directly', () => {
     assert.equal(findCoveringScraper({ title: 'X', original_links: { w: 'https://example.com' }, venue: { name: 'Some Bar' } }), null)
+  })
+})
+
+// ── Title-level drop guards (real import) ─────────────────────────────────
+
+describe('Akron Life — isNonEventTitle (parking-pass inventory)', async () => {
+  const { isNonEventTitle } = await import('../scrape-akron-life.js')
+
+  it('drops trailing "Parking" titles (the Tim McGraw Parking leak)', () => {
+    assert.equal(isNonEventTitle('Tim McGraw Parking'), true)
+  })
+
+  it('drops "Parking Pass" / "Parking Passes" variants', () => {
+    assert.equal(isNonEventTitle('Blossom Music Center Parking Pass'), true)
+    assert.equal(isNonEventTitle('Premier Parking Passes'), true)
+  })
+
+  it('keeps events that merely mention parking mid-title', () => {
+    assert.equal(isNonEventTitle('Parking Lot Party at the Stadium'), false)
+    assert.equal(isNonEventTitle('Free Parking: A One-Act Play'), false)
+  })
+
+  it('handles null/empty titles without throwing', () => {
+    assert.equal(isNonEventTitle(null), false)
+    assert.equal(isNonEventTitle(''), false)
+  })
+})
+
+describe('Akron Life — isOutOfAreaTitle (7 17 Credit Union name collision)', async () => {
+  const { isOutOfAreaTitle } = await import('../scrape-akron-life.js')
+
+  it('drops Scrappers home games regardless of venue-name collision', () => {
+    // Both ballparks carry "7 17 Credit Union" naming since 2026, so the
+    // venue name can't distinguish Canal Park (Akron) from Eastwood (Niles).
+    assert.equal(isOutOfAreaTitle('Aberdeen IronBirds at Mahoning Valley Scrappers'), true)
+    assert.equal(isOutOfAreaTitle('State College Spikes at Mahoning Valley Scrappers'), true)
+  })
+
+  it('keeps RubberDucks and unrelated events', () => {
+    assert.equal(isOutOfAreaTitle('RubberDucks vs. Altoona Curve'), false)
+    assert.equal(isOutOfAreaTitle(null), false)
   })
 })
 

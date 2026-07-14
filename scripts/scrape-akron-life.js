@@ -42,7 +42,7 @@ import {
   upsertEventSafe, linkEventVenue, linkEventOrganization,
   ensureVenue, ensureOrganization, linkOrganizationVenue,
 } from './lib/normalize.js'
-import { preloadSummitCountyBoundary, pointInSummitCounty } from './lib/summit-county.js'
+import { preloadSummitCountyBoundary, classifySummitLocation } from './lib/summit-county.js'
 
 const SOURCE_KEY    = 'akron_life'
 const PUBLISHER_ID  = 11072
@@ -58,69 +58,27 @@ const HORIZON_DAYS  = 180
 
 // ── Summit County geography gate ──────────────────────────────────────────
 //
-// Primary check: point-in-polygon against the actual Summit County
-// boundary (TIGER/Line 2025, GEOID 39153 — see scripts/lib/summit-county.js
-// + public/summit-county-boundary.geojson). This is authoritative —
-// no town strings, no radius, no false positives at the borders.
+// STRICT since 2026-07-14 ("everything inside listed, nothing outside,
+// period"). classifySummitLocation (lib/summit-county.js) is the single
+// source of truth:
+//   'in'      → point-in-polygon (TIGER/Line 2025, GEOID 39153) or town on
+//               the Summit allowlist → publish.
+//   'out'     → outside the polygon or on the shared non-Summit blocklist
+//               → dropped, never ingested.
+//   'unknown' → no coords AND town missing/unrecognized → ingested as
+//               status 'pending_review' so a real Summit event with sloppy
+//               geo data surfaces in the admin queue instead of silently
+//               vanishing — and a leak never reaches the public calendar.
+//               (Replaces the old permissive default that published
+//               unknowns — the path the Mahoning Valley Scrappers games
+//               leaked through.)
 //
-// Fallback for coord-less venues: a small blocklist of known non-Summit
-// cities so an event with town="Strongsville" and missing lat/lng still
-// gets dropped. When neither coords nor a recognised town are present,
-// the event is treated as in-scope (Byron's explicit preference: "100%
-// Summit County internally, even if one or two slip through").
-//
-// Direct per-venue scrapers (Kent Stage in Portage County, etc.) bypass
-// this gate. It only governs Evvnt's national aggregator backfill.
-const NOT_SUMMIT_COUNTY_TOWNS = new Set([
-  // Cuyahoga County (Cleveland metro)
-  'cleveland', 'east cleveland', 'cleveland heights', 'shaker heights',
-  'university heights', 'south euclid', 'lyndhurst', 'mayfield',
-  'mayfield heights', 'gates mills', 'pepper pike', 'beachwood',
-  'orange', 'moreland hills', 'hunting valley', 'chagrin falls',
-  'solon', 'bedford', 'bedford heights', 'oakwood village',
-  'walton hills', 'glenwillow', 'maple heights', 'garfield heights',
-  'newburgh heights', 'cuyahoga heights', 'valley view', 'independence',
-  'brecksville', 'broadview heights', 'north royalton', 'seven hills',
-  'parma', 'parma heights', 'strongsville', 'brooklyn', 'brook park',
-  'middleburg heights', 'berea', 'olmsted falls', 'north olmsted',
-  'fairview park', 'rocky river', 'lakewood', 'bay village',
-  'westlake', 'avon', 'avon lake', 'north ridgeville', 'euclid',
-  'richmond heights', 'highland heights', 'willowick',
-  // Portage / Medina / Stark / Lake / Lorain / Wayne
-  'kent', 'aurora', 'streetsboro', 'ravenna', 'mantua', 'garrettsville',
-  'hiram', 'rootstown', 'windham',
-  'medina', 'wadsworth', 'brunswick', 'lodi', 'seville',
-  'sharon center', 'rittman', 'spencer',
-  'canton', 'north canton', 'massillon', 'alliance', 'louisville',
-  'uniontown', 'east canton', 'minerva', 'hartville', 'magnolia',
-  'navarre', 'brewster',
-  'mentor', 'painesville', 'willoughby', 'eastlake', 'wickliffe',
-  'kirtland', 'lorain', 'elyria', 'amherst', 'wooster', 'orrville',
-])
-
-/**
- * True iff the venue is in (or, as fallback, not-known-to-be-outside)
- * Summit County, OH.
- *
- * Hierarchy:
- *   1. If lat/lng is present → point-in-polygon → authoritative.
- *   2. Else if town matches the non-Summit blocklist → false.
- *   3. Else true (permissive default for missing data).
- *
- * Requires `preloadSummitCountyBoundary()` to have been awaited before
- * the first call. main() does this once at scraper startup.
- */
-function isInAkronArea(venue) {
-  if (!venue) return false
-
-  const lat = Number(venue.latitude), lng = Number(venue.longitude)
-  if (Number.isFinite(lat) && Number.isFinite(lng)) {
-    return pointInSummitCounty(lat, lng)
-  }
-
-  const town = String(venue.town ?? '').toLowerCase().trim()
-  if (town && NOT_SUMMIT_COUNTY_TOWNS.has(town)) return false
-  return true
+// Direct per-venue scrapers bypass this gate. It only governs Evvnt's
+// national aggregator backfill. Requires preloadSummitCountyBoundary()
+// to have been awaited; main() does this once at startup.
+export function classifyAkronArea(venue) {
+  if (!venue) return 'out'   // Evvnt events without a venue object have nothing to anchor them
+  return classifySummitLocation({ lat: venue.latitude, lng: venue.longitude, city: venue.town })
 }
 
 // ── Cross-source dedupe by hostname + organiser ──────────────────────────
@@ -204,6 +162,30 @@ const DEDICATED_SCRAPER_KEYWORDS = [
 function isDedicatedlyScraped(title) {
   const lower = (title ?? '').toLowerCase()
   return DEDICATED_SCRAPER_KEYWORDS.some(kw => lower.includes(kw))
+}
+
+// ── Title-level drop guards ────────────────────────────────────────────────
+//
+// Parking-pass inventory: Evvnt carries venue parking as separate "events"
+// ("Tim McGraw Parking" at Blossom leaked to production 2026-07). A trailing
+// "Parking" / "Parking Pass(es)" is never a real event. Anchored to the END
+// of the title so legitimate events like "Parking Lot Party" survive.
+const NON_EVENT_TITLE_RE = /\bparking(?:\s+pass(?:es)?)?\s*$/i
+
+// Out-of-county franchises whose home venue reaches the feed with no coords
+// AND a name that collides with an Akron venue. Since 2026 BOTH ballparks
+// carry 7 17 Credit Union naming — "7 17 Credit Union Park" (Canal Park,
+// Akron) vs "7 17 Credit Union Field at Eastwood" (Scrappers, Niles) — so
+// ensureVenue name-matching cannot be trusted here; the team name in the
+// title is the reliable signal.
+const OUT_OF_AREA_TITLE_RE = /\bmahoning valley scrappers\b/i
+
+export function isNonEventTitle(title) {
+  return NON_EVENT_TITLE_RE.test(String(title ?? ''))
+}
+
+export function isOutOfAreaTitle(title) {
+  return OUT_OF_AREA_TITLE_RE.test(String(title ?? ''))
 }
 
 /**
@@ -504,7 +486,7 @@ async function main() {
     //                    directly. Detected by matching original_links
     //                    hostnames or organiser_name against
     //                    COVERED_BY_DIRECT_SCRAPER above.
-    let droppedOutOfWindow = 0, droppedOutsideArea = 0, droppedNoLink = 0, droppedDupSource = 0
+    let droppedOutOfWindow = 0, droppedOutsideArea = 0, droppedNoLink = 0, droppedDupSource = 0, droppedNonEvent = 0, geoUnknownCount = 0
     const dupSourceByScraper = {}   // for end-of-run reporting
     const toProcess = []
     for (const e of rawEvents) {
@@ -512,7 +494,12 @@ async function main() {
       if (!Number.isFinite(t) || t < now - 12 * 3600_000 || t > cutoff) {
         droppedOutOfWindow++; continue
       }
-      if (!isInAkronArea(e.venue))      { droppedOutsideArea++; continue }
+      if (isNonEventTitle(e.title))     { droppedNonEvent++;    continue }
+      if (isOutOfAreaTitle(e.title))    { droppedOutsideArea++; continue }
+      const geoClass = classifyAkronArea(e.venue)
+      if (geoClass === 'out')           { droppedOutsideArea++; continue }
+      // 'unknown' → keep, but route to the review queue instead of publishing.
+      if (geoClass === 'unknown') { e._geoUnknown = true; geoUnknownCount++ }
       if (!pickExternalUrl(e))          { droppedNoLink++;      continue }
       const coveredBy = findCoveringScraper(e)
       if (coveredBy) {
@@ -533,7 +520,7 @@ async function main() {
       .join(', ')
     console.log(
       `\n📥  Processing ${toProcess.length} eligible events ` +
-      `(dropped ${droppedOutOfWindow} out-of-window, ${droppedOutsideArea} outside Akron, ${droppedNoLink} no link, ${droppedDupSource} covered by direct scraper${dupBreakdown ? ' [' + dupBreakdown + ']' : ''})…`
+      `(dropped ${droppedOutOfWindow} out-of-window, ${droppedOutsideArea} outside Akron, ${droppedNonEvent} non-event (parking), ${droppedNoLink} no link, ${droppedDupSource} covered by direct scraper${dupBreakdown ? ' [' + dupBreakdown + ']' : ''}; ${geoUnknownCount} unknown-geo → review queue)…`
     )
     const PROGRESS_INTERVAL = 25
     let processed = 0
@@ -616,7 +603,11 @@ async function main() {
           ticket_url:      pickExternalUrl(raw),
           source:          SOURCE_KEY,
           source_id:       String(raw.source_id || raw.objectID || `${raw.title.slice(0,40)}|${start_at}`),
-          status:          'published',
+          // Unknown locality → review queue, never the public calendar.
+          // An admin publish locks status via manual_overrides, so a
+          // re-scrape won't bounce the row back to pending.
+          status:          raw._geoUnknown ? 'pending_review' : 'published',
+          needs_review:    raw._geoUnknown ? true : undefined,
           featured:        false,
         }
 
@@ -657,11 +648,11 @@ async function main() {
       eventsFound: rawEvents.length,
       durationMs:  Date.now() - start,
     })
-    const droppedTotal = droppedOutOfWindow + droppedOutsideArea + droppedNoLink + droppedDupSource
+    const droppedTotal = droppedOutOfWindow + droppedOutsideArea + droppedNonEvent + droppedNoLink + droppedDupSource
     console.log(
       `\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s — ` +
       `inserted ${inserted}, skipped ${skipped}, dropped ${droppedTotal} ` +
-      `(${droppedOutOfWindow} out-of-window, ${droppedOutsideArea} outside Akron, ${droppedNoLink} no link, ${droppedDupSource} dup of direct source)`
+      `(${droppedOutOfWindow} out-of-window, ${droppedOutsideArea} outside Akron, ${droppedNonEvent} non-event (parking), ${droppedNoLink} no link, ${droppedDupSource} dup of direct source; ${geoUnknownCount} unknown-geo → review queue)`
     )
   } catch (err) {
     await logScraperError(SOURCE_KEY, err, start)

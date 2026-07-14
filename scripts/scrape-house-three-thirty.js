@@ -23,6 +23,12 @@
  *   timestamps. The feed can legitimately be empty between programming cycles —
  *   an empty result set is handled gracefully, not treated as an error.
  *
+ *   Verified 2026-07-10: the feed has returned `results: []` since this scraper
+ *   first ran (2026-06-13). The venue's own /events page consumes the identical
+ *   endpoint and shows visitors "Sorry! No events" — the zero-row census flag is
+ *   a source-side content gap, not a scraper bug. Re-check if HTH resumes
+ *   publishing; their ticketed events still arrive via the eventbrite source.
+ *
  * Usage:
  *   node scripts/scrape-house-three-thirty.js
  *   HTH_DEBUG=1 node scripts/scrape-house-three-thirty.js   # dump first raw event

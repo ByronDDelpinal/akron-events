@@ -33,7 +33,7 @@ import {
   linkEventVenue, ensureVenue, easternToIso,
 } from './lib/normalize.js'
 import { searchRunSignupRaces, fetchRunSignupRaceById, parseRunSignupRace } from './lib/runsignup.js'
-import { isSummitCountyLocation } from './lib/summit-county.js'
+import { classifySummitLocation } from './lib/summit-county.js'
 
 export const SOURCE_KEY = 'runsignup'
 const SEARCH_ZIP    = '44308'   // downtown Akron
@@ -42,14 +42,25 @@ const MAX_DAYS_AHEAD = 300
 
 const ymd = (d) => d.toISOString().slice(0, 10)
 
-/** Keep only real, dated, in-county, public races. */
+/**
+ * Locality for a race — strict Summit mandate (2026-07-14): 'out' races are
+ * never ingested; 'unknown' (missing/unrecognized city — rare, RunSignup
+ * addresses almost always carry one) is ingested as pending_review so a real
+ * Summit race with sloppy address data surfaces in the admin queue instead
+ * of silently vanishing.
+ */
+export function raceLocality(race) {
+  return classifySummitLocation({ city: race?.address?.city })
+}
+
+/** Keep only real, dated, public races that are not confidently out-of-county. */
 export function isIngestableRace(race) {
   if (!race) return false
   if (String(race.is_draft_race) === 'T')   return false
   if (String(race.is_private_race) === 'T') return false
   if (!race.next_date)                       return false   // undated / inactive
   if (/\btest\b/i.test(race.name || ''))     return false   // RunSignup test races
-  return isSummitCountyLocation({ city: race.address?.city })
+  return raceLocality(race) !== 'out'
 }
 
 /** Fallback start when a race has no event-level start time: next_date at 8 AM ET. */
@@ -117,6 +128,9 @@ async function main() {
 
         const title = String(race.name || '').trim()
         if (!title) { skipped++; continue }
+        // Prefer the detail record's locality (fuller address); unknown → review queue.
+        const geoUnknown = raceLocality(race) === 'unknown'
+        if (geoUnknown) console.log(`  🟡 Unknown locality for "${title}" → review queue`)
         const row = {
           title,
           description:     parsed.description,
@@ -131,7 +145,9 @@ async function main() {
           ticket_url:      race.url || `https://runsignup.com/Race/${summary.race_id}`,
           source:          SOURCE_KEY,
           source_id:       `rs_${summary.race_id}`,
-          status:          'published',
+          // Unknown locality → review queue, never the public calendar.
+          status:          geoUnknown ? 'pending_review' : 'published',
+          needs_review:    geoUnknown ? true : undefined,
           featured:        false,
         }
 

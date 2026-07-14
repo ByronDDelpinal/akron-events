@@ -56,7 +56,7 @@ describe('Ticketmaster: Category Parsing', () => {
 
 describe('isSummitVenue locality gate', async () => {
   process.env.TICKETMASTER_API_KEY = process.env.TICKETMASTER_API_KEY || 'dummy-key'
-  const { isSummitVenue } = await import('../fetch-ticketmaster.js')
+  const { isSummitVenue, classifySummitVenue } = await import('../fetch-ticketmaster.js')
   const { preloadSummitCountyBoundary } = await import('../lib/summit-county.js')
   await preloadSummitCountyBoundary()
 
@@ -74,7 +74,14 @@ describe('isSummitVenue locality gate', async () => {
     assert.equal(isSummitVenue({ city: { name: 'Canton' } }), false)
     assert.equal(isSummitVenue({ city: { name: 'Cuyahoga Falls' } }), true)
   })
-  it('defaults in only when neither coords nor city exist', () => {
-    assert.equal(isSummitVenue({}), true)
+  it("classifies venues with neither coords nor city as 'unknown' → review queue (strict mandate 2026-07-14)", () => {
+    // Replaces the old default-in behavior: unknown geo never publishes
+    // directly; processEvents ingests it as pending_review instead.
+    assert.equal(classifySummitVenue({}), 'unknown')
+    assert.equal(isSummitVenue({}), false)
+  })
+  it('known non-Summit cities classify out; blocklisted Youngstown metro included', () => {
+    assert.equal(classifySummitVenue({ city: { name: 'Niles' } }), 'out')
+    assert.equal(classifySummitVenue({ city: { name: 'Canton' } }), 'out')
   })
 })

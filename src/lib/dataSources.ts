@@ -757,6 +757,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'helens_studio',
+    method:      'HTML scrape',
+    methodDetail:'Wix Events — event URLs enumerated from the Wix event sitemap (event-pages-sitemap.xml), then each detail page\'s schema.org Event JSON-LD parsed via shared lib/json-ld.js (warmup-blob fallback)',
+    venue:       "Helen's Ceramic and Art Studio — 2102 State Rd, Cuyahoga Falls",
+    notes:       "Helen's is a family-run paint-your-own-pottery and art studio in Cuyahoga Falls running ticketed kids' paint camps, paint nights, and seasonal craft events (discovered via the intake email pipeline). Wix Events & Tickets app, but unlike our other Wix sources the /events list page's warmup blob is empty on this build — only detail pages are server-rendered. So we enumerate detail URLs from the Wix event sitemap and read each page's complete Event JSON-LD (times with TZ offsets, offers with real prices, image), falling back to the page's #wix-warmup-data blob if a build change drops the JSON-LD. All events pinned to the one studio venue (the JSON-LD names the venue by its bare street address, which the address-named-venue guard refuses). Family flag is title-scoped (\"Kid's …\"); price from offers, null when absent.",
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -1241,6 +1249,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   akron_makerspace:       'html',
   akron_soul_train:       'html',
   southgate_farm:         'html',
+  helens_studio:          'schema-jsonld',
   meetup:                 'ics',
   highland_square_theatre: 'html',
   highland_square:        'html',

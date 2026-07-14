@@ -193,6 +193,10 @@ async function main() {
   try {
     const html = await fetchHtml(GUIDE_URL)
     const all = parseFestivals(htmlToText(html))
+    // Deliberately strict allowlist-drop rather than review-queue (2026-07-14
+    // strict mandate): this is a STATEWIDE guide where every row carries a
+    // real city name, so an off-allowlist city means genuinely out-of-county
+    // — routing ~400 Columbus/Dayton/etc. rows to review would bury the queue.
     const summit = all.filter((f) => isSummitCountyLocation({ city: f.city }))
     console.log(`  Parsed ${all.length} festivals; ${summit.length} in Summit County`)
 

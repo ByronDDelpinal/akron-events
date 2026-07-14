@@ -38,7 +38,7 @@
 import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
-import { preloadSummitCountyBoundary, pointInSummitCounty, SUMMIT_COUNTY_CITIES } from './lib/summit-county.js'
+import { preloadSummitCountyBoundary, classifySummitLocation } from './lib/summit-county.js'
 import {
   EVENTBRITE_CATEGORY_MAP,
   categoryFromEventbriteNames,
@@ -635,24 +635,20 @@ async function upsertOrganizer(ev) {
 // meetup scraper and any future locality-gated source).
 
 /**
- * County-level locality gate. Hierarchy:
- *   1. Venue lat/lng present → point-in-polygon against the TIGER/Line
- *      Summit County boundary (same module the Akron Life scraper uses) →
- *      authoritative.
- *   2. Else city present → must be on the Summit County allow-list.
- *   3. Else → reject. Unlike the Akron Life scraper's permissive default,
- *      unknown locality here means we cannot trust the feed's scoping —
- *      that assumption is exactly what failed on 2026-06-10.
+ * County-level locality gate — classifySummitLocation from lib/summit-county
+ * is the single source of truth (strict Summit mandate, 2026-07-14):
+ *   'in'      → coords in-polygon or city on the Summit allowlist → publish.
+ *   'out'     → coords out-of-polygon or city on the non-Summit blocklist →
+ *               reject; never trust the feed's own scoping (2026-06-10).
+ *   'unknown' → neither signal usable → keep, but ingest as pending_review
+ *               so a real Summit event with sloppy geo lands in the admin
+ *               queue rather than silently vanishing — and never publishes
+ *               unreviewed.
  *
  * Requires preloadSummitCountyBoundary() to have been awaited at startup.
  */
-function isInSummitCounty(venue, addr) {
-  const lat = Number(venue.latitude), lng = Number(venue.longitude)
-  if (Number.isFinite(lat) && Number.isFinite(lng)) {
-    return pointInSummitCounty(lat, lng)
-  }
-  const city = String(addr.city ?? '').toLowerCase().trim()
-  return city ? SUMMIT_COUNTY_CITIES.has(city) : false
+function classifyEventLocality(venue, addr) {
+  return classifySummitLocation({ lat: venue.latitude, lng: venue.longitude, city: addr.city })
 }
 function isAkronEvent(ev) {
   // 1. Ticket URL must be on eventbrite.com (not .de/.it/.at/.co.uk/.sg/.ca/.fr)
@@ -691,9 +687,16 @@ function isAkronEvent(ev) {
   }
 
   // 4. County-level gate — never trust the feed's geographic scoping.
-  if (!isInSummitCounty(venue, addr)) {
+  const locality = classifyEventLocality(venue, addr)
+  if (locality === 'out') {
     if (DEBUG) console.log(`  [filter] rejected (outside Summit County: ${addr.city ?? 'no city'}): ${ev.name?.text ?? ev.name}`)
     return false
+  }
+  if (locality === 'unknown') {
+    // Kept, but flagged: mapEvent() routes it to the review queue instead of
+    // publishing. See classifyEventLocality above.
+    ev._geoUnknown = true
+    if (DEBUG) console.log(`  [filter] unknown locality → review queue (${addr.city ?? 'no city'}): ${ev.name?.text ?? ev.name}`)
   }
 
   return true
@@ -805,7 +808,10 @@ function normaliseEvent(ev) {
     ticket_url:      ev.url ?? ev.ticket_url ?? null,
     source:          'eventbrite',
     source_id:       String(ev.id),
-    status:          'published',
+    // Unknown locality (flagged in isAkronEvent) → review queue, never the
+    // public calendar. Admin publish locks status via manual_overrides.
+    status:          ev._geoUnknown ? 'pending_review' : 'published',
+    needs_review:    ev._geoUnknown ? true : undefined,
     featured:        false,
   }
 }

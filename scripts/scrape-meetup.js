@@ -126,6 +126,10 @@ async function processGroup(group, now, cutoffFuture) {
       // ── Summit County gate ──────────────────────────────────────────────
       // No resolvable in-Summit-County location (TBD / online / elsewhere) →
       // not posted. Picked up automatically once a real location is announced.
+      // Deliberately strict-drop rather than review-queue (2026-07-14 strict
+      // mandate): for meetup, "unknown" means online/TBD sessions — out of
+      // scope by policy, not missing venue data — and recurring occurrences
+      // would re-enter the review queue weekly. See classifySummitLocation.
       const geo = parseEventGeo(ev)
       if (!isSummitCountyLocation(geo)) { result.gated++; continue }
 

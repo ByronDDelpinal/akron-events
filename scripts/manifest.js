@@ -83,6 +83,7 @@ export const SCRAPERS = [
   { key: 'akron_makerspace',     script: 'scripts/scrape-akron-makerspace.js',        label: 'Akron Makerspace',             group: 'wordpress',      active: true, defaultCategory: 'learning' },
   { key: 'akron_soul_train',     script: 'scripts/scrape-akron-soul-train.js',        label: 'Akron Soul Train',             group: 'wix',            active: true, defaultCategory: 'visual-art' },
   { key: 'southgate_farm',       script: 'scripts/scrape-southgate-farm.js',          label: 'Southgate Farm',               group: 'wix',            active: true, defaultCategory: 'outdoors' },
+  { key: 'helens_studio',        script: 'scripts/scrape-helens-studio.js',           label: "Helen's Ceramic and Art Studio", group: 'wix',          active: true, defaultCategory: 'visual-art' },
   { key: 'north_hill_cdc',       script: 'scripts/scrape-north-hill-cdc.js',          label: 'North Hill CDC',               group: 'ics',            active: true  },
   { key: 'akron_pride',          script: 'scripts/scrape-akron-pride.js',             label: 'Akron Pride Festival',         group: 'ics',            active: true, defaultCategory: 'festival' },
   { key: 'city_of_barberton',    script: 'scripts/scrape-city-of-barberton.js',       label: 'City of Barberton',            group: 'ics',            active: true  },

@@ -70,6 +70,32 @@ function normalizeSearch(term: string): string {
     .toLowerCase()
 }
 
+/** Escape POSIX-regex metacharacters so a user term is matched literally. */
+function regexEscape(term: string): string {
+  return term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Build the PostgREST `.or()` filter that searches a term against the
+ * title_normalized / description_normalized columns.
+ *
+ * Uses a word-boundary regex (`\y…\y`, the POSIX `~` operator) instead of an
+ * unbounded substring `ilike.*term*`. Substring matching was the root cause of
+ * bad search relevance: searching "improv" (a comedy seeker) matched every
+ * description containing "improve", "improvement", "improving", etc. — 72
+ * results, 71 of them noise. Word-boundary matching only hits "improv" as a
+ * whole word, cutting that to the 6 genuinely improv/comedy events while
+ * leaving unaffected terms (e.g. "comedy") completely unchanged.
+ *
+ * The term is regex-escaped so metacharacters are matched literally, and it's
+ * already lowercased/unaccented to mirror the *_normalized columns (so the
+ * case-sensitive `match` operator is correct and cheaper than `imatch`).
+ */
+function buildSearchOr(term: string): string {
+  const pattern = `\\y${regexEscape(term)}\\y`
+  return `title_normalized.match.${pattern},description_normalized.match.${pattern}`
+}
+
 export const PAGE_SIZE = 24
 
 /**
@@ -315,9 +341,7 @@ export function useEvents({
           // 031), so this title/description match also covers tag searches
           // (e.g. "baseball" → events tagged baseball) without a fragile
           // array-contains filter inside .or().
-          query = query.or(
-            `title_normalized.ilike.*${term}*,description_normalized.ilike.*${term}*`
-          )
+          query = query.or(buildSearchOr(term))
         }
 
         if (sort === 'latest') {
@@ -659,9 +683,7 @@ export function useMapEvents({
             // 031), so this title/description match also covers tag searches
             // (e.g. "baseball" → events tagged baseball) without a fragile
             // array-contains filter inside .or().
-            query = query.or(
-              `title_normalized.ilike.*${term}*,description_normalized.ilike.*${term}*`
-            )
+            query = query.or(buildSearchOr(term))
           }
           return query
         }

@@ -17,13 +17,11 @@ import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
 import { logUpsertResult, enrichWithImageDimensions, upsertEventSafe, linkEventVenue, linkEventOrganization } from './lib/normalize.js'
-import { preloadSummitCountyBoundary, pointInSummitCounty, SUMMIT_COUNTY_CITIES } from './lib/summit-county.js'
+import { preloadSummitCountyBoundary, classifySummitLocation } from './lib/summit-county.js'
 
+// Checked in main(), not at import time — importing this module for tests
+// must never exit the process (see feedback: scraper modules import-safe).
 const TM_KEY = process.env.TICKETMASTER_API_KEY
-if (!TM_KEY) {
-  console.error('❌  Missing TICKETMASTER_API_KEY in .env')
-  process.exit(1)
-}
 
 const BASE_URL    = 'https://app.ticketmaster.com/discovery/v2'
 const RADIUS_MILES = 25
@@ -271,20 +269,24 @@ function isDedicatedlyScraped(ev) {
  * Summit County locality gate — NEVER trust the API's radius search (the
  * 25-mile circle around Akron reaches Hartville, Canton, and Rootstown; the
  * 2026-07-08 audit found 28 of 140 upcoming rows out-of-county, cf. the
- * Eventbrite NE-Ohio incident). Coordinates win via point-in-polygon;
- * coord-less venues fall back to the city allowlist; with neither we default
- * in (the stated keep-over-drop preference — TM venues virtually always
- * carry coords, so that path is rare).
+ * Eventbrite NE-Ohio incident). classifySummitLocation is the shared source
+ * of truth: coords → point-in-polygon; coord-less → city allowlist /
+ * blocklist; neither → 'unknown', which processEvents routes to the review
+ * queue instead of publishing. Strict Summit mandate (2026-07-14) — replaces
+ * the old default-in behavior for unknown geo (TM venues virtually always
+ * carry coords, so that path stays rare).
  */
+export function classifySummitVenue(tmVenue) {
+  return classifySummitLocation({
+    lat:  tmVenue?.location?.latitude,
+    lng:  tmVenue?.location?.longitude,
+    city: tmVenue?.city?.name,
+  })
+}
+
+/** Strict boolean wrapper — kept for tests/back-compat; only 'in' passes. */
 export function isSummitVenue(tmVenue) {
-  const lat = Number(tmVenue?.location?.latitude)
-  const lng = Number(tmVenue?.location?.longitude)
-  if (Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0)) {
-    return pointInSummitCounty(lat, lng)
-  }
-  const city = String(tmVenue?.city?.name ?? '').toLowerCase().trim()
-  if (city) return SUMMIT_COUNTY_CITIES.has(city)
-  return true
+  return classifySummitVenue(tmVenue) === 'in'
 }
 
 async function processEvents(rawEvents) {
@@ -301,10 +303,15 @@ async function processEvents(rawEvents) {
 
       const venue     = ev._embedded?.venues?.[0]
 
-      if (!isSummitVenue(venue)) {
+      const locality = classifySummitVenue(venue)
+      if (locality === 'out') {
         console.log(`  ⛔ Skipping "${ev.name}" — outside Summit County (${venue?.city?.name ?? 'unknown city'})`)
         skipped++
         continue
+      }
+      const geoUnknown = locality === 'unknown'
+      if (geoUnknown) {
+        console.log(`  🟡 Unknown locality for "${ev.name}" (${venue?.city?.name ?? 'no city'}) → review queue`)
       }
 
       const venueId   = await upsertVenue(venue)
@@ -334,7 +341,9 @@ async function processEvents(rawEvents) {
         ticket_url:      ev.url ?? null,
         source:          'ticketmaster',
         source_id:       String(ev.id),
-        status:          'published',
+        // Unknown locality → review queue, never the public calendar.
+        status:          geoUnknown ? 'pending_review' : 'published',
+        needs_review:    geoUnknown ? true : undefined,
         featured:        false,
       }
 
@@ -364,6 +373,11 @@ async function processEvents(rawEvents) {
 async function main() {
   console.log('🚀  Starting Ticketmaster ingestion…')
   const start = Date.now()
+
+  if (!TM_KEY) {
+    console.error('❌  Missing TICKETMASTER_API_KEY in .env')
+    process.exit(1)
+  }
 
   try {
     // Polygon for the locality gate — pointInSummitCounty() throws if unloaded.
