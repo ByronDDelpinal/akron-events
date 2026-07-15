@@ -81,6 +81,7 @@ export default tseslint.config(
       'scripts/scrape-gather-round-games.js',
       'scripts/scrape-life-gurukula.js',
       'scripts/scrape-north-hill-cdc.js',
+      'scripts/scrape-akron-power-squadron.js',
     ],
     languageOptions: {
       globals: { ...globals.node, ...globals.browser },

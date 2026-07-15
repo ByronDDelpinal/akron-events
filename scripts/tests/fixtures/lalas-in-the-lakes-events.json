@@ -1,0 +1,116 @@
+[
+  {
+    "id": 203476,
+    "name": "Max",
+    "slug": "max-4",
+    "description": "Piano",
+    "startAt": "2023-02-10",
+    "endAt": null,
+    "startTime": 64800,
+    "endTime": 75600,
+    "isAllDay": false,
+    "isRecurring": true,
+    "recurringType": "custom",
+    "isSunday": false,
+    "isMonday": false,
+    "isTuesday": false,
+    "isWednesday": false,
+    "isThursday": false,
+    "isFriday": true,
+    "isSaturday": false,
+    "isPastEvent": false,
+    "status": "active",
+    "eventTimeDescription": "Weekly Fri 02/10/2023 18:00:00 - 21:00:00",
+    "photoUrl": "https://popmenucloud.com/cdn-cgi/image/width=1920,height=1920,format=auto,fit=scale-down/efwmkcjn/9c5d9844-ff1f-4bf0-ab78-e7d36a58eb4e.png",
+    "calendarEventPageUrl": "/events#section-2032762",
+    "calendarEventSelectedLocations": [
+      {
+        "isEnabled": true,
+        "location": {
+          "streetAddress": "4315 Manchester Road",
+          "city": "Akron",
+          "state": "OH",
+          "postalCode": "44319",
+          "country": "US",
+          "name": "Akron"
+        }
+      }
+    ]
+  },
+  {
+    "id": 761156,
+    "name": "Ryan Parkinson Doo-Wop",
+    "slug": "ryan-parkinson-doo-wop",
+    "description": "Bring your dancing shoes",
+    "startAt": "2026-07-11",
+    "endAt": "2026-07-11",
+    "startTime": 64800,
+    "endTime": 75600,
+    "isAllDay": false,
+    "isRecurring": false,
+    "recurringType": "custom",
+    "isSunday": false,
+    "isMonday": false,
+    "isTuesday": false,
+    "isWednesday": false,
+    "isThursday": false,
+    "isFriday": false,
+    "isSaturday": false,
+    "isPastEvent": true,
+    "status": "active",
+    "eventTimeDescription": "07/11/2026 18:00:00 - 21:00:00",
+    "photoUrl": "https://popmenucloud.com/cdn-cgi/image/width=1920,height=1920,format=auto,fit=scale-down/efwmkcjn/2f7e1729-dc77-41c6-944c-025d66a09b77.jpg",
+    "calendarEventPageUrl": "/events#section-2032762",
+    "calendarEventSelectedLocations": [
+      {
+        "isEnabled": true,
+        "location": {
+          "streetAddress": "4315 Manchester Road",
+          "city": "Akron",
+          "state": "OH",
+          "postalCode": "44319",
+          "country": "US",
+          "name": "Akron"
+        }
+      }
+    ]
+  },
+  {
+    "id": 761155,
+    "name": "John Chapman",
+    "slug": "john-chapman",
+    "description": "First visit with Lala's, come support his music",
+    "startAt": "2026-07-18",
+    "endAt": "2026-07-18",
+    "startTime": 64800,
+    "endTime": 75600,
+    "isAllDay": false,
+    "isRecurring": false,
+    "recurringType": "custom",
+    "isSunday": false,
+    "isMonday": false,
+    "isTuesday": false,
+    "isWednesday": false,
+    "isThursday": false,
+    "isFriday": false,
+    "isSaturday": false,
+    "isPastEvent": false,
+    "status": "active",
+    "eventTimeDescription": "07/18/2026 18:00:00 - 21:00:00",
+    "photoUrl": null,
+    "calendarEventPageUrl": "/events#section-2032762",
+    "calendarEventSelectedLocations": [
+      {
+        "isEnabled": true,
+        "location": {
+          "streetAddress": "4315 Manchester Road",
+          "city": "Akron",
+          "state": "OH",
+          "postalCode": "44319",
+          "country": "US",
+          "name": "Akron"
+        }
+      }
+    ]
+  }
+]

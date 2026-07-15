@@ -54,7 +54,9 @@ for (const entry of dsBlock.split(/\n {2}\{\n/).slice(1)) {
     hasInlineLabel: /label:\s*['"]/.test(entry),
   })
 }
-const byKeyKeys = [...byKeyBlock.matchAll(/^\s*(\w+):\s*'[\w-]+',?\s*$/gm)].map((m) => m[1])
+// Keys are usually bare identifiers, but keys that aren't valid JS identifiers
+// (e.g. '750ml_wines', leading digit) must be quoted — accept both forms.
+const byKeyKeys = [...byKeyBlock.matchAll(/^\s*'?([\w-]+)'?:\s*'[\w-]+',?\s*$/gm)].map((m) => m[1])
 
 const manifestKeys = new Set(SCRAPERS.map((s) => s.key))
 const dsKeys = new Set(dsEntries.map((e) => e.key))
