@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useNavigationType, useParams } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import Header   from '@/components/Header'
 import Footer   from '@/components/Footer'
 import InstallPrompt from '@/components/InstallPrompt'
@@ -43,12 +43,21 @@ import AdminFeedbackPage from '@/pages/admin/feedback/AdminFeedbackPage'
 import ReviewQueuePage from '@/pages/admin/review/ReviewQueuePage'
 
 import { trackPageView } from '@/lib/analytics'
+import { historyEntryKey } from '@/lib/historyKey'
 import { ThemeProvider } from '@/hooks/useTheme'
 import { SEO, buildGraph, organizationSchema, webSiteSchema } from '@/lib/seo'
 
 import '@/styles/globals.css'
 import '@/styles/themes.css'
 import '@/styles/forms.css'
+
+/**
+ * How long a scroll restore waits for the document to grow tall enough to
+ * honour the saved position. Covers the restored list page's round trip on a
+ * slow connection; past it we stop rather than pester a page that is never
+ * going to get there.
+ */
+const RESTORE_TIMEOUT_MS = 3000
 
 export default function App() {
   return (
@@ -73,13 +82,23 @@ function AppInner() {
   // main.tsx) so back/forward AND reload restore the user's exact position.
   // Position is stored in sessionStorage keyed by location.key.
   //
+  // A restore is "in flight" from a POP mount until we land (or give up). The
+  // SAVE effect has to stand down for the duration: window.scrollTo() emits a
+  // scroll event like any other, so a save during a restore writes wherever we
+  // currently are over the target we're still trying to reach — corrupting the
+  // entry for the visitor's NEXT visit to it.
+  const restoringRef = useRef(false)
+
+  const scrollKey = `sp:${historyEntryKey(location)}`
+
   // SAVE — throttled via rAF so rapid scroll events are coalesced.
   useEffect(() => {
     let rafId: number | null = null
     const onScroll = () => {
+      if (restoringRef.current) return
       if (rafId) return
       rafId = requestAnimationFrame(() => {
-        try { sessionStorage.setItem(`sp:${location.key}`, String(Math.round(window.scrollY))) } catch { /* ignore */ }
+        try { sessionStorage.setItem(scrollKey, String(Math.round(window.scrollY))) } catch { /* ignore */ }
         rafId = null
       })
     }
@@ -88,24 +107,66 @@ function AppInner() {
       window.removeEventListener('scroll', onScroll)
       if (rafId) cancelAnimationFrame(rafId)
     }
-  }, [location.key])
+  }, [scrollKey])
 
-  // RESTORE — on POP (back/forward/reload). Immediate rAF + a 600ms retry to
-  // cover async Supabase fetches; the retry is gated on scrollY < 50.
+  // RESTORE — on POP (back/forward/reload).
+  //
+  // The target is routinely BEYOND the document at mount: a paginated list
+  // re-mounts one page tall while its restored depth is still in flight, and a
+  // scrollTo past the end silently clamps. That clamp is the whole bug — it
+  // parks the visitor at the end-of-list marker with every event above them,
+  // which reads as "the page is broken", not "the page is still loading".
+  //
+  // So: don't scroll until the document can actually honour the target. Poll
+  // per frame while the pages land, then scroll once. If the deadline passes
+  // without the height arriving (content genuinely shrank — events expire), we
+  // leave the visitor at the top, which is at least a coherent place to be.
   useEffect(() => {
     if (navigationType !== 'POP') return
     const saved = (() => {
-      try { return parseInt(sessionStorage.getItem(`sp:${location.key}`) ?? '0', 10) } catch { return 0 }
+      try { return parseInt(sessionStorage.getItem(scrollKey) ?? '0', 10) } catch { return 0 }
     })()
     if (!saved) return
 
-    requestAnimationFrame(() => {
-      window.scrollTo({ top: saved, behavior: 'instant' })
-      setTimeout(() => {
-        if (window.scrollY < 50) window.scrollTo({ top: saved, behavior: 'instant' })
-      }, 600)
-    })
-  }, [location.key, navigationType])
+    restoringRef.current = true
+    const deadline = performance.now() + RESTORE_TIMEOUT_MS
+    // Aborting removes every listener below in one shot.
+    const abort = new AbortController()
+    let rafId = 0
+
+    const stop = () => {
+      restoringRef.current = false
+      cancelAnimationFrame(rafId)
+      abort.abort()
+    }
+
+    const step = () => {
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight
+      if (maxScroll >= saved) {
+        window.scrollTo({ top: saved, behavior: 'instant' })
+        // Lift the save suppression a frame LATER, not here: a programmatic
+        // scroll dispatches its scroll event asynchronously, so tearing down
+        // synchronously would let that event through to the SAVE handler —
+        // the exact write this ref exists to block.
+        cancelAnimationFrame(rafId)
+        abort.abort()
+        rafId = requestAnimationFrame(() => { restoringRef.current = false })
+        return
+      }
+      if (performance.now() > deadline) { stop(); return }
+      rafId = requestAnimationFrame(step)
+    }
+    rafId = requestAnimationFrame(step)
+
+    // Hand control back the instant the visitor reaches for it. These are all
+    // *input* events, deliberately not 'scroll' — scroll can't tell our own
+    // programmatic jump apart from a real one, and would cancel the restore.
+    for (const evt of ['wheel', 'touchstart', 'keydown', 'pointerdown']) {
+      window.addEventListener(evt, stop, { passive: true, signal: abort.signal })
+    }
+
+    return stop
+  }, [scrollKey, navigationType])
 
   // ── Scroll-to-top on PUSH/REPLACE ────────────────────────────────────
   // Skip for hash fragments and navigations tagged state.preserveScroll.

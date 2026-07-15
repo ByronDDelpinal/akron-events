@@ -141,6 +141,18 @@
   font-style: italic;
 }
 .event-detail-org-link:hover { text-decoration: underline; }
+/* Provenance credit ("Listed on X") — rendered INSTEAD of the organizer line
+   when an aggregator gave us no organizer we can stand behind. Styled against
+   .event-detail-organizer (upright, smaller, dimmer) so it cannot be misread
+   as a "Presented by" claim, which is the exact confusion this line exists to
+   avoid: aggregators were fielding calls for events they don't host. */
+.event-detail-source-credit {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-style: normal;
+  opacity: 0.75;
+  margin-bottom: var(--space-sm);
+}
 /* Share row sits below the organizer line; a little top margin gives it
    breathing room from its context. */
 .event-detail-share { margin-top: var(--space-lg); margin-bottom: var(--space-2xl); }

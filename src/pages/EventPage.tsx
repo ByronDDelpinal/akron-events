@@ -19,6 +19,7 @@ import {
   eventDescription,
 } from '@/lib/seo'
 import { makeEventSlug, eventPath } from '@/lib/slug'
+import { getSourceLabel, shouldShowSourceCredit } from '@/lib/sources'
 import { recordEventView } from '@/lib/engagement'
 import {
   formatPrice,
@@ -218,6 +219,15 @@ export default function EventPage() {
                 {embed
                   ? <span className="event-detail-org-link">{event.organizer.name}</span>
                   : <Link to={`/organizations/${event.organizer.id}`} className="event-detail-org-link">{event.organizer.name}</Link>}
+              </p>
+            ) : shouldShowSourceCredit(event.source, false) ? (
+              // Provenance fallback: this aggregator gave us no organizer we can
+              // stand behind, so we name where we found the event instead of
+              // asserting a presenter. Deliberately NOT styled as
+              // .event-detail-organizer — "Listed on" and "Presented by" must
+              // never read as the same claim. See shouldShowSourceCredit.
+              <p className="event-detail-source-credit">
+                Listed on {getSourceLabel(event.source)}
               </p>
             ) : null}
 

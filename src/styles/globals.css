@@ -75,7 +75,7 @@
   --gradient-strip-height: 20px;  /* height of the category accent strip */
   --gradient-icon-height:  16px;  /* mask-size height of each tiled icon */
   --gradient-icon-count:   11;    /* exact number of icons across the strip */
-  --gradient-tint-opacity: 0.45;  /* alpha on the white tint that paints the mask */
+  --gradient-tint-opacity: 1;     /* alpha on the white tint that paints the mask */
 
   --tag-music-bg:     #E4F0E6; --tag-music-txt:     #1A5428;
   --tag-art-bg:       #F2E8FA; --tag-art-txt:       #621A80;
@@ -500,10 +500,10 @@ h6 { font-size: var(--text-h6); }
   --cat-learning:   #008080;
   --cat-festival:   #f032e6;
   --cat-market:     #808000;
-  --cat-civic:      #000075;
+  --cat-civic:      #0000A6;
   --cat-games:      #800000;
   --cat-other:      #808080;
-  --facet-family:     #fabebe;
+  --facet-family:     #c08a5e;
   --facet-fundraiser: #ffe119;
   --facet-free:       #aaffc3;
 }

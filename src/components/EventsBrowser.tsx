@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback, type ReactNode } from 'react'
 import { useEvents, useMapEvents, PAGE_SIZE, type AppEvent } from '@/hooks/useEvents'
+import { useRestorablePagination } from '@/hooks/useRestorablePagination'
 import { useEventFilters } from '@/hooks/useEventFilters'
 import EventCard from '@/components/EventCard'
 import FilterBar, { type LockedDimensions } from '@/components/FilterBar'
@@ -77,7 +78,10 @@ export default function EventsBrowser({
   const activePageSize = isEfficient ? COMPACT_PAGE_SIZE : PAGE_SIZE
 
   // ── Pagination state ──────────────────────────────────────────────────
-  const [offset, setOffset] = useState(0)
+  // offset/limit come from the history entry: a back navigation resumes at the
+  // depth the visitor left, so the page is tall enough for App.tsx to restore
+  // their scroll position instead of clamping them to the end of page one.
+  const { offset, limit, loadMore, reset: resetPagination } = useRestorablePagination(activePageSize)
   const [allEvents, setAllEvents] = useState<AppEvent[]>([])
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [resultsKey, setResultsKey] = useState(0)
@@ -88,15 +92,15 @@ export default function EventsBrowser({
   useEffect(() => {
     if (prevFilterKey.current !== filterKey) {
       prevFilterKey.current = filterKey
-      setOffset(0)
+      resetPagination()
       setIsRefreshing(true)
     }
-  }, [filterKey])
+  }, [filterKey, resetPagination])
 
   // ── Data fetch (one page at a time) ───────────────────────────────────
   const { events: page, loading, error, total, hasMore } = useEvents({
     ...effective,
-    limit: activePageSize,
+    limit,
     offset,
   })
 
@@ -190,7 +194,7 @@ export default function EventsBrowser({
   const loadMoreRef = useRef<() => void>(() => {})
   loadMoreRef.current = () => {
     if (loadingRef.current || !hasMore) return
-    setOffset((prev) => prev + activePageSize)
+    loadMore()
   }
 
   const observerRef = useRef<IntersectionObserver | null>(null)

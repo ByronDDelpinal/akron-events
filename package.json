@@ -119,6 +119,7 @@
     "moderation:load": "node scripts/load-moderation-terms.js",
     "health": "node scripts/check-scraper-health.js",
     "check:venues": "node scripts/check-venue-duplicates.js",
+    "check:attribution": "node scripts/check-attribution.js",
     "check:venues:strict": "node scripts/check-venue-duplicates.js --min-similarity=0.80",
     "check:venues:quiet": "node scripts/check-venue-duplicates.js --quiet",
     "gis:convert": "node scripts/convert-neighborhoods.js",

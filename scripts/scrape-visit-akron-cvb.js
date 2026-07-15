@@ -375,11 +375,56 @@ async function ensureEventVenue(doc) {
   return venueId
 }
 
-async function ensureCvbOrganization() {
-  return ensureOrganization('Visit Akron / Summit County', {
-    website:     'https://www.visitakron-summit.org',
-    description: 'The destination marketing organization for Akron and Summit County, Ohio. Aggregates events from partner venues, hotels, and attractions across the region.',
-  })
+// ── Organizer ("hostname") ─────────────────────────────────────────────────
+//
+// The CVB is an AGGREGATOR: it republishes events run by partner venues and
+// orgs. It must never be credited as the presenter of those events — doing so
+// told the public that Visit Akron hosts 45 events it has nothing to do with,
+// and sent them the resulting phone calls. See AGGREGATOR_SELF_ORG in
+// lib/source-tiers.js for the policy.
+//
+// The rest_v2 payload does carry a real organizer in `hostname` (already
+// requested in the fields list below, previously unused). Audited over the
+// full 180-day window on 2026-07-15: populated on 27/106 events (25%), and
+// never the CVB itself. Real values look like "Porthouse Theatre", "City of
+// Akron", "Highland Square Neighborhood Association", "Bluecoats".
+//
+// Deliberately NOT used as organizer:
+//   - `contact`  — holds a natural PERSON ("Katie Orlando") or a bare phone
+//                  number ("8332027626"). People are not organizations.
+//   - `host_id`  — an opaque CRM id (populated on 26/106) with no name we can
+//                  resolve from this endpoint. `hostname` is not always
+//                  present when host_id is.
+//   - `location` — that's the venue, handled separately by ensureEventVenue.
+//
+// Note this feeds ensureOrganization, which matches orgs by exact name — so a
+// hostname of "City of Akron" resolves onto the SAME org row that
+// scrape-city-of-akron-lock3.js already maintains, rather than minting a
+// duplicate. That's why we normalize whitespace but do not otherwise rewrite
+// the value.
+const MAX_HOSTNAME_LEN = 120
+
+/**
+ * Real organizer name from a CVB doc's free-text `hostname`, or null.
+ *
+ * `hostname` is partner-entered free text, so it needs defensive cleaning
+ * before it can become an organization record. Pure + exported for tests.
+ */
+export function cvbOrganizerName(doc) {
+  const raw = doc?.hostname
+  if (raw === undefined || raw === null) return null
+  // stripHtml is not used here on purpose: it flattens ALL whitespace, which
+  // is what we want, but htmlToText is the tag-aware one. hostname is a plain
+  // text CRM field with no markup, so a simple collapse is correct.
+  const name = String(raw).replace(/\s+/g, ' ').trim()
+  if (!name) return null
+  // Junk guards: a bare phone number or an email is not an organization name
+  // (the sibling `contact` field is full of both, and partners sometimes put
+  // the same thing here).
+  if (/^[\d\s()+.-]+$/.test(name)) return null
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(name)) return null
+  if (name.length < 2 || name.length > MAX_HOSTNAME_LEN) return null
+  return name
 }
 
 // ── Title normalization ────────────────────────────────────────────────────
@@ -416,8 +461,8 @@ function normalizeCvbTitle(raw) {
 
 // ── Process ────────────────────────────────────────────────────────────────
 
-async function processEvents(docs, orgId) {
-  let inserted = 0, skipped = 0
+async function processEvents(docs) {
+  let inserted = 0, skipped = 0, organizerLinked = 0
 
   for (const doc of docs) {
     try {
@@ -482,7 +527,16 @@ async function processEvents(docs, orgId) {
         skipped++
       } else {
         if (venueId) await linkEventVenue(upserted.id, venueId)
-        if (orgId)   await linkEventOrganization(upserted.id, orgId)
+        // Real organizer from `hostname`, or NO organizer at all — never the
+        // CVB itself. See cvbOrganizerName() above.
+        const organizerName = cvbOrganizerName(doc)
+        if (organizerName) {
+          const orgId = await ensureOrganization(organizerName)
+          if (orgId) {
+            await linkEventOrganization(upserted.id, orgId, { source: SOURCE_KEY })
+            organizerLinked++
+          }
+        }
         inserted++
       }
     } catch (err) {
@@ -491,7 +545,7 @@ async function processEvents(docs, orgId) {
     }
   }
 
-  return { inserted, skipped }
+  return { inserted, skipped, organizerLinked }
 }
 
 // ── Entry point ────────────────────────────────────────────────────────────
@@ -501,11 +555,11 @@ async function main() {
   const start = Date.now()
 
   try {
-    const orgId = await ensureCvbOrganization()
-    const docs  = await fetchAllEvents()
+    const docs = await fetchAllEvents()
     console.log(`\n📥  Processing ${docs.length} events…`)
 
-    const { inserted, skipped } = await processEvents(docs, orgId)
+    const { inserted, skipped, organizerLinked } = await processEvents(docs)
+    console.log(`   ${organizerLinked}/${inserted} event(s) had a real organizer (hostname); the rest get none.`)
 
     await logUpsertResult(SOURCE_KEY, inserted, 0, skipped, {
       eventsFound: docs.length,

@@ -190,6 +190,50 @@ async function ensureDapOrganizer() {
   })
 }
 
+// ── DAP-hosted series (attribution allowlist) ──────────────────────────────
+//
+// downtownakron.com is an AGGREGATOR: it re-lists events run by other orgs.
+// Its event pages carry NO organizer field whatsoever (verified 2026-07-15 —
+// a detail page has only Category, Date and Time, Location, Details), so for
+// the large majority of DAP events there is simply no organizer to extract
+// and we must assert none. See AGGREGATOR_SELF_ORG in lib/source-tiers.js.
+//
+// The exception is DAP's OWN programming — the Summer on the Plaza series and
+// the Midday on Main lunchtime concerts are DAP-run, so crediting DAP there is
+// correct, not misattribution. Those are matched by title below.
+//
+// Rules for this list, in order of importance:
+//
+//  1. Match on TITLE, never on venue. "Summit Sports and Social Cornhole
+//     Leagues" happens at Cascade Plaza but is hosted by Summit Sports and
+//     Social — a venue-based rule ("anything at Cascade Plaza is DAP's") would
+//     credit DAP for it. Titles are the only signal that distinguishes DAP's
+//     own series from a third party renting the same space.
+//  2. Anchor patterns and keep them tight. A bare /plaza/ would match the
+//     cornhole leagues above.
+//  3. Fail toward NO attribution. If DAP adds a new Plaza series and nobody
+//     updates this list, that series gets no organizer — which is merely
+//     incomplete. The opposite failure (a stale-loose pattern crediting DAP
+//     for a third party's event) is the bug this whole change exists to fix.
+//  4. Lock 3 / Lock 4 are deliberately ABSENT. Lock 3 is a City of Akron park
+//     and scrape-city-of-akron-lock3.js already credits "City of Akron" for
+//     that programming. DAP promotes Lock 3 events but there's no evidence it
+//     hosts them, so they get no DAP credit.
+const DAP_HOSTED_TITLE_PATTERNS = [
+  /^midday on main\b/i,
+  /\bskate night on the plaza\b/i,
+  /\bdance cardio on the plaza\b/i,
+  /\bpilates on the plaza\b/i,
+  /\bvinyasa yoga on the plaza\b/i,
+  /\bline danc(?:e|ing) on the plaza\b/i,
+]
+
+/** True if this DAP listing is one of DAP's own series (see above). */
+export function isDapHostedTitle(title) {
+  if (!title) return false
+  return DAP_HOSTED_TITLE_PATTERNS.some((re) => re.test(title.trim()))
+}
+
 // ── HTML fetch ─────────────────────────────────────────────────────────────
 
 async function fetchHtml(url) {
@@ -462,7 +506,16 @@ async function processEvents(events, organizerId) {
         skipped++
       } else {
         await linkEventVenue(upserted.id, venueId)
-        await linkEventOrganization(upserted.id, organizerId)
+        // Credit DAP ONLY for its own series (see DAP_HOSTED_TITLE_PATTERNS).
+        // Every other listing here is someone else's event that DAP merely
+        // re-lists, and DAP publishes no organizer field we could use instead,
+        // so those get no presenter at all rather than a wrong one.
+        if (isDapHostedTitle(ev.title)) {
+          await linkEventOrganization(upserted.id, organizerId, {
+            source:           'downtown_akron',
+            selfHostVerified: true,
+          })
+        }
         inserted++
       }
     } catch (err) {

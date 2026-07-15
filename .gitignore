@@ -30,6 +30,16 @@ vite.config.js.timestamp-*
 # OS
 .DS_Store
 Thumbs.db
+._*
+
+# FUSE bookkeeping. When a file is deleted while another process still has it
+# open, a FUSE-backed mount can't drop the inode the way a native filesystem
+# does, so libfuse renames it to .fuse_hiddenXXXX instead and cleans up on the
+# final close. If that process dies first, the file is orphaned. Editors that
+# rewrite in place (perl -i, sed -i) trigger this on any FUSE mount — which
+# includes the folder-sharing mounts used by containers, VMs and agent
+# sandboxes. Untracked AND unignored, these are one `git add .` from the repo.
+.fuse_hidden*
 
 # logs
 npm-debug.log*

@@ -36,7 +36,7 @@ import 'dotenv/config'
 import { pathToFileURL } from 'node:url'
 import { supabaseAdmin } from './lib/supabase-admin.js'
 import { normalizeStreetAddress, logUpsertResult, logScraperError } from './lib/normalize.js'
-import { AGGREGATOR_PRIORITY } from './lib/source-tiers.js'
+import { AGGREGATOR_PRIORITY, isSelfCredit } from './lib/source-tiers.js'
 
 const APPLY = process.argv.includes('--apply')
 
@@ -711,7 +711,28 @@ export function collectLinkDonations(canonical, donors) {
       for (const v of d.event_venues ?? []) if (v?.venue_id) venueIds.add(v.venue_id)
     }
     if (canonicalOrgs.length === 0) {
-      for (const o of d.event_organizations ?? []) if (o?.organization_id) orgIds.add(o.organization_id)
+      for (const o of d.event_organizations ?? []) {
+        if (!o?.organization_id) continue
+        // Never launder an aggregator's self-credit onto another source's row.
+        //
+        // This is how "Twins Days Festival" (Twinsburg, run by Twins Days Inc.)
+        // ended up reading "Presented by Visit Akron / Summit County": the CVB
+        // copy self-credited, lost canonical to the ohio_festivals copy, and
+        // donated its org link on the way out — so the misattribution outlived
+        // the row that caused it.
+        //
+        // Note the check is on the DONOR's source, not the canonical's. The
+        // pair (ohio_festivals, 'Visit Akron / Summit County') is not
+        // self-referential and would pass a canonical-side check, which is
+        // exactly how this slipped through. What makes the link illegitimate is
+        // that it was a self-credit AT ITS ORIGIN.
+        //
+        // Donations of REAL organizers stay allowed and are desirable: a CVB
+        // copy carrying "Porthouse Theatre" (from its `hostname` field) should
+        // still hand that to a surviving ohio_festivals row.
+        if (isSelfCredit(d.source, o?.organizations?.name)) continue
+        orgIds.add(o.organization_id)
+      }
     }
   }
   return { venueIds: [...venueIds], orgIds: [...orgIds] }
@@ -731,7 +752,9 @@ async function main() {
   for (;;) {
     const { data, error } = await supabaseAdmin
       .from('events')
-      .select('id, title, description, image_url, start_at, source, source_id, ticket_url, manual_overrides, event_venues(venue_id, venues(name, address)), event_organizations(organization_id)')
+      // organizations(name) is needed by collectLinkDonations' self-credit
+      // guard — donation legitimacy depends on the org's NAME, not just its id.
+      .select('id, title, description, image_url, start_at, source, source_id, ticket_url, manual_overrides, event_venues(venue_id, venues(name, address)), event_organizations(organization_id, organizations(name))')
       // `id` tiebreaker makes the page ordering STABLE. Without it, rows that
       // share a start_at (very common — venues cluster on the hour) have
       // nondeterministic order between the separate per-page queries, so

@@ -11,6 +11,7 @@ import type { LooseRow } from '@/types'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useParams, Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useEvents, PAGE_SIZE, type AppEvent } from '@/hooks/useEvents'
+import { useRestorablePagination } from '@/hooks/useRestorablePagination'
 import { INTENTS } from '@/lib/intents'
 import EventCard from '@/components/EventCard'
 import ShareButtons from '@/components/ShareButtons'
@@ -94,7 +95,14 @@ export default function CategoryPage() {
 
   if (!hub || (hub.disabled && !hub.preview)) return <Navigate to="/" replace />
 
-  return <CategoryPageContent hub={hub} slug={slug} />
+  // `key` forces a remount when the hub changes. Every hub matches the same
+  // `/events/:slug` route, so without it React reconciles one hub's content
+  // into the next and CategoryPageContent keeps its state across a hub→hub
+  // link ("Browse other Akron event guides"). That silently defeats anything
+  // that reads its history entry at mount — useRestorablePagination's scroll
+  // depth included — and leaks the previous hub's expanded sources and
+  // accumulated events into the new one.
+  return <CategoryPageContent key={hub.slug} hub={hub} slug={slug} />
 }
 
 function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
@@ -187,7 +195,10 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
   const effectiveDateRange = lockedDimensions.dateRange ? hub.dateRange : null
 
   // ── Pagination state ──
-  const [offset,      setOffset]      = useState(0)
+  // offset/limit come from the history entry: a back navigation resumes at the
+  // depth the visitor left, so the page is tall enough for App.tsx to restore
+  // their scroll position instead of clamping them to the end of page one.
+  const { offset, limit, loadMore, reset: resetPagination } = useRestorablePagination(PAGE_SIZE)
   const [allEvents,   setAllEvents]   = useState<AppEvent[]>([])
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [resultsKey,  setResultsKey]  = useState(0)
@@ -223,10 +234,10 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
   useEffect(() => {
     if (prevFilterKey.current !== filterKey) {
       prevFilterKey.current = filterKey
-      setOffset(0)
+      resetPagination()
       setIsRefreshing(true)
     }
-  }, [filterKey])
+  }, [filterKey, resetPagination])
 
   // ── Data fetch ──
   const isAkronNeighborhood = isNeighborhood && NEIGHBORHOOD_SLUGS.has(hub.slug)
@@ -258,7 +269,7 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
     sort,
     neighborhoodSlug: isAkronNeighborhood ? hub.slug : null,
     venueCities:      isCity ? (hub.cityMatch || []) : [],
-    limit:    PAGE_SIZE,
+    limit,
     offset,
     hubSlug:  hubFirstPageCacheable ? hub.slug : null,
   })
@@ -296,7 +307,7 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
   const loadMoreRef = useRef<() => void>(() => {})
   loadMoreRef.current = () => {
     if (loadingRef.current || !hasMore) return
-    setOffset((prev) => prev + PAGE_SIZE)
+    loadMore()
   }
 
   const observerRef = useRef<IntersectionObserver | null>(null)

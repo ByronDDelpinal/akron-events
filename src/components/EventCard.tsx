@@ -13,6 +13,7 @@ import {
   optimizedImageUrl,
   type PriceDisplay,
 } from '@/lib/eventFormatting'
+import { getSourceLabel, shouldShowSourceCredit } from '@/lib/sources'
 import './EventCard.css'
 import { CalIcon, PinIcon } from '@/components/icons'
 
@@ -126,9 +127,15 @@ function ComfortableCard({ event, featured, price, goTo, embed }: CardProps) {
         </div>
 
         <div className="card-title">{event.title}</div>
-        {event.organizer && (
+        {event.organizer ? (
           <div className="card-organizer">{event.organizer.name}</div>
-        )}
+        ) : shouldShowSourceCredit(event.source, false) ? (
+          // Provenance fallback for aggregator-sourced events with no known
+          // organizer. Styled distinctly from .card-organizer on purpose: this
+          // says where we FOUND the event, not who runs it, and the two must
+          // never be mistakable for each other. See shouldShowSourceCredit.
+          <div className="card-source-credit">Listed on {getSourceLabel(event.source)}</div>
+        ) : null}
 
         <div className="card-meta">
           <div className="meta-row">

@@ -39,6 +39,8 @@ export interface AppEvent {
   image_height?: number | null
   image_url?: string | null
   ticket_url?: string | null
+  /** Scraper key (see scripts/manifest.js). Drives the "Listed on X" credit. */
+  source?: string | null
   source_url?: string | null
   price_min?: number | null
   price_max?: number | null
@@ -242,7 +244,12 @@ export function useEvents({
       // user filters): served from the edge-cached /api/events-hub. The caller
       // only passes hubSlug when the request matches the hub's pristine
       // defaults, so the cached rows equal what the live query below returns.
-      if (hubSlug && offset === 0) {
+      //
+      // The `limit === PAGE_SIZE` guard is load-bearing: /api/events-hub always
+      // returns exactly PAGE_SIZE rows, so an offset-0 request for MORE than a
+      // page (a back-navigation restoring its scroll depth) would be silently
+      // truncated to 24 and the restored page would collapse.
+      if (hubSlug && offset === 0 && limit === PAGE_SIZE) {
         try {
           const res = await fetch(`/api/events-hub?slug=${encodeURIComponent(hubSlug)}`)
           if (res.ok) {

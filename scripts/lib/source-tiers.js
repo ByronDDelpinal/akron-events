@@ -1,23 +1,15 @@
 /**
- * source-tiers.js
+ * source-tiers.js — server-side source-tier helpers.
  *
- * Per-source data-quality tier, used by the aggregator-precedence policy
- * (2026-07-02 data-quality remediation plan, task 3).
+ * The tier/attribution POLICY itself (which sources are aggregators, the
+ * precedence order, and the self-credit rules) is pure data and lives in
+ * src/lib/sourceTiers.js, so the browser can share it without pulling
+ * @supabase/supabase-js and dotenv into the client bundle. Same split as
+ * src/lib/categories.js.
  *
- *   Tier 1 — VENUE_OFFICIAL. The venue/organizer's own site or official API.
- *            Most trusted. Default for any source not listed below — the
- *            large majority of this project's scrapers are bespoke
- *            per-venue/org scrapers, so that's the safe default.
- *   Tier 2 — PLATFORM. A shared platform a venue/org publishes through
- *            (a library consortium's calendar system, a city's RecDesk
- *            instance, an organizer's own recurring feed on a
- *            third-party platform like Meetup). Still first-party content,
- *            just not a bespoke scraper per venue.
- *   Tier 3 — AGGREGATOR. A republisher that collects events FROM other
- *            organizers (Downtown Akron Partnership, Ticketmaster,
- *            Eventbrite, Akron Life, RunSignup, Ohio Festivals). Thinner,
- *            occasionally wrong (stale dates/times, retitled events), and
- *            never trusted over a Tier 1/2 copy of the same event.
+ * This module re-exports all of it, so every existing
+ * `from './lib/source-tiers.js'` import keeps working, and adds the pieces
+ * that need database access or the ingest-time decision logic.
  *
  * This is a distinct concept from SOURCE_PRIORITY in dedupe-cross-source.js:
  * SOURCE_PRIORITY breaks ties between two rows that are already known to be
@@ -27,66 +19,24 @@
  */
 
 import { supabaseAdmin } from './supabase-admin.js'
+import { isTrustedSource, isAggregatorSource, aggregatorRank } from '../../src/lib/sourceTiers.js'
 
-export const TIER_VENUE_OFFICIAL = 1
-export const TIER_PLATFORM = 2
-export const TIER_AGGREGATOR = 3
-
-// Sources that are a first-party feed but shared across many venues/orgs
-// (not a bespoke per-venue scraper).
-const TIER_2_SOURCES = new Set([
-  'akron_library',
-  'cuyahoga_falls_library',
-  'akron_rec_parks',
-  'meetup',
-])
-
-// Aggregators / republishers — collect events from other organizers rather
-// than being the organizer themselves.
-const TIER_3_SOURCES = new Set([
-  'downtown_akron',
-  'ticketmaster',
-  'eventbrite',
-  'visit_akron_cvb',
-  'akron_life',
-  'runsignup',
-  'ohio_festivals',
-])
-
-export function sourceTier(source) {
-  if (TIER_3_SOURCES.has(source)) return TIER_AGGREGATOR
-  if (TIER_2_SOURCES.has(source)) return TIER_PLATFORM
-  return TIER_VENUE_OFFICIAL
-}
-
-export function isAggregatorSource(source) {
-  return sourceTier(source) === TIER_AGGREGATOR
-}
-
-export function isTrustedSource(source) {
-  return sourceTier(source) !== TIER_AGGREGATOR
-}
-
-// ── Aggregator precedence ──────────────────────────────────────────────────
-// Internal ranking WITHIN Tier 3 — which aggregator's copy of the same event
-// wins. Lower index = more trusted. This is the single source of truth;
-// dedupe-cross-source.js imports it for canonical selection, and
-// classifyAggregatorEvent below uses it for ingest-time suppression.
-export const AGGREGATOR_PRIORITY = [
-  'ticketmaster',
-  'eventbrite',
-  'visit_akron_cvb',
-  'akron_life',
-  'runsignup',
-  'ohio_festivals',
-  'downtown_akron',
-]
-
-/** Rank within Tier 3. Unlisted sources rank last (least trusted). */
-export function aggregatorRank(source) {
-  const i = AGGREGATOR_PRIORITY.indexOf(source)
-  return i === -1 ? AGGREGATOR_PRIORITY.length : i
-}
+// Re-export the shared policy so scraper code has a single import site.
+export {
+  TIER_VENUE_OFFICIAL,
+  TIER_PLATFORM,
+  TIER_AGGREGATOR,
+  TIER_2_SOURCES,
+  TIER_3_SOURCES,
+  sourceTier,
+  isAggregatorSource,
+  isTrustedSource,
+  AGGREGATOR_PRIORITY,
+  aggregatorRank,
+  AGGREGATOR_SELF_ORG,
+  isAggregatorSelfOrgName,
+  isSelfCredit,
+} from '../../src/lib/sourceTiers.js'
 
 // ── Local mirrors of dedupe-cross-source helpers ───────────────────────────
 // dedupe-cross-source.js imports AGGREGATOR_PRIORITY from this module, so

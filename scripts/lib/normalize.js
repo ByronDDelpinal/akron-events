@@ -15,6 +15,7 @@ import { inferCategories as _inferCategories } from './category-inference.js'
 import { V1_TO_V2, CATEGORY_SLUGS } from '../../src/lib/categories.js'
 import { defaultCategoryFor } from '../manifest.js'
 import { fallbackImageFor } from './fallback-images.js'
+import { isAggregatorSelfOrgName, isSelfCredit } from './source-tiers.js'
 
 // ════════════════════════════════════════════════════════════════════════════
 // HTML / TEXT UTILITIES
@@ -498,6 +499,37 @@ export function parseTagsFromTribe(categories = [], tags = [], extraTags = []) {
 // ════════════════════════════════════════════════════════════════════════════
 
 const _orgNameCache = new Map() // name → orgId
+const _orgIdNameCache = new Map() // orgId → name (reverse; see orgNameById)
+
+/**
+ * Organization name for an id, cached per run.
+ *
+ * Only used by the attribution guard in linkEventOrganization. Populated for
+ * free by ensureOrganization (the path nearly every scraper takes), so in
+ * practice this rarely issues a query.
+ */
+async function orgNameById(orgId) {
+  if (!orgId) return null
+  if (_orgIdNameCache.has(orgId)) return _orgIdNameCache.get(orgId)
+  const { data } = await supabaseAdmin
+    .from('organizations').select('name').eq('id', orgId).maybeSingle()
+  const name = data?.name ?? null
+  _orgIdNameCache.set(orgId, name)
+  return name
+}
+
+const _eventSourceCache = new Map() // eventId → source
+
+/** Source key for an event id, cached per run. See linkEventOrganization. */
+async function eventSourceById(eventId) {
+  if (!eventId) return null
+  if (_eventSourceCache.has(eventId)) return _eventSourceCache.get(eventId)
+  const { data } = await supabaseAdmin
+    .from('events').select('source').eq('id', eventId).maybeSingle()
+  const source = data?.source ?? null
+  _eventSourceCache.set(eventId, source)
+  return source
+}
 
 /**
  * Find or create an organization by name. Uses exact name match.
@@ -539,6 +571,7 @@ export async function ensureOrganization(name, details = {}) {
       await supabaseAdmin.from('organizations').update(updates).eq('id', existing.id)
     }
     _orgNameCache.set(trimmed, existing.id)
+    _orgIdNameCache.set(existing.id, trimmed)
     return existing.id
   }
 
@@ -564,6 +597,7 @@ export async function ensureOrganization(name, details = {}) {
 
   console.log(`  ✚ Created organization: ${trimmed}`)
   _orgNameCache.set(trimmed, data.id)
+  _orgIdNameCache.set(data.id, trimmed)
   return data.id
 }
 
@@ -1341,8 +1375,36 @@ export async function setEventVenue(eventId, venueId) {
  * After upserting an event, link it to an organization via event_organizations.
  * Idempotent.
  */
-export async function linkEventOrganization(eventId, organizationId) {
+export async function linkEventOrganization(eventId, organizationId, opts = {}) {
   if (!eventId || !organizationId) return
+
+  // ── Attribution guard: an aggregator may never credit itself ─────────────
+  //
+  // The site renders event_organizations as "Presented by X", so linking an
+  // aggregator's own org to an event it merely republishes tells the public
+  // that org HOSTS the event. See AGGREGATOR_SELF_ORG in source-tiers.js for
+  // the full rationale.
+  //
+  // Ordering matters for cost: check the ORG first (a pure in-memory set
+  // lookup against 7 names). Only if the org is some aggregator's self-identity
+  // do we pay for the event's source. For the ~99% of links whose org is an
+  // ordinary venue/organizer this adds zero queries.
+  const orgName = await orgNameById(organizationId)
+  if (isAggregatorSelfOrgName(orgName)) {
+    const source = opts.source ?? await eventSourceById(eventId)
+    if (isSelfCredit(source, orgName)) {
+      // selfHostVerified is the deliberate, auditable escape hatch for the
+      // minority of events an aggregator genuinely DOES host (e.g. Downtown
+      // Akron Partnership's own Summer on the Plaza series). It must be
+      // opt-in per event: the default is always "don't assert a presenter we
+      // can't back up". Grep for it to audit every self-credit on the site.
+      if (!opts.selfHostVerified) {
+        console.log(`  ⤷ Attribution guard: not crediting "${orgName}" on its own ${source} event`)
+        return
+      }
+    }
+  }
+
   const { error } = await supabaseAdmin
     .from('event_organizations')
     .upsert({ event_id: eventId, organization_id: organizationId }, { onConflict: 'event_id,organization_id', ignoreDuplicates: true })
