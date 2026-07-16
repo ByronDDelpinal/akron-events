@@ -136,7 +136,7 @@ export function pickTicketUrl(tickets = [], fallbackUrl = GENERIC_TICKET_URL) {
 // ── Process games ──────────────────────────────────────────────────────────
 
 async function processGames(games, venueId, organizerId) {
-  let inserted = 0, skipped = 0, homeGames = 0
+  let inserted = 0, updated = 0, skipped = 0, homeGames = 0
 
   for (const game of games) {
     try {
@@ -183,7 +183,7 @@ async function processGames(games, venueId, organizerId) {
       if (!row.start_at) { skipped++; continue }
 
       const enrichedRow = await enrichWithImageDimensions(row)
-      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
+      const { data: upserted, error, isNew } = await upsertEventSafe(enrichedRow)
 
       if (error) {
         console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)
@@ -191,7 +191,7 @@ async function processGames(games, venueId, organizerId) {
       } else {
         await linkEventVenue(upserted.id, venueId)
         await linkEventOrganization(upserted.id, organizerId)
-        inserted++
+        if (isNew) inserted++; else updated++
       }
     } catch (err) {
       console.warn(`  ⚠ Error processing game ${game.gamePk}:`, err.message)
@@ -200,7 +200,7 @@ async function processGames(games, venueId, organizerId) {
   }
 
   console.log(`  Home games found: ${homeGames}`)
-  return { inserted, skipped, homeGames }
+  return { inserted, updated, skipped, homeGames }
 }
 
 // ── Entry point ────────────────────────────────────────────────────────────
@@ -214,8 +214,8 @@ async function main() {
     const games = await fetchSchedule()
     console.log(`\n📥  Processing ${games.length} games…`)
 
-    const { inserted, skipped, homeGames } = await processGames(games, venueId, organizerId)
-    await logUpsertResult('rubberducks', inserted, 0, skipped, {
+    const { inserted, updated, skipped, homeGames } = await processGames(games, venueId, organizerId)
+    await logUpsertResult('rubberducks', inserted, updated, skipped, {
       eventsFound: homeGames,
       durationMs:  Date.now() - start,
     })

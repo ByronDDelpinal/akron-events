@@ -25,6 +25,7 @@ const {
   easternToIso,
   easternTodayIso,
   decodeEntities,
+  splitCommaLocation,
   sanitizeEventText,
   parseCostFromTribe,
   parseTagsFromTribe,
@@ -102,6 +103,34 @@ describe('easternTodayIso', () => {
 
   it('matches the UTC date when both zones agree', () => {
     assert.equal(easternTodayIso(new Date('2026-07-15T15:00:00Z')), '2026-07-15')
+  })
+})
+
+describe('splitCommaLocation', () => {
+  it('splits the Tribe/Events-Manager comma format into name + address + city', () => {
+    // The exact string that minted an address-in-name junk venue (akron_symphony, 2026-07-12)
+    const r = splitCommaLocation('E.J. Thomas Hall, 198 Hill Street, Akron, OH, 44325, United States')
+    assert.equal(r.name, 'E.J. Thomas Hall')
+    assert.equal(r.address, '198 Hill Street')
+    assert.equal(r.city, 'Akron')
+  })
+
+  it('splits the short "Name, Street, City" form (ohio_erie_canalway)', () => {
+    const r = splitCommaLocation('Summit Lake NorthShore Park, 540 W. South Street, Akron')
+    assert.equal(r.name, 'Summit Lake NorthShore Park')
+    assert.equal(r.address, '540 W. South Street')
+    assert.equal(r.city, 'Akron')
+  })
+
+  it('returns null for plain venue names, even ones containing a comma', () => {
+    assert.equal(splitCommaLocation('E.J. Thomas Hall'), null)
+    assert.equal(splitCommaLocation('Hopocan, Hall of Fame Room'), null) // 2nd part not a street
+    assert.equal(splitCommaLocation(''), null)
+    assert.equal(splitCommaLocation(null), null)
+  })
+
+  it('returns null when the first segment is itself an address', () => {
+    assert.equal(splitCommaLocation('1000 Kenmore Blvd, 1000 Kenmore Blvd, Akron'), null)
   })
 })
 

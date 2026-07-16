@@ -68,6 +68,17 @@ const TM_SEGMENT_MAP = {
  * Insert double newlines around these headers so descriptions store with real
  * paragraph structure rather than as a single wall of text.
  */
+/**
+ * Repair Ticketmaster's mojibake apostrophes: their API delivers some titles
+ * with a literal "???" where a right single quote belongs ("Rachmaninoff???s
+ * Symphonic Dances", 5 Blossom listings on 2026-07-16). Only the
+ * letter-???-letter shape is rewritten so genuine question marks survive.
+ */
+function fixTmMojibake(raw) {
+  if (!raw) return raw
+  return String(raw).replace(/([A-Za-z])\?\?\?([A-Za-z])/g, '$1’$2')
+}
+
 function normalizeTmDescription(raw) {
   if (!raw) return null
   return raw
@@ -327,8 +338,11 @@ async function processEvents(rawEvents) {
         ?.sort((a, b) => b.width - a.width)[0]?.url ?? null
 
       const row = {
-        title:           ev.name,
-        description:     normalizeTmDescription(ev.info ?? ev.pleaseNote ?? null),
+        // TM's own data carries mojibake apostrophes as literal "???"
+        // ("Rachmaninoff???s", observed 2026-07-16 on 5 Blossom listings).
+        // Repair only the letter???letter shape so real question marks survive.
+        title:           fixTmMojibake(ev.name),
+        description:     fixTmMojibake(normalizeTmDescription(ev.info ?? ev.pleaseNote ?? null)),
         start_at:        ev.dates?.start?.dateTime ?? null,
         end_at:          null,   // TM rarely provides end times
         category,

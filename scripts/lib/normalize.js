@@ -929,6 +929,13 @@ function sanitizeWebsite(value) {
 // so the split can't reappear on the next scrape.
 const VENUE_NAME_ALIASES = new Map([
   ['e.j. thomas hall - the university of akron', 'E.J. Thomas Performing Arts Hall'],
+  // Every observed spelling of E.J. Thomas — 4 variant rows existed by
+  // 2026-07-16 (uakron/symphony/TM feeds each spell it differently).
+  ['e.j. thomas hall',                           'E.J. Thomas Performing Arts Hall'],
+  ['e.j. thomas hall - university of akron',     'E.J. Thomas Performing Arts Hall'],
+  ['ej thomas hall - university of akron',       'E.J. Thomas Performing Arts Hall'],
+  ['ej thomas hall',                             'E.J. Thomas Performing Arts Hall'],
+  ['the university of akron - e.j. thomas performing arts hall', 'E.J. Thomas Performing Arts Hall'],
   ['lock 3 live',                                'Lock 3'],
   ['first and main green',                       'First & Main Green - First Street Hudson'],
   ['the nightlight',                             'The Nightlight Cinema'],
@@ -940,6 +947,29 @@ const VENUE_NAME_ALIASES = new Map([
   ['the duck club by firestone at 7 17 credit union park', '7 17 Credit Union Park'],
   ['the duck club',                                        '7 17 Credit Union Park'],
 ])
+
+/**
+ * Split a comma-joined "Venue Name, 123 Street St, City[, ST, ZIP, Country]"
+ * location string into { name, address, city }, or return null when the
+ * string doesn't follow that shape.
+ *
+ * Tribe/Events-Manager ICS feeds and prose "Location:" lines emit this format
+ * routinely; minting it verbatim creates address-in-name junk venues like
+ * "E.J. Thomas Hall, 198 Hill Street, Akron, OH, 44325, United States"
+ * (akron_symphony, 2026-07-12) and "Summit Lake NorthShore Park, 540 W.
+ * South Street, Akron" (ohio_erie_canalway) — rows that can never dedupe
+ * against the real venue. The gate is the second segment starting with a
+ * street number; venue names practically never contain ", <digits> " so
+ * false splits are vanishingly rare. Pure + exported for tests.
+ */
+export function splitCommaLocation(raw) {
+  const parts = String(raw ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+  if (parts.length < 3) return null
+  if (!/^\d+\s+\S/.test(parts[1])) return null   // second segment must look like a street address
+  if (/^\d/.test(parts[0])) return null           // first segment must be a name, not itself an address
+  const city = parts[2] && !/^\d/.test(parts[2]) ? parts[2] : null
+  return { name: parts[0], address: parts[1], city }
+}
 
 /** Resolve a venue name to its canonical form via VENUE_NAME_ALIASES, or return
  *  the input unchanged. Pure + exported for tests. */

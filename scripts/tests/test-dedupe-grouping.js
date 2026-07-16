@@ -56,6 +56,21 @@ describe('dedupe: locationKey', () => {
     assert.equal(locationKey({ event_venues: [] }), null)
     assert.equal(locationKey({}), null)
   })
+
+  it('scans ALL venue links and prefers the address-bearing one (junk-link immunity)', () => {
+    // The 2026-07-16 Hudson Bandstand escape: the city_of_hudson copy carried a
+    // leftover paragraph-named junk venue (no address) as links[0] plus the real
+    // Hudson Green as a later link. Keying off [0] bucketed the pair apart.
+    const withJunkFirst = locationKey({ event_venues: [
+      { venue_id: 'v-junk', venues: { name: 'Due to the renovation of the Gazebo, the bands will perform on Church Street', address: null } },
+      { venue_id: 'v-green', venues: { name: 'Hudson Green', address: '1 Clinton St' } },
+    ]})
+    const partner = locationKey({ event_venues: [
+      { venue_id: 'v-green', venues: { name: 'Hudson Green', address: '1 Clinton St' } },
+    ]})
+    assert.equal(withJunkFirst, 'addr:1 clinton st')
+    assert.equal(withJunkFirst, partner)
+  })
 })
 
 describe('dedupe: the EMB pair groups end-to-end', () => {

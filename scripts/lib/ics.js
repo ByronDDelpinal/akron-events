@@ -46,6 +46,7 @@ import {
   ensureVenue,
   ensureOrganization,
   linkOrganizationVenue,
+  splitCommaLocation,
 } from './normalize.js'
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -822,7 +823,7 @@ export async function runIcsScraper(config) {
 
     // Process each event
     console.log(`\n📥  Processing ${workEvents.length} events…`)
-    let inserted = 0, skipped = 0
+    let inserted = 0, updated = 0, skipped = 0
     const venueCache = new Map()
 
     // Opt-in past cutoff. Feeds that emit only upcoming events (Tribe, etc.)
@@ -870,7 +871,13 @@ export async function runIcsScraper(config) {
               const parsed = config.parseLocation(locName)
               if (parsed?.name) vId = await ensureVenue(parsed.name, parsed.details || { city: 'Akron', state: 'OH' })
             } else {
-              vId = await ensureVenue(locName, { city: 'Akron', state: 'OH' })
+              // Generic comma-format guard: "Name, 198 Hill Street, Akron, OH,
+              // 44325, United States" must become name + address, not a venue
+              // literally named the whole string (akron_symphony, 2026-07-12).
+              const split = splitCommaLocation(locName)
+              vId = split
+                ? await ensureVenue(split.name, { address: split.address, city: split.city ?? 'Akron', state: 'OH' })
+                : await ensureVenue(locName, { city: 'Akron', state: 'OH' })
             }
             venueCache.set(locName, vId)
             venueId = vId
@@ -878,7 +885,7 @@ export async function runIcsScraper(config) {
         }
 
         const enrichedRow = await enrichWithImageDimensions(row)
-        const { data: upserted, error } = await upsertEventSafe(enrichedRow)
+        const { data: upserted, error, isNew } = await upsertEventSafe(enrichedRow)
 
         if (error) {
           console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)
@@ -886,7 +893,7 @@ export async function runIcsScraper(config) {
         } else {
           if (venueId)        await linkEventVenue(upserted.id, venueId)
           if (organizationId) await linkEventOrganization(upserted.id, organizationId)
-          inserted++
+          if (isNew) inserted++; else updated++
         }
       } catch (err) {
         console.warn(`  ⚠ Error processing event "${ev.SUMMARY}":`, err.message)
@@ -895,12 +902,12 @@ export async function runIcsScraper(config) {
     }
 
     const durationMs = Date.now() - start
-    await logUpsertResult(source, inserted, 0, skipped, {
+    await logUpsertResult(source, inserted, updated, skipped, {
       eventsFound: workEvents.length,
       durationMs,
     })
     console.log(`\n✅  ${source} done in ${(durationMs / 1000).toFixed(1)}s`)
-    return { inserted, skipped, eventsFound: workEvents.length }
+    return { inserted, updated, skipped, eventsFound: workEvents.length }
 
   } catch (err) {
     await logScraperError(source, err, start)

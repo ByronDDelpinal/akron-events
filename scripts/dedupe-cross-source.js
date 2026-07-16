@@ -316,14 +316,28 @@ export function venuelessTitleMatch(a, b) {
  * and time-window checks before anything groups. Exported for tests.
  */
 export function locationKey(e) {
-  const ev = e.event_venues?.[0]
-  if (!ev?.venue_id) return null
-  const v = ev.venues ?? {}
-  const addr = normalizeStreetAddress(v.address)
-  if (addr) return `addr:${addr}`
-  const nameAsAddr = normalizeStreetAddress(v.name)
-  if (nameAsAddr && /^\d/.test(nameAsAddr)) return `addr:${nameAsAddr}`
-  return `venue:${ev.venue_id}`
+  const links = e.event_venues ?? []
+  if (!links.some((l) => l?.venue_id)) return null
+  // Consider EVERY venue link, best key first — not just links[0]. Events can
+  // carry a junk link alongside the real venue (city_of_hudson events linked
+  // both Hudson Green AND a leftover paragraph-named venue, 2026-07-16), and
+  // PostgREST's junction-array order is arbitrary, so keying off [0] made a
+  // dupe's bucket depend on join order and let identical events at the same
+  // venue + second escape every pass.
+  let venueIdKey = null
+  let nameAddrKey = null
+  for (const ev of links) {
+    if (!ev?.venue_id) continue
+    const v = ev.venues ?? {}
+    const addr = normalizeStreetAddress(v.address)
+    if (addr) return `addr:${addr}`               // best: real street address
+    const nameAsAddr = normalizeStreetAddress(v.name)
+    if (!nameAddrKey && nameAsAddr && /^\d/.test(nameAsAddr)) {
+      nameAddrKey = `addr:${nameAsAddr}`          // next: address-as-name junk venue
+    }
+    if (!venueIdKey) venueIdKey = `venue:${ev.venue_id}`
+  }
+  return nameAddrKey ?? venueIdKey
 }
 
 function normalizeTitle(title) {

@@ -225,7 +225,7 @@ export async function runCivicPlusScraper(config) {
     }
 
     console.log(`\n📥  Processing ${publicEvents.length} events…`)
-    let inserted = 0, skipped = 0
+    let inserted = 0, updated = 0, skipped = 0
     const venueCache = new Map()
 
     for (const ev of publicEvents) {
@@ -270,7 +270,7 @@ export async function runCivicPlusScraper(config) {
         }
 
         const enrichedRow = await enrichWithImageDimensions(row)
-        const { data: upserted, error } = await upsertEventSafe(enrichedRow)
+        const { data: upserted, error, isNew } = await upsertEventSafe(enrichedRow)
         if (error) {
           console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)
           skipped++
@@ -279,19 +279,19 @@ export async function runCivicPlusScraper(config) {
 
         if (venueId)        await linkEventVenue(upserted.id, venueId)
         if (organizationId) await linkEventOrganization(upserted.id, organizationId)
-        inserted++
+        if (isNew) inserted++; else updated++
       } catch (err) {
         console.warn(`  ⚠ Error processing "${ev.SUMMARY}":`, err.message)
         skipped++
       }
     }
 
-    await logUpsertResult(source, inserted, 0, skipped, {
+    await logUpsertResult(source, inserted, updated, skipped, {
       eventsFound: allEvents.length,
       durationMs:  Date.now() - start,
     })
-    console.log(`\n✅  ${source} done in ${((Date.now() - start) / 1000).toFixed(1)}s — ${inserted} inserted, ${skipped} skipped`)
-    return { inserted, skipped, eventsFound: allEvents.length }
+    console.log(`\n✅  ${source} done in ${((Date.now() - start) / 1000).toFixed(1)}s — ${inserted} inserted, ${updated} updated, ${skipped} skipped`)
+    return { inserted, updated, skipped, eventsFound: allEvents.length }
   } catch (err) {
     await logScraperError(source, err, start)
     process.exit(1)

@@ -105,7 +105,7 @@ export function defineScraper({ source, label, fetch: fetchItems, parse, venue, 
       const items = await fetchItems()
       console.log(`  Found ${items.length} item(s)`)
 
-      let inserted = 0, skipped = 0
+      let inserted = 0, updated = 0, skipped = 0
 
       for (const item of items) {
         let row
@@ -119,7 +119,7 @@ export function defineScraper({ source, label, fetch: fetchItems, parse, venue, 
         if (!row) { skipped++; continue }
 
         const enriched = await enrichWithImageDimensions(row)
-        const { data: upserted, error } = await upsertEventSafe(enriched)
+        const { data: upserted, error, isNew } = await upsertEventSafe(enriched)
 
         if (error) {
           console.warn(`  ⚠ Upsert failed for "${row.title}": ${error.message}`)
@@ -133,11 +133,11 @@ export function defineScraper({ source, label, fetch: fetchItems, parse, venue, 
         if (rowVenueId) await linkEventVenue(upserted.id, rowVenueId)
         if (rowOrgId)   await linkEventOrganization(upserted.id, rowOrgId)
 
-        inserted++
+        if (isNew) inserted++; else updated++
         console.log(`  ✓ ${row.title}`)
       }
 
-      await logUpsertResult(source, inserted, 0, skipped, {
+      await logUpsertResult(source, inserted, updated, skipped, {
         eventsFound: items.length,
         durationMs:  Date.now() - start,
       })

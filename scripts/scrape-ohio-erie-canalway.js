@@ -44,6 +44,7 @@ import {
   logUpsertResult, logScraperError, htmlToText, stripHtml, decodeEntities,
   easternToIso, inferCategory, enrichWithImageDimensions, upsertEventSafe,
   ensureVenue, ensureOrganization, linkEventVenue, linkEventOrganization,
+  splitCommaLocation,
 } from './lib/normalize.js'
 import { isSummitCountyLocation, SUMMIT_COUNTY_CITIES } from './lib/summit-county.js'
 
@@ -246,11 +247,20 @@ async function main() {
         const ms = Date.parse(startIso)
         if (ms < now - 86_400_000 || ms > cutoff) { skipped++; continue }
 
-        const venueName = detail.location || DEFAULT_VENUE
-        let venueId = venueCache.get(venueName)
+        // The prose "Location:" line often comes comma-joined ("Summit Lake
+        // NorthShore Park, 540 W. South Street, Akron") — split name/address
+        // instead of minting the whole string as a venue name.
+        const rawLocation = detail.location || DEFAULT_VENUE
+        const split = splitCommaLocation(rawLocation)
+        const venueName = split?.name ?? rawLocation
+        let venueId = venueCache.get(rawLocation)
         if (venueId === undefined) {
-          venueId = await ensureVenue(venueName, { city: titleCaseCity(detail.city), state: 'OH' })
-          venueCache.set(venueName, venueId)
+          venueId = await ensureVenue(venueName, {
+            ...(split?.address ? { address: split.address } : {}),
+            city:  titleCaseCity(split?.city ?? detail.city),
+            state: 'OH',
+          })
+          venueCache.set(rawLocation, venueId)
         }
 
         const category = inferCategory(row.title, detail.description || '') || 'other'

@@ -221,6 +221,14 @@ export function parseLocation(locHtml = '') {
     if (name === null) { name = line; continue }
     address = address ? `${address} ${line}` : line
   }
+  // Some listing markups glue a standalone city line onto the "City, ST ZIP"
+  // line with no break between them, yielding a doubled city ("AkronAkron",
+  // observed 2026-07: Anshe Sfard Synagogue). Fold an exact doubling back to
+  // the single form — no real city name is its own duplicate.
+  if (city) {
+    const m = city.match(/^(.+?)\1$/)
+    if (m) city = m[1]
+  }
   return { name, address, city, state, zip }
 }
 
