@@ -19,6 +19,7 @@ import {
   logUpsertResult, logScraperError, stripHtml, enrichWithImageDimensions, upsertEventSafe,
   linkEventVenue, linkEventOrganization, ensureVenue, linkOrganizationVenue,
   parseCostFromTribe, parseTagsFromTribe, ensureOrganization,
+  easternTodayIso,
 } from './lib/normalize.js'
 
 const BASE_URL   = 'https://www.summitmetroparks.org/wp-json/tribe/events/v1/events'
@@ -103,7 +104,7 @@ async function ensureEventVenue(tribeVenue, orgVenueId, organizerId) {
 // ── Fetch ──────────────────────────────────────────────────────────────────
 
 async function fetchAllPages() {
-  const startDate = new Date().toISOString().split('T')[0]
+  const startDate = easternTodayIso()
   const endDate   = new Date(Date.now() + DAYS_AHEAD * 86400_000).toISOString().split('T')[0]
 
   let page    = 1

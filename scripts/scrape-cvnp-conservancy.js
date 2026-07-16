@@ -4,6 +4,14 @@
  * Fetches upcoming events from the Conservancy for Cuyahoga Valley National Park
  * via their WordPress / The Events Calendar (Tribe) REST API.
  *
+ * Summit gate: CVNP straddles the Summit/Cuyahoga county line, and the
+ * Conservancy programs both sides (Canal Exploration Center in Valley View,
+ * Station Road Bridge in Brecksville). Each event's Tribe venue is classified
+ * with classifySummitLocation — 'out' is skipped, 'unknown' publishes as
+ * pending_review, exactly like every other straddling source. This scraper
+ * being first-party does NOT exempt it: the kent_stage/players_guild/
+ * southgate_farm retirements (2026-07-15) were this same hole.
+ *
  * Usage:
  *   node scripts/scrape-cvnp-conservancy.js
  *
@@ -16,10 +24,11 @@ import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
 
 import {
-  logUpsertResult, logScraperError, stripHtml, enrichWithImageDimensions, upsertEventSafe,
+  logUpsertResult, logScraperError, enrichWithImageDimensions, upsertEventSafe,
   linkEventVenue, linkEventOrganization, ensureVenue, linkOrganizationVenue,
-  parseCostFromTribe, parseTagsFromTribe, ensureOrganization,
+  parseCostFromTribe, parseTagsFromTribe, ensureOrganization, easternTodayIso,
 } from './lib/normalize.js'
+import { preloadSummitCountyBoundary, classifySummitLocation } from './lib/summit-county.js'
 
 const BASE_URL   = 'https://www.conservancyforcvnp.org/wp-json/tribe/events/v1/events'
 const PER_PAGE   = 50
@@ -79,7 +88,9 @@ async function ensureEventVenue(tribeVenue, orgVenueId) {
 
   const venueId = await ensureVenue(name, {
     address:       tribeVenue.address ?? null,
-    city:          tribeVenue.city ?? 'Peninsula',
+    // No blind 'Peninsula' default: a coord-less Cuyahoga-side venue would be
+    // mislabeled AND the mislabel would flip the Summit gate to 'in'.
+    city:          tribeVenue.city ?? null,
     state:         tribeVenue.stateprovince ?? 'OH',
     zip:           tribeVenue.zip ?? null,
     lat:           tribeVenue.geo_lat ? parseFloat(tribeVenue.geo_lat) : null,
@@ -96,8 +107,11 @@ async function ensureEventVenue(tribeVenue, orgVenueId) {
 // ── Fetch ──────────────────────────────────────────────────────────────────
 
 async function fetchAllPages() {
-  const startDate = new Date().toISOString().split('T')[0]
-  const endDate   = new Date(Date.now() + DAYS_AHEAD * 86400_000).toISOString().split('T')[0]
+  // ET-anchored "today": the UTC date is already tomorrow between 8pm and
+  // midnight ET, which silently dropped the rest of today's events from
+  // nightly runs in that window.
+  const startDate = easternTodayIso()
+  const endDate   = easternTodayIso(new Date(Date.now() + DAYS_AHEAD * 86400_000))
 
   let page    = 1
   let hasMore = true
@@ -139,21 +153,39 @@ async function fetchAllPages() {
 // ── Process ────────────────────────────────────────────────────────────────
 
 async function processEvents(rawEvents, orgVenueId, organizerId) {
-  let inserted = 0, skipped = 0
+  let inserted = 0, updated = 0, skipped = 0
 
   for (const ev of rawEvents) {
     try {
+      // ── Strict Summit gate ────────────────────────────────────────────────
+      // Classify BEFORE ensureEventVenue so an out-of-county trailhead never
+      // mints a venue row. Events with no Tribe venue fall back to the CVNP
+      // org venue (Boston Mill Visitor Center, Peninsula — in-county).
+      const geo = ev.venue?.venue
+        ? classifySummitLocation({
+            lat:  ev.venue.geo_lat,
+            lng:  ev.venue.geo_lng,
+            city: ev.venue.city,
+          })
+        : 'in'
+      if (geo === 'out') {
+        console.log(`  ⤷ Summit gate: skipping "${ev.title}" at ${ev.venue?.venue} (${ev.venue?.city ?? 'no city'})`)
+        skipped++
+        continue
+      }
+
       const { price_min, price_max } = parseCostFromTribe(ev.cost, ev.cost_details)
       const category = parseCategory(ev.categories, ev.tags)
       const tags     = parseTagsFromTribe(ev.categories, ev.tags, ['national-park', 'cvnp', 'outdoors'])
       const imageUrl = ev.image?.url ?? null
-      const descText = stripHtml(ev.description ?? '')
 
       const venueId = await ensureEventVenue(ev.venue, orgVenueId)
 
       const row = {
         title:           ev.title,
-        description:     descText || null,
+        // Raw HTML — upsertEventSafe's sanitizer uses htmlToText, which keeps
+        // paragraph breaks. Pre-flattening with stripHtml here destroyed them.
+        description:     ev.description || null,
         start_at:        ev.utc_start_date ? ev.utc_start_date.replace(' ', 'T') + 'Z' : null,
         end_at:          ev.utc_end_date   ? ev.utc_end_date.replace(' ', 'T') + 'Z'   : null,
         category,
@@ -165,14 +197,15 @@ async function processEvents(rawEvents, orgVenueId, organizerId) {
         ticket_url:      ev.website || ev.url || null,
         source:          'cvnp_conservancy',
         source_id:       String(ev.id),
-        status:          'published',
+        status:          geo === 'unknown' ? 'pending_review' : 'published',
+        ...(geo === 'unknown' ? { needs_review: true } : {}),
         featured:        ev.featured ?? false,
       }
 
       if (!row.start_at) { skipped++; continue }
 
       const enrichedRow = await enrichWithImageDimensions(row)
-      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
+      const { data: upserted, error, isNew } = await upsertEventSafe(enrichedRow)
 
       if (error) {
         console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)
@@ -180,7 +213,7 @@ async function processEvents(rawEvents, orgVenueId, organizerId) {
       } else {
         await linkEventVenue(upserted.id, venueId)
         await linkEventOrganization(upserted.id, organizerId)
-        inserted++
+        if (isNew) inserted++; else updated++
       }
     } catch (err) {
       console.warn(`  ⚠ Error processing "${ev.title}":`, err.message)
@@ -188,7 +221,7 @@ async function processEvents(rawEvents, orgVenueId, organizerId) {
     }
   }
 
-  return { inserted, skipped }
+  return { inserted, updated, skipped }
 }
 
 // ── Entry point ────────────────────────────────────────────────────────────
@@ -198,6 +231,7 @@ async function main() {
   const start = Date.now()
 
   try {
+    await preloadSummitCountyBoundary()
     const orgVenueId = await ensureOrgVenue()
     const organizerId = await ensureOrganization('Conservancy for Cuyahoga Valley National Park', {
       website:     'https://www.conservancyforcvnp.org',
@@ -209,8 +243,8 @@ async function main() {
     const rawEvents = await fetchAllPages()
     console.log(`\n📥  Processing ${rawEvents.length} events…`)
 
-    const { inserted, skipped } = await processEvents(rawEvents, orgVenueId, organizerId)
-    await logUpsertResult('cvnp_conservancy', inserted, 0, skipped, {
+    const { inserted, updated, skipped } = await processEvents(rawEvents, orgVenueId, organizerId)
+    await logUpsertResult('cvnp_conservancy', inserted, updated, skipped, {
       eventsFound: rawEvents.length,
       durationMs:  Date.now() - start,
     })

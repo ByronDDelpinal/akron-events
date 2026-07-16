@@ -38,7 +38,8 @@ export const SCRAPERS = [
   { key: 'summit_artspace',       script: 'scripts/scrape-summit-artspace.js',        label: 'Summit Artspace',              group: 'wordpress',      active: true  },
   { key: 'summit_metro_parks',    script: 'scripts/scrape-summit-metro-parks.js',      label: 'Summit Metro Parks',           group: 'custom',         active: true  },
   { key: 'cvnp_conservancy',      script: 'scripts/scrape-cvnp-conservancy.js',        label: 'CVNP Conservancy',             group: 'custom',         active: true  },
-  { key: 'players_guild',         script: 'scripts/scrape-players-guild.js',           label: 'Players Guild Theatre',      group: 'wordpress',      active: true  },
+  // Retired 2026-07-15 — Canton (Stark County). Outside Summit; see dataSources notes.
+  { key: 'players_guild',         script: 'scripts/scrape-players-guild.js',           label: 'Players Guild Theatre',      group: 'wordpress',      active: false },
   { key: 'uakron_calendar',       script: 'scripts/scrape-uakron-calendar.js',         label: 'University of Akron',          group: 'custom',         active: true  },
   { key: 'rubberducks',           script: 'scripts/scrape-rubberducks.js',             label: 'Akron RubberDucks',            group: 'custom',         active: true  },
   { key: 'nightlight_cinema',     script: 'scripts/scrape-nightlight.js',              label: 'The Nightlight Cinema',        group: 'custom',         active: true  },
@@ -51,7 +52,8 @@ export const SCRAPERS = [
   { key: 'missing_falls',        script: 'scripts/scrape-missing-falls.js',           label: 'Missing Falls Brewery',        group: 'custom',         active: true  },
   { key: 'akronym_brewing',      script: 'scripts/scrape-akronym.js',                 label: 'Akronym Brewing',              group: 'custom',         active: true  },
   { key: 'rialto',               script: 'scripts/scrape-rialto.js',                  label: 'The Rialto Theatre',           group: 'squarespace',    active: true  },
-  { key: 'kent_stage',           script: 'scripts/scrape-kent-stage.js',              label: 'The Kent Stage',                 group: 'custom',         active: true  },
+  // Retired 2026-07-15 — Kent (Portage County). Outside Summit; see dataSources notes.
+  { key: 'kent_stage',           script: 'scripts/scrape-kent-stage.js',              label: 'The Kent Stage',                 group: 'custom',         active: false },
   { key: 'highland_square_theatre', script: 'scripts/scrape-highland-square-theatre.js', label: 'Highland Square Theatre',  group: 'custom',         active: true  },
   { key: 'killbox_comedy',       script: 'scripts/scrape-killbox-comedy.js',          label: 'KillBox Comedy Club',          group: 'custom',         active: true  },
 
@@ -82,7 +84,8 @@ export const SCRAPERS = [
   { key: 'akron_childrens_museum', script: 'scripts/scrape-akron-childrens-museum.js', label: 'Akron Children\'s Museum',   group: 'drupal',         active: true  },
   { key: 'akron_makerspace',     script: 'scripts/scrape-akron-makerspace.js',        label: 'Akron Makerspace',             group: 'wordpress',      active: true, defaultCategory: 'learning' },
   { key: 'akron_soul_train',     script: 'scripts/scrape-akron-soul-train.js',        label: 'Akron Soul Train',             group: 'wix',            active: true, defaultCategory: 'visual-art' },
-  { key: 'southgate_farm',       script: 'scripts/scrape-southgate-farm.js',          label: 'Southgate Farm',               group: 'wix',            active: true, defaultCategory: 'outdoors' },
+  // Retired 2026-07-15 — North Canton (Stark County). Outside Summit; see dataSources notes.
+  { key: 'southgate_farm',       script: 'scripts/scrape-southgate-farm.js',          label: 'Southgate Farm',               group: 'wix',            active: false, defaultCategory: 'outdoors' },
   { key: 'helens_studio',        script: 'scripts/scrape-helens-studio.js',           label: "Helen's Ceramic and Art Studio", group: 'wix',          active: true, defaultCategory: 'visual-art' },
   { key: 'north_hill_cdc',       script: 'scripts/scrape-north-hill-cdc.js',          label: 'North Hill CDC',               group: 'ics',            active: true  },
   { key: 'akron_pride',          script: 'scripts/scrape-akron-pride.js',             label: 'Akron Pride Festival',         group: 'ics',            active: true, defaultCategory: 'festival' },

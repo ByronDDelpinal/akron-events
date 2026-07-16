@@ -28,6 +28,7 @@ import {
   ensureVenue,
   ensureOrganization,
   easternToIso,
+  easternTodayIso,
 } from './lib/normalize.js'
 
 const SOURCE_URL = 'https://www.akronzoo.org/events?field_event_categories_target_id=All'
@@ -406,7 +407,7 @@ function parseEvents(html) {
   }
 
   // Filter out past events
-  const today = new Date().toISOString().split('T')[0]
+  const today = easternTodayIso()
   return events.filter(ev => ev.dateStr && ev.dateStr >= today)
 }
 

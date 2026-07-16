@@ -5,8 +5,8 @@
  * logic that decides which ~14 events go in each email. These import the
  * real module (Node strips the TS types) and assert the properties we
  * actually care about: temporal spread, organizer diversity, the cap,
- * determinism + daily rotation, the tail, the today-only case, and the
- * reserved featured hero.
+ * determinism + daily rotation, the today-only case, the reserved
+ * featured hero, and the image gate on rich cards.
  *
  * Run:  node --test scripts/tests/test-digest-selection.js
  */
@@ -29,16 +29,21 @@ const {
   filterEventsForSubscriber,
   MAX_EVENTS_PER_EMAIL,
   MAX_PER_ORG,
-  TAIL_EVENT_COUNT,
   orgKey,
   eventPath,
+  hasImage,
 } = await import(SELECT)
 
 const NOW = new Date('2026-06-15T08:00:00Z')
 
 // Build an event `dayOffset` days after NOW. Defaults make a "plain"
-// event (no free/image/ticket/description weight) so scoring ties unless
-// a test opts into signals — that keeps jitter-driven tests meaningful.
+// event (no free/ticket/description weight) so scoring ties unless a test
+// opts into signals — that keeps jitter-driven tests meaningful.
+//
+// An image IS present by default: it's a hard gate for rich cards, not a
+// scored signal, so an image-less event is simply not pick-eligible and
+// would make every selection test here trivially empty. Opt out with
+// `{ image: false }` to exercise the gate itself.
 function ev(id, dayOffset, opts = {}) {
   const d = new Date(NOW)
   d.setUTCDate(d.getUTCDate() + dayOffset)
@@ -57,7 +62,7 @@ function ev(id, dayOffset, opts = {}) {
     price_min: opts.free ? 0 : (opts.price_min ?? 10),
     price_max: opts.free ? 0 : (opts.price_max ?? 20),
     age_restriction: 'all_ages',
-    image_url: opts.image ? 'https://x/i.png' : null,
+    image_url: opts.image === false ? null : 'https://x/i.png',
     ticket_url: opts.ticket ? 'https://x/t' : null,
     featured: !!opts.featured,
     venues: [{ name: opts.venue ?? `V${id}`, address: null, lat: null, lng: null, image_url: null }],
@@ -133,14 +138,6 @@ describe('digest selection', () => {
     assert.notDeepEqual(a1.slice().sort(), b.slice().sort(), 'a different day should rotate the sample')
   })
 
-  it('returns a tail that is disjoint from picks and capped', () => {
-    const events = Array.from({ length: 60 }, (_, i) => ev(i, i % 20, { org: `org-${i}` }))
-    const { picks, tail } = selectDigestEvents(events, sub(), NOW)
-    assert.ok(tail.length <= TAIL_EVENT_COUNT)
-    const pickIds = new Set(picks.map(e => e.id))
-    assert.ok(tail.every(e => !pickIds.has(e.id)), 'tail must not repeat a pick')
-  })
-
   it('today-only window returns same-day picks within the org cap', () => {
     const events = []
     let id = 0
@@ -168,6 +165,81 @@ describe('digest selection', () => {
     const { picks } = selectDigestEvents(events, sub(), NOW)
     const times = picks.map(e => new Date(e.start_at).getTime())
     assert.deepEqual(times, times.slice().sort((a, b) => a - b))
+  })
+})
+
+// Rich cards render an <img>; with no resolvable image the card falls back
+// to a category-colored gradient placeholder, which reads as a design bug
+// in the inbox. These lock the gate that prevents that.
+describe('digest image gate', () => {
+  it('never puts an image-less event in the picks', () => {
+    const events = [
+      ...Array.from({ length: 6 }, (_, i) => ev(`img-${i}`, i, { org: `org-${i}` })),
+      ...Array.from({ length: 6 }, (_, i) => ev(`no-img-${i}`, i, { org: `bare-${i}`, image: false })),
+    ]
+    const { picks } = selectDigestEvents(events, sub(), NOW)
+    assert.ok(picks.length > 0, 'sanity: the image-having events should still be picked')
+    assert.ok(picks.every(hasImage), 'every pick must have a resolvable image')
+    assert.ok(!picks.some(e => String(e.id).startsWith('no-img')), 'no image-less event may appear as a card')
+  })
+
+  // Regression: "Feast of Santo Stefano" (2026-07-15) shipped as the hero
+  // with a bare FESTIVAL gradient block. It was featured:true with no
+  // image on the event, its venue, or its organizer. hasImage was only a
+  // +6 score, so with nothing to outrank it the hero slot took it anyway.
+  it('does not promote an image-less featured event to hero', () => {
+    const events = [
+      ...Array.from({ length: 8 }, (_, i) => ev(`plain-${i}`, i, { org: `org-${i}` })),
+      ev('BARE-HERO', 3, { featured: true, org: 'carovillese', image: false }),
+    ]
+    const { picks } = selectDigestEvents(events, sub(), NOW)
+    assert.ok(!picks.some(e => e.id === 'BARE-HERO'), 'an image-less featured event must not become a card')
+  })
+
+  it('still prefers a featured event for hero when it does have an image', () => {
+    const events = [
+      ...Array.from({ length: 8 }, (_, i) => ev(`plain-${i}`, i, { org: `org-${i}` })),
+      ev('GOOD-HERO', 3, { featured: true, org: 'hero-org' }),
+    ]
+    const { picks } = selectDigestEvents(events, sub(), NOW)
+    assert.ok(picks.some(e => e.id === 'GOOD-HERO'), 'a featured event WITH an image is still the hero')
+  })
+
+  // With the plain-text tail removed (2026-07-15), the card gate is the
+  // email's only door — an image-less event has nowhere left to appear.
+  it('keeps image-less events out of the email entirely', () => {
+    const events = [
+      ...Array.from({ length: 20 }, (_, i) => ev(`img-${i}`, i % 10, { org: `org-${i}` })),
+      ev('BARE', 2, { org: 'bare-org', image: false }),
+    ]
+    const selection = selectDigestEvents(events, sub(), NOW)
+    assert.ok(!selection.picks.some(e => e.id === 'BARE'), 'image-less event must not be a card')
+    assert.deepEqual(Object.keys(selection), ['picks'], 'selection exposes picks only — no tail to leak into')
+  })
+
+  it('returns no picks when nothing has an image, so the caller skips the send', () => {
+    const events = Array.from({ length: 10 }, (_, i) => ev(i, i, { org: `org-${i}`, image: false }))
+    const { picks } = selectDigestEvents(events, sub(), NOW)
+    assert.equal(picks.length, 0, 'an all-placeholder email must not be assembled at all')
+  })
+
+  it('resolves an image through the venue and organizer fallback chain', () => {
+    const viaVenue = ev('V', 1, { image: false })
+    viaVenue.venues[0].image_url = 'https://x/venue.png'
+    assert.ok(hasImage(viaVenue), 'venue image should satisfy the gate')
+
+    const viaOrg = ev('O', 1, { image: false })
+    viaOrg.organizations[0].image_url = 'https://x/org.png'
+    assert.ok(hasImage(viaOrg), 'organizer image should satisfy the gate')
+
+    const none = ev('N', 1, { image: false })
+    assert.ok(!hasImage(none), 'no image anywhere in the chain fails the gate')
+
+    // Mirrors resolveEventImage()'s http(s) test in index.ts — a relative
+    // or junk path is not a usable <img src> in an email client.
+    const relative = ev('R', 1, { image: false })
+    relative.image_url = '/local/path.png'
+    assert.ok(!hasImage(relative), 'non-http(s) src must not satisfy the gate')
   })
 })
 

@@ -36,7 +36,7 @@ For Eventbrite, the `oh--akron` slug is Eventbrite's own place identifier. Find 
 
 ### Timezone
 
-Event times are normalized to **US Eastern** in `scripts/lib/normalize.js` (`easternToIso()` and `isEasternDST()`, around the "EASTERN TIMEZONE CONVERSION" section). The DST rules there are US-specific (2nd Sunday in March → 1st Sunday in November).
+Event times are normalized to **US Eastern** in `scripts/lib/normalize.js` (`easternToIso()`, around the "EASTERN TIMEZONE CONVERSION" section). DST offsets are resolved via `Intl.DateTimeFormat` with the `America/New_York` zone, so adapting to another region means swapping the zone name.
 
 - **If your city is also US Eastern:** no change needed.
 - **If it's another US timezone:** adjust the UTC offsets in `easternToIso()` (the DST *dates* are the same across US zones, only the offset differs).

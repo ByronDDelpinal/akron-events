@@ -27,6 +27,7 @@ import {
   ensureOrganization,
   linkOrganizationVenue,
   easternToIso,
+  easternTodayIso,
 } from './lib/normalize.js'
 
 const API_BASE   = 'https://services.akronlibrary.org/eeventcaldata'
@@ -244,7 +245,7 @@ async function ensureOrganizer() {
 // ── Fetch ─────────────────────────────────────────────────────────────────
 
 async function fetchEvents() {
-  const startDate = new Date().toISOString().split('T')[0]
+  const startDate = easternTodayIso()
   console.log(`\n🔍  Fetching library events for next ${DAYS_AHEAD} days…`)
 
   const req = JSON.stringify({

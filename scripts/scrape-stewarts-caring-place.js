@@ -37,6 +37,7 @@ import {
   enrichWithImageDimensions, upsertEventSafe, linkEventVenue, linkEventOrganization,
   ensureVenue, ensureOrganization, linkOrganizationVenue,
   parseCostFromTribe, parseTagsFromTribe,
+  easternTodayIso,
 } from './lib/normalize.js'
 import { isSummitCountyLocation } from './lib/summit-county.js'
 
@@ -142,7 +143,7 @@ async function ensureEventVenue(tribeVenue, fallbackVenueId) {
 // ── Fetch all pages ──────────────────────────────────────────────────────────
 
 async function fetchAllPages() {
-  const startDate = new Date().toISOString().split('T')[0]
+  const startDate = easternTodayIso()
   const endDate   = new Date(Date.now() + DAYS_AHEAD * 86400_000).toISOString().split('T')[0]
 
   let page = 1, hasMore = true

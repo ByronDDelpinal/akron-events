@@ -31,12 +31,14 @@
  */
 
 import 'dotenv/config'
+import { pathToFileURL } from 'node:url'
 import {
   stripHtml,
   inferCategory,
   ensureVenue,
   ensureOrganization,
   linkOrganizationVenue,
+  easternToIso,
 } from './lib/normalize.js'
 import { defineScraper } from './lib/scraper-runner.js'
 import { fetchRenderedHtml } from './lib/puppeteer.js'
@@ -173,17 +175,35 @@ function mapTags(title = '') {
 
 const _startOfRun = Date.now()
 
+/**
+ * JSON-LD datetime → ISO UTC. 330tix emits explicit TZ offsets today
+ * ("2026-08-01T19:00:00-04:00"), which `new Date()` handles unambiguously.
+ * If they ever drop to offset-less local ISO, naive parsing would silently
+ * shift every time by the runner's UTC offset — so offset-less strings are
+ * instead interpreted as Eastern wall time (the venue's zone).
+ */
+function ldDateToIso(raw) {
+  if (!raw) return null
+  const s = String(raw).trim()
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(s)
+  if (hasZone) {
+    const d = new Date(s)
+    return Number.isNaN(d.getTime()) ? null : d.toISOString()
+  }
+  return easternToIso(s)
+}
+
 export function parseEvent(ld) {
   const title = decodeEntities(ld.name)
   if (!title) return null
 
-  const startAt = ld.startDate ? new Date(ld.startDate).toISOString() : null
+  const startAt = ldDateToIso(ld.startDate)
   if (!startAt) return null
 
   // Past-event guard (1-day grace period)
   if (new Date(startAt).getTime() < _startOfRun - 86_400_000) return null
 
-  const endAt = ld.endDate ? new Date(ld.endDate).toISOString() : null
+  const endAt = ldDateToIso(ld.endDate)
 
   const rawDesc     = typeof ld.description === 'string' ? ld.description : null
   const description = rawDesc ? stripHtml(decodeEntities(rawDesc)).slice(0, 2000) : null
@@ -255,4 +275,9 @@ const { run } = defineScraper({
   },
 })
 
-run()
+// Run only when invoked directly (`node scripts/scrape-get-away-with-murder.js`).
+// This file exports parseEvent for tests — an unguarded run() here meant any
+// `import { parseEvent }` triggered a live fetch plus DB writes.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  run()
+}

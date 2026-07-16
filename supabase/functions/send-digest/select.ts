@@ -59,10 +59,11 @@ export interface Subscriber {
 }
 
 // ── Selection tuning ─────────────────────────────────────────────────
-// Rich image-card "picks" at the top of the email.
+// Rich image-card "picks" — the entire body of the email. There is no
+// plain-text tail: an "also coming up" list used to run under the picks,
+// removed 2026-07-15 as unhelpful filler. Everything that ships now is a
+// card, which means every event in the email has a real image.
 export const MAX_EVENTS_PER_EMAIL = 14
-// Plain-text "also coming up" list rendered after the picks.
-export const TAIL_EVENT_COUNT = 8
 // Diversity cap: at most this many picks from one organizer/venue, so a
 // single high-volume org can't crowd out the rest of the region.
 export const MAX_PER_ORG = 2
@@ -70,9 +71,16 @@ export const MAX_PER_ORG = 2
 // Quality weights. Stable, audience-appropriate signals — kept small and
 // named so they're easy to tune and assert on. Featured events are
 // handled separately (they become the hero card), not scored here.
+//
+// NOTE: there is deliberately no `hasImage` weight. Having an image is a
+// HARD GATE on rich cards (see selectDigestEvents), not a preference — so
+// every event scored here already has one, and a weight would add the
+// same constant to all of them. It previously lived here as `hasImage: 6`,
+// which could only ever *rank* an image-less event lower, never exclude
+// it: that's how a featured event with no image became a hero card
+// rendering a bare gradient placeholder. A score cannot express "never".
 export const SCORE = {
   free: 8,        // free events are a headline feature for this audience
-  hasImage: 6,    // a real image makes the card carry visual weight
   described: 3,   // a non-trivial description signals a complete listing
   ticketed: 2,    // a ticket link signals a "real", actionable event
   jitter: 4,      // seeded rotation: breaks ties + freshens day to day
@@ -227,7 +235,14 @@ function isFree(e: Event): boolean {
   return e.price_min === 0 && (e.price_max == null || e.price_max === 0)
 }
 
-function hasImage(e: Event): boolean {
+/**
+ * True when a real image resolves for this event. MUST stay in lockstep
+ * with resolveEventImage() in index.ts — same event → venue → organizer
+ * chain, same http(s) test. If these two ever disagree, the digest will
+ * either gate out events it could have rendered, or (worse) admit an
+ * event whose card then falls back to the gradient placeholder.
+ */
+export function hasImage(e: Event): boolean {
   const urls = [e.image_url, e.venues?.[0]?.image_url, e.organizations?.[0]?.image_url]
   return urls.some((u) => !!u && /^https?:\/\//i.test(u))
 }
@@ -235,7 +250,6 @@ function hasImage(e: Event): boolean {
 function baseScore(e: Event): number {
   let s = 0
   if (isFree(e)) s += SCORE.free
-  if (hasImage(e)) s += SCORE.hasImage
   if (e.description && e.description.trim().length > 40) s += SCORE.described
   if (e.ticket_url) s += SCORE.ticketed
   return s
@@ -307,7 +321,6 @@ const dayKeyOf = (iso: string): string =>
 
 export interface DigestSelection {
   picks: Event[]   // the rich-card events (≤ MAX_EVENTS_PER_EMAIL), chronological
-  tail: Event[]    // the plain "also coming up" list (≤ TAIL_EVENT_COUNT)
 }
 
 /**
@@ -326,10 +339,22 @@ export interface DigestSelection {
  *   - Backfill (relaxing the org cap) only if slots remain, so we never
  *     ship a needlessly thin email.
  *
+ * Only events with a resolvable image are eligible — see the gate below.
+ *
  * Pure and deterministic given (matched, sub.id, now's date).
  */
 export function selectDigestEvents(matched: Event[], sub: Subscriber, now: Date): DigestSelection {
-  if (matched.length === 0) return { picks: [], tail: [] }
+  if (matched.length === 0) return { picks: [] }
+
+  // Every event in the email is a rich card, and a card renders an <img>.
+  // With no resolvable image a card falls back to a category-colored
+  // gradient placeholder, which reads as a broken design in the inbox — so
+  // an image is a hard gate here, never merely a score.
+  //
+  // Since the plain-text tail was removed, this gate is now the email's
+  // only door: an event with no image does not appear at all. If nothing
+  // is eligible, picks comes back empty and the caller skips the send.
+  const cardEligible = matched.filter(hasImage)
 
   const seedBase = hashSeed(`${sub.id}:${dayKeyOf(now.toISOString())}`)
   const score = (e: Event): number => baseScore(e) + jitter(seedBase, e.id) * SCORE.jitter
@@ -348,13 +373,16 @@ export function selectDigestEvents(matched: Event[], sub: Subscriber, now: Date)
     return true
   }
 
-  // 1) Hero — the best featured event renders the hero card.
-  const featured = matched.filter(e => e.featured).sort((a, b) => score(b) - score(a))
+  // 1) Hero — the best featured event WITH an image renders the hero card.
+  //    A featured event with no image is not promoted to hero, and since
+  //    the tail is gone it does not appear in the email at all. `featured`
+  //    is a request for prominence, not a bypass of the image gate.
+  const featured = cardEligible.filter(e => e.featured).sort((a, b) => score(b) - score(a))
   if (featured.length) take(featured[0])
 
   // 2) Bucket the remaining events by day, best-first within each day.
   const byDay = new Map<string, Event[]>()
-  for (const e of matched) {
+  for (const e of cardEligible) {
     if (used.has(e.id)) continue
     const key = dayKeyOf(e.start_at)
     if (!byDay.has(key)) byDay.set(key, [])
@@ -384,7 +412,7 @@ export function selectDigestEvents(matched: Event[], sub: Subscriber, now: Date)
   //    the org cap. This recovers diverse events on days the even
   //    sampling skipped, before we ever relax diversity.
   if (picks.length < MAX_EVENTS_PER_EMAIL) {
-    for (const e of matched) {
+    for (const e of cardEligible) {
       if (picks.length >= MAX_EVENTS_PER_EMAIL) break
       take(e)
     }
@@ -393,7 +421,7 @@ export function selectDigestEvents(matched: Event[], sub: Subscriber, now: Date)
   // 5) Last resort: only if a handful of orgs dominate the entire window
   //    and we're still short, relax the cap so we never ship a thin email.
   if (picks.length < MAX_EVENTS_PER_EMAIL) {
-    for (const e of matched) {
+    for (const e of cardEligible) {
       if (picks.length >= MAX_EVENTS_PER_EMAIL) break
       if (!used.has(e.id)) { picks.push(e); used.add(e.id) }
     }
@@ -402,11 +430,5 @@ export function selectDigestEvents(matched: Event[], sub: Subscriber, now: Date)
   // Chronological order for the day-grouped layout.
   picks.sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
 
-  // 6) Tail — soonest matched events we didn't pick.
-  const tail = matched
-    .filter(e => !used.has(e.id))
-    .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
-    .slice(0, TAIL_EVENT_COUNT)
-
-  return { picks, tail }
+  return { picks }
 }

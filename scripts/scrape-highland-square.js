@@ -40,6 +40,7 @@ import {
   ensureOrganization,
   linkOrganizationVenue,
   easternToIso,
+  easternTodayIso,
 } from './lib/normalize.js'
 
 const SOURCE_KEY = 'highland_square'
@@ -131,7 +132,7 @@ async function main() {
       process.exit(0)
     }
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = easternTodayIso()
     if (ev.dateStr < today) {
       console.log(`  Found PorchROKR ${ev.dateStr} but it is in the past — nothing to ingest.`)
       await logUpsertResult(SOURCE_KEY, 0, 0, 0, { eventsFound: 1, durationMs: Date.now() - start })

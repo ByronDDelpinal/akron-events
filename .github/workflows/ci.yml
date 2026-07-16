@@ -1,11 +1,19 @@
 # CI — runs on every PR and every push to main.
 #
-# Four gates, in fail-fast order (cheapest first):
-#   1. lint       — ESLint over scripts/ (Node scrapers + tooling)
-#   2. lint:src   — ESLint over src/ (React + TypeScript)
-#   3. typecheck  — tsc --noEmit
-#   4. test       — node --test scripts/tests/ (1,200+ assertions, fixture-based, no network)
-#   5. build      — vite build (catches import/bundling breakage tsc can't see)
+# Six gates, in fail-fast order (cheapest first):
+#   1. lint                — ESLint over scripts/ (Node scrapers + tooling)
+#   2. lint:src            — ESLint over src/ (React + TypeScript)
+#   3. typecheck           — tsc --noEmit  (tsconfig include is ['src'] ONLY)
+#   4. typecheck:functions — deno check over supabase/functions/
+#   5. test                — node --test scripts/tests/ (3,600+ assertions, fixture-based, no network)
+#   6. build               — vite build (catches import/bundling breakage tsc can't see)
+#
+# Gate 4 exists because gate 3 cannot see the edge functions: tsc's include
+# is ['src'], and the functions are Deno (remote https: imports, Deno globals)
+# so tsc could not check them even if pointed at them. Until this was added,
+# supabase/functions/ — the code that mails every subscriber — was checked by
+# nothing, and had accumulated real type errors on main, including a silently
+# dropped Reply-To header on every outbound email.
 #
 # npm ci uses --ignore-scripts to skip the puppeteer postinstall (a full
 # Chrome download). No CI check needs a browser; scraper tests run against
@@ -50,6 +58,16 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      # Deno, not Node: the edge functions import over https: and use Deno
+      # globals, so they need the Deno toolchain to typecheck at all.
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Typecheck edge functions
+        run: npm run typecheck:functions
 
       - name: Test
         run: npm test

@@ -119,7 +119,11 @@ function base64urlEncode(bytes: Uint8Array): string {
   return s.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-function base64urlDecode(s: string): Uint8Array {
+// Returns Uint8Array<ArrayBuffer> (not the default Uint8Array<ArrayBufferLike>)
+// so the result satisfies BufferSource at the crypto.subtle.verify call below.
+// The array really is ArrayBuffer-backed — `new Uint8Array(len)` always is —
+// so this narrows the type to the truth rather than casting past it.
+function base64urlDecode(s: string): Uint8Array<ArrayBuffer> {
   const pad = s.length % 4 === 0 ? '' : '='.repeat(4 - (s.length % 4))
   const b64 = s.replace(/-/g, '+').replace(/_/g, '/') + pad
   const bin = atob(b64)
@@ -463,7 +467,12 @@ async function handleNotify(req: Request): Promise<Response> {
   const response = await resend.emails.send({
     from: THEME.from,
     to: ADMIN_NOTIFY_EMAIL,
-    reply_to: ctx.organizer_email || THEME.replyTo,
+    // replyTo (camelCase) is the Resend SDK's field name; it maps this to
+    // the API's `reply_to` on the wire. Passing snake_case here is NOT an
+    // alias — the SDK ignores unknown keys, so the header is dropped
+    // silently and replies fall back to `from`. That's what happened here:
+    // "reply to the organizer" was landing back on digest@ instead.
+    replyTo: ctx.organizer_email || THEME.replyTo,
     subject,
     html: emailHtml,
   })

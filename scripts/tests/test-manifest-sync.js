@@ -14,6 +14,15 @@
  *   4. Manifest-backed entries must NOT carry an inline `label:` — labels are
  *      derived from the manifest so they can never disagree.
  *   5. Every manifest `script` path must point at a real file.
+ *   6. `manifest.active` must agree with the page's `status`: an active
+ *      scraper may not be described as retired/paused, and a deactivated one
+ *      may not claim to be active/degraded. This is the axis the 2026-07-15
+ *      first-party retirements changed, and the one axis nothing checked —
+ *      a flip on one side sailed through CI while the Technical page lied.
+ *   7. Every SOURCE_PRIORITY key in dedupe-cross-source.js must be a real
+ *      source key (manifest or sub-source). Stale keys are silently void:
+ *      akronym/jillys/nightlight sat there for months as short forms of the
+ *      real keys and never ranked anything.
  *
  * dataSources.ts is TypeScript, which node can't import, so the registry keys
  * are extracted textually (same approach as test-category-constraint-sync.js).
@@ -26,6 +35,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { SCRAPERS } from '../manifest.js'
+import { SOURCE_PRIORITY } from '../dedupe-cross-source.js'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const src = fs.readFileSync(path.join(ROOT, 'src/lib/dataSources.ts'), 'utf8')
@@ -52,6 +62,7 @@ for (const entry of dsBlock.split(/\n {2}\{\n/).slice(1)) {
     key,
     hasSubOf: /subOf:\s*'/.test(entry),
     hasInlineLabel: /label:\s*['"]/.test(entry),
+    status: entry.match(/status:\s*'([^']+)'/)?.[1] ?? null,
   })
 }
 // Keys are usually bare identifiers, but keys that aren't valid JS identifiers
@@ -95,5 +106,26 @@ describe('manifest ↔ dataSources sync', () => {
 
   it('manifest keys are unique', () => {
     assert.equal(manifestKeys.size, SCRAPERS.length)
+  })
+
+  it('manifest active flag agrees with dataSources status', () => {
+    // 'retired'/'paused' are the only statuses a deactivated scraper may
+    // carry; 'active'/'degraded' both mean the scraper still runs.
+    const INACTIVE_STATUSES = new Set(['retired', 'paused'])
+    const statusByKey = new Map(dsEntries.map((e) => [e.key, e.status]))
+    const drift = []
+    for (const s of SCRAPERS) {
+      const status = statusByKey.get(s.key)
+      if (!status) continue // missing entries are caught by the sync tests above
+      if (Boolean(s.active) === INACTIVE_STATUSES.has(status)) {
+        drift.push(`${s.key}: manifest active:${Boolean(s.active)} vs dataSources status:'${status}'`)
+      }
+    }
+    assert.deepEqual(drift, [], `active/status drift (fix manifest.js or dataSources.ts): ${drift.join('; ')}`)
+  })
+
+  it('every SOURCE_PRIORITY key is a real source key', () => {
+    const stale = SOURCE_PRIORITY.filter((k) => !manifestKeys.has(k) && !dsKeys.has(k))
+    assert.deepEqual(stale, [], `SOURCE_PRIORITY keys with no manifest/sub-source entry (stale — silently void): ${stale.join(', ')}`)
   })
 })

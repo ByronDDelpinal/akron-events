@@ -472,8 +472,10 @@ describe('Library: Event Normalization', () => {
   it('handles DST boundary times', () => {
     const row = normalizeLibraryEvent(DST_BOUNDARY_EVENT)
     assert.ok(row)
-    // March 8, 2026 1:30 AM — DST transition day, treated as EDT → UTC-4 → 05:30 UTC
-    assert.equal(row.start_at, '2026-03-08T05:30:00.000Z')
+    // March 8, 2026 1:30 AM — DST starts at 2:00 AM local, so 1:30 is still
+    // EST (UTC-5) → 06:30 UTC. (The old arithmetic DST check treated the
+    // whole transition day as EDT and produced 05:30Z, one hour early.)
+    assert.equal(row.start_at, '2026-03-08T06:30:00.000Z')
     assert.equal(row.category, 'art') // 'arts & crafts' → art
   })
 

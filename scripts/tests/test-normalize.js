@@ -23,13 +23,87 @@ const {
   stripHtml,
   htmlToText,
   easternToIso,
+  easternTodayIso,
+  decodeEntities,
   sanitizeEventText,
   parseCostFromTribe,
   parseTagsFromTribe,
   parseEventbritePrice,
   canonicalVenueName,
+  orgNameKey,
   titleCaseIfShouting,
 } = await import('../lib/normalize.js')
+
+describe('orgNameKey', () => {
+  it('folds a leading "The" so "The X" and "X" resolve to one org', () => {
+    // The real split: Eventbrite says "The Conservancy for …", our first-party
+    // CVNP scraper says "Conservancy for …" — two rows for one org.
+    assert.equal(
+      orgNameKey('The Conservancy for Cuyahoga Valley National Park'),
+      orgNameKey('Conservancy for Cuyahoga Valley National Park'))
+    assert.equal(orgNameKey('The Peninsula Foundation'), orgNameKey('Peninsula Foundation'))
+  })
+
+  it('folds case-only variants', () => {
+    assert.equal(orgNameKey('The Stray Cats'), orgNameKey('THE STRAY CATS'))
+  })
+
+  it('collapses whitespace', () => {
+    assert.equal(orgNameKey('  Akron   Marathon  '), orgNameKey('Akron Marathon'))
+  })
+
+  it('decodes HTML entities', () => {
+    assert.equal(orgNameKey('Bounce &amp; Co.'), orgNameKey('Bounce & Co.'))
+  })
+
+  it('only strips "The" at the START, not mid-name', () => {
+    assert.equal(orgNameKey('Friends of The Mill'), 'friends of the mill')
+  })
+
+  it('keeps genuinely different orgs apart (does NOT strip punctuation)', () => {
+    // Over-folding would silently merge two real orgs — worse than a dupe.
+    assert.notEqual(orgNameKey("Art's Core"), orgNameKey('Arts Core'))
+    assert.notEqual(orgNameKey('Akron Pride'), orgNameKey('Akron Pride Festival'))
+  })
+
+  it('handles empty / nullish input', () => {
+    assert.equal(orgNameKey(''), '')
+    assert.equal(orgNameKey(null), '')
+    assert.equal(orgNameKey(undefined), '')
+    assert.equal(orgNameKey('   '), '')
+  })
+})
+
+describe('decodeEntities', () => {
+  it('decodes astral (emoji) numeric entities without surrogate corruption', () => {
+    // fromCharCode truncated code points above 0xFFFF into a lone surrogate.
+    assert.equal(decodeEntities('Party &#128512; time'), 'Party \u{1F600} time')
+    assert.equal(decodeEntities('&#x1F389;'), '\u{1F389}')
+  })
+
+  it('decodes named entities containing digits (&frac12;)', () => {
+    // The old /&([a-zA-Z]+);/ regex could not match digit-bearing names.
+    assert.equal(decodeEntities('5&frac12; hours'), '5½ hours')
+  })
+
+  it('leaves out-of-range numeric references verbatim instead of throwing', () => {
+    assert.equal(decodeEntities('&#1114112;'), '&#1114112;') // 0x110000 > max
+  })
+})
+
+describe('easternTodayIso', () => {
+  it('returns the EASTERN calendar date, not the UTC one', () => {
+    // 2026-07-15 23:30 ET = 2026-07-16 03:30 UTC — the UTC shortcut says
+    // "tomorrow", which silently dropped the rest of today's events from
+    // late-evening scrape runs.
+    const lateEvening = new Date('2026-07-16T03:30:00Z')
+    assert.equal(easternTodayIso(lateEvening), '2026-07-15')
+  })
+
+  it('matches the UTC date when both zones agree', () => {
+    assert.equal(easternTodayIso(new Date('2026-07-15T15:00:00Z')), '2026-07-15')
+  })
+})
 
 describe('canonicalVenueName', () => {
   it('folds known venue-name variants onto the canonical name (case/space-insensitive)', () => {
@@ -155,12 +229,18 @@ describe('easternToIso', () => {
   })
 
   it('handles DST spring-forward boundary (March 8, 2026)', () => {
-    // March 8 2026 is the 2nd Sunday of March — DST starts at 2:00 AM.
-    // Our algorithm approximates by checking if the date falls in the DST
-    // window (2nd Sun Mar – 1st Sun Nov). Since March 8 IS the transition
-    // day and the function sees it as DST, 1:30 AM → UTC-4 → 05:30 UTC.
+    // March 8 2026 is the 2nd Sunday of March — DST starts at 2:00 AM LOCAL.
+    // 1:30 AM is therefore still EST (UTC-5) → 06:30 UTC. The old arithmetic
+    // approximation put the boundary at UTC midnight of the transition day
+    // and converted this as EDT (05:30Z, one hour early); the Intl-based
+    // converter resolves the offset from the real zone rules.
     const result = easternToIso('2026-03-08 01:30:00')
-    assert.equal(result, '2026-03-08T05:30:00.000Z')
+    assert.equal(result, '2026-03-08T06:30:00.000Z')
+  })
+
+  it('handles the evening after spring-forward as EDT', () => {
+    // 19:00 on the transition day is unambiguously EDT (UTC-4) → 23:00 UTC.
+    assert.equal(easternToIso('2026-03-08 19:00:00'), '2026-03-08T23:00:00.000Z')
   })
 
   it('handles DST fall-back boundary (November 1, 2026)', () => {

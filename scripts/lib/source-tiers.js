@@ -34,6 +34,7 @@ export {
   AGGREGATOR_PRIORITY,
   aggregatorRank,
   AGGREGATOR_SELF_ORG,
+  orgNameMatchKey,
   isAggregatorSelfOrgName,
   isSelfCredit,
 } from '../../src/lib/sourceTiers.js'

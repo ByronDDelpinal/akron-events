@@ -52,6 +52,7 @@ import {
   enrichWithImageDimensions, upsertEventSafe, linkEventVenue, linkEventOrganization,
   ensureVenue, ensureOrganization, linkOrganizationVenue,
   parseCostFromTribe, parseTagsFromTribe,
+  easternTodayIso,
 } from './lib/normalize.js'
 import { inferCategory } from './lib/category-inference.js'
 
@@ -125,7 +126,7 @@ export function parseImage(imageObj, descriptionHtml = '') {
 // ── Fetch ────────────────────────────────────────────────────────────────────
 
 async function fetchAllPages() {
-  const startDate = new Date().toISOString().split('T')[0]
+  const startDate = easternTodayIso()
   const endDate   = new Date(Date.now() + DAYS_AHEAD * 86400_000).toISOString().split('T')[0]
 
   let page = 1, hasMore = true

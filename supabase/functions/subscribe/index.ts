@@ -212,7 +212,7 @@ async function sendConfirmationEmail(email: string, token: string) {
   await sendEmail('confirmation', {
     from: THEME.from,
     to: [email],
-    reply_to: THEME.replyTo,
+    replyTo: THEME.replyTo,
     subject: `Confirm your ${THEME.brandName} subscription`,
     html: renderEmailShell({
       preheader: 'One click and you\'ll never miss a beat in Akron.',
@@ -254,7 +254,7 @@ async function sendPreferencesEmail(email: string, token: string) {
   await sendEmail('preferences', {
     from: THEME.from,
     to: [email],
-    reply_to: THEME.replyTo,
+    replyTo: THEME.replyTo,
     subject: `Your ${THEME.brandName} preferences link`,
     html: renderEmailShell({
       preheader: 'Tune your digest: vibe, cadence, and communities.',

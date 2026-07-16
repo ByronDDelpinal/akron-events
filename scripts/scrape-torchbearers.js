@@ -37,6 +37,7 @@ import {
   ensureOrganization,
   parseCostFromTribe,
   parseTagsFromTribe,
+  easternTodayIso,
 } from './lib/normalize.js'
 
 const BASE_URL   = 'https://torchbearersakron.com/wp-json/tribe/events/v1/events'
@@ -110,7 +111,7 @@ async function ensureEventVenue(tribeVenue, fallbackVenueId, _organizerId) {
 // ── Fetch all pages ──────────────────────────────────────────────────────
 
 async function fetchAllPages() {
-  const startDate = new Date().toISOString().split('T')[0]
+  const startDate = easternTodayIso()
   const endDate   = new Date(Date.now() + DAYS_AHEAD * 86400_000).toISOString().split('T')[0]
 
   let page    = 1

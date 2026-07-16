@@ -49,16 +49,29 @@ const BASE_URL   = 'https://akronartmuseum.org/calendar/'
  *
  * Returns { dateStr: 'YYYY-MM-DD', startTime: '1:00 pm', endTime: '4:00 pm' | null }
  */
+const MONTH_NUMBERS = {
+  january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
+  july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
+}
+
 function parseEventDateTime(rawText = '') {
   const text = rawText.replace(/\s+/g, ' ').trim()
 
   // Match date portion: "Tuesday, March 24, 2026" (with optional day-of-week)
-  const datePat = /(?:\w+,\s+)?(\w+ \d{1,2},\s+\d{4})/
+  const datePat = /(?:\w+,\s+)?(\w+) (\d{1,2}),\s+(\d{4})/
   const dateMatch = text.match(datePat)
   if (!dateMatch) return null
 
-  const dateStr = new Date(dateMatch[1]).toISOString().split('T')[0]
-  if (!dateStr || dateStr === 'Invalid Date') return null
+  // Build YYYY-MM-DD from the month name directly. The previous
+  // `new Date('March 24, 2026').toISOString()` parsed in the RUNNER's local
+  // zone and read back the UTC date — off by one day on any UTC+ machine —
+  // and its `=== 'Invalid Date'` guard was dead code (toISOString throws on
+  // an invalid Date; it never returns that string).
+  const month = MONTH_NUMBERS[dateMatch[1].toLowerCase()]
+  if (!month) return null
+  const day = parseInt(dateMatch[2], 10)
+  if (day < 1 || day > 31) return null
+  const dateStr = `${dateMatch[3]}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 
   // Everything after the date is the time portion
   const afterDate = text.slice(dateMatch.index + dateMatch[0].length).trim()

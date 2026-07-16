@@ -49,6 +49,7 @@ import {
   logScraperError,
   stripHtml,
   htmlToText,
+  decodeEntities,
   enrichWithImageDimensions,
   upsertEventSafe,
   linkEventVenue,
@@ -56,6 +57,7 @@ import {
   ensureVenue,
   ensureOrganization,
 } from './lib/normalize.js'
+import { isSelfCredit } from './lib/source-tiers.js'
 
 const DEBUG      = process.argv.includes('--debug')
 const FORCE      = process.argv.includes('--force')
@@ -602,6 +604,76 @@ async function upsertOrganizer(ev) {
   })
 }
 
+// ── Organizer extraction (detail page) ───────────────────────────────────────
+/**
+ * Normalise an organizer name/website pair into the shape upsertOrganizer
+ * consumes, or null if it isn't usable.
+ *
+ * Self-credit is rejected HERE, not left to linkEventOrganization's guard.
+ * That guard blocks the LINK, but only after ensureOrganization has already
+ * minted the row — which would litter the organizations directory with an
+ * "Eventbrite" record nothing ever points at. Cheaper and cleaner to never
+ * mint it. See AGGREGATOR_SELF_ORG in src/lib/sourceTiers.js for the policy.
+ */
+export function cleanOrganizer(name, website = null) {
+  if (!name || typeof name !== 'string') return null
+  const trimmed = decodeEntities(name.trim())
+  if (!trimmed) return null
+  if (isSelfCredit('eventbrite', trimmed)) return null
+  const site = website && typeof website === 'string' ? website.trim() : null
+  return { name: trimmed, website: site || null }
+}
+
+/**
+ * Pull the real organizer off an Eventbrite detail page's HTML.
+ *
+ * Why this exists: Eventbrite's SEARCH payload almost never carries an
+ * organizer (only ~5% of scraped rows had one), so we published EB events with
+ * no presenter and the site fell back to a "Listed on Eventbrite" provenance
+ * line. The organizer is right there on the detail page — we simply never
+ * asked for it. The events API `expand=organizer` in fetchEventDetail is the
+ * authoritative path; this is the fallback for when that call fails or is
+ * skipped (several detail strategies return before ever reaching it).
+ *
+ * Shapes are tried in order of trustworthiness: JSON-LD is schema.org-
+ * structured and unambiguous, while the *_organizer JSON forms are
+ * Eventbrite-internal shapes that have churned over the years. A shape that
+ * yields only a self-credit falls through to the next rather than giving up,
+ * since a page can name Eventbrite in one blob and the real host in another.
+ */
+export function extractOrganizer(html) {
+  if (!html || typeof html !== 'string') return null
+
+  // 1. JSON-LD (schema.org Event.organizer)
+  const ldRe = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+  let ldMatch
+  while ((ldMatch = ldRe.exec(html)) !== null) {
+    try {
+      const ld = JSON.parse(ldMatch[1])
+      for (const item of Array.isArray(ld) ? ld : [ld]) {
+        const org = Array.isArray(item?.organizer) ? item.organizer[0] : item?.organizer
+        const got = cleanOrganizer(org?.name, org?.url)
+        if (got) return got
+      }
+    } catch { /* malformed ld+json block — try the next one */ }
+  }
+
+  // 2. Eventbrite-internal JSON shapes. Bounded to a single object body
+  //    ([^{}]*) so a nested object can't let the "name" key drift to some
+  //    unrelated entity further down the payload.
+  const forms = [
+    /"primary_organizer"\s*:\s*\{[^{}]*?"name"\s*:\s*"([^"]+)"/,
+    /"organizer"\s*:\s*\{[^{}]*?"name"\s*:\s*"([^"]+)"/,
+    /"organizer_name"\s*:\s*"([^"]+)"/,
+  ]
+  for (const re of forms) {
+    const got = cleanOrganizer(html.match(re)?.[1])
+    if (got) return got
+  }
+
+  return null
+}
+
 // ── Locality filter ──────────────────────────────────────────────────────────
 /**
  * Reject events that aren't actually local to the Akron / Summit County area.
@@ -1084,6 +1156,13 @@ async function fetchEventDetail(url, cookie) {
       if (DEBUG) console.log(`  [debug]   og:image: ${ogImageUrl}`)
     }
 
+    // ── Extract the organizer from the page ─────────────────────────────────
+    // Computed up front, like categoryName/ogImageUrl above, because
+    // fetchEventDetail returns from a half-dozen different strategy branches —
+    // deriving it inside any one of them would silently miss the others.
+    const htmlOrganizer = extractOrganizer(html)
+    if (DEBUG && htmlOrganizer) console.log(`  [debug]   organizer (HTML): ${htmlOrganizer.name}`)
+
     // ── Strategy 1: window.__SERVER_DATA__ ───────────────────────────────────
     const serverData = extractWindowVar(html, '__SERVER_DATA__')
     if (serverData) {
@@ -1100,7 +1179,7 @@ async function fetchEventDetail(url, cookie) {
       const legacyHtml = ev?.description?.html ?? ev?.description?.text ?? null
       if (legacyHtml && legacyHtml.trim().length > 10) {
         if (DEBUG) console.log(`  [debug]   → found via __SERVER_DATA__.event.description`)
-        return { description: stripHtml(legacyHtml), summary: ev?.summary ?? null, imageUrl, categoryName, subcategoryName }
+        return { description: stripHtml(legacyHtml), summary: ev?.summary ?? null, imageUrl, categoryName, subcategoryName, organizer: htmlOrganizer }
       }
 
       // Format 1b: structured_content modules (newer Eventbrite editor)
@@ -1122,7 +1201,7 @@ async function fetchEventDetail(url, cookie) {
         const combined = parts.filter(Boolean).join('\n\n')
         if (combined.length > 10) {
           if (DEBUG) console.log(`  [debug]   → found via structured_content modules`)
-          return { description: combined, summary: ev?.summary ?? null, imageUrl, categoryName, subcategoryName }
+          return { description: combined, summary: ev?.summary ?? null, imageUrl, categoryName, subcategoryName, organizer: htmlOrganizer }
         }
       }
 
@@ -1130,7 +1209,7 @@ async function fetchEventDetail(url, cookie) {
       const sdSummary = ev?.summary ?? null
       if (sdSummary && sdSummary.trim().length > 10) {
         if (DEBUG) console.log(`  [debug]   → found via __SERVER_DATA__.event.summary`)
-        return { description: sdSummary, summary: sdSummary, imageUrl, categoryName, subcategoryName }
+        return { description: sdSummary, summary: sdSummary, imageUrl, categoryName, subcategoryName, organizer: htmlOrganizer }
       }
     }
 
@@ -1179,9 +1258,10 @@ async function fetchEventDetail(url, cookie) {
         if (DEBUG) console.log(`  [debug]   SC API error: ${e.message}`)
       }
 
-      // ── 2b: events API (accurate pricing) ───────────────────────────────
+      // ── 2b: events API (accurate pricing + authoritative organizer) ─────
       let priceData = null
-      const evUrl = `https://www.eventbrite.com/api/v3/events/${eventId}/?expand=ticket_availability,ticket_classes`
+      let apiOrganizer = null
+      const evUrl = `https://www.eventbrite.com/api/v3/events/${eventId}/?expand=organizer,ticket_availability,ticket_classes`
       try {
         const evCtrl = new AbortController()
         const evTid  = setTimeout(() => evCtrl.abort(), DETAIL_TIMEOUT_MS)
@@ -1200,6 +1280,10 @@ async function fetchEventDetail(url, cookie) {
             ticket_availability:  evData.ticket_availability  ?? null,
             ticket_classes:       evData.ticket_classes        ?? [],
           }
+          // The expanded organizer is the authoritative answer — prefer it
+          // over anything scraped out of the page HTML below.
+          apiOrganizer = cleanOrganizer(evData.organizer?.name, evData.organizer?.url ?? evData.organizer?.website)
+          if (DEBUG && apiOrganizer) console.log(`  [debug]   organizer (API): ${apiOrganizer.name}`)
         } else {
           if (DEBUG) console.log(`  [debug]   Events API HTTP ${evRes.status}`)
         }
@@ -1207,8 +1291,9 @@ async function fetchEventDetail(url, cookie) {
         if (DEBUG) console.log(`  [debug]   Events API error: ${e.message}`)
       }
 
-      if (description || priceData || ogImageUrl || categoryName) {
-        return { description, summary: null, priceData, imageUrl: ogImageUrl, categoryName, subcategoryName }
+      const organizer = apiOrganizer ?? htmlOrganizer
+      if (description || priceData || ogImageUrl || categoryName || organizer) {
+        return { description, summary: null, priceData, imageUrl: ogImageUrl, categoryName, subcategoryName, organizer }
       }
     }
 
@@ -1240,7 +1325,7 @@ async function fetchEventDetail(url, cookie) {
       if (ndDesc && ndDesc.trim().length > 10) {
         if (DEBUG) console.log(`  [debug]   → found via __NEXT_DATA__ (${ndDesc.length} chars)`)
         const ndImage = pickBestImageUrl(ndEv?.image) ?? pickBestImageUrl(ndEv?.logo)
-        return { description: stripHtml(ndDesc), summary: ndEv?.summary ?? null, imageUrl: ogImageUrl ?? ndImage, categoryName, subcategoryName }
+        return { description: stripHtml(ndDesc), summary: ndEv?.summary ?? null, imageUrl: ogImageUrl ?? ndImage, categoryName, subcategoryName, organizer: htmlOrganizer }
       }
       if (DEBUG) console.log(`  [debug]   __NEXT_DATA__ had no usable description`)
     }
@@ -1260,15 +1345,19 @@ async function fetchEventDetail(url, cookie) {
           if (item.startDate && item.description && item.description.trim().length > 10) {
             if (DEBUG) console.log(`  [debug]   → found via JSON-LD @type=${item['@type']} (${item.description.length} chars)`)
             const ldImage = pickBestImageUrl(item.image)
-            return { description: stripHtml(item.description), summary: null, imageUrl: ogImageUrl ?? ldImage, categoryName, subcategoryName }
+            return { description: stripHtml(item.description), summary: null, imageUrl: ogImageUrl ?? ldImage, categoryName, subcategoryName, organizer: htmlOrganizer }
           }
         }
       } catch {}
     }
 
     if (DEBUG) console.log(`  [debug]   → all strategies exhausted, no description found`)
-    // Even without description, return og:image / category if we found them
-    if (ogImageUrl || categoryName) return { description: null, summary: null, imageUrl: ogImageUrl, categoryName, subcategoryName }
+    // Even without a description, return og:image / category / organizer if we
+    // found them — an organizer alone is worth the round trip, since it's the
+    // difference between "Presented by X" and a bare "Listed on Eventbrite".
+    if (ogImageUrl || categoryName || htmlOrganizer) {
+      return { description: null, summary: null, imageUrl: ogImageUrl, categoryName, subcategoryName, organizer: htmlOrganizer }
+    }
     return null
 
   } catch (err) {
@@ -1300,7 +1389,7 @@ async function enrichWithDetails(rawEvents, cookie) {
       if (!url) { failed++; return }
 
       const detail = await fetchEventDetail(url, cookie)
-      if (detail?.description || detail?.priceData || detail?.imageUrl || detail?.categoryName) {
+      if (detail?.description || detail?.priceData || detail?.imageUrl || detail?.categoryName || detail?.organizer) {
         // Patch description
         if (detail.description) {
           if (!ev.description || typeof ev.description !== 'object') ev.description = {}
@@ -1316,6 +1405,16 @@ async function enrichWithDetails(rawEvents, cookie) {
         // Patch image — fill in from detail page when search result had none
         if (detail.imageUrl && !ev.image?.url && !ev.logo?.url && !ev.banner_url && !ev.hero_image_url) {
           ev.image = { url: detail.imageUrl }
+        }
+        // Patch organizer — the search payload carries one for only ~5% of
+        // events, which is why EB events used to publish with no presenter at
+        // all. Fill only when the search gave us nothing: a value already on
+        // the event came from Eventbrite's own payload and is no worse than
+        // ours, and overwriting it would churn organizations for no gain.
+        // (upsertOrganizer reads primary_organizer first, so an existing one
+        // still wins regardless.)
+        if (detail.organizer && !ev.primary_organizer?.name && !ev.organizer?.name) {
+          ev.organizer = { name: detail.organizer.name, website: detail.organizer.website }
         }
         // Attach category strings for normaliseEvent() to consume
         if (detail.categoryName)    ev._categoryName    = detail.categoryName

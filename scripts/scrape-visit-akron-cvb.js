@@ -22,8 +22,13 @@
  *   • Same Simpleview install also fronts the John S. Knight Center —
  *     JSK events surface in this feed automatically.
  *
- * Geographic scope: we keep every city returned (the CVB is Summit-County
- * scoped already).  Client-side source filtering handles "Akron only" UX.
+ * Geographic scope: every doc is gated with classifySummitLocation on its
+ * coords/city — 'out' is skipped, 'unknown' publishes as pending_review.
+ * We do NOT trust the CVB's own Summit-County scoping: source-side geo
+ * filtering is exactly what failed in the Eventbrite incident (738 NE-Ohio
+ * events published despite the API's own location parameters), and this
+ * same Simpleview install fronts the John S. Knight Center plus partner
+ * listings that can carry regional draws.
  *
  * Usage:
  *   node scripts/scrape-visit-akron-cvb.js
@@ -47,6 +52,7 @@ import {
   ensureVenue,
   ensureOrganization,
 } from './lib/normalize.js'
+import { preloadSummitCountyBoundary, classifySummitLocation } from './lib/summit-county.js'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -65,8 +71,10 @@ const PAGE_DELAY_MS = 300     // be nice to the CVB
 // The Simpleview events_by_date endpoint validates that date_range bounds
 // fall on 00:00 in the requester's local timezone.  We pick the right
 // UTC offset based on whether the date falls in Eastern Daylight Time
-// (UTC-4, March → November) or Eastern Standard Time (UTC-5).  The DST
-// boundary check mirrors the one in lib/normalize.js#isEasternDST.
+// (UTC-4, March → November) or Eastern Standard Time (UTC-5).  The
+// arithmetic boundary check is only ever evaluated at NOON of the target
+// date (see the probe below), so the 00:00-02:00 transition-morning
+// ambiguity that made normalize.js switch to Intl cannot occur here.
 
 function nthWeekdayOfMonth(year, month, dayOfWeek, n) {
   const first  = new Date(Date.UTC(year, month, 1))
@@ -397,8 +405,9 @@ async function ensureEventVenue(doc) {
 //                  present when host_id is.
 //   - `location` — that's the venue, handled separately by ensureEventVenue.
 //
-// Note this feeds ensureOrganization, which matches orgs by exact name — so a
-// hostname of "City of Akron" resolves onto the SAME org row that
+// Note this feeds ensureOrganization, which matches orgs by exact name and
+// then loosely (orgNameKey: "The X" ↔ "X", case, whitespace) — so a hostname
+// of "City of Akron" resolves onto the SAME org row that
 // scrape-city-of-akron-lock3.js already maintains, rather than minting a
 // duplicate. That's why we normalize whitespace but do not otherwise rewrite
 // the value.
@@ -462,7 +471,7 @@ function normalizeCvbTitle(raw) {
 // ── Process ────────────────────────────────────────────────────────────────
 
 async function processEvents(docs) {
-  let inserted = 0, skipped = 0, organizerLinked = 0
+  let inserted = 0, updated = 0, skipped = 0, organizerLinked = 0
 
   for (const doc of docs) {
     try {
@@ -477,6 +486,21 @@ async function processEvents(docs) {
       // otherwise start_at + 24h grace so same-day events stay visible.
       const endMs   = end_at ? new Date(end_at).getTime() : new Date(start_at).getTime() + 86_400_000
       if (endMs < Date.now()) { skipped++; continue }
+
+      // ── Strict Summit gate ────────────────────────────────────────────────
+      // Same coord precedence as ensureEventVenue: GeoJSON loc first, then the
+      // separate latitude/longitude strings (classifySummitLocation coerces
+      // and rejects the (0,0) placeholder). Coord-less docs fall back to city.
+      const geo = classifySummitLocation({
+        lat:  doc.loc?.coordinates?.length === 2 ? doc.loc.coordinates[1] : doc.latitude,
+        lng:  doc.loc?.coordinates?.length === 2 ? doc.loc.coordinates[0] : doc.longitude,
+        city: doc.city,
+      })
+      if (geo === 'out') {
+        console.log(`  ⤷ Summit gate: skipping "${title}" (${doc.city || 'no city'})`)
+        skipped++
+        continue
+      }
 
       const { price_min, price_max } = parseAdmission(doc.admission)
       const description = doc.description ? htmlToText(doc.description) : null
@@ -514,13 +538,16 @@ async function processEvents(docs) {
         source_url:      detailUrl,
         source:          SOURCE_KEY,
         source_id:       sourceId,
-        status:          'published',
+        // Regional aggregator with patchy geo data: unknown locality goes to
+        // the review queue rather than publishing OR silently vanishing.
+        status:          geo === 'unknown' ? 'pending_review' : 'published',
+        ...(geo === 'unknown' ? { needs_review: true } : {}),
         featured:        false,
       }
 
       const venueId    = await ensureEventVenue(doc)
       const enrichedRow = await enrichWithImageDimensions(row)
-      const { data: upserted, error } = await upsertEventSafe(enrichedRow)
+      const { data: upserted, error, isNew } = await upsertEventSafe(enrichedRow)
 
       if (error) {
         console.warn(`  ⚠ Upsert failed for "${title}":`, error.message)
@@ -537,7 +564,7 @@ async function processEvents(docs) {
             organizerLinked++
           }
         }
-        inserted++
+        if (isNew) inserted++; else updated++
       }
     } catch (err) {
       console.warn(`  ⚠ Error processing "${doc.cms_title ?? doc.title ?? '(no title)'}":`, err.message)
@@ -545,7 +572,7 @@ async function processEvents(docs) {
     }
   }
 
-  return { inserted, skipped, organizerLinked }
+  return { inserted, updated, skipped, organizerLinked }
 }
 
 // ── Entry point ────────────────────────────────────────────────────────────
@@ -555,13 +582,14 @@ async function main() {
   const start = Date.now()
 
   try {
+    await preloadSummitCountyBoundary()
     const docs = await fetchAllEvents()
     console.log(`\n📥  Processing ${docs.length} events…`)
 
-    const { inserted, skipped, organizerLinked } = await processEvents(docs)
-    console.log(`   ${organizerLinked}/${inserted} event(s) had a real organizer (hostname); the rest get none.`)
+    const { inserted, updated, skipped, organizerLinked } = await processEvents(docs)
+    console.log(`   ${organizerLinked}/${inserted + updated} event(s) had a real organizer (hostname); the rest get none.`)
 
-    await logUpsertResult(SOURCE_KEY, inserted, 0, skipped, {
+    await logUpsertResult(SOURCE_KEY, inserted, updated, skipped, {
       eventsFound: docs.length,
       durationMs:  Date.now() - start,
     })

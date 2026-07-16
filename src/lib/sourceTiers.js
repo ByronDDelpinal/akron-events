@@ -111,10 +111,12 @@ export function aggregatorRank(source) {
 // normalize.js (scraper path) and collectLinkDonations() in
 // dedupe-cross-source.js (merge path).
 //
-// Keys are source keys; values are the EXACT `organizations.name` the source
-// uses for itself (ensureOrganization matches orgs by exact name, so these
-// must stay in sync with the name each scraper passes). Sources with no entry
-// have no self-org and cannot self-credit.
+// Keys are source keys; values are the `organizations.name` the source uses
+// for itself. Comparison is via orgNameMatchKey() below — the same fold
+// ensureOrganization uses for loose org matching ("The X" ↔ "X", case,
+// whitespace) — so a "The"-prefixed or case-variant row that loose matching
+// resolves onto can never slip past this guard. Sources with no entry have
+// no self-org and cannot self-credit.
 export const AGGREGATOR_SELF_ORG = {
   downtown_akron:  'Downtown Akron Partnership',
   visit_akron_cvb: 'Visit Akron / Summit County',
@@ -128,19 +130,44 @@ export const AGGREGATOR_SELF_ORG = {
   ticketmaster:    'Ticketmaster',
 }
 
+/**
+ * Match key for an organization name: case-folded, with a leading "The"
+ * dropped and whitespace collapsed.
+ *
+ * SINGLE SOURCE OF TRUTH for the org-name fold. ensureOrganization's loose
+ * matching (orgNameKey in scripts/lib/normalize.js, which adds HTML-entity
+ * decoding on top) and the self-credit guard below MUST fold identically:
+ * when they drifted, a "The Downtown Akron Partnership" row that loose
+ * matching happily resolved onto was invisible to the exact-name guard,
+ * silently re-opening the self-credit hole this policy exists to close.
+ *
+ * Deliberately conservative — folds only the "The"/case/whitespace axes we
+ * have observed splitting rows. It does NOT strip punctuation: over-folding
+ * would merge genuinely different orgs, which is worse than a duplicate.
+ */
+export function orgNameMatchKey(name) {
+  return String(name ?? '')
+    .trim()
+    .replace(/^the\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
 const _selfOrgNames = new Set(
-  Object.values(AGGREGATOR_SELF_ORG).map((n) => n.toLowerCase())
+  Object.values(AGGREGATOR_SELF_ORG).map(orgNameMatchKey)
 )
 
 /**
- * True if `orgName` is the self-identity of ANY aggregator source.
+ * True if `orgName` is the self-identity of ANY aggregator source
+ * (compared via orgNameMatchKey, so "The X"/case/whitespace variants match).
  *
  * Cheap pre-filter: lets callers skip the (more expensive) source lookup for
  * the ~99% of links whose org could never be a self-credit in the first place.
  */
 export function isAggregatorSelfOrgName(orgName) {
   if (!orgName) return false
-  return _selfOrgNames.has(String(orgName).trim().toLowerCase())
+  return _selfOrgNames.has(orgNameMatchKey(orgName))
 }
 
 /**
@@ -157,5 +184,5 @@ export function isSelfCredit(source, orgName) {
   if (!source || !orgName) return false
   const self = AGGREGATOR_SELF_ORG[source]
   if (!self) return false
-  return self.toLowerCase() === String(orgName).trim().toLowerCase()
+  return orgNameMatchKey(self) === orgNameMatchKey(orgName)
 }

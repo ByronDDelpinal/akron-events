@@ -165,8 +165,8 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     method:      'REST API',
     methodDetail:'The Events Calendar (Tribe Events) REST',
     venue:       'Players Guild Theatre — 1001 Market Ave N, Canton',
-    notes:       'Canton-based community theatre. 365-day window since theatre seasons are planned well in advance.',
-    status:      'active',
+    notes:       'RETIRED 2026-07-15 — Canton is in Stark County. Akron Pulse lists Summit County events only, and this source was never Summit-gated because first-party venue scrapers bypass the geo gate by design (we point them at a known venue on purpose). That exemption is exactly how 54 out-of-county events reached the site. Its 7 events were removed; the scraper is kept in the repo, deactivated, so it can be revived if the scope ever widens. Previously: Canton-based community theatre, 365-day window since theatre seasons are planned well in advance.',
+    status:      'retired',
   },
   {
     key:         'missing_falls',
@@ -469,8 +469,8 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     method:      'HTML scrape',
     methodDetail:'Schema.org Event JSON-LD on each /event/<slug>/ detail page',
     venue:       'The Kent Stage — 175 E Main St, Kent (~13 mi NE of Akron)',
-    notes:       "Independent 600-seat concert venue in Kent, ~13 mi inside our 25-mile Akron radius. Books touring folk, country, blues, Americana, indie, and comedy. Migrated off Akron Life in 2026-06 as priority #2 in the dwindle plan — Evvnt only surfaced ~4 of their shows but the venue books many more per quarter. kentstage.org is WordPress + Elementor with no Tribe REST API or ICS export, but every /event/<slug>/the-kent-stage/kent-ohio/ detail page emits a clean Schema.org Event JSON-LD block carrying name (HTML-entity-encoded), startDate with TZ offset, location, offers (price + etix.com ticket URL), image, and description. The scraper fetches /events/, harvests all event permalinks (skipping the perpetual gift-card permalink), then parses the JSON-LD on each detail. Kent Stage emits price:0 on paid shows; when the offer URL points at a real ticketing host (etix, ticketweb, seatengine) we treat 0 as \"unknown\" and fall back to a body \"$N\" sniff so paid concerts don't land as free.",
-    status:      'active',
+    notes:       "RETIRED 2026-07-15 — Kent is in Portage County. Akron Pulse lists Summit County events only, and a 25-mile radius is not Summit County: this source was justified by that radius, but first-party venue scrapers bypass the geo gate by design, so nothing ever caught it. Its 40 events (the largest out-of-county block on the site) were removed. The scraper is kept in the repo, deactivated — it works fine and can be revived if scope ever widens. Previously: Independent 600-seat concert venue in Kent, ~13 mi inside our 25-mile Akron radius. Books touring folk, country, blues, Americana, indie, and comedy. Migrated off Akron Life in 2026-06 as priority #2 in the dwindle plan — Evvnt only surfaced ~4 of their shows but the venue books many more per quarter. kentstage.org is WordPress + Elementor with no Tribe REST API or ICS export, but every /event/<slug>/the-kent-stage/kent-ohio/ detail page emits a clean Schema.org Event JSON-LD block carrying name (HTML-entity-encoded), startDate with TZ offset, location, offers (price + etix.com ticket URL), image, and description. The scraper fetches /events/, harvests all event permalinks (skipping the perpetual gift-card permalink), then parses the JSON-LD on each detail. Kent Stage emits price:0 on paid shows; when the offer URL points at a real ticketing host (etix, ticketweb, seatengine) we treat 0 as \"unknown\" and fall back to a body \"$N\" sniff so paid concerts don't land as free.",
+    status:      'retired',
   },
   {
     key:         'cvart',
@@ -1113,8 +1113,8 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
     venue:       'Southgate Farm — 6521 Mt Pleasant St NW, North Canton (Stark County)',
-    notes:       'Organic farm/CSA in North Canton hosting public classes in its historic barn: weekly summer farm yoga, full-moon yoga + bonfires, farm/garden tours, and craft make-and-takes. Wix Events with no JSON-LD, so we parse the server-rendered #wix-warmup-data blob (robust vs Wix\'s hashed CSS classes). All events are at the one farm address; Wix lists some as "Southgate Farm" and some as "Southgate Farm Barn", so we pin everything to a single canonical venue to avoid a duplicate record. Just outside the Summit County core (like our Players Guild / Centennial Plaza Canton sources) but a direct first-party venue scraper, so it isn\'t Summit-gated. Price left null (never assume free — classes are ticketed/RSVP).',
-    status:      'active',
+    notes:       'RETIRED 2026-07-15 — North Canton is in Stark County. Akron Pulse lists Summit County events only. This entry previously read "just outside the Summit County core … but a direct first-party venue scraper, so it isn\'t Summit-gated" — that exemption is precisely the hole: first-party scrapers bypass the geo gate by design, so aiming one at an out-of-county venue put 7 Stark County events on the site with nothing to catch them. Events removed; scraper kept in the repo, deactivated, in case scope ever widens. Previously: organic farm/CSA in North Canton hosting barn classes (farm yoga, full-moon yoga + bonfires, tours, make-and-takes), parsed from the Wix #wix-warmup-data blob via lib/wix-events.js.',
+    status:      'retired',
   },
   {
     key:         'meetup',

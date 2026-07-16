@@ -251,7 +251,7 @@ function headlineLabel(sub: Subscriber): string {
 // palette) comes from _shared/email.ts. Layout rules: tables only (no
 // flexbox — Outlook), px font sizes only (no rem), and every piece of
 // scraped/user-submitted text goes through escapeHtml().
-function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: number, tailEvents: Event[] = []): string {
+function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: number): string {
   const prefsUrl = `${BASE_URL}/subscribe/preferences?token=${sub.token}`
   const unsubUrl = `${BASE_URL}/unsubscribe?token=${sub.token}`
   const campaign = `${sub.frequency}_digest`
@@ -267,7 +267,7 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
   // Preheader: inbox preview snippet. Keep under ~110 chars.
   const preheaderBits: string[] = []
   if (hero) preheaderBits.push(`Featured: ${hero.title}`)
-  preheaderBits.push(`${events.length} picks${tailEvents.length > 0 ? ` + ${tailEvents.length} more` : ''}`)
+  preheaderBits.push(`${events.length} picks`)
   const firstFree = events.find(e => priceLabel(e)?.free)
   if (firstFree && firstFree !== hero) preheaderBits.push(`free: ${firstFree.title}`)
   const preheader = escapeHtml(preheaderBits.join(' · ').slice(0, 110))
@@ -360,37 +360,6 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
 `
   }
 
-  // "Also coming up" — tail of plain-text event links. No images,
-  // no metadata clutter; just titles + times/dates so the reader feels
-  // depth without scrolling through more cards. When the subscriber's
-  // window IS today (daily cadence, ≤1-day lookahead), the tail is all
-  // same-day, so we lead with a today-framed heading and show the start
-  // TIME per event; for week/month windows the tail spans days, so we
-  // keep the neutral heading and show the DATE.
-  if (tailEvents.length > 0) {
-    const todayWindow = sub.frequency !== 'monthly' && sub.lookahead_days <= 1
-    const tailHeading = todayWindow ? 'Check today’s pulse' : 'Also coming up'
-    content += `
-  <div style="margin-top:26px;padding-top:18px;border-top:1px solid ${c.border};">
-    <div style="font-family:${f.display};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:${c.textMuted};margin-bottom:10px;">${tailHeading}</div>
-`
-    for (const event of tailEvents) {
-      const eventUrl = withUtm(`${BASE_URL}${eventPath(event)}`, campaign, 'tail')
-      const lead = todayWindow
-        ? formatTimeOnly(event.start_at)
-        : new Date(event.start_at).toLocaleDateString('en-US', { timeZone: DISPLAY_TZ, weekday: 'short', month: 'short', day: 'numeric' })
-      content += `
-    <a href="${eventUrl}" style="display:block;padding:6px 0;text-decoration:none;color:${c.textSecondary};font-size:14px;line-height:1.4;">
-      <span style="color:${c.primary};font-weight:600;">${lead}</span>
-      <span style="color:${c.textMuted};"> &middot; </span>
-      <span style="color:${c.textPrimary};">${escapeHtml(event.title)}</span>
-    </a>
-`
-    }
-    content += `  </div>
-`
-  }
-
   // See-all CTA — "find your reason to go out" moment.
   if (totalMatchCount > events.length) {
     content += `
@@ -412,7 +381,7 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
 // Multipart text/plain part: a deliverability best practice (spam
 // filters distrust HTML-only mail) and what screen-reader and
 // text-mode clients actually read.
-function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: number, tailEvents: Event[] = []): string {
+function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: number): string {
   const campaign = `${sub.frequency}_digest`
   const lines: string[] = [
     `${THEME.brandName}: Never miss a beat`,
@@ -440,18 +409,6 @@ function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: numb
       lines.push(`- ${event.title}${price ? ` (${price.label})` : ''}`)
       lines.push(`  ${meta}`)
       lines.push(`  ${withUtm(`${BASE_URL}${eventPath(event)}`, campaign, 'list')}`)
-    }
-    lines.push('')
-  }
-
-  if (tailEvents.length > 0) {
-    const todayWindow = sub.frequency !== 'monthly' && sub.lookahead_days <= 1
-    lines.push(todayWindow ? 'CHECK TODAY’S PULSE' : 'ALSO COMING UP')
-    for (const event of tailEvents) {
-      const lead = todayWindow
-        ? formatTimeOnly(event.start_at)
-        : new Date(event.start_at).toLocaleDateString('en-US', { timeZone: DISPLAY_TZ, weekday: 'short', month: 'short', day: 'numeric' })
-      lines.push(`- ${lead} · ${event.title} — ${withUtm(`${BASE_URL}${eventPath(event)}`, campaign, 'tail')}`)
     }
     lines.push('')
   }
@@ -540,7 +497,10 @@ Deno.serve(async (req) => {
     const body = await req.json()
     forceAll = body?.force === true
     if (Array.isArray(body?.only)) {
-      const list = body.only
+      // Annotate: req.json() is `any`, so without this `new Set(list)`
+      // infers Set<unknown> and the spread below yields unknown[], which
+      // won't assign to string[].
+      const list: string[] = body.only
         .map((e: unknown) => String(e).trim().toLowerCase())
         .filter((e: string) => e.includes('@'))
       if (list.length > 0) only = [...new Set(list)].slice(0, 25) // de-dupe + safety cap
@@ -648,16 +608,21 @@ Deno.serve(async (req) => {
     console.log(`[send-digest] ${flatEvents.length} events in 30-day window`)
 
     // ── Step 3+4+5: Filter → Render → Batch send ──
-    const emailBatch: { from: string; to: string[]; reply_to: string; subject: string; html: string; text: string; headers: Record<string, string> }[] = []
+    // Typed from the SDK rather than hand-rolled. A hand-written shape here
+    // previously declared `reply_to`, which taught the compiler a field the
+    // SDK does not read — so the batch silently shipped with no Reply-To
+    // and nothing flagged it. Deriving the type means the SDK's contract is
+    // the source of truth and drift like that fails the build.
+    const emailBatch: Parameters<typeof resend.batch.send>[0] = []
     const sendLog: { subscriber_id: string; event_count: number; status: string; error_message?: string }[] = []
 
     for (const sub of subscribers as Subscriber[]) {
       try {
         // Match ALL events in the window (allMatching.length is the true
-        // "N events" count), then pick the windowed, diversity-aware set
-        // for the rich cards plus a plain-text "also coming up" tail.
+        // "N events" count, and drives the "see all N" CTA), then pick the
+        // windowed, diversity-aware set that becomes the rich cards.
         const allMatching = filterEventsForSubscriber(flatEvents, sub, now)
-        const { picks: events, tail } = selectDigestEvents(allMatching, sub, now)
+        const { picks: events } = selectDigestEvents(allMatching, sub, now)
 
         if (events.length === 0) {
           // Skip — don't send empty digests
@@ -665,14 +630,14 @@ Deno.serve(async (req) => {
           continue
         }
 
-        const html = buildDigestHtml(events, sub, allMatching.length, tail)
-        const text = buildDigestText(events, sub, allMatching.length, tail)
+        const html = buildDigestHtml(events, sub, allMatching.length)
+        const text = buildDigestText(events, sub, allMatching.length)
         const subject = buildSubject(sub, events.length)
 
         emailBatch.push({
           from: THEME.from,
           to: [sub.email],
-          reply_to: THEME.replyTo,
+          replyTo: THEME.replyTo,
           subject,
           html,
           text,

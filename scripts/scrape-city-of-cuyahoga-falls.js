@@ -47,6 +47,7 @@ import {
   logUpsertResult,
   stripHtml,
   upsertEventSafe,
+  easternTodayIso,
 } from './lib/normalize.js'
 import { pathToFileURL } from 'node:url'
 
@@ -280,7 +281,7 @@ async function main() {
       await new Promise(r => setTimeout(r, 400))
     }
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = easternTodayIso()
     const publicFuture = occurrences.filter(o => isPublicEvent(o.title) && o.dateStr >= today)
     console.log(`  ${publicFuture.length} public upcoming occurrences (from ${occurrences.length} total)`)
 

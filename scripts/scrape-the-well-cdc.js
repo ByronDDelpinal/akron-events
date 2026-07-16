@@ -51,6 +51,7 @@ import {
   logUpsertResult,
   stripHtml,
   upsertEventSafe,
+  easternTodayIso,
 } from './lib/normalize.js'
 import { pathToFileURL } from 'node:url'
 
@@ -289,7 +290,7 @@ async function main() {
     const parsed = parseEvents(html)
     console.log(`  Parsed ${parsed.length} event blocks`)
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = easternTodayIso()
     const future = parsed.filter(e => e.dateStr >= today)
     console.log(`  ${future.length} upcoming (dropped ${parsed.length - future.length} past)`)
 

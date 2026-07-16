@@ -228,7 +228,7 @@ async function sendAdminConfirmedNotification(args: {
   const response = await resend.emails.send({
     from: THEME.from,
     to: ADMIN_NOTIFY_EMAIL,
-    reply_to: THEME.replyTo,
+    replyTo: THEME.replyTo,
     subject: `[${THEME.brandName}] Subscriber confirmed`,
     html: `
       <div style="font-family: ${f.body}; max-width: 520px; margin: 0 auto; padding: 32px 20px;">

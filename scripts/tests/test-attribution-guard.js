@@ -49,6 +49,16 @@ describe('attribution: isSelfCredit', () => {
     assert.equal(isSelfCredit('downtown_akron', '  downtown akron PARTNERSHIP  '), true)
   })
 
+  it('folds a leading "The" — the same fold ensureOrganization uses', () => {
+    // ensureOrganization loose-matches "The X" ↔ "X" onto one row, so the
+    // guard must fold identically: a "The Downtown Akron Partnership" row
+    // resolved by loose matching would otherwise slip past an exact-name
+    // comparison and re-open the self-credit hole.
+    assert.equal(isSelfCredit('downtown_akron', 'The Downtown Akron Partnership'), true)
+    assert.equal(isAggregatorSelfOrgName('The Downtown Akron Partnership'), true)
+    assert.equal(isAggregatorSelfOrgName('the  akron life   magazine'), true)
+  })
+
   it('allows an aggregator to credit a REAL organizer', () => {
     // The whole point of the fix: attribution is restored, not just removed.
     assert.equal(isSelfCredit('visit_akron_cvb', 'Porthouse Theatre'), false)

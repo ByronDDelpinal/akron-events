@@ -50,9 +50,14 @@ const APPLY = process.argv.includes('--apply')
 // first-party row with no image and no description can still lose — fix the
 // scraper's data gap in that case, e.g. akron_art_museum's empty
 // descriptions, rather than this list.)
-const SOURCE_PRIORITY = [
+// Entries MUST be the exact `events.source` keys from manifest.js — a stale
+// or abbreviated key here is silently void (the source falls through to the
+// unlisted-first-party rank). akronym/jillys/nightlight sat here as short
+// forms of akronym_brewing/jillys_music_room/nightlight_cinema until
+// 2026-07-15 and never matched anything.
+export const SOURCE_PRIORITY = [
   'akron_civic',
-  'akronym',
+  'akronym_brewing',
   'akron_symphony',
   'akron_zoo',
   'akron_art_museum',
@@ -64,10 +69,10 @@ const SOURCE_PRIORITY = [
   'city_of_akron_lock3',     // first-party source for city programming
   'city_of_hudson',          // first-party municipal calendar (CivicPlus)
   'ejthomas_hall',           // first-party venue calendar (E.J. Thomas Hall)
-  'jillys',
+  'jillys_music_room',
   'leadership_akron',
   'missing_falls',
-  'nightlight',
+  'nightlight_cinema',
   'north_hill_cdc',
   'northfield_park',         // first-party venue (Center Stage) — displaces Ticketmaster copies
   'ohio_erie_canalway',      // first-party (Canalway Coalition towpath events)
@@ -542,7 +547,16 @@ export function findDuplicateGroups(events) {
     for (const e of bucket) {
       // Same venue + same exact second is a hard gate; a title match can be the
       // flexible prefix/peel form OR a shared series-name leading prefix.
+      //
+      // EVERY arm is additionally gated to DIFFERENT sources. Cross-SOURCE
+      // dedupe collapsing two same-source rows was a category error: one
+      // source listing two rows at the same venue + second is either two real
+      // parallel sessions ("Preschool Story Time Room A"/"Room B" — the
+      // library pattern, where "room"+letter survives the prefix stopwords)
+      // or a (source, source_id) uniqueness problem — and deleting a row is
+      // the wrong response to both.
       const existing = clusters.find(c => {
+        if (c[0].source === e.source) return false
         if (titlesMatch(c[0]._titleKey, e._titleKey) || sharedNamePrefixMatch(c[0].title, e.title)) return true
         // Cross-source only: a shared headliner (strongTitlesMatch — same first
         // two meaningful tokens, etc.) is enough at the same venue + exact

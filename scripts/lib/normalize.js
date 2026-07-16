@@ -15,7 +15,7 @@ import { inferCategories as _inferCategories } from './category-inference.js'
 import { V1_TO_V2, CATEGORY_SLUGS } from '../../src/lib/categories.js'
 import { defaultCategoryFor } from '../manifest.js'
 import { fallbackImageFor } from './fallback-images.js'
-import { isAggregatorSelfOrgName, isSelfCredit } from './source-tiers.js'
+import { isAggregatorSelfOrgName, isSelfCredit, orgNameMatchKey } from './source-tiers.js'
 
 // ════════════════════════════════════════════════════════════════════════════
 // HTML / TEXT UTILITIES
@@ -43,10 +43,16 @@ const NAMED_ENTITIES = {
  */
 export function decodeEntities(str) {
   if (!str) return str
+  // fromCodePoint, not fromCharCode: astral entities (&#128512; — emoji,
+  // some CJK) are above 0xFFFF; fromCharCode truncates them to a lone
+  // garbage surrogate. Out-of-range references are left verbatim.
+  const codePoint = (n) =>
+    n >= 0 && n <= 0x10ffff ? String.fromCodePoint(n) : null
   return String(str)
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)))
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
-    .replace(/&([a-zA-Z]+);/g, (match, name) => NAMED_ENTITIES[name] ?? NAMED_ENTITIES[name.toLowerCase()] ?? match)
+    .replace(/&#(\d+);/g, (match, n) => codePoint(parseInt(n, 10)) ?? match)
+    .replace(/&#x([0-9a-fA-F]+);/g, (match, h) => codePoint(parseInt(h, 16)) ?? match)
+    // Named entities can contain digits after the first letter (&frac12;).
+    .replace(/&([a-zA-Z][a-zA-Z0-9]*);/g, (match, name) => NAMED_ENTITIES[name] ?? NAMED_ENTITIES[name.toLowerCase()] ?? match)
 }
 
 /**
@@ -372,19 +378,34 @@ async function _hasImageDimensionColumns() {
 // EASTERN TIMEZONE CONVERSION
 // ════════════════════════════════════════════════════════════════════════════
 
-/** Get the nth occurrence of dayOfWeek (0=Sun) in a given month. */
-function nthWeekdayOfMonth(year, month, dayOfWeek, n) {
-  const first = new Date(Date.UTC(year, month, 1))
-  const offset = (dayOfWeek - first.getUTCDay() + 7) % 7
-  return new Date(Date.UTC(year, month, 1 + offset + (n - 1) * 7))
-}
-
-/** Returns true if the given UTC date falls during Eastern Daylight Time. */
-function isEasternDST(utcDate) {
-  const y = utcDate.getUTCFullYear()
-  const dstStart = nthWeekdayOfMonth(y, 2, 0, 2)  // 2nd Sunday in March
-  const dstEnd   = nthWeekdayOfMonth(y, 10, 0, 1) // 1st Sunday in November
-  return utcDate >= dstStart && utcDate < dstEnd
+/**
+ * Convert a wall-clock instant expressed as a UTC-ms value (Date.UTC of the
+ * LOCAL Y/M/D/h/m/s) in America/New_York to an ISO 8601 UTC string.
+ *
+ * Uses Intl to resolve the EST↔EDT offset, the same technique as
+ * namedTzWallTimeToUtc in lib/ics.js. The previous arithmetic
+ * "2nd Sunday in March at UTC midnight" approximation put the boundary
+ * 5-7 hours early, so 00:00-01:59 ET on transition days converted with
+ * the wrong offset (off by one hour).
+ */
+function easternWallMsToUtcIso(asIfUtcMs) {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  })
+  const parts = fmt.formatToParts(new Date(asIfUtcMs))
+  const get = (t) => parts.find((p) => p.type === t)?.value ?? '00'
+  const asTzMs = Date.UTC(
+    parseInt(get('year'), 10),
+    parseInt(get('month'), 10) - 1,
+    parseInt(get('day'), 10),
+    parseInt(get('hour'), 10) % 24,
+    parseInt(get('minute'), 10),
+    parseInt(get('second'), 10),
+  )
+  return new Date(asIfUtcMs + (asIfUtcMs - asTzMs)).toISOString()
 }
 
 /**
@@ -449,9 +470,22 @@ export function easternToIso(dateInput, timeInput) {
 
   const localUtcMs = Date.UTC(year, month - 1, day, hour, minute, second)
   if (Number.isNaN(localUtcMs)) return null
-  const approxUtc = new Date(localUtcMs + 5 * 3600_000)
-  const offsetHours = isEasternDST(approxUtc) ? 4 : 5
-  return new Date(localUtcMs + offsetHours * 3600_000).toISOString()
+  return easternWallMsToUtcIso(localUtcMs)
+}
+
+/**
+ * Today's calendar date in Eastern time as "YYYY-MM-DD".
+ *
+ * Use this — never `new Date().toISOString().split('T')[0]` — when building
+ * "events from today onward" API windows. Between 8pm and midnight ET the
+ * UTC date is already tomorrow, so the UTC shortcut silently drops the rest
+ * of today's events from any nightly run in that window.
+ */
+export function easternTodayIso(now = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(now)
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -532,7 +566,98 @@ async function eventSourceById(eventId) {
 }
 
 /**
- * Find or create an organization by name. Uses exact name match.
+ * Match key for an organization name: case-folded, with a leading "The"
+ * dropped and whitespace collapsed.
+ *
+ * Exists because ensureOrganization matched on EXACT name, so the same org
+ * arriving from two sources under trivially different spellings became two
+ * rows: Eventbrite hands us "The Conservancy for Cuyahoga Valley National
+ * Park" while our first-party scraper already created "Conservancy for
+ * Cuyahoga Valley National Park". Same for "The Peninsula Foundation" and the
+ * case-only pair "The Stray Cats" / "THE STRAY CATS".
+ *
+ * This is the org-side counterpart to canonicalVenueName(), but algorithmic
+ * rather than an alias map: organizer names come from aggregators in unbounded
+ * variety (142 new orgs from one Eventbrite run), so a hand-curated list would
+ * never keep up.
+ *
+ * Deliberately conservative — it folds only the "The"/case/whitespace axes we
+ * have actually observed splitting rows. It does NOT strip punctuation, so
+ * "Art's Core" and "Arts Core" stay distinct: over-folding would silently
+ * merge two genuinely different orgs, which is far worse than a duplicate.
+ *
+ * The fold itself (orgNameMatchKey) lives in src/lib/sourceTiers.js because
+ * the aggregator self-credit guard must fold names IDENTICALLY to this
+ * matcher — see the comment there. This wrapper only adds HTML-entity
+ * decoding, which the guard never needs (its inputs are already decoded).
+ */
+export function orgNameKey(name) {
+  return orgNameMatchKey(decodeEntities(String(name ?? '')))
+}
+
+/** Escape LIKE metacharacters so a name containing % or _ matches literally. */
+function escapeLike(s) {
+  return s.replace(/[\\%_]/g, (m) => `\\${m}`)
+}
+
+const ORG_SELECT = 'id, name, website, description, image_url, address, city, state, zip'
+
+/**
+ * Look up an org by loose name (case-insensitive, optional leading "The",
+ * whitespace-run tolerant).
+ *
+ * Bounded probes rather than fetching the table and matching in memory: the
+ * org list grows with every aggregator run, and an in-process map would also
+ * miss rows created by a concurrently running scraper.
+ *
+ * Probe order matters: the caller's own spelling is tried first
+ * (case-insensitively), so when the DB holds BOTH "Stray Cats" and
+ * "The Stray Cats" as distinct orgs, incoming "THE STRAY CATS" lands on the
+ * "The"-form rather than being folded onto the wrong org.
+ *
+ * The loose probes join the key's tokens with `%` so whitespace-run variants
+ * already in the DB ("Akron  Marathon") still match, then verify every hit
+ * with orgNameKey() equality — the wildcard can fetch a superset ("Akron
+ * City Marathon") but can never *return* one. This keeps the probe semantics
+ * identical to orgNameKey(), which is the fold the unit tests pin.
+ */
+async function findOrgByLooseName(trimmed) {
+  const key = orgNameKey(trimmed)
+  if (!key) return null
+
+  // 1. Exact-modulo-case match on the input's own shape.
+  {
+    const { data } = await supabaseAdmin
+      .from('organizations')
+      .select(ORG_SELECT)
+      .ilike('name', escapeLike(trimmed))
+      .limit(1)
+    if (data?.[0]) return data[0]
+  }
+
+  // 2. Loose probes: bare form, then "The"-prefixed form.
+  const tokens = key.split(' ').map(escapeLike).join('%')
+  for (const pattern of [tokens, `the%${tokens}`]) {
+    const { data } = await supabaseAdmin
+      .from('organizations')
+      .select(ORG_SELECT)
+      .ilike('name', pattern)
+      .order('name')
+      .limit(10)
+    const hit = data?.find((row) => orgNameKey(row.name) === key)
+    if (hit) return hit
+  }
+  return null
+}
+
+/**
+ * Find or create an organization by name.
+ *
+ * Matches on exact name first, then falls back to a loose match (see
+ * orgNameKey) so "The X" and "X" resolve to one row. The FIRST spelling to
+ * reach the DB wins the stored display name — we reuse the existing row rather
+ * than renaming it, because a rename would rewrite an org's public name based
+ * on nothing but scrape order.
  *
  * @param {string} name     — Organization name (required)
  * @param {object} details  — Optional org fields: website, description, image_url,
@@ -541,7 +666,10 @@ async function eventSourceById(eventId) {
  */
 export async function ensureOrganization(name, details = {}) {
   if (!name) return null
-  const trimmed = decodeEntities(name.trim())
+  // Collapse internal whitespace runs so a sloppy feed ("Akron  Marathon")
+  // can never mint a row that only whitespace distinguishes from an existing
+  // one — the same axis orgNameKey folds.
+  const trimmed = decodeEntities(name.trim()).replace(/\s+/g, ' ').trim()
   if (!trimmed) return null
 
   // Drop malformed website strings before they reach the DB. See
@@ -552,8 +680,12 @@ export async function ensureOrganization(name, details = {}) {
 
   if (_orgNameCache.has(trimmed)) return _orgNameCache.get(trimmed)
 
-  const { data: existing } = await supabaseAdmin
-    .from('organizations').select('id, website, description, image_url, address, city, state, zip').eq('name', trimmed).maybeSingle()
+  const { data: exact } = await supabaseAdmin
+    .from('organizations').select('id, name, website, description, image_url, address, city, state, zip').eq('name', trimmed).maybeSingle()
+
+  // Fall back to a loose match ("The X" ↔ "X", case-insensitive) before
+  // minting a second row for an org we already know about.
+  const existing = exact ?? await findOrgByLooseName(trimmed)
 
   if (existing) {
     // Non-destructively update null fields on the existing org record.
@@ -570,8 +702,12 @@ export async function ensureOrganization(name, details = {}) {
     if (Object.keys(updates).length) {
       await supabaseAdmin.from('organizations').update(updates).eq('id', existing.id)
     }
+    // Cache the incoming spelling → id, but map id → the name actually STORED
+    // (which differs from `trimmed` on a loose match). linkEventOrganization's
+    // self-credit guard reads this id→name cache, so caching the caller's
+    // spelling here would let the guard evaluate a name that isn't in the DB.
     _orgNameCache.set(trimmed, existing.id)
-    _orgIdNameCache.set(existing.id, trimmed)
+    _orgIdNameCache.set(existing.id, existing.name ?? trimmed)
     return existing.id
   }
 
@@ -1010,7 +1146,9 @@ export async function ensureVenue(name, details = {}, opts = {}) {
  *
  * @param {object} row — full event row (without venue_id/organizer_id — those
  *                       are now in junction tables)
- * @returns {{ data, error, isNew: boolean }}
+ * @returns {{ data, error, isNew: boolean }} — isNew is true only when the
+ *          upsert INSERTED a row (no prior (source, source_id) match), so
+ *          callers' inserted/updated counters are real.
  */
 // Small connector words stay lowercase in title case, except as the first or
 // last word. Standard title-case style guide list, kept short/uncontroversial.
@@ -1300,7 +1438,7 @@ export async function upsertEventSafe(row) {
     console.warn(`  ⚠ content moderation skipped (non-fatal): ${err.message}`)
   }
 
-  const safeRow = await _stripOverriddenFields('events', sanitized)
+  const { row: safeRow, existed } = await _stripOverriddenFields('events', sanitized)
   const { data, error } = await supabaseAdmin
     .from('events')
     .upsert(safeRow, { onConflict: 'source,source_id', ignoreDuplicates: false })
@@ -1313,7 +1451,12 @@ export async function upsertEventSafe(row) {
     await syncEventCategories(data.id, categories)
   }
 
-  return { data, error, isNew: !error && !!data }
+  // isNew distinguishes insert from update: the upsert returns the row either
+  // way, so `!!data` alone would count every re-scrape as an insert and
+  // fabricate scraper_runs insert counts (and everything downstream — the
+  // health report, dwindle detection). `existed` comes from the row lookup
+  // _stripOverriddenFields already performs.
+  return { data, error, isNew: !error && !!data && !existed }
 }
 
 /**
@@ -1441,20 +1584,27 @@ export async function linkOrganizationVenue(organizationId, venueId) {
 /**
  * Internal: fetch the existing row's manual_overrides and strip any
  * overridden fields from the incoming scraper data.
+ *
+ * Returns { row, existed }. `existed` reports whether a (source, source_id)
+ * row was already present — upsertEventSafe derives its insert-vs-update
+ * `isNew` flag from it, reusing this lookup rather than paying for a second
+ * query. On lookup failure `existed` is false (degraded, matches the
+ * "proceed with full row" posture below).
  */
 async function _stripOverriddenFields(table, row) {
   // Only events have source/source_id for lookup
-  if (table !== 'events' || !row.source || !row.source_id) return row
+  if (table !== 'events' || !row.source || !row.source_id) return { row, existed: false }
 
   try {
     const { data: existing } = await supabaseAdmin
       .from('events')
-      .select('manual_overrides')
+      .select('id, manual_overrides')
       .eq('source', row.source)
       .eq('source_id', row.source_id)
       .maybeSingle()
 
-    if (!existing?.manual_overrides) return row
+    const existed = !!existing
+    if (!existing?.manual_overrides) return { row, existed }
 
     const overrides = existing.manual_overrides
     const filtered = { ...row }
@@ -1463,10 +1613,10 @@ async function _stripOverriddenFields(table, row) {
         delete filtered[field]
       }
     }
-    return filtered
+    return { row: filtered, existed }
   } catch {
     // If lookup fails, proceed with full row (safe default)
-    return row
+    return { row, existed: false }
   }
 }
 
