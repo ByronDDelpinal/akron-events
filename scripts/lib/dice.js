@@ -137,6 +137,9 @@ export function normaliseDiceEvent(ev, config = {}) {
     source,
     source_id:       String(ev?.id ?? ev?.perm_name ?? '').trim() || null,
     status:          'published',
-    featured:        Boolean(ev?.featured),
+    // NEVER machine-set `featured`. It's a human-only editorial call made in
+    // the admin UI — Dice promoting its own listing says nothing about whether
+    // it deserves the digest hero slot. (Was `Boolean(ev?.featured)`.)
+    featured:        false,
   }
 }

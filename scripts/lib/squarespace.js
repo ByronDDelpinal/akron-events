@@ -166,7 +166,10 @@ export function normaliseSquarespaceEvent(item, config = {}) {
     source,
     source_id:       item.id || item.urlId || null,
     status:          'published',
-    featured:        item.starred ?? false,
+    // NEVER machine-set `featured`. It's a human-only editorial call made in
+    // the admin UI — a source starring its own post says nothing about whether
+    // it deserves the digest hero slot. (Was `item.starred ?? false`.)
+    featured:        false,
   }
 }
 
