@@ -1,5 +1,5 @@
 import type { LooseRow } from '@/types'
-import { useState, useCallback, useEffect, type ReactNode } from 'react'
+import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { useEvent, type AppEvent } from '@/hooks/useEvents'
@@ -20,7 +20,10 @@ import {
 } from '@/lib/seo'
 import { makeEventSlug, eventPath } from '@/lib/slug'
 import { getSourceLabel, shouldShowSourceCredit } from '@/lib/sources'
+import { sourceTierLabel } from '@/lib/sourceTiers.js'
 import { recordEventView } from '@/lib/engagement'
+import { trackEvent, EVENTS } from '@/lib/analytics'
+import type { SourceTier } from '@/lib/analyticsEvents'
 import {
   formatPrice,
   gradientForEvent,
@@ -100,6 +103,27 @@ export default function EventPage() {
     if (embed || !event || event.id !== id) return
     recordEventView(event.id)
   }, [embed, event, id])
+
+  // "Most popular events by category" is unanswerable from page_view alone:
+  // content_group is only ever the literal string "Event Detail", and category
+  // can't ride as a persistent dimension the way theme/neighborhood do — being
+  // per-event, gtag('set') would leak it onto every later hit on other pages.
+  // So the category travels on its own discrete view event.
+  //
+  // Guarded by last-tracked id rather than a session dedupe: the canonical
+  // slug redirect below re-renders with the SAME event.id and must not
+  // double-count, but a genuine A -> B -> A revisit is a real second view and
+  // should. Deliberately fires on the embed surface too — partner impressions
+  // are real reach; segment on `surface` when reading.
+  const trackedViewRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!event || event.id !== id || trackedViewRef.current === event.id) return
+    trackedViewRef.current = event.id
+    trackEvent(EVENTS.VIEW_EVENT, {
+      category: event.category,
+      source_tier: sourceTierLabel(event.source) as SourceTier,
+    })
+  }, [event, id])
 
   // Canonicalize the URL to /events/{slug}/{id}. The `event.id === id` guard
   // prevents rewriting to a stale event while a new one is still fetching.
@@ -511,6 +535,25 @@ function firstAbsoluteUrl(...urls: Array<string | null | undefined>): string | n
   return null
 }
 
+/**
+ * The event page's outbound CTAs — the only place the site hands a user off to
+ * an organizer, and so the only place that can answer whether we are actually
+ * driving traffic to the people hosting these events.
+ *
+ * Every event here carries `source_tier`, because the raw click count can't
+ * distinguish a click that reached a venue's own box office from one that
+ * reached a republisher. `category` rides along so the same funnel can be read
+ * per category; `neighborhood` and `theme` arrive automatically as persistent
+ * dimensions (see lib/analytics.ts) and must not be duplicated here.
+ *
+ * All three CTAs either open a new tab or download a blob, so the document is
+ * never unloaded and the beacon always has time to leave — no sendBeacon or
+ * navigation-delay hack needed.
+ *
+ * NOTE: this component is rendered twice (desktop rail + mobile), but the two
+ * are CSS-exclusive, so a click can only ever land on the visible copy. Do not
+ * "fix" the double render by hoisting these handlers without checking that.
+ */
 function ActionButtons({ event, price }: { event: AppEvent; price: PriceDisplay }) {
   // CTA chain: ticket_url (direct purchase) → source_url (source detail page).
   const primaryUrl   = firstAbsoluteUrl(event.ticket_url, event.source_url)
@@ -518,6 +561,9 @@ function ActionButtons({ event, price }: { event: AppEvent; price: PriceDisplay 
   const primaryLabel = isTicketLink
     ? (price.free ? 'Register (Free)' : `Get Tickets · ${price.label}`)
     : 'View Event Details →'
+
+  const sourceTier = sourceTierLabel(event.source) as SourceTier
+  const category   = event.category
 
   return (
     <>
@@ -527,6 +573,14 @@ function ActionButtons({ event, price }: { event: AppEvent; price: PriceDisplay 
           target="_blank"
           rel="noopener noreferrer"
           className="btn-ticket"
+          onClick={() => trackEvent(EVENTS.OUTBOUND_CLICK, {
+            // One button, two meanings — a real ticket link vs. a fallback to
+            // the source's detail page. Conflating them would make the
+            // conversion number meaningless.
+            link_type: isTicketLink ? 'tickets' : 'source',
+            source_tier: sourceTier,
+            category,
+          })}
         >
           {primaryLabel}
         </a>
@@ -536,12 +590,19 @@ function ActionButtons({ event, price }: { event: AppEvent; price: PriceDisplay 
         target="_blank"
         rel="noopener noreferrer"
         className="btn-ticket-secondary"
+        onClick={() => trackEvent(EVENTS.ADD_TO_CALENDAR, { method: 'google', category })}
       >
         + Add to Google Calendar
       </a>
       <button
         className="btn-ticket-secondary"
-        onClick={() => downloadIcs(event)}
+        onClick={() => {
+          // The .ics path is a blob download, not a navigation, so GA4's
+          // Enhanced Measurement cannot see it at all. Without this call the
+          // Apple/Outlook half of calendar intent is simply invisible.
+          trackEvent(EVENTS.ADD_TO_CALENDAR, { method: 'ics', category })
+          downloadIcs(event)
+        }}
       >
         + Add to Apple / Outlook Calendar
       </button>

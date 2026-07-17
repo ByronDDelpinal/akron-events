@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { INTENTS } from '@/lib/intents'
+import { trackEvent, EVENTS } from '@/lib/analytics'
 
 /**
  * useEventFilters — the single, URL-backed source of truth for the event
@@ -148,12 +149,25 @@ export function useEventFilters({
 
   // Tri-state category cycle: off -> include -> exclude -> off. Moves the slug
   // between the two params atomically so a category is never both.
+  //
+  // Instrumented here rather than at the button, because this hook is the URL's
+  // single source of truth and every category toggle in the app routes through
+  // it — FilterTray, the FilterBar chips and CategoryPage all call this. Wiring
+  // the individual controls instead would guarantee drift the first time a
+  // fourth one is added.
+  //
+  // `action` is the state being ENTERED, not the one left behind. The exclude
+  // half matters on its own: it's the only signal that says a user actively
+  // does not want a category, which no view or click count can express.
   const cycleCategory = useCallback((slug: string) => {
     if (rawCategories.includes(slug)) {
+      trackEvent(EVENTS.CATEGORY_FILTER, { category: slug, action: 'exclude' })
       updateParams({ categories: rawCategories.filter((c) => c !== slug), exclude: [...excludedCategories, slug] })
     } else if (excludedCategories.includes(slug)) {
+      trackEvent(EVENTS.CATEGORY_FILTER, { category: slug, action: 'clear' })
       updateParams({ exclude: excludedCategories.filter((c) => c !== slug) })
     } else {
+      trackEvent(EVENTS.CATEGORY_FILTER, { category: slug, action: 'include' })
       updateParams({ categories: [...rawCategories, slug] })
     }
   }, [rawCategories, excludedCategories, updateParams])

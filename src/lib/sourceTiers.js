@@ -64,6 +64,32 @@ export function isAggregatorSource(source) {
   return sourceTier(source) === TIER_AGGREGATOR
 }
 
+// ── Analytics: readable tier labels ────────────────────────────────────────
+// A bare 1/2/3 in a GA4 report forces every reader to carry the mapping in
+// their head. Derived from sourceTier() rather than a parallel list, so the
+// labels cannot drift from the tiers they name.
+export const SOURCE_TIER_LABEL = {
+  [TIER_VENUE_OFFICIAL]: 'venue_official',
+  [TIER_PLATFORM]:       'platform',
+  [TIER_AGGREGATOR]:     'aggregator',
+}
+
+/**
+ * Tier label for analytics. Answers "are we sending traffic to the people who
+ * actually host the event, or to a republisher?".
+ *
+ * Note the null case is NOT the sourceTier() default. sourceTier() maps an
+ * unknown source key to TIER_VENUE_OFFICIAL because almost every scraper here
+ * is a bespoke per-venue one — a safe default for TRUST decisions. But a row
+ * with no source at all wasn't scraped, it was typed into the admin by hand.
+ * Folding those into 'venue_official' would silently inflate the exact number
+ * this label exists to measure, so they get their own bucket.
+ */
+export function sourceTierLabel(source) {
+  if (!source) return 'manual'
+  return SOURCE_TIER_LABEL[sourceTier(source)]
+}
+
 export function isTrustedSource(source) {
   return sourceTier(source) !== TIER_AGGREGATOR
 }

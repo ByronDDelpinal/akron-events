@@ -35,6 +35,35 @@ export type InstallMethod = 'native' | 'ios'
  */
 export type StandalonePlatform = 'ios' | 'other'
 
+/**
+ * Which outbound link a user took off the event page. The primary CTA is one
+ * button with two meanings — a real ticket/registration link when the event has
+ * one, otherwise a fallback to the source's own detail page. Rolling those
+ * together would make the click-through number unreadable: a 'source' click is
+ * a user still looking, a 'tickets' click is a user converting.
+ */
+export type OutboundLinkType = 'tickets' | 'source'
+
+/** How a user added an event to their calendar. */
+export type CalendarMethod = 'google' | 'ics'
+
+/**
+ * Trust tier of the destination we sent a user to, mirroring sourceTiers.js.
+ * This is the dimension that answers "is our traffic reaching the organizers
+ * who actually host these events, or just republishers?".
+ */
+export type SourceTier = 'venue_official' | 'platform' | 'aggregator' | 'manual'
+
+/** One step of the category filter's tri-state cycle: off -> include -> exclude -> off. */
+export type CategoryFilterAction = 'include' | 'exclude' | 'clear'
+
+/**
+ * Which search box fired. `search_term` is a GA4 *recommended* param, so every
+ * surface's searches roll into one report unless we discriminate — without this
+ * the About page's data-source lookup would pollute event-search demand data.
+ */
+export type SearchContentType = 'events' | 'data_sources'
+
 /** Final embed configuration captured at the moment a partner copies the snippet. */
 export interface EmbedSnippetParams {
   theme: string
@@ -67,6 +96,11 @@ export const EVENTS = {
   SELECT_CONTENT:           'select_content',
   SHARE:                    'share',
   SEARCH:                   'search',
+  VIEW_EVENT:               'view_event',
+  OUTBOUND_CLICK:           'outbound_click',
+  ADD_TO_CALENDAR:          'add_to_calendar',
+  CATEGORY_FILTER:          'category_filter',
+  THEME_CHANGED:            'theme_changed',
 } as const
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS]
@@ -91,5 +125,10 @@ export interface EventParams {
   embed_snippet_copied:     EmbedSnippetParams
   select_content:           { content_type: string; item_id: string }
   share:                    { method: string; content_type: string; item_id: string }
-  search:                   { search_term: string }
+  search:                   { search_term: string; content_type: SearchContentType; result_count: number }
+  view_event:               { category: string; source_tier: SourceTier }
+  outbound_click:           { link_type: OutboundLinkType; source_tier: SourceTier; category: string }
+  add_to_calendar:          { method: CalendarMethod; category: string }
+  category_filter:          { category: string; action: CategoryFilterAction }
+  theme_changed:            { theme: string; previous_theme: string }
 }

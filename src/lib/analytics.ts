@@ -7,6 +7,8 @@
  */
 import ReactGA from 'react-ga4'
 import { EVENTS, type EventName, type EventParams } from './analyticsEvents'
+import { THEME_STORAGE_KEY, DEFAULT_THEME, isValidTheme } from './themes'
+import { getMyHubSlug } from './myHub'
 
 // Re-exported so call sites import the event registry and the tracker together.
 export { EVENTS }
@@ -16,6 +18,18 @@ const MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID
 const enabled = Boolean(MEASUREMENT_ID)
 
 export type Surface = 'site' | 'embed'
+
+/**
+ * Explicit value for "this user has not saved a neighborhood". Distinct from
+ * GA4's own "(not set)", which is what you'd see if the dimension were simply
+ * never registered — an ambiguity that would make "no hub" and "broken
+ * instrumentation" look identical in a report.
+ */
+const NO_NEIGHBORHOOD = '(none)'
+
+// Set once at init and read by the context setters below, which must know the
+// surface to decide whether user-preference dimensions apply at all.
+let currentSurface: Surface = 'site'
 
 /**
  * Which surface this document is: the main site, or a partner embed. A given
@@ -49,6 +63,25 @@ function detectEmbedHost(): string {
 }
 
 /**
+ * The user's saved theme, read straight from storage at init.
+ *
+ * Deliberately does NOT run useTheme's legacy-key migrations: this is a
+ * read-only analytics concern and must never mutate storage as a side effect of
+ * booting the tracker. A pre-rebrand user whose theme still lives under the
+ * legacy key therefore reports DEFAULT_THEME on their first hit only —
+ * ThemeProvider migrates and calls setThemeContext on mount, correcting every
+ * hit after it.
+ */
+function readInitialTheme(): string {
+  try {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
+    return stored && isValidTheme(stored) ? stored : DEFAULT_THEME
+  } catch {
+    return DEFAULT_THEME
+  }
+}
+
+/**
  * Call once at app startup (main.tsx or App.tsx).
  * Safe to call even if the measurement ID is absent.
  *
@@ -56,13 +89,59 @@ function detectEmbedHost(): string {
  * the config command so EVERY hit — pageviews and custom events — carries them.
  * This keeps call sites untouched and lets GA4 segment all traffic by surface.
  * Register both as event-scoped custom dimensions in GA4 Admin to use in reports.
+ *
+ * On the site surface we seed `theme` and `neighborhood` the same way, for the
+ * same reason: both are questions about BEHAVIOUR ("which neighborhoods are
+ * people actually active in?"), and a one-shot neighborhood_set/theme_changed
+ * event can only ever count DECISIONS. Riding every hit turns them into
+ * dimensions you can break any other metric down by.
+ *
+ * Seeded here rather than left to the providers because React runs child
+ * effects before parent ones — AppInner's trackPageView effect fires before
+ * ThemeProvider's — so the first page_view of every session would otherwise
+ * carry neither value.
+ *
+ * Both are event-scoped, NOT user-scoped, and that is load-bearing. GA4
+ * user-scoped dimensions are last-value-wins: a user who switched from
+ * Highland Square to Downtown would have their entire history retroactively
+ * re-attributed to Downtown, which is precisely the question being asked.
  */
 export function initAnalytics(): void {
   if (!enabled || !MEASUREMENT_ID) return
   const surface = detectSurface()
+  currentSurface = surface
+  // Neither dimension is meaningful inside an embed. The theme there is the
+  // PARTNER's white-label choice, not a user preference, so including it would
+  // let one busy partner site running the Postcard theme masquerade as a
+  // popular user choice. localStorage in a third-party iframe is partitioned
+  // or blocked, so the hub read would be empty noise besides.
   const gtagOptions: Record<string, string> =
-    surface === 'embed' ? { surface, embed_host: detectEmbedHost() } : { surface }
+    surface === 'embed'
+      ? { surface, embed_host: detectEmbedHost() }
+      : {
+          surface,
+          theme: readInitialTheme(),
+          neighborhood: getMyHubSlug() ?? NO_NEIGHBORHOOD,
+        }
   ReactGA.initialize(MEASUREMENT_ID, { gtagOptions })
+}
+
+/**
+ * Update the persistent `theme` dimension after an in-app theme switch.
+ * No-op on the embed surface — see initAnalytics.
+ */
+export function setThemeContext(theme: string): void {
+  if (!enabled || currentSurface !== 'site') return
+  ReactGA.set({ theme })
+}
+
+/**
+ * Update the persistent `neighborhood` dimension when the saved hub changes.
+ * Pass null when the user clears their hub. No-op on the embed surface.
+ */
+export function setNeighborhoodContext(slug: string | null): void {
+  if (!enabled || currentSurface !== 'site') return
+  ReactGA.set({ neighborhood: slug ?? NO_NEIGHBORHOOD })
 }
 
 /**

@@ -8,7 +8,7 @@ import {
   clearMyHub as clearStoredHub,
   getHubLabel,
 } from '@/lib/myHub'
-import { trackEvent, EVENTS } from '@/lib/analytics'
+import { trackEvent, EVENTS, setNeighborhoodContext } from '@/lib/analytics'
 
 /**
  * "My Neighborhood" state, shared across the app.
@@ -113,6 +113,15 @@ export function NeighborhoodProvider({ children }: { children: ReactNode }) {
     setHubSlug(null)
     trackEvent(EVENTS.NEIGHBORHOOD_CLEARED)
   }, [])
+
+  // Keep the persistent GA4 `neighborhood` dimension in step with the saved
+  // hub, so every subsequent hit is attributable to it. Sited here rather than
+  // inside saveHub/clearHub so it also covers the mount case (a returning user
+  // with a hub already in localStorage) and can't be missed by a future
+  // mutation path that forgets to call it.
+  useEffect(() => {
+    setNeighborhoodContext(hubSlug)
+  }, [hubSlug])
 
   // First-launch onboarding — installed app only, once, and never over
   // /admin. Evaluated once on mount, mirroring the original AppOnboarding.

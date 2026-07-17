@@ -15,6 +15,7 @@ import {
   isValidTheme,
   getThemeFonts,
 } from '@/lib/themes'
+import { setThemeContext } from '@/lib/analytics'
 
 type ThemeContextValue = [string, Dispatch<SetStateAction<string>>]
 
@@ -111,6 +112,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     // script in index.html primes this for cold loads; this effect
     // handles in-app theme switches.
     applyThemeFonts(theme)
+    // Keep the persistent GA4 `theme` dimension in step. Runs on mount too,
+    // which is what repairs the legacy-key case initAnalytics can't see (it
+    // reads storage without migrating). No-op inside the embed.
+    setThemeContext(theme)
   }, [theme])
 
   return (

@@ -5,6 +5,7 @@ import { SITE_THEMES, DEFAULT_THEME, THEME_STORAGE_KEY, LEGACY_THEME_STORAGE_KEY
 import { ENABLED_CATEGORY_HUBS, ENABLED_NEIGHBORHOOD_HUBS } from '@/lib/seo'
 import { InstallFooterLink } from '@/components/InstallPrompt'
 import { INTAKE_MAILTO } from '@/lib/intakeEmail'
+import { trackEvent, EVENTS } from '@/lib/analytics'
 import './Footer.css'
 
 // All localStorage keys that count as "preferences"
@@ -84,9 +85,29 @@ export default function Footer() {
 
   if (isAdmin) return null
 
+  // Both theme <select>s route through here so the two can't drift, and so the
+  // event is fired exactly where a HUMAN picks a theme. Note this deliberately
+  // does NOT live in ThemeProvider: the embed's theme is assigned by the
+  // partner via ?theme=, and counting that as a user preference would let one
+  // busy partner site outvote every real visitor.
+  //
+  // `theme` is also a persistent dimension on every hit (see lib/analytics.ts),
+  // which is what actually answers "which themes are most popular" — including
+  // for the large majority who never open this menu at all. This event is the
+  // narrower question of who deliberately switches, and away from what.
+  function handleThemeChange(next: string) {
+    if (next === theme) return
+    trackEvent(EVENTS.THEME_CHANGED, { theme: next, previous_theme: theme })
+    setTheme(next)
+  }
+
   function handleReset() {
     try { PREF_KEYS.forEach((k) => localStorage.removeItem(k)) } catch { /* ignore */ }
-    setTheme(DEFAULT_THEME)
+    // A reset is a real theme change and has to be reported like one, or the
+    // default would look stickier than it is. Fired before the reload, which
+    // is safe: the beacon leaves synchronously and setTheme's persist effect
+    // never runs, so the cleared keys stay cleared.
+    handleThemeChange(DEFAULT_THEME)
     window.location.reload()
   }
 
@@ -141,7 +162,7 @@ export default function Footer() {
               id="footer-theme-select"
               className="footer-theme-select"
               value={theme}
-              onChange={(e) => setTheme(e.target.value)}
+              onChange={(e) => handleThemeChange(e.target.value)}
             >
               {SITE_THEMES.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -219,7 +240,7 @@ export default function Footer() {
                 id="footer-slim-theme-select"
                 className="footer-theme-select footer-theme-select--mini"
                 value={theme}
-                onChange={(e) => setTheme(e.target.value)}
+                onChange={(e) => handleThemeChange(e.target.value)}
                 aria-label="Theme"
                 tabIndex={hidden ? -1 : 0}
               >

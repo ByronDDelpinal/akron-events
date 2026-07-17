@@ -196,20 +196,31 @@ function TransparencySection() {
 
   const q = query.trim().toLowerCase()
 
-  // GA4 recommended `search` event. Client-side search has no query-string for
-  // Enhanced Measurement to catch, so we fire it here, debounced 800ms so a
-  // single intent produces one event rather than one per keystroke.
-  useEffect(() => {
-    if (q.length < 2) return
-    const id = setTimeout(() => trackEvent(EVENTS.SEARCH, { search_term: q }), 800)
-    return () => clearTimeout(id)
-  }, [q])
-
   const results = q.length < 2 ? [] : DATA_SOURCES.filter((s) =>
     s.label.toLowerCase().includes(q) ||
     s.methodDetail.toLowerCase().includes(q) ||
     s.venue.toLowerCase().includes(q)
   )
+
+  // GA4 recommended `search` event. Client-side search has no query-string for
+  // Enhanced Measurement to catch, so we fire it here, debounced 800ms so a
+  // single intent produces one event rather than one per keystroke.
+  //
+  // `content_type` is what keeps this OUT of the event-search numbers: this box
+  // searches DATA SOURCES, not events, and search_term is a GA4 recommended
+  // param, so without the discriminator both boxes would silently roll into one
+  // report and someone looking up "eventbrite" here would read as unmet demand
+  // for Eventbrite events. Declared after `results` so result_count is real;
+  // keyed on the length, since the array identity changes every render.
+  useEffect(() => {
+    if (q.length < 2) return
+    const id = setTimeout(() => trackEvent(EVENTS.SEARCH, {
+      search_term: q,
+      content_type: 'data_sources',
+      result_count: results.length,
+    }), 800)
+    return () => clearTimeout(id)
+  }, [q, results.length])
 
   return (
     <>
