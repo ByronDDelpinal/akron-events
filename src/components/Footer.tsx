@@ -103,10 +103,18 @@ export default function Footer() {
 
   function handleReset() {
     try { PREF_KEYS.forEach((k) => localStorage.removeItem(k)) } catch { /* ignore */ }
-    // A reset is a real theme change and has to be reported like one, or the
-    // default would look stickier than it is. Fired before the reload, which
-    // is safe: the beacon leaves synchronously and setTheme's persist effect
-    // never runs, so the cleared keys stay cleared.
+    // A reset is a real theme change and is reported like one, or the default
+    // would look stickier than it is. Caveat: gtag dispatches asynchronously
+    // with no keepalive, so the reload below will race it and reset-driven
+    // theme_changed is expected to UNDER-count. Accepted rather than fixed —
+    // resets are rare, and the `theme` dimension on every hit already tells us
+    // where people end up, which is the question that matters.
+    //
+    // ThemeProvider's effect does rewrite THEME_STORAGE_KEY back to
+    // DEFAULT_THEME before the reload lands, so PREF_KEYS isn't left fully
+    // cleared. That's pre-existing behaviour, identical to before this event
+    // was added, and harmless: readStoredTheme treats DEFAULT_THEME and absent
+    // the same way.
     handleThemeChange(DEFAULT_THEME)
     window.location.reload()
   }

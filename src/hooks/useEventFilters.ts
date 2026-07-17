@@ -150,11 +150,19 @@ export function useEventFilters({
   // Tri-state category cycle: off -> include -> exclude -> off. Moves the slug
   // between the two params atomically so a category is never both.
   //
-  // Instrumented here rather than at the button, because this hook is the URL's
-  // single source of truth and every category toggle in the app routes through
-  // it — FilterTray, the FilterBar chips and CategoryPage all call this. Wiring
-  // the individual controls instead would guarantee drift the first time a
-  // fourth one is added.
+  // Instrumented here because this hook owns the URL for the home + embed
+  // funnel, and both controls that cycle categories there (the FilterBar chips
+  // and FilterTray, which FilterBar renders) route through it.
+  //
+  // It does NOT cover the hub pages. CategoryPage does not use this hook — it
+  // reads useSearchParams directly and has its own include-only filter strip,
+  // which reports `category_filter` from its own toggleCategoryOption. Two
+  // funnels, two call sites; do not assume this one is global.
+  //
+  // Note FilterTray falls back to a silent include-only toggle when
+  // `onCycleCategory` is absent (FilterTray.tsx:172). Nothing renders it that
+  // way today — FilterBar is its only render site and always passes the
+  // handler — but a second render site would lose tracking without a type error.
   //
   // `action` is the state being ENTERED, not the one left behind. The exclude
   // half matters on its own: it's the only signal that says a user actively

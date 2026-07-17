@@ -210,8 +210,9 @@ function TransparencySection() {
   // searches DATA SOURCES, not events, and search_term is a GA4 recommended
   // param, so without the discriminator both boxes would silently roll into one
   // report and someone looking up "eventbrite" here would read as unmet demand
-  // for Eventbrite events. Declared after `results` so result_count is real;
-  // keyed on the length, since the array identity changes every render.
+  // for Eventbrite events. Declared after `results` so result_count is real.
+  // (results is a pure function of `q` over a module constant, so the length
+  // dep can't fire independently — it's belt-and-braces, not load-bearing.)
   useEffect(() => {
     if (q.length < 2) return
     const id = setTimeout(() => trackEvent(EVENTS.SEARCH, {

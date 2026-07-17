@@ -9,7 +9,7 @@ import CalendarView from '@/components/CalendarView'
 import SourceOverflowCard from '@/components/SourceOverflowCard'
 import DateHeading from '@/components/DateHeading'
 import { groupEventsByDate, applySourceCap } from '@/lib/eventGrouping'
-import { trackEvent, EVENTS } from '@/lib/analytics'
+import { useSearchReporting } from '@/hooks/useSearchReporting'
 // Grid / list / load-more styles live in HomePage.css (global, deduped by Vite).
 import '@/pages/HomePage.css'
 
@@ -148,30 +148,9 @@ export default function EventsBrowser({
     enabled: effectiveView === 'calendar',
   })
 
-  // ── Search reporting ──────────────────────────────────────────────────
-  // The `search` event has to carry a TRUE result_count, because the
-  // zero-result case is the entire point: a query that returns nothing is a
-  // gap in what we list, which is actionable, whereas a raw search count is
-  // just traffic. Neither input owns that number — HomePage and CategoryPage
-  // have the text box but never see a total, and at Enter-time no fetch has
-  // run yet. EventsBrowser is the one place a committed query and its settled
-  // count meet, and it backs both pages, so both are covered from here.
-  //
-  // The term is read through a ref rather than taken as a dependency below.
-  // useEvents kicks off its fetch from an effect, so there is exactly one
-  // render where `effective.search` is already the NEW term while `total` and
-  // `loading` still describe the PREVIOUS query. A search-keyed effect would
-  // fire on that render and record the wrong count — reporting a real result
-  // set as a zero-result, which is the one number we most need to trust.
-  // Mirroring during render is safe and is React's sanctioned pattern here.
-  const searchTermRef = useRef(effective.search)
-  searchTermRef.current = effective.search
-
-  // Keyed on the term alone: re-firing whenever any OTHER filter is tweaked
-  // while a search is active would inflate that term's volume. Cleared when
-  // the search is cleared, so re-running the same query later counts again —
-  // that's a genuine second search.
-  const reportedSearchRef = useRef<string | null>(null)
+  // Home + embed search reporting. CategoryPage is a separate fork of this
+  // component and calls the same hook itself — see useSearchReporting.
+  useSearchReporting({ term: effective.search, total, loading, error, offset, page })
 
   // Append each incoming page to the accumulated list.
   useEffect(() => {
@@ -181,28 +160,13 @@ export default function EventsBrowser({
       setIsRefreshing(false)
       setResultsKey((k) => k + 1)
       onItemsChange?.(page)
-
-      // Page zero has just settled, so `total` now describes THIS query —
-      // useEvents batches setEvents/setTotal/setLoading, so reading it any
-      // earlier yields the previous one.
-      const term = (searchTermRef.current ?? '').trim()
-      if (!term) {
-        reportedSearchRef.current = null
-      } else if (reportedSearchRef.current !== term) {
-        reportedSearchRef.current = term
-        trackEvent(EVENTS.SEARCH, {
-          search_term: term,
-          content_type: 'events',
-          result_count: total,
-        })
-      }
     } else {
       setAllEvents((prev) => {
         const ids = new Set(prev.map((e) => e.id))
         return [...prev, ...page.filter((e) => !ids.has(e.id))]
       })
     }
-  }, [page, loading, offset, total, onItemsChange])
+  }, [page, loading, offset, onItemsChange])
 
   // Fire the first-page callback exactly once (homepage hero-video unlock).
   const firstLoadFired = useRef(false)

@@ -12,6 +12,8 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Keybo
 import { useParams, Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useEvents, PAGE_SIZE, type AppEvent } from '@/hooks/useEvents'
 import { useRestorablePagination } from '@/hooks/useRestorablePagination'
+import { useSearchReporting } from '@/hooks/useSearchReporting'
+import { trackEvent, EVENTS } from '@/lib/analytics'
 import { INTENTS } from '@/lib/intents'
 import EventCard from '@/components/EventCard'
 import ShareButtons from '@/components/ShareButtons'
@@ -273,6 +275,12 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
     offset,
     hubSlug:  hubFirstPageCacheable ? hub.slug : null,
   })
+
+  // Hub search reporting. This page is a fork of EventsBrowser (own useEvents,
+  // own append effect, own filter strip), so it has to call this itself — the
+  // hub surface is every neighborhood, city and category page, and it reported
+  // nothing at all until this was added.
+  useSearchReporting({ term: search, total, loading, error, offset, page })
 
   useEffect(() => {
     if (loading) return
@@ -676,9 +684,16 @@ function HubFilters({
       onIntentId(activeIntentId === opt.value ? null : opt.value)
       return
     }
+    // Hub filters are include-only by design — there is no exclude state here,
+    // so `action` is never 'exclude' on this surface (the tri-state cycle is
+    // EventsBrowser's). Reported here rather than in the `onRawCategories`
+    // setter because only this function knows WHICH slug moved and in which
+    // direction; the setter just receives a whole new array.
     if (rawCategories.includes(opt.value)) {
+      trackEvent(EVENTS.CATEGORY_FILTER, { category: opt.value, action: 'clear' })
       onRawCategories(rawCategories.filter((c) => c !== opt.value))
     } else {
+      trackEvent(EVENTS.CATEGORY_FILTER, { category: opt.value, action: 'include' })
       onRawCategories([...rawCategories, opt.value])
     }
   }
