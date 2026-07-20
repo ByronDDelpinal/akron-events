@@ -52,7 +52,16 @@ export default function SubmitPage() {
 
     try {
       // Insert with status='pending_review' and source='manual'.
+      //
+      // The id is generated client-side on purpose: anon's SELECT policy on
+      // events is published-only, and Postgres applies SELECT policies to
+      // INSERT ... RETURNING — so `.insert().select('id')` fails for a
+      // pending_review row even though the insert itself is allowed (see
+      // migration 042). Minting the UUID here lets us link categories and
+      // notify without reading the row back.
+      const eventId = crypto.randomUUID()
       const payload = {
+        id:              eventId,
         title:           form.title,
         description:     form.description || null,
         // Inputs are timezone-naive datetime-local strings (submitter's
@@ -70,11 +79,9 @@ export default function SubmitPage() {
         status:          'pending_review',
       }
 
-      const { data: inserted, error: insertError } = await supabase
+      const { error: insertError } = await supabase
         .from('events')
         .insert(payload as TablesInsert<'events'>)
-        .select('id')
-        .single()
       if (insertError) throw insertError
 
       // Content categories live in event_categories (up to 2).
@@ -82,7 +89,7 @@ export default function SubmitPage() {
       if (cats.length) {
         const { error: catError } = await supabase
           .from('event_categories')
-          .insert(cats.map((category) => ({ event_id: (inserted as { id: string }).id, category })) as TablesInsert<'event_categories'>[])
+          .insert(cats.map((category) => ({ event_id: eventId, category })) as TablesInsert<'event_categories'>[])
         if (catError) console.warn('[submit] event_categories insert failed', catError)
       }
 
@@ -90,7 +97,7 @@ export default function SubmitPage() {
       try {
         const { error: notifyError } = await supabase.functions.invoke('notify-pending-event', {
           body: {
-            event_id:        (inserted as { id: string }).id,
+            event_id:        eventId,
             organizer_name:  form.organizer_name || null,
             organizer_email: form.organizer_email || null,
             venue_name:      form.venue_name || null,

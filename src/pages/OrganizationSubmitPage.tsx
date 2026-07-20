@@ -83,7 +83,15 @@ export default function OrganizationSubmitPage() {
 
     try {
       // 1. Insert the organization
+      //
+      // Ids are generated client-side: anon's SELECT policy on organizations
+      // is published-only, and Postgres applies SELECT policies to INSERT ...
+      // RETURNING — so `.insert().select('id')` fails for a pending_review
+      // row even though the insert is allowed (same bug class as the event
+      // submit form; see migration 042).
+      const orgId = crypto.randomUUID()
       const orgPayload = {
+        id:            orgId,
         name:          form.name,
         description:   form.description || null,
         website:       form.website || null,
@@ -95,11 +103,9 @@ export default function OrganizationSubmitPage() {
         status:        'pending_review',
       }
 
-      const { data: orgData, error: orgError } = await supabase
+      const { error: orgError } = await supabase
         .from('organizations')
         .insert(orgPayload as TablesInsert<'organizations'>)
-        .select('id')
-        .single()
       if (orgError) throw orgError
 
       // 2. If venue section is filled, insert the venue linked to this org
@@ -109,7 +115,9 @@ export default function OrganizationSubmitPage() {
           state: venue.state, zip: venue.zip,
         })
 
+        const venueId = crypto.randomUUID()
         const venuePayload = {
+          id:              venueId,
           name:            venue.name,
           description:     venue.description || null,
           website:         venue.website || null,
@@ -121,22 +129,20 @@ export default function OrganizationSubmitPage() {
           lng:             coords?.lng ?? null,
           parking_type:    venue.parking_type,
           parking_notes:   venue.parking_notes || null,
-          organization_id: (orgData as { id: string } | null)?.id ?? null,
+          organization_id: orgId,
           status:          'pending_review',
         }
 
-        const { data: venueData, error: venueError } = await supabase
+        const { error: venueError } = await supabase
           .from('venues')
           .insert(venuePayload as TablesInsert<'venues'>)
-          .select('id')
-          .single()
         if (venueError) throw venueError
 
         // 3. Insert areas if any
         const validAreas = areas.filter((a) => a.name.trim())
-        if (validAreas.length > 0 && venueData?.id) {
+        if (validAreas.length > 0) {
           const areaRows = validAreas.map((a) => ({
-            venue_id:    venueData.id,
+            venue_id:    venueId,
             name:        a.name.trim(),
             description: a.description || null,
             capacity:    a.capacity ? parseInt(a.capacity) : null,
