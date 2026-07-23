@@ -57,13 +57,19 @@ describe('Downtown Akron: time parsing', () => {
   it('takes the start of a time range', () => {
     assert.equal(parseTime('12pm - 8pm'), '12:00:00')
   })
+  it('returns null for missing input (no fabricated noon)', () => {
+    assert.equal(parseTime(null), null)
+  })
+  it('returns null for unparseable input (no fabricated noon)', () => {
+    assert.equal(parseTime('no clock here'), null)
+  })
 })
 
 describe('Downtown Akron: venue parsing', () => {
   const events = parseCalendarHtml(CALENDAR_HTML)
 
-  it('parses both event cards', () => {
-    assert.equal(events.length, 2)
+  it('parses all three event cards', () => {
+    assert.equal(events.length, 3)
   })
 
   it('captures a venue that contains "am" (regression: "Full Grip Games")', () => {
@@ -79,6 +85,13 @@ describe('Downtown Akron: venue parsing', () => {
   it('captures a normal venue', () => {
     const s = events.find(e => e.slug === 'sketchbook-social')
     assert.equal(s.venueName, 'Akron Art Museum')
+  })
+
+  it('leaves timeStr null when the card has no time div (no fabricated noon)', () => {
+    const t = events.find(e => e.slug === 'all-day-art-walk')
+    assert.ok(t, 'timeless card parsed')
+    assert.equal(t.timeStr, null)
+    assert.equal(t.venueName, 'Akron Soul Train')
   })
 })
 
@@ -104,8 +117,8 @@ describe('Downtown Akron: directly-scraped venue suppression', () => {
   it('removes the Full Grip event when filtering a parsed batch', () => {
     const events  = parseCalendarHtml(CALENDAR_HTML)
     const visible = events.filter(e => !directlyScrapedVenue(e.venueName))
-    assert.equal(visible.length, 1)
-    assert.equal(visible[0].slug, 'sketchbook-social')
+    assert.equal(visible.length, 2)
+    assert.deepEqual(visible.map(e => e.slug).sort(), ['all-day-art-walk', 'sketchbook-social'])
   })
 })
 

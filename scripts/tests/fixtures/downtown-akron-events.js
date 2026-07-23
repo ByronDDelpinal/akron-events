@@ -8,6 +8,8 @@
  *      exact case that the old venue-detection regex silently dropped, and a
  *      venue we scrape directly (so it must be suppressed).
  *   2. A card at a venue we do NOT scrape directly — venue parses and survives.
+ *   3. A card with NO time div at all — timeStr must come back null (the
+ *      scraper must not fabricate a clock time for timeless listings).
  */
 export const CALENDAR_HTML = `
 <div class="calendar">
@@ -22,6 +24,11 @@ export const CALENDAR_HTML = `
     <div class="time">6pm</div>
     <div class="venue">Akron Art Museum</div>
     <div class="dow">Saturday</div><div class="day">4</div><div class="mon">Jul</div>
+  </a>
+  <a href="/event/all-day-art-walk" class="event-card">
+    <div class="title">All Day Art Walk</div>
+    <div class="venue">Akron Soul Train</div>
+    <div class="dow">Sunday</div><div class="day">5</div><div class="mon">Jul</div>
   </a>
 </div>
 `

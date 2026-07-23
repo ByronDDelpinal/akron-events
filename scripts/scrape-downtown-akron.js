@@ -59,10 +59,11 @@ function reconstructDate(dayNum, monthAbbr) {
 
 /**
  * Parse time from strings like "2 p.m.", "7:30 p.m.", "noon", "2 p.m. - 11 p.m."
- * Returns the start time as HH:MM:00 or "12:00:00" fallback.
+ * Returns the start time as HH:MM:00, or null when the input is missing or
+ * unparseable — we never fabricate a clock time for timeless listings.
  */
 function parseTime(raw) {
-  if (!raw) return '12:00:00'
+  if (!raw) return null
   const s = raw.trim().toLowerCase()
 
   if (s.includes('noon')) return '12:00:00'
@@ -79,7 +80,7 @@ function parseTime(raw) {
     return `${String(hr).padStart(2, '0')}:${m}:00`
   }
 
-  return '12:00:00'
+  return null
 }
 
 /**
@@ -288,7 +289,7 @@ function parseCalendarHtml(html) {
     const title = parts.find(p => p.toLowerCase() !== 'view details' && p.length > 2)
     if (!title) continue
 
-    let   timeStr  = '12:00:00'
+    let   timeStr  = null
     let   venueName = null
 
     // Legacy layout: a single "<time> / <venue>" part.
@@ -449,7 +450,10 @@ async function processEvents(events, organizerId) {
   for (const ev of events) {
     try {
       const venueId = await ensureVenueByName(ev.venueName)
-      const startAt = easternToIso(ev.dateStr, ev.timeStr)
+      // Timeless cards get midnight ET (the repo convention for timeless
+      // events) via easternToIso's combined-form/empty-time branch — never a
+      // fabricated noon.
+      const startAt = easternToIso(ev.dateStr, ev.timeStr ?? '')
       if (!startAt) { skipped++; continue }
 
       const atVenue = await venueEventsFor(venueId)
