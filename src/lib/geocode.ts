@@ -18,6 +18,10 @@ export interface LatLng {
   lng: number
 }
 
+// NE-Ohio / Greater Akron bounding box: [west, south, east, north].
+// Mirrors SANITY_BBOX in scripts/geocode-venues.js — keep the two in sync.
+const SANITY_BBOX = { west: -82.3, south: 40.6, east: -80.7, north: 41.7 }
+
 export async function geocodeAddress({
   address,
   city,
@@ -32,6 +36,11 @@ export async function geocodeAddress({
     q,
     format: 'json',
     limit: '1',
+    // Bias (not restrict) results toward Greater Akron; bounded=0 keeps the
+    // viewbox a preference only. The SANITY_BBOX reject below is the safety.
+    viewbox: `${SANITY_BBOX.west},${SANITY_BBOX.north},${SANITY_BBOX.east},${SANITY_BBOX.south}`,
+    bounded: '0',
+    countrycodes: 'us',
   })}`
 
   try {
@@ -43,10 +52,24 @@ export async function geocodeAddress({
     const data = (await res.json()) as Array<{ lat: string; lon: string }>
     if (!data.length) return null
 
-    return {
-      lat: parseFloat(data[0].lat),
-      lng: parseFloat(data[0].lon),
+    const lat = parseFloat(data[0].lat)
+    const lng = parseFloat(data[0].lon)
+
+    // Reject geocodes outside Greater Akron — a match in another state is
+    // worse than no coordinates at all (callers treat null as no-coords).
+    if (
+      !(
+        lng >= SANITY_BBOX.west &&
+        lng <= SANITY_BBOX.east &&
+        lat >= SANITY_BBOX.south &&
+        lat <= SANITY_BBOX.north
+      )
+    ) {
+      console.warn(`geocodeAddress: rejecting out-of-area result for "${q}" (${lat}, ${lng})`)
+      return null
     }
+
+    return { lat, lng }
   } catch {
     // Geocoding is best-effort — don't block submission
     return null
