@@ -103,8 +103,9 @@ describe('Artisan Coffee — normalization', () => {
     assert.ok(!/<[a-z]/i.test(row.description))
     assert.ok(!row.description.includes('&amp;'))
   })
-  it('carries the featured (starred) flag', () => {
-    assert.equal(normalise(AUTHOR_TALK).featured, true)
+  it('starred flag never sets featured (human-only editorial flag)', () => {
+    // AUTHOR_TALK is starred at the source; featured must still be false.
+    assert.equal(normalise(AUTHOR_TALK).featured, false)
     assert.equal(normalise(LIVE_MUSIC).featured, false)
   })
   it('yields null start_at for an item with no startDate (scraper skips it)', () => {

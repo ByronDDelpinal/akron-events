@@ -324,9 +324,9 @@ describe('Rialto — full normalisation', () => {
     assert.equal(row.image_url, null)
   })
 
-  it('featured event has featured=true', () => {
+  it('starred source event still has featured=false (human-only flag)', () => {
     const row = normalise(FEATURED_EVENT)
-    assert.equal(row.featured, true)
+    assert.equal(row.featured, false)
   })
 
   it('non-featured event has featured=false', () => {

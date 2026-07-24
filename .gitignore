@@ -41,6 +41,9 @@ Thumbs.db
 # sandboxes. Untracked AND unignored, these are one `git add .` from the repo.
 .fuse_hidden*
 
+# agent worktrees: linked git worktrees (e.g. agents/nightly) live here
+.worktrees/
+
 # logs
 npm-debug.log*
 yarn-debug.log*

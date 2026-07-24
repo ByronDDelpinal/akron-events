@@ -191,9 +191,9 @@ describe('Leadership Akron — full normalisation', () => {
     assert.equal(row.start_at, null)
   })
 
-  it('featured event has featured=true', () => {
+  it('starred source event still has featured=false (human-only flag)', () => {
     const row = normalise(FEATURED_EVENT)
-    assert.equal(row.featured, true)
+    assert.equal(row.featured, false)
   })
 
   it('non-featured event has featured=false', () => {

@@ -163,9 +163,9 @@ describe('normaliseSquarespaceEvent', () => {
     assert.equal(row.end_at, null)
   })
 
-  it('maps starred to featured', () => {
+  it('starred does NOT map to featured (human-only editorial flag)', () => {
     const row = normaliseSquarespaceEvent(FEATURED_EVENT, defaultConfig)
-    assert.equal(row.featured, true)
+    assert.equal(row.featured, false)
   })
 
   it('uses default config values when config omitted', () => {
