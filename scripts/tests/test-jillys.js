@@ -109,7 +109,8 @@ function mergeEvent(ajaxEvent, restPost) {
     source: 'jillys_music_room',
     source_id: String(ajaxEvent.ID),
     status: 'published',
-    featured: ajaxEvent.featured === true || ajaxEvent.featured === 'yes',
+    // Mirrors the scraper: featured is human-only, never derived from source.
+    featured: false,
   }
 }
 
@@ -234,10 +235,10 @@ describe('Jilly\'s: Event Merging', () => {
     assert.equal(row.title, 'The "Blues" Brothers & Friends')
   })
 
-  it('marks featured events', () => {
+  it('source featured flag never sets featured (human-only)', () => {
     const row = mergeEvent(FEATURED_EVENT.ajaxEvent, FEATURED_EVENT.restPost)
     assert.ok(row)
-    assert.equal(row.featured, true)
+    assert.equal(row.featured, false)
   })
 
   it('extracts ticket URL from rest content', () => {

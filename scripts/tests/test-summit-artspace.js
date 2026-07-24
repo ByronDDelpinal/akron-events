@@ -90,7 +90,8 @@ function normalizeEvent(ev) {
     source:          'summit_artspace',
     source_id:       String(ev.id),
     status:          'published',
-    featured:        ev.featured ?? false,
+    // Mirrors the scraper: featured is human-only, never derived from source.
+    featured:        false,
   }
 
   if (!row.start_at) return null
@@ -299,7 +300,7 @@ describe('Summit Artspace: Event Normalization', () => {
     assert.ok(row)
     assert.equal(row.category, 'nonprofit')
     assert.equal(row.price_min, 150)
-    assert.equal(row.featured, true)
+    assert.equal(row.featured, false)
   })
 
   it('maps family events to community', () => {
@@ -326,10 +327,10 @@ describe('Summit Artspace: Event Normalization', () => {
     assert.equal(row.category, 'art')
   })
 
-  it('handles featured flag', () => {
+  it('source featured flag never sets featured (human-only)', () => {
     const row = normalizeEvent(FEATURED_EVENT)
     assert.ok(row)
-    assert.equal(row.featured, true)
+    assert.equal(row.featured, false)
   })
 
   it('extracts image from description as fallback', () => {

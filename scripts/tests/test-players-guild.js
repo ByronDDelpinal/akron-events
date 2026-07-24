@@ -63,7 +63,8 @@ function normalizeEvent(ev) {
     source:          'players_guild',
     source_id:       String(ev.id),
     status:          'published',
-    featured:        ev.featured ?? false,
+    // Mirrors the scraper: featured is human-only, never derived from source.
+    featured:        false,
   }
 
   if (!row.start_at) return null
@@ -212,10 +213,10 @@ describe('Players Guild Theatre: Event Normalization', () => {
     assert.equal(row.title, 'Opening Night Gala')
   })
 
-  it('handles featured flag', () => {
+  it('source featured flag never sets featured (human-only)', () => {
     const row = normalizeEvent(FEATURED_EVENT)
     assert.ok(row)
-    assert.equal(row.featured, true)
+    assert.equal(row.featured, false)
     assert.equal(row.title, 'The Crucible')
   })
 
@@ -225,7 +226,7 @@ describe('Players Guild Theatre: Event Normalization', () => {
     assert.equal(row.title, 'Hamilton: An American Musical')
     assert.equal(row.price_min, 25)
     assert.equal(row.price_max, 35)
-    assert.ok(row.featured, 'Hamilton should be featured')
+    assert.equal(row.featured, false, 'featured is human-only, even for Hamilton')
   })
 
   it('handles event with no image', () => {

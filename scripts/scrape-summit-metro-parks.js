@@ -174,7 +174,10 @@ async function processEvents(rawEvents, orgVenueId, organizerId) {
         source:          'summit_metro_parks',
         source_id:       String(ev.id),
         status:          'published',
-        featured:        ev.featured ?? false,
+        // NEVER machine-set `featured`. It's a human-only editorial call made
+        // in the admin UI; a source flagging its own event says nothing about
+        // whether it deserves the digest hero slot. (Was `ev.featured ?? false`.)
+        featured:        false,
       }
 
       if (!row.start_at) { skipped++; continue }

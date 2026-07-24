@@ -87,7 +87,8 @@ function normalizeEvent(ev) {
     source:          'missing_falls',
     source_id:       String(ev.id),
     status:          'published',
-    featured:        ev.featured ?? false,
+    // Mirrors the scraper: featured is human-only, never derived from source.
+    featured:        false,
   }
 
   if (!row.start_at) return null
@@ -322,10 +323,10 @@ describe('Missing Falls: Event Normalization', () => {
     assert.equal(row.image_url, 'https://example.com/cleanup.jpg')
   })
 
-  it('handles featured flag', () => {
+  it('source featured flag never sets featured (human-only)', () => {
     const row = normalizeEvent(FEATURED_EVENT)
     assert.ok(row)
-    assert.equal(row.featured, true)
+    assert.equal(row.featured, false)
   })
 
   it('maps bingo event to community', () => {

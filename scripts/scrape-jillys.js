@@ -269,7 +269,11 @@ async function processEvents(ajaxEvents, restById, venueId, organizerId) {
         source:          'jillys_music_room',
         source_id:       String(postId),
         status:          'published',
-        featured:        ev.featured === true || ev.featured === 'yes',
+        // NEVER machine-set `featured`. It's a human-only editorial call made
+        // in the admin UI; a source flagging its own event says nothing about
+        // whether it deserves the digest hero slot.
+        // (Was `ev.featured === true || ev.featured === 'yes'`.)
+        featured:        false,
       }
 
       if (!row.start_at) { skipped++; continue }

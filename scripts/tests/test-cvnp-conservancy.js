@@ -79,7 +79,8 @@ function normalizeEvent(ev) {
     source:          'cvnp_conservancy',
     source_id:       String(ev.id),
     status:          'published',
-    featured:        ev.featured ?? false,
+    // Mirrors the scraper: featured is human-only, never derived from source.
+    featured:        false,
   }
 
   if (!row.start_at) return null
@@ -246,7 +247,7 @@ describe('CVNP Conservancy: Event Normalization', () => {
     const row = normalizeEvent(MUSIC_EVENT)
     assert.ok(row)
     assert.equal(row.category, 'music')
-    assert.equal(row.featured, true)
+    assert.equal(row.featured, false)
     assert.ok(row.tags.includes('concert'))
     assert.ok(row.tags.includes('performance'))
   })
@@ -311,10 +312,10 @@ describe('CVNP Conservancy: Event Normalization', () => {
     assert.equal(row.image_url, null)
   })
 
-  it('handles featured flag', () => {
+  it('source featured flag never sets featured (human-only)', () => {
     const row = normalizeEvent(FEATURED_EVENT)
     assert.ok(row)
-    assert.equal(row.featured, true)
+    assert.equal(row.featured, false)
     assert.equal(row.title, 'Ledges Trail Dedication Ceremony')
   })
 })

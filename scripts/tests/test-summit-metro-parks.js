@@ -93,7 +93,8 @@ function normalizeTribalEvent(ev) {
     source:          'summit_metro_parks',
     source_id:       String(ev.id),
     status:          'published',
-    featured:        ev.featured ?? false,
+    // Mirrors the scraper: featured is human-only, never derived from source.
+    featured:        false,
   }
 }
 
@@ -318,10 +319,10 @@ describe('Summit Metro Parks: Event Normalization', () => {
     assert.ok(!row.description.includes('&amp;'))
   })
 
-  it('marks featured events with featured flag', () => {
+  it('source featured flag never sets featured (human-only)', () => {
     const row = normalizeTribalEvent(FEATURED_EVENT)
     assert.ok(row)
-    assert.equal(row.featured, true)
+    assert.equal(row.featured, false)
   })
 
   it('maps multiple categories with music priority', () => {

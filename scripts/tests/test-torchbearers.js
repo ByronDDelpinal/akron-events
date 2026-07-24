@@ -78,7 +78,8 @@ function normalise(ev) {
     source:          'torchbearers',
     source_id:       String(ev.id),
     status:          'published',
-    featured:        ev.featured ?? false,
+    // Mirrors the scraper: featured is human-only, never derived from source.
+    featured:        false,
   }
 }
 
@@ -228,9 +229,9 @@ describe('Torchbearers — full normalization', () => {
     assert.ok(row.description.includes('volunteer'))
   })
 
-  it('featured event maps correctly', () => {
+  it('source featured flag never sets featured (human-only)', () => {
     const row = normalise(VOLUNTEER_EVENT)
-    assert.equal(row.featured, true)
+    assert.equal(row.featured, false)
   })
 
   it('non-featured event maps correctly', () => {
