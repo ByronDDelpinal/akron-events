@@ -33,6 +33,7 @@ const {
   canonicalVenueName,
   orgNameKey,
   titleCaseIfShouting,
+  absoluteUrl,
 } = await import('../lib/normalize.js')
 
 describe('orgNameKey', () => {
@@ -877,5 +878,61 @@ describe('titleCaseIfShouting', () => {
       titleCaseIfShouting('BIG   SUMMER  COMEDY NIGHT AT THE KILLBOX CLUB'),
       'Big   Summer  Comedy Night at the Killbox Club'
     )
+  })
+})
+
+describe('absoluteUrl', () => {
+  it('passes absolute http(s) URLs through untouched', () => {
+    assert.equal(
+      absoluteUrl('https://example.com/img/poster.jpg', 'https://other.org'),
+      'https://example.com/img/poster.jpg'
+    )
+    assert.equal(
+      absoluteUrl('HTTP://example.com/a.png', 'https://other.org'),
+      'HTTP://example.com/a.png'
+    )
+  })
+
+  it('upgrades protocol-relative URLs to https', () => {
+    assert.equal(
+      absoluteUrl('//cdn.example.com/x.jpg', 'https://base.org'),
+      'https://cdn.example.com/x.jpg'
+    )
+  })
+
+  it('resolves a root-relative path against the base', () => {
+    assert.equal(
+      absoluteUrl('/uploads/x.jpg', 'https://www.weathervaneplayhouse.com'),
+      'https://www.weathervaneplayhouse.com/uploads/x.jpg'
+    )
+  })
+
+  it('resolves a bare filename against the base', () => {
+    assert.equal(
+      absoluteUrl('poster.jpg', 'https://example.com/shows/'),
+      'https://example.com/shows/poster.jpg'
+    )
+  })
+
+  it('trims surrounding whitespace before resolving', () => {
+    assert.equal(
+      absoluteUrl('  /a.png  ', 'https://example.com'),
+      'https://example.com/a.png'
+    )
+  })
+
+  it('returns null for null, undefined, empty, blank, and non-string input', () => {
+    assert.equal(absoluteUrl(null, 'https://example.com'), null)
+    assert.equal(absoluteUrl(undefined, 'https://example.com'), null)
+    assert.equal(absoluteUrl('', 'https://example.com'), null)
+    assert.equal(absoluteUrl('   ', 'https://example.com'), null)
+    assert.equal(absoluteUrl(42, 'https://example.com'), null)
+    assert.equal(absoluteUrl({ url: 'https://x.com/a.jpg' }, 'https://example.com'), null)
+  })
+
+  it('returns null when URL resolution throws (garbage/missing base)', () => {
+    // Relative path with no usable base — new URL() throws.
+    assert.equal(absoluteUrl('/uploads/x.jpg', undefined), null)
+    assert.equal(absoluteUrl('a.jpg', 'not a url'), null)
   })
 })

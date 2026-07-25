@@ -919,6 +919,27 @@ function sanitizeWebsite(value) {
   return withScheme
 }
 
+/**
+ * Resolve a possibly-relative asset URL (image src, og:image, JSON-LD image)
+ * against a base URL so we never persist site-relative paths like
+ * "/uploads/poster.jpg" in image_url columns. Absolute http(s) URLs pass
+ * through untouched, protocol-relative "//host/x" gets https:, and anything
+ * else is resolved against `base` via the URL constructor. Returns null for
+ * empty/non-string input or when resolution fails. Pure — exported for tests
+ * and for any scraper that emits asset URLs scraped out of page HTML.
+ */
+export function absoluteUrl(value, base) {
+  if (typeof value !== 'string' || !value.trim()) return null
+  const t = value.trim()
+  if (/^https?:\/\//i.test(t)) return t
+  if (/^\/\//.test(t)) return 'https:' + t
+  try {
+    return new URL(t, base).href
+  } catch {
+    return null
+  }
+}
+
 // Known venue-name aliases: a variant label → the canonical venue name. Some
 // feeds name the same physical place differently and arrive WITHOUT a matching
 // address, so ensureVenue's exact-name lookup mints a second venue row and that

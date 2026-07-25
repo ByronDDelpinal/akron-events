@@ -33,6 +33,7 @@
 import 'dotenv/config'
 import { pathToFileURL } from 'node:url'
 import {
+  absoluteUrl,
   stripHtml,
   inferCategory,
   ensureVenue,
@@ -214,10 +215,11 @@ export function parseEvent(ld) {
   const rawPrice  = Number(offer.price)
   const priceMin  = Number.isFinite(rawPrice) && rawPrice > 0 ? rawPrice : null
 
-  const imageUrl =
+  const rawImage =
     typeof ld.image === 'string' ? ld.image
     : Array.isArray(ld.image)    ? ld.image[0]
     : (ld.image?.url ?? null)
+  const imageUrl = absoluteUrl(rawImage, SITE_URL)
 
   // Source ID: stable per-event 330tix slug from ld.url; recurring titles
   // (e.g. monthly workshop) get a date suffix so they don't collide.

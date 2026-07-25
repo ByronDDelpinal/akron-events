@@ -25,6 +25,7 @@ import {
   htmlToText,
   stripHtml,
   decodeEntities,
+  absoluteUrl,
   enrichWithImageDimensions,
   upsertEventSafe,
   linkEventVenue,
@@ -182,7 +183,7 @@ export function parseShows(html) {
     // Nav/footer links to /events/* with no poster image aren't show cards.
     const imgMatch = innerHtml.match(/<img[^>]+src="([^"]+)"/i)
     if (!imgMatch) continue
-    const posterUrl = decodeEntities(imgMatch[1])
+    const posterUrl = absoluteUrl(decodeEntities(imgMatch[1]), BASE_URL)
 
     const blob = htmlToText(innerHtml).replace(/\s+/g, ' ').trim()
     const monthMatch = blob.match(MONTH_NAME_RE)

@@ -40,6 +40,7 @@
 import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
 import {
+  absoluteUrl,
   easternToIso,
   enrichWithImageDimensions,
   ensureOrganization,
@@ -272,7 +273,7 @@ async function processEvents(detailPages, venueId, organizerId) {
   for (const { href, html } of detailPages) {
     try {
       const ogTitle = readMeta(html, 'og:title')
-      const ogImage = readMeta(html, 'og:image')
+      const ogImage = absoluteUrl(readMeta(html, 'og:image'), BASE_URL)
       const { title, startTime, endTime } = parseOgTitle(ogTitle)
       if (!title) { skipped++; continue }
 
