@@ -67,8 +67,9 @@ async function fetchEvents() {
     let q = supabaseAdmin
       .from('events')
       .select(`
-        id, title, start_at, source, source_id, category, status,
+        id, title, start_at, source, source_id, status,
         ticket_url, image_url,
+        event_categories(category),
         event_venues(venue_id, venues(name))
       `)
       .eq('status', 'published')
@@ -140,8 +141,12 @@ function venueName(ev) {
   return v || '(no venue)'
 }
 
+function categoryLabel(ev) {
+  return (ev.event_categories ?? []).map(c => c.category).join('/') || '?'
+}
+
 function printEventLine(ev, indent = '   ') {
-  const cat = (ev.category   || '?').padEnd(10)
+  const cat = categoryLabel(ev).padEnd(10)
   const src = (ev.source     || '?').padEnd(22)
   const sid = (ev.source_id  || '?').padEnd(20).slice(0, 20)
   console.log(`${indent}${ev.start_at}  ${cat}  ${src}  ${sid}  @ ${venueName(ev)}`)
@@ -215,7 +220,7 @@ function reportJson(clusters) {
       start_at:  ev.start_at,
       source:    ev.source,
       source_id: ev.source_id,
-      category:  ev.category,
+      category:  categoryLabel(ev),
       venue:     venueName(ev),
     })),
   })), null, 2) + '\n')

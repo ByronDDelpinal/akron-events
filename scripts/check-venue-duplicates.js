@@ -164,11 +164,11 @@ async function main() {
     process.exit(0)
   }
 
-  // 2. Fetch event counts grouped by venue_id
+  // 2. Fetch event counts grouped by venue_id (via the event_venues junction —
+  //    events.venue_id no longer exists)
   const { data: eventCounts, error: eventErr } = await supabaseAdmin
-    .from('events')
+    .from('event_venues')
     .select('venue_id')
-    .not('venue_id', 'is', null)
 
   const countMap = {}
   if (!eventErr && eventCounts) {
