@@ -275,7 +275,10 @@ async function processEvents(rawEvents, organizerId) {
         source_id:       buildSourceId(ev),
         status:          geo === 'unknown' ? 'pending_review' : 'published',
         ...(geo === 'unknown' ? { needs_review: true } : {}),
-        featured:        ev.featured ?? false,
+        // NEVER machine-set `featured`. It's a human-only editorial call made
+        // in the admin UI; a source flagging its own event says nothing about
+        // whether it deserves the digest hero slot. (Was `ev.featured ?? false`.)
+        featured:        false,
       }
 
       const venueId = await ensureEventVenue(venueSpec, organizerId)
