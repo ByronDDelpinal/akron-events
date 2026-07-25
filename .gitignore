@@ -74,3 +74,6 @@ data/gis/ohio_county_subs/
 # MODERATION_TERMS_B64 environment variable (see scripts/encode-moderation-terms.js).
 # A local copy under data/moderation/ exists only for editing and re-encoding.
 data/moderation/
+.worktrees/
+.tmp-*
+.claude/settings.local.json
