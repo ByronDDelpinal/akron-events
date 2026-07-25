@@ -829,6 +829,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'cvfm',
+    method:      'HTML scrape',
+    methodDetail:'cvfm.org homepage footer — two prose "SUMMER/WINTER MARKET" season blocks (date range, venue, holiday closures) parsed live, expanded into weekly Saturday occurrences via lib/weekly-occurrences.js (14-week horizon)',
+    venue:       'Summer: Howe Meadow, 4040 Riverview Rd, Peninsula (in CVNP) · Winter: Old Trail School, 2315 Ira Rd, Akron/Bath',
+    notes:       'Cuyahoga Valley Farmers Market — a producer-only, year-round Saturday farmers market (9am–12pm, rain or shine) with vendors from within a 100-mile radius. It runs two seasonal locations and we ingest BOTH: summer at Howe Meadow in the Cuyahoga Valley National Park (Peninsula) and winter at Old Trail School (Bath Township). BOTH venues are in Summit County (the name refers to the Cuyahoga Valley/national park, not Cuyahoga County), so events publish directly with no geo gate. The market publishes no per-date listings — only the standing schedule stated as prose in the homepage footer — so we parse the two season blocks (date range, venue line, and the winter "CLOSED: …" holiday dates, whose years are inferred from the season) and generate one dated event per Saturday that falls inside an active season window, skipping closures and the between-season gap. Category food; price null (no admission stated, never assumed free).',
+    status:      'active',
+  },
+  {
     key:         'barnes_noble_akron',
     method:      'JSON API',
     methodDetail:'B&N locator-api/v1/events queried at the Akron store\'s coordinates (the storeId param is ignored server-side) and filtered to storeId 2902',
@@ -1590,6 +1598,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   danos_lakeside:          'html',
   hudson_library:          'html',
   the_grove:               'html',
+  cvfm:                    'html',
   barnes_noble_akron:      'api',
   city_of_twinsburg:       'civicplus',
   lake_campground:         'html',

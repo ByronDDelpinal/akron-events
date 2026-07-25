@@ -95,6 +95,7 @@ export const SCRAPERS = [
   { key: 'summit_county_fairgrounds', script: 'scripts/scrape-summit-county-fairgrounds.js', label: 'Summit County Fairgrounds', group: 'html',      active: true  },
   { key: 'ohio_erie_canalway',   script: 'scripts/scrape-ohio-erie-canalway.js',      label: 'Ohio & Erie Canalway',         group: 'html',           active: true  },
   { key: 'akron_roller_derby',   script: 'scripts/scrape-akron-roller-derby.js',      label: 'Akron Roller Derby',           group: 'html',           active: true, defaultCategory: 'sports' },
+  { key: 'cvfm',                 script: 'scripts/scrape-cvfm.js',                    label: 'Cuyahoga Valley Farmers Market', group: 'html',         active: true, defaultCategory: 'food' },
   { key: 'magic_city_drivein',   script: 'scripts/scrape-magic-city-drivein.js',      label: 'Magic City Drive-In',          group: 'html',           active: true, defaultCategory: 'film' },
   { key: 'dilly_ds',             script: 'scripts/scrape-dilly-ds.js',                label: "Dilly D's Sports Grill",       group: 'html',           active: true, defaultCategory: 'games' },
   { key: 'old_stone_jail',       script: 'scripts/scrape-old-stone-jail.js',          label: 'Old Stone Jail',               group: 'html',           active: true, defaultCategory: 'games' },

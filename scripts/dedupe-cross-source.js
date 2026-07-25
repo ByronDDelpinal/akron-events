@@ -67,6 +67,7 @@ export const SOURCE_PRIORITY = [
   'akron_roller_derby',      // first-party (home bouts at Summit County Fairgrounds)
   'blu_jazz',
   'city_of_akron_lock3',     // first-party source for city programming
+  'cvfm',                    // first-party (Cuyahoga Valley Farmers Market, Summit venues)
   'city_of_hudson',          // first-party municipal calendar (CivicPlus)
   'ejthomas_hall',           // first-party venue calendar (E.J. Thomas Hall)
   'jillys_music_room',
