@@ -1266,6 +1266,19 @@ export function titleCaseIfShouting(title) {
 }
 
 /**
+ * Remove the Unicode replacement character (U+FFFD, "�") that upstream feeds
+ * leave behind when a byte failed to decode. It is never meaningful content,
+ * so we drop it and collapse any resulting double space — but only runs of
+ * spaces/tabs, never newlines, so multi-paragraph descriptions keep their
+ * structure. (Seen 2026-07-25 in a main_street_barberton description:
+ * "…July 25, 2026� 2:00 PM".) We do NOT touch literal "?" runs: a real title
+ * can legitimately contain "???", so those are corrected per-row, not here.
+ */
+export function stripReplacementChar(s) {
+  return typeof s === 'string' ? s.replace(/�/g, ' ').replace(/[ \t]{2,}/g, ' ') : s
+}
+
+/**
  * Sanitize text fields on an event row before upsert.
  * Decodes HTML entities and strips stray tags from title and description.
  * Exported so tests can verify the same logic without hitting the DB.
@@ -1273,11 +1286,11 @@ export function titleCaseIfShouting(title) {
 export function sanitizeEventText(row) {
   return {
     ...row,
-    title:       row.title       ? titleCaseIfShouting(stripHtml(row.title)) : row.title,
+    title:       row.title       ? titleCaseIfShouting(stripReplacementChar(stripHtml(row.title))) : row.title,
     // Use htmlToText for descriptions so paragraph breaks (\n\n) and list
     // markers are preserved. stripHtml collapses all whitespace to a single
     // space, which flattens multi-paragraph descriptions into one long string.
-    description: row.description ? htmlToText(row.description) : row.description,
+    description: row.description ? stripReplacementChar(htmlToText(row.description)) : row.description,
     // Tags come from source `categories` arrays and aren't HTML, but
     // some upstream feeds emit values like "health &amp; fitness" with
     // entities intact. Decode each entry so the DB never stores

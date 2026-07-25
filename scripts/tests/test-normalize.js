@@ -674,6 +674,24 @@ describe('Insert payload construction (NOT NULL DEFAULT safety)', () => {
 // sanitizeEventText before hitting the database.
 
 describe('sanitizeEventText', () => {
+  it('strips the U+FFFD replacement char from title + description (mojibake, 2026-07-25)', () => {
+    const row = sanitizeEventText({
+      title: 'Barberton Summer Crawl � Christmas Walk',
+      description: 'Saturday, July 25, 2026� 2:00 PM – 10:00 PM',
+      source: 'main_street_barberton',
+      source_id: 'moji-1',
+    })
+    assert.ok(!row.title.includes('�'), 'title has no replacement char')
+    assert.ok(!row.description.includes('�'), 'description has no replacement char')
+    assert.equal(row.title, 'Barberton Summer Crawl Christmas Walk')
+    assert.equal(row.description, 'Saturday, July 25, 2026 2:00 PM – 10:00 PM')
+  })
+
+  it('leaves a legitimate "???" run alone (not our job to guess apostrophes)', () => {
+    const row = sanitizeEventText({ title: 'Who Dun It???', description: null, source: 's', source_id: 'q' })
+    assert.equal(row.title, 'Who Dun It???')
+  })
+
   it('decodes &#8217; (right single quote) in title — the Lil Sprouts bug', () => {
     const row = sanitizeEventText({
       title: 'Lil&#8217; Sprouts',
