@@ -47,7 +47,7 @@ const GODSPELL_ITEM = {
   body:      '<div class="sqs-layout"><div class="row"><div class="col"> </div></div></div>',
   startDate: 1784332800302, // 2026-07-17 8:00 PM EDT  → 2026-07-18T00:00:00Z
   endDate:   1785088800302, // 2026-07-26 2:00 PM EDT  → 2026-07-26T18:00:00Z
-  starred:   false,
+  starred:   true, // source-side star must NOT flow into featured (human-only)
 }
 
 describe('WRP: parseFullEvents', () => {
@@ -173,6 +173,10 @@ describe('WRP: normalizeMainstageItem', () => {
 
   it('returns null when there is no start date', () => {
     assert.equal(normalizeMainstageItem({ title: 'x', startDate: null }), null)
+  })
+
+  it('never sets featured even when the source item is starred', () => {
+    assert.equal(row.featured, false)
   })
 })
 
