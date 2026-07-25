@@ -190,7 +190,9 @@ async function main() {
     const organizerId = await ensureZipsOrganizer()
 
     console.log(`\n🔍  Fetching ${FEED_URL}…`)
-    const icsText = await fetchIcsFeed(FEED_URL)
+    // The gozips composite feed (sport_id=0) is large/slow; the default 20s
+    // timeout in fetchIcsFeed was aborting runs on transient upstream slowness.
+    const icsText = await fetchIcsFeed(FEED_URL, { timeoutMs: 45_000 })
     const rawEvents = parseIcs(icsText)
     console.log(`  Parsed ${rawEvents.length} VEVENT blocks`)
 
