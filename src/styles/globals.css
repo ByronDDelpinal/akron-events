@@ -399,46 +399,46 @@ h6 { font-size: var(--text-h6); }
 }
 
 .gradient-music      { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-music) 40%, black) 0%, color-mix(in srgb, var(--cat-music) 82%, black) 100%); }
-.gradient-music::after      { -webkit-mask-image: url('/music-note.svg');   mask-image: url('/music-note.svg'); }
+.gradient-music::after      { -webkit-mask-image: url('/music_pulse.svg');   mask-image: url('/music_pulse.svg'); }
 
 .gradient-theater    { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-theater) 40%, black) 0%, color-mix(in srgb, var(--cat-theater) 82%, black) 100%); }
-.gradient-theater::after    { -webkit-mask-image: url('/theater.svg');      mask-image: url('/theater.svg'); }
+.gradient-theater::after    { -webkit-mask-image: url('/theater_pulse.svg');      mask-image: url('/theater_pulse.svg'); }
 
 .gradient-film       { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-film) 40%, black) 0%, color-mix(in srgb, var(--cat-film) 82%, black) 100%); }
-.gradient-film::after       { -webkit-mask-image: url('/film.svg');         mask-image: url('/film.svg'); }
+.gradient-film::after       { -webkit-mask-image: url('/film_pulse.svg');         mask-image: url('/film_pulse.svg'); }
 
 .gradient-comedy     { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-comedy) 40%, black) 0%, color-mix(in srgb, var(--cat-comedy) 82%, black) 100%); }
-.gradient-comedy::after     { -webkit-mask-image: url('/laugh.svg');        mask-image: url('/laugh.svg'); }
+.gradient-comedy::after     { -webkit-mask-image: url('/comedy_pulse.svg');        mask-image: url('/comedy_pulse.svg'); }
 
 .gradient-visual-art { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-visual-art) 40%, black) 0%, color-mix(in srgb, var(--cat-visual-art) 82%, black) 100%); }
-.gradient-visual-art::after { -webkit-mask-image: url('/paint-brush.svg');  mask-image: url('/paint-brush.svg'); }
+.gradient-visual-art::after { -webkit-mask-image: url('/art_pulse.svg');  mask-image: url('/art_pulse.svg'); }
 
 .gradient-food       { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-food) 40%, black) 0%, color-mix(in srgb, var(--cat-food) 82%, black) 100%); }
-.gradient-food::after       { -webkit-mask-image: url('/apple.svg');        mask-image: url('/apple.svg'); }
+.gradient-food::after       { -webkit-mask-image: url('/food_pulse.svg');        mask-image: url('/food_pulse.svg'); }
 
 .gradient-sports     { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-sports) 40%, black) 0%, color-mix(in srgb, var(--cat-sports) 82%, black) 100%); }
-.gradient-sports::after     { -webkit-mask-image: url('/baseball.svg');     mask-image: url('/baseball.svg'); }
+.gradient-sports::after     { -webkit-mask-image: url('/sports_pulse.svg');     mask-image: url('/sports_pulse.svg'); }
 
 .gradient-fitness    { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-fitness) 40%, black) 0%, color-mix(in srgb, var(--cat-fitness) 82%, black) 100%); }
-.gradient-fitness::after    { -webkit-mask-image: url('/weight.svg');       mask-image: url('/weight.svg'); }
+.gradient-fitness::after    { -webkit-mask-image: url('/fitness_pulse.svg');       mask-image: url('/fitness_pulse.svg'); }
 
 .gradient-outdoors   { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-outdoors) 40%, black) 0%, color-mix(in srgb, var(--cat-outdoors) 82%, black) 100%); }
-.gradient-outdoors::after   { -webkit-mask-image: url('/leaf.svg');         mask-image: url('/leaf.svg'); }
+.gradient-outdoors::after   { -webkit-mask-image: url('/outdoors_pulse.svg');         mask-image: url('/outdoors_pulse.svg'); }
 
 .gradient-learning   { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-learning) 40%, black) 0%, color-mix(in srgb, var(--cat-learning) 82%, black) 100%); }
-.gradient-learning::after   { -webkit-mask-image: url('/pencil.svg');       mask-image: url('/pencil.svg'); }
+.gradient-learning::after   { -webkit-mask-image: url('/learning_pulse.svg');       mask-image: url('/learning_pulse.svg'); }
 
 .gradient-festival   { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-festival) 40%, black) 0%, color-mix(in srgb, var(--cat-festival) 82%, black) 100%); }
-.gradient-festival::after   { -webkit-mask-image: url('/sportlights.svg');  mask-image: url('/sportlights.svg'); }
+.gradient-festival::after   { -webkit-mask-image: url('/festival_pulse.svg');  mask-image: url('/festival_pulse.svg'); }
 
 .gradient-market     { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-market) 40%, black) 0%, color-mix(in srgb, var(--cat-market) 82%, black) 100%); }
-.gradient-market::after     { -webkit-mask-image: url('/market-store.svg'); mask-image: url('/market-store.svg'); }
+.gradient-market::after     { -webkit-mask-image: url('/market_pulse.svg'); mask-image: url('/market_pulse.svg'); }
 
 .gradient-civic      { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-civic) 40%, black) 0%, color-mix(in srgb, var(--cat-civic) 82%, black) 100%); }
-.gradient-civic::after      { -webkit-mask-image: url('/city-block.svg');   mask-image: url('/city-block.svg'); }
+.gradient-civic::after      { -webkit-mask-image: url('/civic_pulse.svg');   mask-image: url('/civic_pulse.svg'); }
 
 .gradient-games      { background: linear-gradient(140deg, color-mix(in srgb, var(--cat-games) 40%, black) 0%, color-mix(in srgb, var(--cat-games) 82%, black) 100%); }
-.gradient-games::after      { -webkit-mask-image: url('/dice.svg');         mask-image: url('/dice.svg'); }
+.gradient-games::after      { -webkit-mask-image: url('/games_pulse.svg');         mask-image: url('/games_pulse.svg'); }
 
 /* other / fallback — grey with the generic quiet two-dot scatter */
 .gradient-default {
@@ -500,7 +500,7 @@ h6 { font-size: var(--text-h6); }
   --cat-learning:   #008080;
   --cat-festival:   #f032e6;
   --cat-market:     #808000;
-  --cat-civic:      #0000A6;
+  --cat-civic:      #000075; /* 2026-07 icon refresh sheet (was #0000A6) */
   --cat-games:      #800000;
   --cat-other:      #808080;
   --facet-family:     #c08a5e;

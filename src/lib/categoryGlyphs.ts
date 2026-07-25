@@ -8,20 +8,20 @@
  * in sync. Only 'other' has no glyph; it returns null and callers omit the icon.
  */
 export const CATEGORY_GLYPHS: Record<string, string> = {
-  music:        '/music-note.svg',
-  theater:      '/theater.svg',
-  film:         '/film.svg',
-  comedy:       '/laugh.svg',
-  'visual-art': '/paint-brush.svg',
-  food:         '/apple.svg',
-  sports:       '/baseball.svg',
-  fitness:      '/weight.svg',
-  outdoors:     '/leaf.svg',
-  learning:     '/pencil.svg',
-  festival:     '/sportlights.svg',
-  market:       '/market-store.svg',
-  civic:        '/city-block.svg',
-  games:        '/dice.svg',
+  music:        '/music_pulse.svg',
+  theater:      '/theater_pulse.svg',
+  film:         '/film_pulse.svg',
+  comedy:       '/comedy_pulse.svg',
+  'visual-art': '/art_pulse.svg',
+  food:         '/food_pulse.svg',
+  sports:       '/sports_pulse.svg',
+  fitness:      '/fitness_pulse.svg',
+  outdoors:     '/outdoors_pulse.svg',
+  learning:     '/learning_pulse.svg',
+  festival:     '/festival_pulse.svg',
+  market:       '/market_pulse.svg',
+  civic:        '/civic_pulse.svg',
+  games:        '/games_pulse.svg',
 }
 
 /** Resolve a category's glyph asset path, or null when it has none. */
