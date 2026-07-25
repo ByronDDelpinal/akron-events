@@ -95,4 +95,23 @@ export const OBJECT_COST_EVENT = {
   event_types: [{ name: 'Conference' }], tags: [],
 }
 
+// Wayne College (Orrville, Wayne County) — OUT of Summit County. The live
+// feed marks these rows with group_title "Wayne"; roughly half carry Orrville
+// coords (40.861414, -81.790061) and the rest have no location at all. Both
+// shapes must be gated out by resolveLocality, so they are deliberately NOT
+// in ALL_FIXTURES (which models post-gate normalization input).
+export const WAYNE_ORRVILLE_COORDS_EVENT = {
+  id: 14, title: 'Wayne College Open House', group_title: 'Wayne', location_title: 'Wayne College',
+  date_iso: '2026-08-05T17:00:00-04:00', date2_iso: '2026-08-05T19:00:00-04:00', location_latitude: '40.861414', location_longitude: '-81.790061',
+  description: '<p>Tour the Orrville campus</p>', thumbnail: null, cost: 'Free',
+  event_types: [{ name: 'Open House' }], tags: [],
+}
+
+export const WAYNE_NO_COORDS_EVENT = {
+  id: 15, title: 'Wayne College Fall Registration Fair', group_title: 'Wayne', location_title: null,
+  date_iso: '2026-08-12T10:00:00-04:00', date2_iso: null, location_latitude: null, location_longitude: null,
+  description: '<p>Meet with advisors</p>', thumbnail: null, cost: 'Free',
+  event_types: [], tags: [],
+}
+
 export const ALL_FIXTURES = [EJ_THOMAS_EVENT, GENERAL_UAKRON_EVENT, SPORTS_EVENT, LECTURE_EVENT, MISSING_TITLE, MISSING_DATE, PAID_EVENT, PERFORMANCE_CONCERT, MYERS_ART_EVENT, CHP_EVENT, NUMERIC_COST_EVENT, TIERED_COST_EVENT, OBJECT_COST_EVENT]

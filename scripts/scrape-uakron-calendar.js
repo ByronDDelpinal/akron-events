@@ -36,6 +36,7 @@ import {
   ensureVenue as ensureVenueGeneric,
   ensureOrganization,
 } from './lib/normalize.js'
+import { classifySummitLocation, preloadSummitCountyBoundary } from './lib/summit-county.js'
 
 const API_URL = 'https://calendar.uakron.edu/live/json/events?days=365&user_tz=America/New_York'
 
@@ -93,6 +94,30 @@ export { classifySource, SUB_CALENDARS, DEFAULT_SOURCE }
 // signal available.)
 export function isAllDayEntry(ev) {
   return Boolean(ev && ev.is_all_day)
+}
+
+// ── Summit County geo-gate ─────────────────────────────────────────────────
+//
+// The LiveWhale feed covers every UA campus, including Wayne College in
+// Orrville (Wayne County) — out of Summit, so its events must never publish
+// (strict Summit gate; classifySummitLocation is the SSOT). Wayne rows carry
+// `group_title: "Wayne"`; about half also carry Orrville coords, the rest
+// have no location at all. Coords win over the name check: when the feed
+// gives us a real lat/lng the polygon is authoritative, and the group-title
+// branch only decides the coord-less remainder. Everything else on the feed
+// is main-campus Akron, so coord-less non-Wayne events default to 'in'.
+//
+// Requires preloadSummitCountyBoundary() to have been awaited (see main()).
+export function resolveLocality(ev) {
+  const geo = classifySummitLocation({
+    lat: ev?.location_latitude,
+    lng: ev?.location_longitude,
+  })
+  // No city is passed, so anything but 'unknown' came from the polygon check.
+  if (geo !== 'unknown') return geo
+  const group = String(ev?.group_title ?? '').trim().toLowerCase()
+  if (group === 'wayne') return 'out'
+  return 'in'
 }
 
 // ── Category mapping ───────────────────────────────────────────────────────
@@ -284,6 +309,7 @@ async function processEvents(rawEvents, organizerId) {
   for (const sub of SUB_CALENDARS) resultsBySource[sub.source] = { inserted: 0, skipped: 0, total: 0 }
 
   let allDayFiltered = 0
+  let outOfCounty    = 0
 
   for (const ev of rawEvents) {
     if (!ev.title || !ev.date_iso) continue
@@ -293,6 +319,11 @@ async function processEvents(rawEvents, organizerId) {
     // isAllDayEntry). Filtered before bucketing so they don't distort any
     // source's found/skipped counts.
     if (isAllDayEntry(ev)) { allDayFiltered++; continue }
+
+    // Strict Summit gate: drop out-of-county events (Wayne College / Orrville)
+    // before ensureVenue can stamp them with a bogus city: 'Akron'. Filtered
+    // before bucketing, like the all-day filter, so counts stay honest.
+    if (resolveLocality(ev) === 'out') { outOfCounty++; continue }
 
     const source  = classifySource(ev.group_title)
     const results = resultsBySource[source]
@@ -359,6 +390,9 @@ async function processEvents(rawEvents, organizerId) {
   if (allDayFiltered) {
     console.log(`  ⤷ Filtered ${allDayFiltered} all-day academic-calendar / holiday entr${allDayFiltered === 1 ? 'y' : 'ies'}`)
   }
+  if (outOfCounty) {
+    console.log(`  ⤷ Filtered ${outOfCounty} out-of-county event${outOfCounty === 1 ? '' : 's'} (Wayne College / non-Summit)`)
+  }
 
   return resultsBySource
 }
@@ -370,6 +404,10 @@ async function main() {
   const start = Date.now()
 
   try {
+    // Load the Summit County boundary polygon up front — resolveLocality's
+    // coordinate branch throws if the boundary hasn't been preloaded.
+    await preloadSummitCountyBoundary()
+
     const organizerId = await ensureUakronOrganizer()
     const rawEvents   = await fetchEvents()
     console.log(`\n📥  Processing ${rawEvents.length} events…`)

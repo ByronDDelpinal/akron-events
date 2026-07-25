@@ -6,8 +6,13 @@ process.env.VITE_SUPABASE_URL = 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 
 import { stripHtml } from '../lib/normalize.js'
-import { classifySource, isAllDayEntry } from '../scrape-uakron-calendar.js'
-import { EJ_THOMAS_EVENT, GENERAL_UAKRON_EVENT, MISSING_TITLE, MISSING_DATE, PAID_EVENT, PERFORMANCE_CONCERT, MYERS_ART_EVENT, CHP_EVENT, NUMERIC_COST_EVENT, TIERED_COST_EVENT, OBJECT_COST_EVENT, ALL_FIXTURES } from './fixtures/uakron-events.js'
+import { preloadSummitCountyBoundary } from '../lib/summit-county.js'
+import { classifySource, isAllDayEntry, resolveLocality } from '../scrape-uakron-calendar.js'
+import { EJ_THOMAS_EVENT, GENERAL_UAKRON_EVENT, LECTURE_EVENT, MISSING_TITLE, MISSING_DATE, PAID_EVENT, PERFORMANCE_CONCERT, MYERS_ART_EVENT, CHP_EVENT, NUMERIC_COST_EVENT, TIERED_COST_EVENT, OBJECT_COST_EVENT, WAYNE_ORRVILLE_COORDS_EVENT, WAYNE_NO_COORDS_EVENT, ALL_FIXTURES } from './fixtures/uakron-events.js'
+
+// resolveLocality's coordinate branch needs the county polygon loaded — same
+// top-level preload pattern as test-summit-county.js / test-akron-life.js.
+await preloadSummitCountyBoundary()
 
 function parseCategory(ev) {
   const group = (ev.group_title ?? '').toLowerCase()
@@ -269,6 +274,38 @@ describe('UAkron: All-day academic-calendar filter', () => {
     assert.equal(isAllDayEntry(null), false)
     assert.equal(isAllDayEntry(undefined), false)
     assert.equal(isAllDayEntry({}), false)
+  })
+})
+
+describe('UAkron: resolveLocality (Wayne College geo-gate)', () => {
+  it('gates coord-less Wayne events out via group_title', () => {
+    assert.equal(resolveLocality(WAYNE_NO_COORDS_EVENT), 'out')
+  })
+
+  it('gates Wayne events with Orrville coords out via the polygon', () => {
+    assert.equal(resolveLocality(WAYNE_ORRVILLE_COORDS_EVENT), 'out')
+  })
+
+  it('keeps coord-less non-Wayne (main campus) events in', () => {
+    assert.equal(resolveLocality(GENERAL_UAKRON_EVENT), 'in')
+    assert.equal(resolveLocality(LECTURE_EVENT), 'in')
+  })
+
+  it('keeps events with Akron coords in (polygon path)', () => {
+    assert.equal(resolveLocality(EJ_THOMAS_EVENT), 'in')
+  })
+
+  it('coords win over the group-title check', () => {
+    // A hypothetical Wayne-group event held on the Akron main campus must
+    // pass: the polygon is authoritative, the name check only handles
+    // coord-less rows.
+    assert.equal(resolveLocality({ ...WAYNE_NO_COORDS_EVENT, location_latitude: '41.0756', location_longitude: '-81.5106' }), 'in')
+  })
+
+  it('is case/whitespace tolerant and null-safe on group_title', () => {
+    assert.equal(resolveLocality({ group_title: '  WAYNE  ' }), 'out')
+    assert.equal(resolveLocality({ group_title: null }), 'in')
+    assert.equal(resolveLocality({}), 'in')
   })
 })
 
