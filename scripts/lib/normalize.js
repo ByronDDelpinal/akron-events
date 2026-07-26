@@ -1503,6 +1503,29 @@ export async function upsertEventSafe(row) {
   }
 
   const { row: safeRow, existed } = await _stripOverriddenFields('events', sanitized)
+
+  // ── Alias enforcement (self-healing, kill-switched) ───────────────────────
+  // A row that does NOT already exist under its own (source, source_id) might be
+  // a duplicate that was hand-merged away in event_aliases. Consulting the alias
+  // table stops a re-scrape from resurrecting that merged event. Only ever runs
+  // for genuinely-new rows: a live event under its own id (existed === true) is
+  // always a normal update and must never be suppressed. Exact-key, never fuzzy.
+  // Falls through to a normal upsert when the alias is missing, has a null
+  // canonical, or the canonical was since deleted — so a merged event whose
+  // canonical later disappeared can still re-enter the feed (self-healing).
+  if (!existed && !process.env.DISABLE_ALIAS_SKIP) {
+    const canonicalId = await _resolveAliasCanonical(safeRow.source, safeRow.source_id)
+    if (canonicalId) {
+      // Shaped as an error result so the ~90 `if (error) { skip }` callers
+      // handle it with no new branch. Mirrors this function's error shape.
+      return {
+        data: null,
+        error: { message: `alias-skip: ${safeRow.source}/${safeRow.source_id} → canonical ${canonicalId}` },
+        isNew: false,
+      }
+    }
+  }
+
   const { data, error } = await supabaseAdmin
     .from('events')
     .upsert(safeRow, { onConflict: 'source,source_id', ignoreDuplicates: false })
@@ -1655,6 +1678,37 @@ export async function linkOrganizationVenue(organizationId, venueId) {
  * query. On lookup failure `existed` is false (degraded, matches the
  * "proceed with full row" posture below).
  */
+/**
+ * Resolve a (source, source_id) pair against event_aliases. Returns the
+ * canonical event id ONLY when this exact pair was hand-merged away AND its
+ * canonical still resolves to a live event. Returns null when there is no
+ * alias, the alias' canonical is null, or the canonical event was since
+ * deleted — all of which mean the row should re-enter the feed normally
+ * (self-healing). Exact-key only. On any lookup failure returns null so
+ * ingest falls through to a normal upsert (safe default).
+ */
+async function _resolveAliasCanonical(source, sourceId) {
+  if (!source || sourceId == null) return null
+  try {
+    const { data: alias } = await supabaseAdmin
+      .from('event_aliases')
+      .select('canonical_event_id')
+      .eq('duplicate_source', source)
+      .eq('duplicate_source_id', sourceId)
+      .maybeSingle()
+    if (!alias?.canonical_event_id) return null
+    // Lightweight existence check — the canonical must still be a live event.
+    const { data: canonical } = await supabaseAdmin
+      .from('events')
+      .select('id')
+      .eq('id', alias.canonical_event_id)
+      .maybeSingle()
+    return canonical?.id ?? null
+  } catch {
+    return null
+  }
+}
+
 async function _stripOverriddenFields(table, row) {
   // Only events have source/source_id for lookup
   if (table !== 'events' || !row.source || !row.source_id) return { row, existed: false }

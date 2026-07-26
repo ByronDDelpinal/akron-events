@@ -29,6 +29,17 @@ function getClient() {
   return _client
 }
 
+/**
+ * Test-only seam: inject a fake client (or reset with `null`) so unit tests can
+ * exercise DB-touching code paths offline without hitting the network. The
+ * lazy Proxy below already routes every `supabaseAdmin.*` access through the
+ * cached `_client`, so setting it here mocks the whole client in one place.
+ * Never called in production code.
+ */
+export function __setClientForTests(client) {
+  _client = client
+}
+
 // Proxy keeps the existing `supabaseAdmin.from(...)` call sites working
 // unchanged while deferring client creation until a property is touched.
 export const supabaseAdmin = new Proxy(

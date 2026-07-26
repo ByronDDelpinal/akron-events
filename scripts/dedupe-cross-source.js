@@ -57,6 +57,13 @@ const REPORT_DIR = join(ROOT, 'scrape-reports')
 
 const APPLY = process.argv.includes('--apply')
 
+// Pinned field list for the pre-delete audit artifact (scrape-reports/
+// dedupe-deletions-*.json). This repo is public and the nightly Actions
+// workflow uploads scrape-reports/ for 30 days, so the payload is an
+// explicit pick rather than the full row — a future `.select()` change to
+// the events query can't silently widen what leaves the runner.
+const AUDIT_FIELDS = ['id', 'title', 'description', 'image_url', 'start_at', 'source', 'source_id', 'ticket_url', 'manual_overrides']
+
 /** Parse a numeric value from a CLI/env source; null when absent or invalid. */
 function parseCapValue(v) {
   if (v === undefined || v === null || v === '') return null
@@ -802,6 +809,36 @@ export function collectLinkDonations(canonical, donors) {
   return { venueIds: [...venueIds], orgIds: [...orgIds] }
 }
 
+/**
+ * Build the event_aliases row that records a dropped duplicate → canonical
+ * mapping, so a future re-scrape of the dup's (source, source_id) is skipped at
+ * ingest instead of resurrecting the merged event. Returns null for a dup with
+ * no source_id — there is no stable key to record.
+ */
+export function buildAliasRow(canonicalId, dup) {
+  if (!dup || dup.source_id == null) return null
+  return {
+    duplicate_source: dup.source,
+    duplicate_source_id: dup.source_id,
+    canonical_event_id: canonicalId,
+    reason: 'dedupe-cross-source',
+  }
+}
+
+/**
+ * Upsert alias rows, lossless + idempotent on the (duplicate_source,
+ * duplicate_source_id) unique key — the same key ingest upserts events on.
+ * Accepts an injected client so tests can assert the write args without a DB.
+ */
+export async function recordAliases(aliasRows, client = supabaseAdmin) {
+  if (!aliasRows || aliasRows.length === 0) return { recorded: 0, error: null }
+  const { error } = await client
+    .from('event_aliases')
+    .upsert(aliasRows, { onConflict: 'duplicate_source,duplicate_source_id' })
+  if (error) return { recorded: 0, error }
+  return { recorded: aliasRows.length, error: null }
+}
+
 async function main() {
   const runStart = Date.now()
   console.log(`🔍  ${APPLY ? 'APPLYING' : 'DRY RUN —'} cross-source duplicate cleanup`)
@@ -861,6 +898,7 @@ async function main() {
   let preserved    = 0
   const deletes    = []
   const deletedRows = []  // full rows being deleted — written to an audit file before applying
+  const aliasRows  = []  // { duplicate_source, duplicate_source_id, canonical_event_id, reason }
   const merges     = []  // { id, fields } — canonical events that need a field merge
   const linkMerges = []  // { id, venueIds, orgIds } — junction links donated by deleted dupes
 
@@ -941,7 +979,12 @@ async function main() {
       const tag = protect ? '🛡 KEEP (manual_overrides)' : 'DROP'
       console.log(`  ${tag.padEnd(26)} [${d.source}/${d.source_id}] (${qualityLabel(d)}) ${d.title?.slice(0, 50)}`)
       if (protect) { preserved++ }
-      else         { deletes.push(d.id); deletedRows.push(d); totalToDelete++ }
+      else {
+        deletes.push(d.id); deletedRows.push(d); totalToDelete++
+        // Record the dropped dup → keeper mapping so ingest won't resurrect it.
+        const alias = buildAliasRow(canonical.id, d)
+        if (alias) aliasRows.push(alias)
+      }
     }
 
     if (Object.keys(mergeFields).length > 0) merges.push({ id: canonical.id, fields: mergeFields })
@@ -982,6 +1025,43 @@ async function main() {
     return
   }
 
+  // Audit trail (sync fs write) — written FIRST, before anything below
+  // mutates the database. `deletedRows` is fully computed above (nothing
+  // past this point can change which rows are being deleted), so this is
+  // the earliest point the write can happen, and that's the point: it's the
+  // synchronous fail-fast gate for the ENTIRE apply phase. mkdirSync/
+  // writeFileSync throw on failure (disk full, perms) and nothing here
+  // catches that — it propagates to main().catch(), which exits BEFORE the
+  // field merges, junction-link donations, alias recording, and delete loop
+  // below ever run. If we can't prove what's about to be deleted, we mutate
+  // nothing.
+  //
+  // This write used to sit after the field merges and junction-link
+  // donations below. That was a real gap: if writeFileSync threw there,
+  // canonicals had already been enriched with content and links donated
+  // from dupes that then survived (the delete loop never ran) — leaving
+  // both rows on the same venue to re-group on the next run. Moving the
+  // write here closes that gap.
+  //
+  // scrape-reports/ is gitignored and already uploaded as a workflow
+  // artifact by the nightly Actions job, so this survives an unattended run
+  // without needing a git write. The repo is public and that artifact is
+  // downloadable for 30 days, so the payload is pinned to AUDIT_FIELDS
+  // rather than serializing the full row — a future `.select()` change to
+  // the query above can't silently widen what leaves the runner. The
+  // filename carries a run timestamp (not just the Eastern date) so a
+  // same-day rerun can't silently overwrite an earlier run's audit file.
+  if (deletedRows.length > 0) {
+    mkdirSync(REPORT_DIR, { recursive: true })
+    const runStamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const deletionsPath = join(REPORT_DIR, `dedupe-deletions-${easternTodayIso()}-${runStamp}.json`)
+    const auditRows = deletedRows.map((row) =>
+      Object.fromEntries(AUDIT_FIELDS.map((f) => [f, row[f]]))
+    )
+    writeFileSync(deletionsPath, JSON.stringify(auditRows, null, 2))
+    console.log(`📝  Wrote ${deletedRows.length} planned-deletion row(s) to ${deletionsPath}`)
+  }
+
   // Apply field merges to canonicals before deleting dupes
   if (merges.length > 0) {
     let merged = 0
@@ -1018,15 +1098,44 @@ async function main() {
     console.log(`✅  Donated junction links to ${linked} canonical event(s).`)
   }
 
-  // Audit trail — write every full row about to be deleted BEFORE deleting it.
-  // scrape-reports/ is gitignored and already uploaded as a workflow artifact
-  // by the nightly Actions job, so this survives an unattended run without
-  // needing a git write.
-  if (deletedRows.length > 0) {
-    mkdirSync(REPORT_DIR, { recursive: true })
-    const deletionsPath = join(REPORT_DIR, `dedupe-deletions-${easternTodayIso()}.json`)
-    writeFileSync(deletionsPath, JSON.stringify(deletedRows, null, 2))
-    console.log(`📝  Wrote ${deletedRows.length} planned-deletion row(s) to ${deletionsPath}`)
+  // Alias recording (async DB upsert) — runs after the merges/link donations
+  // and before the delete loop. It's safe to run here because canonicals are
+  // never deleted by this script, so every canonical_event_id an alias
+  // references still exists both now and after the delete loop runs below.
+  //
+  // recordAliases() no longer fails soft (see its definition above): a
+  // write error now aborts the whole run instead of being swallowed into a
+  // console.warn. Deleting with zero alias coverage is exactly the
+  // resurrection bug `feffef9` exists to fix — a transient PostgREST error
+  // here must not let the delete loop proceed. Aborting costs one night of
+  // surviving dupes (the upsert is idempotent; the next run retries and
+  // catches up); NOT aborting costs deleted rows coming back with new UUIDs
+  // on the next scrape (URL, permalink, and analytics churn).
+  if (aliasRows.length > 0) {
+    const { recorded, error } = await recordAliases(aliasRows)
+    if (error) {
+      console.error(`✗  Alias recording failed: ${error.message}`)
+      console.error(`   Deleting NOTHING — deleting without aliases resurrects every dup on the next scrape.`)
+      process.exit(1)
+    }
+    console.log(`✅  Recorded ${recorded} event alias(es).`)
+  }
+
+  // Runtime invariants — this exact wiring (audit rows line up with the
+  // delete-id list, no manual_overrides row ever reaches the delete list,
+  // every delete has an alias) can't be integration-tested without --apply,
+  // so assert it holds on every real run, immediately before the delete loop.
+  if (deletes.length !== deletedRows.length) {
+    console.error(`✗  Audit/delete mismatch: ${deletes.length} ids vs ${deletedRows.length} rows. Deleting nothing.`)
+    process.exit(1)
+  }
+  const shielded = deletedRows.filter(hasManualOverrides)
+  if (shielded.length > 0) {
+    console.error(`✗  ${shielded.length} manual_overrides row(s) reached the delete list. Deleting nothing.`)
+    process.exit(1)
+  }
+  if (aliasRows.length < deletes.length) {
+    console.warn(`  ⚠ ${deletes.length - aliasRows.length} row(s) will be deleted with no alias (null source_id) — these can resurrect.`)
   }
 
   // Batch deletes

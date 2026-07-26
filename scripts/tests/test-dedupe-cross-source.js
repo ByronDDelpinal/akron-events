@@ -288,3 +288,88 @@ describe('time window (120 min)', () => {
     assert.ok(!withinWindow('2026-06-07T22:00:00Z', '2026-06-08T01:00:00Z'))
   })
 })
+
+// ── Tests: event_aliases recording on the --apply path ────────────────────────
+// Merging a dup must record an event_aliases row (dropped dup → keeper) so a
+// re-scrape can't resurrect the merged event. These import the REAL helpers
+// main()'s apply path uses (buildAliasRow / recordAliases) and assert both the
+// row shape and the upsert write args, with a mock supabase client (no network).
+
+// supabase-admin.js throws without env vars on import — set dummies first.
+process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
+process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
+const { buildAliasRow, recordAliases } = await import('../dedupe-cross-source.js')
+
+describe('buildAliasRow', () => {
+  it('records a dropped dup → keeper mapping with the dedupe reason', () => {
+    const keeperId = '11111111-1111-1111-1111-111111111111'
+    const dup = { id: 'dup-x', source: 'akron_life', source_id: 'evt-42' }
+    assert.deepEqual(buildAliasRow(keeperId, dup), {
+      duplicate_source:    'akron_life',
+      duplicate_source_id: 'evt-42',
+      canonical_event_id:  keeperId,
+      reason:              'dedupe-cross-source',
+    })
+  })
+
+  it('returns null for a dup with no source_id (nothing stable to key on)', () => {
+    assert.equal(buildAliasRow('k', { source: 'akron_life', source_id: null }), null)
+    assert.equal(buildAliasRow('k', { source: 'akron_life' }), null)
+    assert.equal(buildAliasRow('k', null), null)
+  })
+})
+
+describe('recordAliases (--apply path)', () => {
+  it('upserts one alias per dropped dup on the unique key, keeper as canonical', async () => {
+    const calls = []
+    const mockClient = {
+      from(table) {
+        return {
+          upsert(rows, opts) {
+            calls.push({ table, rows, opts })
+            return Promise.resolve({ error: null })
+          },
+        }
+      },
+    }
+    const keeperId = 'keeper-id'
+    const dupes = [
+      { source: 'akron_life',     source_id: 'a-1' },
+      { source: 'ohio_festivals', source_id: 'o-9' },
+    ]
+    const aliasRows = dupes.map((d) => buildAliasRow(keeperId, d))
+    const { recorded, error } = await recordAliases(aliasRows, mockClient)
+
+    assert.equal(recorded, 2)
+    assert.equal(error, null)
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].table, 'event_aliases')
+    assert.equal(calls[0].opts.onConflict, 'duplicate_source,duplicate_source_id')
+    assert.deepEqual(calls[0].rows, [
+      { duplicate_source: 'akron_life',     duplicate_source_id: 'a-1', canonical_event_id: keeperId, reason: 'dedupe-cross-source' },
+      { duplicate_source: 'ohio_festivals', duplicate_source_id: 'o-9', canonical_event_id: keeperId, reason: 'dedupe-cross-source' },
+    ])
+  })
+
+  it('writes nothing (and returns recorded: 0, error: null) when there are no dropped dups', async () => {
+    let touched = false
+    const mockClient = { from() { touched = true; return {} } }
+    assert.deepEqual(await recordAliases([], mockClient), { recorded: 0, error: null })
+    assert.equal(touched, false)
+  })
+
+  it('surfaces a write failure instead of failing soft (recorded: 0, error set)', async () => {
+    const dbError = { message: 'connection reset' }
+    const mockClient = {
+      from() {
+        return {
+          upsert() { return Promise.resolve({ error: dbError }) },
+        }
+      },
+    }
+    const aliasRows = [buildAliasRow('keeper-id', { source: 'akron_life', source_id: 'a-1' })]
+    const result = await recordAliases(aliasRows, mockClient)
+
+    assert.deepEqual(result, { recorded: 0, error: dbError })
+  })
+})

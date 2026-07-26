@@ -954,3 +954,150 @@ describe('absoluteUrl', () => {
     assert.equal(absoluteUrl('a.jpg', 'not a url'), null)
   })
 })
+
+// ── upsertEventSafe: event_aliases enforcement at ingest ──────────────────────
+// A merged duplicate must NOT resurrect on re-scrape: when a genuinely-new row
+// (not already present under its own source/source_id) matches an event_aliases
+// row whose canonical is still live, upsertEventSafe returns an error-shaped
+// skip and performs NO upsert. It stays self-healing (null/dead canonical → it
+// upserts) and never consults aliases for a live event (existed === true) or
+// when the DISABLE_ALIAS_SKIP kill-switch is set.
+//
+// The real function runs offline by injecting a mock client through the
+// supabase-admin test seam — the lazy Proxy routes every DB call through it.
+const { upsertEventSafe } = await import('../lib/normalize.js')
+const { __setClientForTests } = await import('../lib/supabase-admin.js')
+
+// Builds a chainable mock supabase client. `config`:
+//   existing       — row returned by the (source,source_id) existence lookup
+//                    (non-null ⇒ existed === true)
+//   alias          — row returned by the event_aliases lookup (or null)
+//   canonicalAlive — whether the alias' canonical_event_id still resolves live
+function makeSupabaseMock(config = {}) {
+  const calls = { upsert: 0, aliasLookup: 0, canonicalCheck: 0, upsertArgs: null }
+  function resolve(st) {
+    if (st.op === 'upsert') return { data: { id: config.newId ?? 'new-ev-id' }, error: null }
+    if (st.table === 'event_aliases') {
+      calls.aliasLookup++
+      return { data: config.alias ?? null, error: null }
+    }
+    if (st.table === 'events') {
+      if (st.cols === 'id, manual_overrides') return { data: config.existing ?? null, error: null }
+      if (st.cols === 'manual_overrides')     return { data: null, error: null } // syncEventCategories lookup
+      if (st.cols === 'id') {
+        calls.canonicalCheck++
+        return { data: config.canonicalAlive ? { id: config.alias?.canonical_event_id ?? 'canon' } : null, error: null }
+      }
+    }
+    return { data: null, error: null }
+  }
+  function builder(table) {
+    const st = { table, cols: null, op: 'select' }
+    const chain = {
+      select(cols) { st.cols = cols; return chain },
+      eq()  { return chain },
+      neq() { return chain },
+      insert() { return Promise.resolve({ error: null }) },
+      delete() { st.op = 'delete'; return chain },
+      upsert(row, opts) { calls.upsert++; calls.upsertArgs = { table, row, opts }; st.op = 'upsert'; return chain },
+      maybeSingle() { return Promise.resolve(resolve(st)) },
+      single()      { return Promise.resolve(resolve(st)) },
+      then(onF, onR) { return Promise.resolve({ error: null }).then(onF, onR) },
+    }
+    return chain
+  }
+  return { client: { from: builder }, calls }
+}
+
+const futureIso = () => new Date(Date.now() + 7 * 86400000).toISOString()
+const baseRow = () => ({ title: 'Aliased Event', source: 'akron_life', source_id: 'evt-1', start_at: futureIso() })
+
+describe('upsertEventSafe — event_aliases enforcement', () => {
+  it('(i) new row matching a LIVE-canonical alias → error-shaped skip, no upsert', async () => {
+    const { client, calls } = makeSupabaseMock({
+      existing: null,
+      alias: { canonical_event_id: 'canon-123' },
+      canonicalAlive: true,
+    })
+    __setClientForTests(client)
+    try {
+      const res = await upsertEventSafe(baseRow())
+      assert.equal(res.data, null)
+      assert.equal(res.isNew, false)
+      assert.match(res.error.message, /^alias-skip: akron_life\/evt-1 → canonical canon-123$/)
+      assert.equal(calls.upsert, 0)          // never wrote the event
+      assert.equal(calls.aliasLookup, 1)     // consulted aliases
+      assert.equal(calls.canonicalCheck, 1)  // verified canonical is live
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('(ii-a) new row with NO alias → falls through to a normal upsert', async () => {
+    const { client, calls } = makeSupabaseMock({ existing: null, alias: null })
+    __setClientForTests(client)
+    try {
+      const res = await upsertEventSafe(baseRow())
+      assert.equal(res.error, null)
+      assert.equal(res.isNew, true)
+      assert.equal(calls.upsert, 1)
+      assert.equal(calls.aliasLookup, 1)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('(ii-b) new row whose alias canonical is DEAD → self-heals, upserts', async () => {
+    const { client, calls } = makeSupabaseMock({
+      existing: null,
+      alias: { canonical_event_id: 'gone-999' },
+      canonicalAlive: false,
+    })
+    __setClientForTests(client)
+    try {
+      const res = await upsertEventSafe(baseRow())
+      assert.equal(res.error, null)
+      assert.equal(res.isNew, true)
+      assert.equal(calls.upsert, 1)          // re-entered the feed
+      assert.equal(calls.canonicalCheck, 1)  // checked, found it dead
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('(iii) existing live row (existed===true) → NEVER queries aliases, upserts as update', async () => {
+    const { client, calls } = makeSupabaseMock({
+      existing: { id: 'live-1', manual_overrides: null },
+      alias: { canonical_event_id: 'canon-123' }, // present but must be ignored
+      canonicalAlive: true,
+    })
+    __setClientForTests(client)
+    try {
+      const res = await upsertEventSafe(baseRow())
+      assert.equal(res.error, null)
+      assert.equal(calls.aliasLookup, 0)  // guard never fires on a live own-id row
+      assert.equal(calls.upsert, 1)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('(iv) DISABLE_ALIAS_SKIP kill-switch → never queries aliases, upserts', async () => {
+    const { client, calls } = makeSupabaseMock({
+      existing: null,
+      alias: { canonical_event_id: 'canon-123' },
+      canonicalAlive: true,
+    })
+    __setClientForTests(client)
+    process.env.DISABLE_ALIAS_SKIP = '1'
+    try {
+      const res = await upsertEventSafe(baseRow())
+      assert.equal(res.error, null)
+      assert.equal(calls.aliasLookup, 0)
+      assert.equal(calls.upsert, 1)
+    } finally {
+      delete process.env.DISABLE_ALIAS_SKIP
+      __setClientForTests(null)
+    }
+  })
+})
