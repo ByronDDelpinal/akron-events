@@ -213,7 +213,6 @@ export default function Footer() {
               <p className="footer-col-title">Behind the Scenes</p>
               <Link to="/about">About</Link>
               <Link to="/technical">Technical Details</Link>
-              <Link to="/feedback">Feedback</Link>
               <a href="https://github.com/byronddelpinal/akron-events" target="_blank" rel="noopener noreferrer">GitHub</a>
             </div>
           </nav>

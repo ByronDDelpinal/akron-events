@@ -114,56 +114,6 @@
   border-color: var(--amber-on-dark);
 }
 
-/* ── FEEDBACK NAV (prominent during beta) ── */
-.btn-nav-feedback {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-sm) var(--space-lg);
-  border-radius: var(--radius-pill);
-  border: var(--border-width-thick) solid var(--coral);
-  background: var(--coral-tint-15);
-  color: var(--white);
-  font-family: var(--font-display);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  text-decoration: none;
-  white-space: nowrap;
-  transition: background var(--transition-medium), border-color var(--transition-medium);
-}
-.btn-nav-feedback:hover {
-  background: var(--coral-tint-25);
-}
-.feedback-badge {
-  font-family: var(--font-display);
-  font-size: var(--text-tiny);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  background: var(--coral);
-  color: var(--white);
-  padding: 1px var(--space-sm);
-  border-radius: var(--radius-xs);
-}
-.mobile-nav-feedback {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  font-family: var(--font-body);
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--white);
-  background: var(--coral-tint-15);
-  border: var(--border-width-thin) solid var(--coral-tint-25);
-  border-radius: var(--radius-md);
-  text-align: left;
-  cursor: pointer;
-  padding: var(--space-md) var(--space-md);
-  margin-bottom: var(--space-xs);
-  transition: background var(--transition-medium);
-}
-.mobile-nav-feedback:hover { background: var(--coral-tint-25); }
-
 /* ── MY NEIGHBORHOOD (installed app only) ── */
 /* Desktop nav variant: a pinned link that reads the saved hub. */
 .nav-myhood {

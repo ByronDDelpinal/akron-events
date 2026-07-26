@@ -740,43 +740,6 @@
   font-size: var(--text-sm);
 }
 
-/* ── Admin Feedback ── */
-.admin-feedback-filters {
-  display: flex; flex-wrap: wrap; gap: var(--space-lg);
-  margin-bottom: var(--space-lg);
-}
-.admin-feedback-filter-group {
-  display: flex; align-items: center; gap: var(--space-sm);
-}
-.admin-feedback-filter-label {
-  font-family: var(--font-display);
-  font-size: var(--text-tiny); font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.07em;
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-.admin-feedback-chips {
-  display: flex; flex-wrap: wrap; gap: var(--space-xs);
-}
-.admin-feedback-chip {
-  padding: var(--space-xs) var(--space-md);
-  border: var(--border-width-medium) solid var(--border); border-radius: var(--radius-pill);
-  background: var(--bg-card); color: var(--text-secondary);
-  font-family: var(--font-body);
-  font-size: var(--text-xxs); font-weight: 500;
-  cursor: pointer; transition: all var(--transition-fast);
-  display: inline-flex; align-items: center; gap: var(--space-2xs);
-}
-.admin-feedback-chip:hover { border-color: var(--amber); color: var(--amber); }
-.admin-feedback-chip.active {
-  background: var(--amber); border-color: var(--amber);
-  color: var(--white);
-}
-.admin-feedback-body {
-  max-width: 360px;
-  white-space: normal;
-  line-height: 1.5;
-}
 .admin-empty {
   text-align: center; padding: var(--space-4xl);
   color: var(--text-muted); font-size: var(--text-sm);

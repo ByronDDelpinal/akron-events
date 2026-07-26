@@ -114,8 +114,8 @@ const NAV_ITEMS: NavItem[] = [
   { to: 'areas',         label: 'Areas',         icon: '🏟️' },
   { to: 'scraper-runs',  label: 'Scraper Runs',  icon: '🤖' },
   { to: 'email',         label: 'Email',         icon: '✉️' },
-  { to: 'feedback',      label: 'Feedback',      icon: '📣' },
   { to: 'review',        label: 'Review Queue',  icon: '🔍', badge: true },
+  { to: 'feedback',      label: 'Feedback',      icon: '📣' },
 ]
 
 const ADMIN_SECTION_LABELS: Record<string, string> = {
@@ -125,8 +125,8 @@ const ADMIN_SECTION_LABELS: Record<string, string> = {
   areas:          'Areas',
   'scraper-runs': 'Scraper Runs',
   email:          'Email',
-  feedback:       'Feedback',
   review:         'Review Queue',
+  feedback:       'Feedback',
 }
 
 function adminSectionTitle(pathname: string): string {

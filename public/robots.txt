@@ -36,7 +36,6 @@ User-agent: *
 Disallow: /admin/
 Disallow: /subscribe/preferences
 Disallow: /unsubscribe
-Disallow: /feedback
 
 Sitemap: https://akronpulse.com/sitemap.xml
 

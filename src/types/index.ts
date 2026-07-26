@@ -17,7 +17,6 @@ export type Venue = Tables<'venues'>
 export type Organization = Tables<'organizations'>
 export type Area = Tables<'areas'>
 export type Subscriber = Tables<'subscribers'>
-export type FeedbackPost = Tables<'feedback_posts'>
 export type ScraperRun = Tables<'scraper_runs'>
 
 /** The `scraper_health` view that powers the Technical page + `npm run health`. */

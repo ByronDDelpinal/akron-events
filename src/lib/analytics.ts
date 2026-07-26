@@ -173,7 +173,6 @@ function contentGroup(path: string): string {
   if (p === '/about') return 'About'
   if (p === '/organizers') return 'Organizers'
   if (p === '/technical') return 'Technical'
-  if (p === '/feedback') return 'Feedback'
   return 'Other'
 }
 

@@ -101,6 +101,9 @@ export const EVENTS = {
   ADD_TO_CALENDAR:          'add_to_calendar',
   CATEGORY_FILTER:          'category_filter',
   THEME_CHANGED:            'theme_changed',
+  FEEDBACK_OPENED:    'feedback_opened',
+  FEEDBACK_SUBMITTED: 'feedback_submitted',
+  FEEDBACK_DISMISSED: 'feedback_dismissed',
 } as const
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS]
@@ -131,4 +134,7 @@ export interface EventParams {
   add_to_calendar:          { method: CalendarMethod; category: string }
   category_filter:          { category: string; action: CategoryFilterAction }
   theme_changed:            { theme: string; previous_theme: string }
+  feedback_opened:    Record<string, never>
+  feedback_submitted: Record<string, never>
+  feedback_dismissed: Record<string, never>
 }

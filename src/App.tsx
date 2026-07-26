@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react'
 import Header   from '@/components/Header'
 import Footer   from '@/components/Footer'
 import InstallPrompt from '@/components/InstallPrompt'
+import FeedbackOrb from '@/components/FeedbackOrb'
 import NeighborhoodPickerModal from '@/components/NeighborhoodPickerModal'
 import { NeighborhoodProvider } from '@/hooks/useNeighborhood'
 import { getMyHubSlug } from '@/lib/myHub'
@@ -24,7 +25,6 @@ import OrganizationSubmitPage from '@/pages/OrganizationSubmitPage'
 import SubscribePage     from '@/pages/SubscribePage'
 import PreferencesPage   from '@/pages/PreferencesPage'
 import UnsubscribePage   from '@/pages/UnsubscribePage'
-import FeedbackPage      from '@/pages/FeedbackPage'
 import EmbedBuilderPage  from '@/pages/EmbedBuilderPage'
 
 // Admin pages
@@ -39,8 +39,8 @@ import AreasListPage from '@/pages/admin/areas/AreasListPage'
 import AreaEditPage from '@/pages/admin/areas/AreaEditPage'
 import ScraperRunsPage from '@/pages/admin/scraper-runs/ScraperRunsPage'
 import EmailPage from '@/pages/admin/email/EmailPage'
-import AdminFeedbackPage from '@/pages/admin/feedback/AdminFeedbackPage'
 import ReviewQueuePage from '@/pages/admin/review/ReviewQueuePage'
+import AdminFeedbackPage from '@/pages/admin/feedback/AdminFeedbackPage'
 
 import { trackPageView } from '@/lib/analytics'
 import { historyEntryKey } from '@/lib/historyKey'
@@ -214,7 +214,6 @@ function AppInner() {
           <Route path="/subscribe"               element={<SubscribePage />} />
           <Route path="/subscribe/preferences"   element={<PreferencesPage />} />
           <Route path="/unsubscribe"             element={<UnsubscribePage />} />
-          <Route path="/feedback"                element={<FeedbackPage />} />
           <Route path="/embed-builder"           element={<EmbedBuilderPage />} />
 
           {/* Admin — nested routing with shared layout */}
@@ -234,8 +233,8 @@ function AppInner() {
             <Route path="areas/:id/edit"     element={<AreaEditPage />} />
             <Route path="scraper-runs"       element={<ScraperRunsPage />} />
             <Route path="email"              element={<EmailPage />} />
-            <Route path="feedback"           element={<AdminFeedbackPage />} />
             <Route path="review"             element={<ReviewQueuePage />} />
+            <Route path="feedback"           element={<AdminFeedbackPage />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />
@@ -259,6 +258,7 @@ function SiteChrome() {
       </main>
       <Footer />
       <InstallPrompt />
+      <FeedbackOrb />
       <NeighborhoodPickerModal />
     </NeighborhoodProvider>
   )

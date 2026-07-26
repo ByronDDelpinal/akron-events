@@ -1,78 +1,54 @@
 import type { LooseRow, LooseQuery } from '@/types'
 import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
-import { Pagination } from '@/components/admin'
+import { supabase } from '@/lib/supabase'
+import { ConfirmDialog, Pagination } from '@/components/admin'
+
+/**
+ * Lean, read-only-ish admin view of feedback-orb notes (plan §6). The
+ * public /feedback board is gone — this replaces it with just enough to
+ * triage orb submissions: body, page it came from, when, and delete.
+ * No category chips, votes, or images (the orb doesn't collect them; all
+ * orb rows are `category = 'orb'` and `is_private = true`).
+ *
+ * Reads/deletes run under the existing authenticated "full access"
+ * feedback_posts policy (038) — no new RLS.
+ */
 
 const PAGE_SIZE = 50
 
 type Row = LooseRow
 
-interface CategoryDef { id: string; label: string; icon?: string }
-
-const CATEGORIES: CategoryDef[] = [
-  { id: 'all',      label: 'All' },
-  { id: 'bug',      label: 'Bug',          icon: '🐛' },
-  { id: 'love',     label: 'Love It',      icon: '🔥' },
-  { id: 'wish',     label: 'Wish List',    icon: '✨' },
-  { id: 'confusing',label: 'Confusing',    icon: '🤔' },
-  { id: 'idea',      label: 'Roadmap Idea', icon: '💡' },
-  { id: 'datasource',label: 'Data Source',  icon: '📡' },
-  { id: 'general',   label: 'General',      icon: '💬' },
-]
-
-const VISIBILITY = [
-  { id: 'all',     label: 'All' },
-  { id: 'public',  label: 'Public' },
-  { id: 'private', label: 'Private' },
-]
-
 export default function AdminFeedbackPage() {
-  const [posts,      setPosts]      = useState<Row[]>([])
-  const [total,      setTotal]      = useState(0)
-  const [page,       setPage]       = useState(0)
-  const [loading,    setLoading]    = useState(true)
-  const [catFilter,  setCatFilter]  = useState('all')
-  const [visFilter,  setVisFilter]  = useState('all')
+  const [rows, setRows] = useState<Row[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState<Row | null>(null)
 
-  const fetchPosts = useCallback(async () => {
+  const fetchRows = useCallback(async () => {
     setLoading(true)
     const from = page * PAGE_SIZE
-
-    let query: LooseQuery = supabase
+    const query: LooseQuery = supabase
       .from('feedback_posts')
       .select('*', { count: 'exact' })
+      .eq('category', 'orb')
       .order('created_at', { ascending: false })
       .range(from, from + PAGE_SIZE - 1)
 
-    if (catFilter !== 'all') query = query.eq('category', catFilter)
-    if (visFilter === 'public')  query = query.eq('is_private', false)
-    if (visFilter === 'private') query = query.eq('is_private', true)
-
     const { data, count } = await query
-    setPosts((data ?? []) as Row[])
+    setRows((data ?? []) as Row[])
     setTotal(count ?? 0)
     setLoading(false)
-  }, [page, catFilter, visFilter])
+  }, [page])
 
-  useEffect(() => { fetchPosts() }, [fetchPosts])
+  useEffect(() => { fetchRows() }, [fetchRows])
 
-  // Reset to first page when filters change
-  useEffect(() => { setPage(0) }, [catFilter, visFilter])
-
-  const handleDelete = async (id: number | string) => {
-    if (!window.confirm('Delete this feedback post?')) return
-    await supabase.from('feedback_posts').delete().eq('id', id as number)
-    fetchPosts()
-  }
-
-  const handleResolve = async (post: Row) => {
-    const resolved = post.resolved_at ? null : new Date().toISOString()
-    await supabase
-      .from('feedback_posts')
-      .update({ resolved_at: resolved })
-      .eq('id', post.id)
-    fetchPosts()
+  const handleDelete = async () => {
+    if (!deleting) return
+    await supabase.from('feedback_posts').delete().eq('id', deleting.id)
+    setDeleting(null)
+    fetchRows()
   }
 
   return (
@@ -82,114 +58,46 @@ export default function AdminFeedbackPage() {
         <span className="admin-section-count">{total}</span>
       </div>
 
-      {/* ── Filters ────────────────────────────────────────────────── */}
-      <div className="admin-feedback-filters">
-        <div className="admin-feedback-filter-group">
-          <span className="admin-feedback-filter-label">Category</span>
-          <div className="admin-feedback-chips">
-            {CATEGORIES.map((c) => (
-              <button
-                key={c.id}
-                className={`admin-feedback-chip ${catFilter === c.id ? 'active' : ''}`}
-                onClick={() => setCatFilter(c.id)}
-              >
-                {c.icon && <span>{c.icon}</span>} {c.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="admin-feedback-filter-group">
-          <span className="admin-feedback-filter-label">Visibility</span>
-          <div className="admin-feedback-chips">
-            {VISIBILITY.map((v) => (
-              <button
-                key={v.id}
-                className={`admin-feedback-chip ${visFilter === v.id ? 'active' : ''}`}
-                onClick={() => setVisFilter(v.id)}
-              >
-                {v.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
       {loading && <div className="admin-loading">Loading…</div>}
 
-      {!loading && posts.length === 0 && (
-        <div className="admin-empty">No feedback found.</div>
-      )}
-
-      {!loading && posts.length > 0 && (
+      {!loading && (
         <div className="admin-table-wrap">
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Category</th>
-                <th>Feedback</th>
-                <th>Author</th>
-                <th>Votes</th>
-                <th>Visibility</th>
-                <th>Status</th>
-                <th>Date</th>
-                <th></th>
+                <th>Note</th>
+                <th>Page</th>
+                <th>Sent</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {posts.map((p) => {
-                const cat = CATEGORIES.find((c) => c.id === p.category)
-                return (
-                  <tr key={p.id}>
-                    <td>
-                      <span className={`admin-status-badge status-${p.category}`}>
-                        {cat?.icon} {cat?.label || p.category}
-                      </span>
-                    </td>
-                    <td className="admin-td-title admin-feedback-body">{p.body}</td>
-                    <td>{p.author_name}</td>
-                    <td style={{ textAlign: 'center' }}>{p.votes}</td>
-                    <td>
-                      {p.is_private
-                        ? <span className="admin-status-badge status-cancelled">Private</span>
-                        : <span className="admin-status-badge status-published">Public</span>
-                      }
-                    </td>
-                    <td>
-                      {p.resolved_at
-                        ? <span className="admin-status-badge status-published">Resolved</span>
-                        : <span className="admin-status-badge status-draft">Open</span>
-                      }
-                    </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      {format(new Date(p.created_at), 'MMM d, yyyy h:mm a')}
-                    </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      <button
-                        className={`btn-admin-ghost btn-admin-sm`}
-                        onClick={() => handleResolve(p)}
-                        title={p.resolved_at ? 'Unresolve' : 'Resolve'}
-                        style={{ marginRight: 4 }}
-                      >{p.resolved_at ? 'Unresolve' : 'Resolve'}</button>
-                      <button
-                        className="btn-admin-ghost btn-admin-sm"
-                        onClick={() => handleDelete(p.id)}
-                        title="Delete"
-                      >×</button>
-                    </td>
-                  </tr>
-                )
-              })}
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td className="admin-td-title">{r.body}</td>
+                  <td>{r.page_path ? <a href={r.page_path} target="_blank" rel="noreferrer">{r.page_path}</a> : '—'}</td>
+                  <td className="admin-td-nowrap">{r.created_at ? format(new Date(r.created_at), 'MMM d, h:mm a') : '—'}</td>
+                  <td className="admin-td-actions">
+                    <button className="btn-admin-sm btn-admin-sm-danger" onClick={() => setDeleting(r)}>Del</button>
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="admin-loading">No feedback yet.</td>
+                </tr>
+              )}
             </tbody>
           </table>
+          <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
         </div>
       )}
 
-      {total > PAGE_SIZE && (
-        <Pagination
-          page={page}
-          pageSize={PAGE_SIZE}
-          total={total}
-          onPageChange={setPage}
+      {deleting && (
+        <ConfirmDialog
+          message="Delete this feedback note?"
+          onConfirm={handleDelete}
+          onCancel={() => setDeleting(null)}
         />
       )}
     </div>

@@ -1,17 +1,3 @@
-/**
- * Supabase database types — GENERATED, do not edit by hand.
- *
- * Regenerate after every migration so the types stay in lockstep with the
- * schema. Either of:
- *
- *   npx supabase gen types typescript --project-id <ref> > src/lib/database.types.ts
- *   npx supabase gen types typescript --local            > src/lib/database.types.ts
- *
- * The `Database` type is wired into the Supabase client in `supabase.ts`, so
- * every `.from('events')` call is typed against the live schema. Convenience
- * row/insert/update aliases for the app live in `src/types/`.
- */
-
 export type Json =
   | string
   | number
@@ -103,6 +89,38 @@ export type Database = {
             columns: ["subscriber_id"]
             isOneToOne: false
             referencedRelation: "subscribers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_aliases: {
+        Row: {
+          canonical_event_id: string | null
+          created_at: string
+          duplicate_source: string
+          duplicate_source_id: string
+          reason: string | null
+        }
+        Insert: {
+          canonical_event_id?: string | null
+          created_at?: string
+          duplicate_source: string
+          duplicate_source_id: string
+          reason?: string | null
+        }
+        Update: {
+          canonical_event_id?: string | null
+          created_at?: string
+          duplicate_source?: string
+          duplicate_source_id?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_aliases_canonical_event_id_fkey"
+            columns: ["canonical_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
             referencedColumns: ["id"]
           },
         ]
@@ -224,6 +242,7 @@ export type Database = {
         Row: {
           age_restriction: string
           banner_eligible: boolean | null
+          category_slugs: string[]
           created_at: string
           description: string | null
           description_normalized: string | null
@@ -258,6 +277,7 @@ export type Database = {
         Insert: {
           age_restriction?: string
           banner_eligible?: boolean | null
+          category_slugs?: string[]
           created_at?: string
           description?: string | null
           description_normalized?: string | null
@@ -292,6 +312,7 @@ export type Database = {
         Update: {
           age_restriction?: string
           banner_eligible?: boolean | null
+          category_slugs?: string[]
           created_at?: string
           description?: string | null
           description_normalized?: string | null
@@ -334,7 +355,9 @@ export type Database = {
           id: number
           image_url: string | null
           is_private: boolean
+          page_path: string | null
           resolved_at: string | null
+          status: string
           votes: number
         }
         Insert: {
@@ -345,7 +368,9 @@ export type Database = {
           id?: never
           image_url?: string | null
           is_private?: boolean
+          page_path?: string | null
           resolved_at?: string | null
+          status?: string
           votes?: number
         }
         Update: {
@@ -356,7 +381,9 @@ export type Database = {
           id?: never
           image_url?: string | null
           is_private?: boolean
+          page_path?: string | null
           resolved_at?: string | null
+          status?: string
           votes?: number
         }
         Relationships: []
@@ -389,6 +416,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      moderation_allowlist: {
+        Row: {
+          phrase: string
+        }
+        Insert: {
+          phrase: string
+        }
+        Update: {
+          phrase?: string
+        }
+        Relationships: []
+      }
+      moderation_terms: {
+        Row: {
+          kind: string
+          severity: string
+          term: string
+        }
+        Insert: {
+          kind?: string
+          severity: string
+          term: string
+        }
+        Update: {
+          kind?: string
+          severity?: string
+          term?: string
+        }
+        Relationships: []
       }
       organizations: {
         Row: {
@@ -531,6 +588,45 @@ export type Database = {
         }
         Relationships: []
       }
+      venue_aliases: {
+        Row: {
+          alias_name: string | null
+          alias_venue_id: string
+          canonical_venue_id: string
+          created_at: string
+          reason: string | null
+        }
+        Insert: {
+          alias_name?: string | null
+          alias_venue_id: string
+          canonical_venue_id: string
+          created_at?: string
+          reason?: string | null
+        }
+        Update: {
+          alias_name?: string | null
+          alias_venue_id?: string
+          canonical_venue_id?: string
+          created_at?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_aliases_alias_venue_id_fkey"
+            columns: ["alias_venue_id"]
+            isOneToOne: true
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_aliases_canonical_venue_id_fkey"
+            columns: ["canonical_venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venues: {
         Row: {
           address: string | null
@@ -540,6 +636,7 @@ export type Database = {
           id: string
           image_url: string | null
           lat: number | null
+          listed: boolean
           lng: number | null
           manual_overrides: Json
           name: string
@@ -563,6 +660,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           lat?: number | null
+          listed?: boolean
           lng?: number | null
           manual_overrides?: Json
           name: string
@@ -586,6 +684,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           lat?: number | null
+          listed?: boolean
           lng?: number | null
           manual_overrides?: Json
           name?: string
@@ -631,10 +730,35 @@ export type Database = {
         }
         Relationships: []
       }
+      v_dupe_candidates: {
+        Row: {
+          canonical_id: string | null
+          duplicate_id: string | null
+          rule: string | null
+          source_a: string | null
+          source_b: string | null
+          start_at: string | null
+          start_at_b: string | null
+          title_a: string | null
+          title_b: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      event_is_pending_review: {
+        Args: { p_event_id: string }
+        Returns: boolean
+      }
+      moderation_request_role: { Args: never; Returns: string }
+      moderation_severity: { Args: { input: string }; Returns: string }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      source_priority: { Args: { src: string }; Returns: number }
+      sync_event_category_slugs: {
+        Args: { p_event_id: string }
+        Returns: undefined
+      }
       turnout_slugify: { Args: { input: string }; Returns: string }
       turnout_unique_slug: {
         Args: { p_base: string; p_id: string; p_table: string }
