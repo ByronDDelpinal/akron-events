@@ -3,7 +3,6 @@ import { useEffect, useRef } from 'react'
 import Header   from '@/components/Header'
 import Footer   from '@/components/Footer'
 import InstallPrompt from '@/components/InstallPrompt'
-import FeedbackOrb from '@/components/FeedbackOrb'
 import NeighborhoodPickerModal from '@/components/NeighborhoodPickerModal'
 import { NeighborhoodProvider } from '@/hooks/useNeighborhood'
 import { getMyHubSlug } from '@/lib/myHub'
@@ -246,6 +245,12 @@ function AppInner() {
 /**
  * SiteChrome — the full-site layout: header, footer, and the site-wide
  * default JSON-LD. Wraps every non-embed route via <Outlet />.
+ *
+ * The feedback affordance is NOT mounted here — it lives inside Header
+ * (desktop CTA row + mobile menu) so it naturally shares Header's own
+ * /admin hide-check, and is separately mounted in AdminLayout's topbar
+ * so admin pages keep it too. Only /embed gets neither, since EmbedLayout
+ * never renders Header or AdminLayout.
  */
 function SiteChrome() {
   const siteGraph = buildGraph(organizationSchema(), webSiteSchema())
@@ -258,7 +263,6 @@ function SiteChrome() {
       </main>
       <Footer />
       <InstallPrompt />
-      <FeedbackOrb />
       <NeighborhoodPickerModal />
     </NeighborhoodProvider>
   )

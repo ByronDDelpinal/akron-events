@@ -57,6 +57,11 @@
   background: var(--bg-nav);
   border-bottom: var(--border-width-thin) solid var(--overlay-light-05);
 }
+.admin-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
 .admin-topbar-title {
   /* h1 inside the persistent admin chrome — overriding the global
      --text-h1 way down to body scale because this is a chrome label,

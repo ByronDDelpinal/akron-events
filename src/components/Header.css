@@ -296,6 +296,24 @@
   border-color: var(--amber-on-dark);
 }
 
+/* ── FEEDBACK (desktop CTA row + mobile menu) ──
+ * The trigger button's own look comes from the same CTA classes passed
+ * in via `triggerClassName` (see Header.tsx) — this just fits the
+ * wrapping element into each layout context.
+ *
+ * Mobile: `.mobile-menu` items stretch full-width by the sheet's default
+ * flex `align-items: stretch`, but that only reaches the wrap's direct
+ * child (feedback-menu-wrap), not the button nested one level inside it —
+ * so both need an explicit full-width rule here to match the sibling
+ * mobile-menu-cta buttons exactly. */
+.mobile-menu .feedback-menu-wrap {
+  display: block;
+  width: 100%;
+}
+.mobile-menu .feedback-menu-trigger {
+  width: 100%;
+}
+
 /* Switch to hamburger menu below Tailwind's xl breakpoint (1280px). The full
    desktop nav content (logo + 6 nav links + 3 CTA buttons + padding) needs
    ~1220px to fit comfortably, so any narrower viewport — tablets, small

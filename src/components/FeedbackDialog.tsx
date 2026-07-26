@@ -8,19 +8,17 @@ import {
   type FocusEvent,
   type FormEvent,
 } from 'react'
-import { useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import type { TablesInsert } from '@/lib/database.types'
 import { trackEvent, EVENTS } from '@/lib/analytics'
-import { useFeedbackOrbDrag } from '@/hooks/useFeedbackOrbDrag'
 import {
   MAX_LEN,
   COOLDOWN_MS,
   prefersReducedMotion,
   readCooldownUntil,
   writeCooldownUntil,
-} from '@/lib/feedbackOrb'
-import './FeedbackOrb.css'
+} from '@/lib/feedback'
+import './FeedbackDialog.css'
 
 type Phase = 'form' | 'success' | 'error' | 'cooldown'
 type ErrorKind = 'generic' | 'empty'
@@ -30,15 +28,15 @@ const COUNTER_DANGER = 20
 const CLOSE_ANIMATION_MS = 150 // matches --transition-medium
 
 /**
- * Copy — from docs/feedback-orb-design-spec.md §3. Verbatim except for two
- * strings whose spec text uses an em dash: the repo-wide "no em dashes in
- * user-facing copy" rule (and this task's own instructions) overrides the
- * spec's literal punctuation there. Wording/meaning is unchanged, only the
- * dash is swapped for a colon / period. See the deviations note in the
- * handoff report.
+ * Copy — from docs/feedback-orb-design-spec.md §3 (see that doc's
+ * 2026-07-25 addendum: the surface moved from a floating orb to this
+ * header/admin-toolbar button, but every string below is unchanged).
+ * Verbatim except for two strings whose spec text uses an em dash: the
+ * repo-wide "no em dashes in user-facing copy" rule overrides the spec's
+ * literal punctuation there. Wording/meaning is unchanged, only the dash
+ * is swapped for a colon / period.
  */
 const COPY = {
-  orbLabel: 'Send feedback',
   heading: 'Share your thoughts',
   textareaLabel: 'Your feedback',
   placeholder: "Tell us anything: what's working, what's broken, or what you wish this site did.",
@@ -53,9 +51,17 @@ const COPY = {
   close: 'Close',
 }
 
-export default function FeedbackOrb() {
-  const { pathname } = useLocation()
+interface FeedbackDialogProps {
+  /**
+   * Extra class name(s) for the trigger button. Each mount point (desktop
+   * header CTA row, mobile menu sheet, admin toolbar) passes its own local
+   * button classes so the trigger matches its surrounding chrome exactly —
+   * everything else about this component is identical everywhere it's used.
+   */
+  triggerClassName?: string
+}
 
+export default function FeedbackDialog({ triggerClassName = '' }: FeedbackDialogProps) {
   const [open, setOpen] = useState(false)
   const [closing, setClosing] = useState(false)
   const [value, setValue] = useState('')
@@ -68,7 +74,7 @@ export default function FeedbackOrb() {
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const popoverRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const orbButtonRef = useRef<HTMLButtonElement | null>(null)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
 
   const headingId = useId()
   const helperId = useId()
@@ -91,24 +97,23 @@ export default function FeedbackOrb() {
     if (!submittedThisOpenRef.current) trackEvent(EVENTS.FEEDBACK_DISMISSED)
     if (prefersReducedMotion()) {
       setOpen(false)
-      orbButtonRef.current?.focus()
+      triggerRef.current?.focus()
       return
     }
     setClosing(true)
     closeTimerRef.current = setTimeout(() => {
       setOpen(false)
       setClosing(false)
-      orbButtonRef.current?.focus()
+      triggerRef.current?.focus()
     }, CLOSE_ANIMATION_MS)
   }, [open, closing])
 
-  // Tapping the orb toggles: opens when closed, closes when open.
+  // Clicking the trigger toggles: opens when closed, closes when open —
+  // the same toggle behavior the floating orb's tap gesture had.
   const togglePopover = useCallback(() => {
     if (open) requestClose()
     else openPopover()
   }, [open, requestClose, openPopover])
-
-  const { corner, style: dragStyle, dragging, handlers } = useFeedbackOrbDrag(togglePopover)
 
   useEffect(() => () => {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
@@ -130,9 +135,6 @@ export default function FeedbackOrb() {
 
   // Mobile keyboard (spec §5): anchor to visualViewport height, not 100vh,
   // so the popover's bottom edge never sits under the on-screen keyboard.
-  // The CSS corner anchoring already opens the popover upward from a
-  // bottom corner; this clamps its max height to whatever of the viewport
-  // is actually still visible once the keyboard has resized it.
   const [viewportMaxHeight, setViewportMaxHeight] = useState<number | null>(null)
   useEffect(() => {
     if (!open) return
@@ -144,7 +146,7 @@ export default function FeedbackOrb() {
     return () => vv.removeEventListener('resize', update)
   }, [open])
 
-  // Escape closes and returns focus to the orb. Clicking outside also
+  // Escape closes and returns focus to the trigger. Clicking outside also
   // closes (no backdrop) — this is a non-modal popover (aria-modal="false"),
   // not a blocking dialog, so there is no hard focus trap.
   useEffect(() => {
@@ -155,7 +157,7 @@ export default function FeedbackOrb() {
     const onPointerDown = (e: PointerEvent) => {
       const target = e.target as Node
       if (popoverRef.current?.contains(target)) return
-      if (orbButtonRef.current?.contains(target)) return
+      if (triggerRef.current?.contains(target)) return
       requestClose()
     }
     document.addEventListener('keydown', onKeyDown)
@@ -167,10 +169,10 @@ export default function FeedbackOrb() {
   }, [open, requestClose])
 
   // Tabbing past the last control (no hard trap) simply moves focus on;
-  // when that focus lands outside the popover and the orb, close.
+  // when that focus lands outside the popover and the trigger, close.
   const onPopoverBlur = useCallback((e: FocusEvent<HTMLDivElement>) => {
     const next = e.relatedTarget as Node | null
-    if (next && (popoverRef.current?.contains(next) || orbButtonRef.current?.contains(next))) return
+    if (next && (popoverRef.current?.contains(next) || triggerRef.current?.contains(next))) return
     requestClose()
   }, [requestClose])
 
@@ -203,6 +205,11 @@ export default function FeedbackOrb() {
     setSubmitting(true)
     try {
       const payload = {
+        // 'orb' is a fixed DB/RLS contract (migration 043's category CHECK
+        // constraint and anon-insert policy, plus AdminFeedbackPage's
+        // `.eq('category', 'orb')` filter) — not a UI label. It stays
+        // literal even though the surface itself is no longer a floating
+        // orb; changing it would need a migration, out of scope here.
         category: 'orb',
         body: trimmed,
         page_path: typeof window === 'undefined' ? '' : window.location.pathname,
@@ -211,7 +218,7 @@ export default function FeedbackOrb() {
       const { error } = await supabase
         .from('feedback_posts')
         .insert(payload satisfies TablesInsert<'feedback_posts'>)
-        // No .select(): orb rows are is_private = true and unreadable by
+        // No .select(): these rows are is_private = true and unreadable by
         // anon, so a readback would return zero rows. Fire-and-forget.
 
       if (error) throw error
@@ -223,12 +230,11 @@ export default function FeedbackOrb() {
       setPhase('success')
 
       // Fire the operator notification email. Deliberately not awaited —
-      // this is a true fire-and-forget, same intent as SubmitPage's call to
-      // notify-pending-event, but here it's kicked off *after* the success
-      // phase is already shown so it can't delay or block the success UX.
-      // The .catch swallows every failure mode (missing deploy, Resend
-      // hiccup, network error) since the feedback row is already saved —
-      // nothing about this call should ever surface as a user-facing error.
+      // true fire-and-forget, kicked off *after* the success phase is
+      // already shown so it can't delay or block the success UX. The
+      // .catch swallows every failure mode (missing deploy, Resend hiccup,
+      // network error) since the feedback row is already saved — nothing
+      // about this call should ever surface as a user-facing error.
       supabase.functions
         .invoke('notify-feedback', {
           body: {
@@ -237,10 +243,10 @@ export default function FeedbackOrb() {
           },
         })
         .then(({ error: notifyError }) => {
-          if (notifyError) console.warn('[feedback-orb] notify-feedback failed', notifyError)
+          if (notifyError) console.warn('[feedback] notify-feedback failed', notifyError)
         })
         .catch((err) => {
-          console.warn('[feedback-orb] notify-feedback threw', err)
+          console.warn('[feedback] notify-feedback threw', err)
         })
     } catch {
       setErrorKind('generic')
@@ -250,40 +256,23 @@ export default function FeedbackOrb() {
     }
   }
 
-  // ── Route-based hiding (spec §1 / plan §4) ───────────────────────────
-  // Both hooks above must run on every render regardless of route — React
-  // requires hooks to run in the same order every render — so the guard is
-  // a plain boolean computed after all hooks, evaluated just before JSX.
-  // This mirrors how InstallPrompt (the pattern this component follows)
-  // actually implements the same /embed + /admin guard.
-  const hidden = pathname.startsWith('/embed') || pathname.startsWith('/admin')
-  if (hidden) return null
-
   return (
-    <div
-      className={`feedback-orb-wrap${dragging ? ' dragging' : ''}${submitting ? ' submitting' : ''}`}
-      data-corner={corner}
-      style={dragStyle}
-    >
+    <div className="feedback-menu-wrap">
       <button
         type="button"
-        ref={orbButtonRef}
-        className="feedback-orb"
-        aria-label={COPY.orbLabel}
+        ref={triggerRef}
+        className={`feedback-menu-trigger${triggerClassName ? ` ${triggerClassName}` : ''}`}
         aria-haspopup="dialog"
         aria-expanded={open}
-        {...handlers}
+        onClick={togglePopover}
       >
-        <svg className="feedback-orb-ekg" viewBox="0 0 32 16" aria-hidden="true">
-          <path className="ekg-base" pathLength={100} d="M0 8 H9 L12 2 L15 14 L18 8 H32" />
-          <path className="ekg-sweep" pathLength={100} d="M0 8 H9 L12 2 L15 14 L18 8 H32" />
-        </svg>
+        +Feedback
       </button>
 
       {open && (
         <div
           ref={popoverRef}
-          className={`feedback-orb-popover${closing ? ' closing' : ''}`}
+          className={`feedback-menu-popover${closing ? ' closing' : ''}`}
           role="dialog"
           aria-modal="false"
           aria-labelledby={headingId}
@@ -292,11 +281,11 @@ export default function FeedbackOrb() {
           style={viewportMaxHeight != null ? { maxHeight: viewportMaxHeight, overflowY: 'auto' } : undefined}
         >
           {phase === 'cooldown' && (
-            <div className="feedback-orb-panel">
-              <h2 id={headingId} className="feedback-orb-panel-heading">{COPY.heading}</h2>
-              <p className="feedback-orb-panel-body" role="alert">{COPY.errorCooldown}</p>
-              <div className="feedback-orb-actions">
-                <button type="button" className="feedback-orb-close" aria-label={COPY.close} onClick={requestClose}>
+            <div className="feedback-menu-panel">
+              <h2 id={headingId} className="feedback-menu-panel-heading">{COPY.heading}</h2>
+              <p className="feedback-menu-panel-body" role="alert">{COPY.errorCooldown}</p>
+              <div className="feedback-menu-actions">
+                <button type="button" className="feedback-menu-close" aria-label={COPY.close} onClick={requestClose}>
                   ×
                 </button>
               </div>
@@ -304,20 +293,20 @@ export default function FeedbackOrb() {
           )}
 
           {phase === 'success' && (
-            <div className="feedback-orb-panel" aria-live="polite">
-              <div className="feedback-orb-panel-icon" aria-hidden="true">✓</div>
-              <h2 id={headingId} className="feedback-orb-panel-heading">{COPY.successHeading}</h2>
-              <p className="feedback-orb-panel-body">{COPY.successBody}</p>
+            <div className="feedback-menu-panel" aria-live="polite">
+              <div className="feedback-menu-panel-icon" aria-hidden="true">✓</div>
+              <h2 id={headingId} className="feedback-menu-panel-heading">{COPY.successHeading}</h2>
+              <p className="feedback-menu-panel-body">{COPY.successBody}</p>
             </div>
           )}
 
           {(phase === 'form' || phase === 'error') && (
             <form onSubmit={handleSubmit}>
-              <h2 id={headingId} className="feedback-orb-heading">{COPY.heading}</h2>
+              <h2 id={headingId} className="feedback-menu-heading">{COPY.heading}</h2>
 
               <textarea
                 ref={textareaRef}
-                className={`feedback-orb-textarea${phase === 'error' ? ' has-error' : ''}`}
+                className={`feedback-menu-textarea${phase === 'error' ? ' has-error' : ''}`}
                 aria-label={COPY.textareaLabel}
                 aria-describedby={`${helperId} ${counterId}`}
                 placeholder={COPY.placeholder}
@@ -327,18 +316,18 @@ export default function FeedbackOrb() {
                 disabled={submitting}
               />
 
-              <p id={helperId} className="feedback-orb-helper">{COPY.helper}</p>
+              <p id={helperId} className="feedback-menu-helper">{COPY.helper}</p>
 
               {phase === 'error' && (
-                <p className="feedback-orb-error-text" role="alert">
+                <p className="feedback-menu-error-text" role="alert">
                   {errorKind === 'empty' ? COPY.errorEmpty : COPY.errorGeneric}
                 </p>
               )}
 
-              <div className="feedback-orb-footer-row">
-                <span id={counterId} className="feedback-orb-counter-slot" aria-live="polite">
+              <div className="feedback-menu-footer-row">
+                <span id={counterId} className="feedback-menu-counter-slot" aria-live="polite">
                   {showCounter && (
-                    <span className={`feedback-orb-counter${remaining <= COUNTER_DANGER ? ' danger' : ''}`}>
+                    <span className={`feedback-menu-counter${remaining <= COUNTER_DANGER ? ' danger' : ''}`}>
                       {remaining} left
                     </span>
                   )}
@@ -350,7 +339,7 @@ export default function FeedbackOrb() {
               <input
                 type="text"
                 name="website"
-                className="feedback-orb-honeypot"
+                className="feedback-menu-honeypot"
                 tabIndex={-1}
                 autoComplete="off"
                 aria-hidden="true"
@@ -358,15 +347,15 @@ export default function FeedbackOrb() {
                 onChange={(e) => setHoneypot(e.target.value)}
               />
 
-              <div className="feedback-orb-actions">
+              <div className="feedback-menu-actions">
                 <button
                   type="submit"
-                  className="feedback-orb-send"
+                  className="feedback-menu-send"
                   disabled={!value.trim() || submitting}
                 >
                   {submitting ? COPY.sending : COPY.send}
                 </button>
-                <button type="button" className="feedback-orb-close" aria-label={COPY.close} onClick={requestClose}>
+                <button type="button" className="feedback-menu-close" aria-label={COPY.close} onClick={requestClose}>
                   ×
                 </button>
               </div>

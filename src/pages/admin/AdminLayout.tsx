@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { SEO } from '@/lib/seo'
+import FeedbackDialog from '@/components/FeedbackDialog'
 import './AdminLayout.css'
 
 // ── Auth ──────────────────────────────────────────────────────────────────
@@ -153,7 +154,14 @@ export default function AdminLayout() {
       <SEO title={adminSectionTitle(location.pathname)} noindex />
       <div className="admin-topbar">
         <h1 className="admin-topbar-title">Akron Pulse Admin</h1>
-        <button className="btn-admin-ghost" onClick={handleLogout}>Log out</button>
+        <div className="admin-topbar-actions">
+          {/* Admin pages don't render the site Header (Header itself hides
+              on /admin), so the feedback affordance is mounted here
+              separately — same component, same plumbing, idiomatic admin
+              chrome spot next to Log out. */}
+          <FeedbackDialog triggerClassName="btn-admin-ghost" />
+          <button className="btn-admin-ghost" onClick={handleLogout}>Log out</button>
+        </div>
       </div>
       <div className="admin-layout">
         <nav className="admin-sidebar">
