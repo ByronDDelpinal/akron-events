@@ -223,6 +223,12 @@ export function buildRow(e = {}) {
   if (!startAt) return null
   const endAt = e.enddt ? easternToIso(e.enddt) : null
 
+  // All-day events arrive as `startdt: "…  00:00:00"` WITH the authoritative
+  // `all_day` feed flag set — easternToIso then synthesizes a midnight ET time
+  // that isn't real. Key detection off `all_day` (a "00:00" clock never
+  // survives the regex) and flag the row so a human can supply the real time.
+  const isAllDay = e.all_day === true
+
   const online = e.online_event === true
   const venue = resolveVenue(e.location, online)
   const { price_min, price_max } = parsePrice(e.registration_cost)
@@ -246,6 +252,8 @@ export function buildRow(e = {}) {
       source: SOURCE_KEY,
       source_id: `smfpl_${e.id}_${ymd}`,
       status: 'published',
+      // All-day rows have a synthesized midnight time — surface for review.
+      needs_review: isAllDay ? true : undefined,
       featured: false,
     },
     venue,

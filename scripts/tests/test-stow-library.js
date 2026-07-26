@@ -183,6 +183,33 @@ describe('buildRow', () => {
     assert.equal(row.source_id, 'smfpl_111_20260701')
   })
 
+  it('flags an all-day event needs_review (synthesized midnight, keep the date)', () => {
+    // The real LibCal feed never sends a bare date — all-day events arrive as
+    // "…  00:00:00" WITH all_day:true, so the fabricated midnight must be caught
+    // off the authoritative flag, not a clock-in-string regex.
+    const { row } = buildRow({
+      id: 444, title: 'Library Book Sale', startdt: '2026-07-31 00:00:00',
+      all_day: true, ymd: '20260731', url: 'https://events.smfpl.org/event/444',
+      location: 'Stow-Munroe Falls Room', audiences: [{ name: 'All Ages' }],
+      categories_arr: [{ name: 'Book Sale' }], registration_cost: '', online_event: false,
+    })
+    assert.equal(row.needs_review, true)
+    // The date survives; time is the fabricated midnight ET (04:00Z in EDT).
+    assert.equal(row.start_at, '2026-07-31T04:00:00.000Z')
+  })
+
+  it('does NOT force needs_review on a timed, non-all-day startdt', () => {
+    const { row } = buildRow({
+      id: 555, title: 'Evening Poetry Reading', startdt: '2026-07-31 18:00:00',
+      enddt: '2026-07-31 19:30:00', all_day: false, ymd: '20260731',
+      url: 'https://events.smfpl.org/event/555', location: 'Stow-Munroe Falls Room',
+      audiences: [{ name: 'Adult' }], categories_arr: [{ name: 'Reading' }],
+      registration_cost: '', online_event: false,
+    })
+    assert.equal(row.needs_review, undefined)
+    assert.equal(row.start_at, '2026-07-31T22:00:00.000Z')
+  })
+
   it('ingests an online author talk with no venue', () => {
     const { row, venue } = buildRow({
       id: 222, title: 'Online Author Talk: Jane Doe',

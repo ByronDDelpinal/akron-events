@@ -15,7 +15,10 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY  || 'dummy-key'
 
-import { isPublicCivicPlusEvent, cleanLocationName, civicPlusEventUrl } from '../lib/civicplus.js'
+import {
+  isPublicCivicPlusEvent, cleanLocationName, civicPlusEventUrl, isDateOnlyIcsEvent,
+} from '../lib/civicplus.js'
+import { normaliseIcsEvent } from '../lib/ics.js'
 
 // ════════════════════════════════════════════════════════════════════════════
 // isPublicCivicPlusEvent
@@ -35,6 +38,15 @@ describe('isPublicCivicPlusEvent: drops non-public entries', () => {
 
   it('drops office-closed entries', () => {
     assert.equal(isPublicCivicPlusEvent('Office Closed-Veterans Day'), false)
+  })
+
+  it('drops bare municipal closure notices (no public-event word)', () => {
+    for (const s of [
+      'Closed',
+      'Pool Closed',
+      'Closed for the Season',
+      'Splash Pad Closed',
+    ]) assert.equal(isPublicCivicPlusEvent(s), false, s)
   })
 
   it('drops cancelled events', () => {
@@ -75,6 +87,71 @@ describe('isPublicCivicPlusEvent: keeps public events', () => {
 
   it('keeps holiday ceremonies (holiday word + ceremony context)', () => {
     assert.equal(isPublicCivicPlusEvent('Veterans Day Ceremony'), true)
+  })
+
+  it('keeps a "closed" title that also carries a public-event word', () => {
+    // The closure guard must not swallow real events that mention a closure.
+    assert.equal(isPublicCivicPlusEvent('Fall Festival - Roads Closed'), true)
+    assert.equal(isPublicCivicPlusEvent('Road Closure Cleanup Festival'), true)
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// isDateOnlyIcsEvent — flag all-day / date-only VEVENTs (never trust midnight)
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('isDateOnlyIcsEvent', () => {
+  it('true for a VALUE=DATE all-day DTSTART', () => {
+    assert.equal(isDateOnlyIcsEvent({ DTSTART: { value: '20260731', params: { VALUE: 'DATE' } } }), true)
+  })
+  it('true for a bare 8-char date DTSTART (no VALUE param, no T)', () => {
+    assert.equal(isDateOnlyIcsEvent({ DTSTART: { value: '20260801', params: {} } }), true)
+  })
+  it('false for a timed DTSTART', () => {
+    assert.equal(isDateOnlyIcsEvent({ DTSTART: { value: '20260731T190000', params: { TZID: 'America/New_York' } } }), false)
+  })
+  it('false when DTSTART is missing', () => {
+    assert.equal(isDateOnlyIcsEvent({}), false)
+    assert.equal(isDateOnlyIcsEvent({ DTSTART: null }), false)
+  })
+})
+
+// The real ingest composition from runCivicPlusScraper: build the row with
+// normaliseIcsEvent, then flag needs_review iff the VEVENT is date-only. These
+// tests exercise that exact two-step path (not a fork of it).
+describe('CivicPlus row: date-only VEVENTs flag needs_review, keep the date', () => {
+  function buildAndFlag(ev) {
+    const row = normaliseIcsEvent(ev, { source: 'test_city' })
+    if (isDateOnlyIcsEvent(ev)) row.needs_review = true
+    return row
+  }
+
+  it('flags an all-day VALUE=DATE event and preserves the (untrusted midnight) date', () => {
+    const row = buildAndFlag({
+      SUMMARY: 'City-Wide Scavenger Hunt', UID: '9001',
+      DTSTART: { value: '20260731', params: { VALUE: 'DATE' } },
+    })
+    assert.equal(row.needs_review, true)
+    // The date survives; the time is the synthesized midnight ET (04:00Z in EDT).
+    assert.equal(row.start_at, '2026-07-31T04:00:00.000Z')
+  })
+
+  it('flags a bare 8-char date event', () => {
+    const row = buildAndFlag({
+      SUMMARY: 'Summer Reading Kickoff', UID: '9002',
+      DTSTART: { value: '20260801', params: {} },
+    })
+    assert.equal(row.needs_review, true)
+  })
+
+  it('does NOT force needs_review on a normal timed event', () => {
+    const row = buildAndFlag({
+      SUMMARY: 'Concert on the Green', UID: '9003',
+      DTSTART: { value: '20260731T190000', params: { TZID: 'America/New_York' } },
+    })
+    assert.equal(row.needs_review, undefined)
+    // 7:00 PM ET in July (EDT, UTC-4) → 23:00Z — a real, trusted time.
+    assert.equal(row.start_at, '2026-07-31T23:00:00.000Z')
   })
 })
 

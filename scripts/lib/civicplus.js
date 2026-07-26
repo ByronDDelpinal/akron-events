@@ -87,9 +87,29 @@ export function isPublicCivicPlusEvent(summary) {
   // Administrative entries are never public, regardless of other words.
   if (ADMIN_RE.test(s)) return false
   if (CLOSURE_RE.test(s)) return false
+  // Bare municipal closure notices ("Closed", "Pool Closed", "Closed for the
+  // Season") slip past CLOSURE_RE because they carry no office/holiday context.
+  // Reject any title containing "closed" unless it also names a genuine
+  // public-event word (a "Fall Festival - Roads Closed" stays).
+  if (/\bclosed\b/i.test(s) && !PUBLIC_EVENT_RE.test(s)) return false
   // Holiday observances drop unless they carry a public-event word.
   if (HOLIDAY_EXACT.has(s) && !PUBLIC_EVENT_RE.test(s)) return false
   return true
+}
+
+/**
+ * True when an ICS VEVENT is all-day / date-only — its DTSTART carries
+ * VALUE=DATE or an 8-char date value ("20260731") with no time component.
+ * Such rows have no real start time; normaliseIcsEvent synthesizes a 00:00 ET
+ * start we must NOT publish as trustworthy. Callers flag needs_review and keep
+ * the date (never fabricate a time). Timed VEVENTs return false.
+ */
+export function isDateOnlyIcsEvent(ev) {
+  const dt = ev?.DTSTART
+  if (!dt) return false
+  if (dt.params?.VALUE === 'DATE') return true
+  const raw = (dt.value || '').trim()
+  return raw.length === 8 && !raw.includes('T')
 }
 
 // ── Default category / tag mapping ──────────────────────────────────────────
@@ -246,6 +266,11 @@ export async function runCivicPlusScraper(config) {
           linkBaseUrl:     origin,
         })
         if (!row || !row.start_at || !row.source_id) { skipped++; continue }
+
+        // Date-only / all-day VEVENTs have no real start time; normaliseIcsEvent
+        // synthesized a 00:00 ET start we must not present as trustworthy. Keep
+        // the date but flag for a human glance rather than fabricating midnight.
+        if (isDateOnlyIcsEvent(ev)) row.needs_review = true
 
         // The VEVENT URL field points back at the feed, not the event (a
         // CivicPlus quirk). Replace it with the reconstructed detail-page
