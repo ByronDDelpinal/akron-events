@@ -1,12 +1,13 @@
 # CI — runs on every PR and every push to main.
 #
-# Six gates, in fail-fast order (cheapest first):
+# Seven gates, in fail-fast order (cheapest first):
 #   1. lint                — ESLint over scripts/ (Node scrapers + tooling)
 #   2. lint:src            — ESLint over src/ (React + TypeScript)
 #   3. typecheck           — tsc --noEmit  (tsconfig include is ['src'] ONLY)
 #   4. typecheck:functions — deno check over supabase/functions/
-#   5. test                — node --test scripts/tests/ (3,600+ assertions, fixture-based, no network)
-#   6. build               — vite build (catches import/bundling breakage tsc can't see)
+#   5. test:functions       — deno test over supabase/functions/ (pure renderer unit tests)
+#   6. test                — node --test scripts/tests/ (3,600+ assertions, fixture-based, no network)
+#   7. build               — vite build (catches import/bundling breakage tsc can't see)
 #
 # Gate 4 exists because gate 3 cannot see the edge functions: tsc's include
 # is ['src'], and the functions are Deno (remote https: imports, Deno globals)
@@ -14,6 +15,10 @@
 # supabase/functions/ — the code that mails every subscriber — was checked by
 # nothing, and had accumulated real type errors on main, including a silently
 # dropped Reply-To header on every outbound email.
+#
+# Gate 5 runs the Deno unit tests colocated with the edge functions (e.g.
+# supabase/functions/slack-notify/render.test.ts) — logic that can't be
+# imported into a Node test file the way scripts/ code can.
 #
 # npm ci uses --ignore-scripts to skip the puppeteer postinstall (a full
 # Chrome download). No CI check needs a browser; scraper tests run against
@@ -68,6 +73,9 @@ jobs:
 
       - name: Typecheck edge functions
         run: npm run typecheck:functions
+
+      - name: Test edge functions
+        run: npm run test:functions
 
       - name: Test
         run: npm test

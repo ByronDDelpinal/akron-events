@@ -93,7 +93,7 @@ Shared scraper machinery lives in `scripts/lib/` — notably `normalize.js` (the
 
 - **Row Level Security is enabled.** Public visitors can only read `published` events; the `anon` key is therefore safe to expose in the browser.
 - **To publish a submitted event:** open the Supabase table editor → `events` table → change `status` from `pending_review` to `published`, **or** use the one-click "Publish now" button in the operator notification email (below).
-- **Edge functions** live in `supabase/functions/`: `notify-pending-event`, `send-digest`, `subscribe`, `unsubscribe`, and `preferences`. Deploy with `supabase functions deploy <name>`.
+- **Edge functions** live in `supabase/functions/`: `notify-pending-event`, `send-digest`, `subscribe`, `unsubscribe`, `preferences`, and `slack-notify`. Deploy with `supabase functions deploy <name>`.
 
 ### Pending-event notifications
 
@@ -117,6 +117,36 @@ Security properties:
 - The publish URL is bound to a single `event_id` and signed with HMAC-SHA256, so a leaked link can only publish that one event, and only until expiry.
 - The GET handler is idempotent — replaying a valid link on an already-published row renders an "already published" page instead of re-running the update.
 - Rotating `PUBLISH_TOKEN_SECRET` immediately invalidates every outstanding link.
+
+### Slack notifications (Tier 1)
+
+Three DB triggers (`supabase/migrations/045_slack_triggers.sql`) call the `slack-notify` edge function directly — no LLM in the loop: a published feedback-orb note, a new subscriber signup, and a subscriber confirming. Each event posts a plain-text message to one of two channels and is recorded in the `slack_notifications` ledger table (`supabase/migrations/044_slack_notifications.sql`), which dedupes replays and survives Slack outages without ever blocking the underlying write (see 045's header comment for the failure-isolation contract).
+
+```bash
+supabase functions deploy slack-notify --no-verify-jwt
+```
+
+**`--no-verify-jwt` is required, not optional.** The DB triggers call this function via `pg_net` from inside a Postgres trigger — there is no user session to attach a JWT to, so Supabase's platform-level JWT check must be off or every trigger-initiated call gets rejected before it reaches the function's own code. That is also what makes this function reachable by anyone on the internet who has the URL, which is why authentication is handled entirely at the application level (below) instead.
+
+Required function secrets (set via `supabase secrets set` or the dashboard):
+
+- `SLACK_BOT_TOKEN` — bot token for the Slack app installed in the workspace, needs the `chat:write` scope
+- `SLACK_CHANNEL_PUBLIC_FEEDBACK` — channel id that receives feedback-orb notes
+- `SLACK_CHANNEL_NEW_EMAIL_SUBSCRIBERS` — channel id that receives signup + confirmation notices
+- `SLACK_ICON_URL` — optional bot avatar override
+- `SLACK_NOTIFY_SECRET` — shared secret the DB triggers send as the `X-Slack-Notify-Secret` header; the function rejects any request whose header doesn't match this value with a timing-safe comparison, before parsing the body or touching the database. Generate a strong random value and set it in **two** places that must agree:
+  1. `supabase secrets set SLACK_NOTIFY_SECRET='<value>'` (the function reads it from here)
+  2. `select vault.create_secret('<the same value>', 'slack_notify_secret');` run by hand against the database (the trigger functions in migration 045 read it from Supabase Vault) — **this is a manual step; no migration creates the secret itself**, so it never sits in source control or CI logs.
+
+An earlier version of this integration hardcoded the project's anon key as trigger auth, following the (undocumented, never committed to a migration) pattern of the live `send-daily-digest` pg_cron job. A code review caught that: the anon key ships in the frontend bundle and isn't a secret, so it made `slack-notify` publicly invocable by anyone who extracted it — the enabling condition for a Slack-ping / phishing-link exploit via unescaped JSONB fields. Do not reuse that pattern for future `net.http_post` triggers; use a Vault-backed shared secret the way 045 now does.
+
+Deploy order matters: apply migration 044 (ledger table only, no triggers yet), deploy and smoke-test `slack-notify` by hand (with the real `X-Slack-Notify-Secret` header) before applying migration 045 to arm the triggers, and make sure both the Vault secret and the `SLACK_NOTIFY_SECRET` function secret are set *before* 045 goes live — otherwise every trigger fires, finds no Vault secret, logs a warning, and silently sends nothing (fail-closed, not fail-open).
+
+**Recovery / troubleshooting:**
+
+- **To resend a notification:** delete the matching row from `slack_notifications` (by `dedupe_key` — `feedback:{id}`, `subscriber_signup:{uuid}`, or `subscriber_confirmed:{uuid}`), then re-POST the same `{event, id}` body (with a valid `X-Slack-Notify-Secret` header) at the function. Deleting the ledger row is what lets the claim-first dedupe protocol treat it as new again.
+- **A row stuck in `claimed`** means the function died mid-flight (crashed or timed out after claiming the dedupe key but before settling it to `sent`/`failed`) — delete the row and re-POST as above.
+- **A row in `failed`** carries the Slack error in its `error` column — check that first; it's usually a bad/rotated `SLACK_BOT_TOKEN` or an unset channel id env var.
 
 ---
 

@@ -4,19 +4,36 @@
 #
 # This is the external runner the scrape pipeline has always needed. Scraping
 # every active source takes far longer than an agent session or a serverless
-# function will allow, so it lives here: an Actions job with a 2-hour budget,
-# no laptop required.
+# function will allow, so it lives here: an Actions job with a 150-minute
+# budget, no laptop required.
 #
 # What it does, in order:
 #   1. run-all.js         — every scraper in scripts/manifest.js, sequentially,
 #                            then dedupe-cross-source.js --apply (unless
 #                            skip_dedupe / --no-dedupe), then a Vercel
 #                            edge-cache purge of the shared `events` tag.
+#                            Writes scrape-reports/run.json (the plan, then the
+#                            outcome) both before and after the run, so
+#                            scrape-report.js can tell a filtered (--key /
+#                            --group) run from a full-corpus one instead of
+#                            misreading unrelated pre-existing failures as
+#                            something this run broke. Exits 1 only when
+#                            scraper failures exceed 15% of the plan (~137
+#                            active scrapers hitting independent third-party
+#                            sources nightly — some transient churn is
+#                            expected and normal) or dedupe-cross-source.js
+#                            itself fails, which is always red regardless of
+#                            the threshold.
 #   2. geocode-venues.js  — backfills lat/lng for venues the run just created
 #                            that don't have coordinates yet. Best-effort
 #                            (continue-on-error) — a geocoding hiccup must
 #                            never redden an otherwise-healthy scrape.
-#   3. scrape-report.js   — writes scrape-reports/ (health per source).
+#   3. scrape-report.js   — writes scrape-reports/ (health per source). Reads
+#                            run.json (when fresh — see
+#                            RUN_CONTEXT_MAX_AGE_HOURS) to scope its census to
+#                            what this run actually planned, rather than
+#                            grading every active source against a run that
+#                            may have only covered one --key/--group.
 #
 # Deliberately NOT `npm run scrape:all`. Locally that script is now
 # `run-all.js; s=$?; scrape-report.js; exit $s` so a failed scrape still
@@ -32,38 +49,50 @@
 # runner behave like the machine these scrapers were written and tested on.
 # Do not remove it.
 #
-# SCHEDULE — workflow_dispatch ONLY for now. No `schedule:` trigger.
+# SCHEDULE — enabled. Measured 2026-07-27, production run #3
+# (workflow_dispatch, full corpus, commit 195d867): 139 sources logged to
+# scraper_runs, 73.6 minutes of wall-clock span from first to last scraper
+# log, 9 failures (the 15%-of-plan threshold is ~20, so the job was green),
+# 256 events inserted, 3,645 updated.
 #
-# The obvious cron, `0 3 * * *` (03:00 UTC = 11pm ET summer / 10pm ET
-# winter), sits inside the 8pm–midnight ET window that
-# scripts/lib/normalize.js:477-487 documents as the UTC-date-is-already-
-# tomorrow trap: several scrapers use raw `new Date().toISOString().split('T')[0]`
-# as a "today" boundary, and in that window the UTC calendar date has already
-# rolled to tomorrow, silently dropping the rest of today's events. Setting
-# `TZ: America/New_York` does NOT fix this — `toISOString()` is UTC by
-# definition regardless of the process timezone.
-#
-# The intended schedule is:
+# Why `0 23 * * *` (23:00 UTC) and not the obvious `0 3 * * *` (03:00 UTC =
+# 11pm ET summer / 10pm ET winter): `0 3 * * *` sits inside the 8pm–midnight
+# ET window that scripts/lib/normalize.js:477-487 documents as the
+# UTC-date-is-already-tomorrow trap: several scrapers use raw
+# `new Date().toISOString().split('T')[0]` as a "today" boundary, and in that
+# window the UTC calendar date has already rolled to tomorrow, silently
+# dropping the rest of today's events. Setting `TZ: America/New_York` does
+# NOT fix this — `toISOString()` is UTC by definition regardless of the
+# process timezone. `0 23 * * *` (19:00 EDT / 18:00 EST) is clear of that
+# window in both DST states — UTC and Eastern calendar dates agree year-round
+# at this hour — and it's 6-7 hours clear of the 1am nightly-qa-pipeline
+# Cowork task, which inspects this run's output rather than re-scraping.
 #
 #   schedule:
-#     - cron: '0 23 * * *'   # 19:00 EDT / 18:00 EST — UTC and Eastern
-#                             # calendar dates agree year-round at this hour,
-#                             # and it's 6-7 hours clear of the 1am
-#                             # nightly-qa-pipeline Cowork task, which inspects
-#                             # this run's output rather than re-scraping.
+#     - cron: '0 23 * * *'   # 19:00 EDT / 18:00 EST — see rationale above.
 #
-# This is commented out deliberately: nobody has measured a real full-run
-# duration yet, and the 120-minute timeout below is unvalidated. Enable the
-# schedule once one manual (workflow_dispatch) run establishes the real
-# duration and confirms the timeout has headroom.
+# Timeout: 73.6 measured minutes of scraper time, plus setup, the Chrome
+# install, dedupe, geocode and the report, lands close to 80 minutes total.
+# The 150-minute cap below is ~2x that measured total (the old 120-minute cap,
+# set before any full run had been measured, was only ~1.5x) — enough
+# headroom for a slow-runner night or manifest growth without a mid-run kill.
+# A timeout kill is expensive here specifically because of where it lands: it
+# happens after an unknown number of scrapers have already written to the DB
+# and before dedupe-cross-source.js and scrape-report.js get to run, i.e. the
+# worst place to lose the job — partial writes with no cleanup pass and no
+# health report.
 #
-# Two more reasons a `schedule:` trigger is not "set it and forget it" even
-# once enabled: GitHub Actions defers (delays or drops) scheduled runs under
-# platform load, and GitHub disables `schedule` triggers automatically after
-# 60 days of repository inactivity (no pushes/merges) — both are worth an
-# occasional manual check that the schedule actually fired.
+# `workflow_dispatch` (below) remains available alongside the schedule, with
+# its `group` / `key` / `dry_run` / `skip_dedupe` inputs, for targeted
+# re-runs (e.g. one failed source) without waiting for the next scheduled run.
 #
-# Chrome: 11 scrapers use Puppeteer, so unlike ci.yml this workflow cannot
+# Two reasons a `schedule:` trigger is not "set it and forget it": GitHub
+# Actions defers (delays or drops) scheduled runs under platform load, and
+# GitHub disables `schedule` triggers automatically after 60 days of
+# repository inactivity (no pushes/merges) — both are worth an occasional
+# manual check that the schedule actually fired.
+#
+# Chrome: 10 scrapers use Puppeteer, so unlike ci.yml this workflow cannot
 # skip the browser. `npm ci --ignore-scripts` keeps the postinstall from
 # downloading Chrome on every run; the explicit install step below is cached.
 # That step deliberately carries NO secrets — it executes third-party
@@ -76,6 +105,10 @@
 name: Nightly scrape
 
 on:
+  schedule:
+    # 19:00 EDT / 18:00 EST — see the SCHEDULE block in the header comment
+    # above for the full rationale (why this hour, not 03:00 UTC).
+    - cron: '0 23 * * *'
   workflow_dispatch:
     inputs:
       group:
@@ -110,7 +143,11 @@ jobs:
   scrape:
     name: Scrape all sources
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # ~2x the measured full-run total (~80 min: 73.6 min of scraper time plus
+    # setup/Chrome/dedupe/geocode/report) — see the SCHEDULE block in the
+    # header comment above for why a timeout kill is worse here than in most
+    # workflows (it lands mid-write, before dedupe and the report run).
+    timeout-minutes: 150
 
     # Only the timezone lives at job level. Everything else is scoped to the
     # individual steps that need it — see the Chrome-install note above for

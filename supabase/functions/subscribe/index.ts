@@ -5,6 +5,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend@4'
 import { THEME, button, renderEmailShell } from '../_shared/email.ts'
+import { sanitizeIntents, isValidEmail } from './validate.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -34,6 +35,10 @@ const CORS_HEADERS = {
 
 const BASE_URL = Deno.env.get('PUBLIC_SITE_URL') || 'https://akronpulse.com'
 
+// `intents` validation (closed registry + count cap) lives in ./validate.ts,
+// pulled out so it can be unit-tested without importing this file's
+// Deno.serve/env-var side effects — see that file's header comment.
+
 // Brand theme (incl. RESEND_FROM / RESEND_REPLY_TO env overrides) and
 // the masthead/footer shell live in ../_shared/email.ts so every
 // subscriber-facing email renders the same brand system.
@@ -48,7 +53,14 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const email = body.email?.trim().toLowerCase()
 
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    // isValidEmail (./validate.ts) adds a length bound (MAX_EMAIL_LEN, RFC
+    // 5321's 254-char maximum mailbox length) on top of the pre-existing
+    // shape regex — see that function's own comment for the exploit this
+    // closes on the write side (render.ts's MAX_MESSAGE_LEN comment covers
+    // the matching read-side fix). Pulled into validate.ts rather than kept
+    // inline so it's unit-testable without importing this file's
+    // Deno.serve/env-var side effects, same reasoning as sanitizeIntents.
+    if (!isValidEmail(email)) {
       return json({ error: 'Valid email required' }, 400)
     }
 
@@ -107,7 +119,7 @@ Deno.serve(async (req) => {
 
     // Build initial preferences from signup form
     const preferences: Record<string, unknown> = {
-      intents: body.intents || ['all'],
+      intents: sanitizeIntents(body.intents),
       categories: [],
       venue_ids: [],
       org_ids: [],
