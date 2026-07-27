@@ -1,48 +1,65 @@
-// slack-notify — Tier 1 Slack notification dispatcher.
+// slack-notify — Tier 1 + Tier 2 Slack notification dispatcher.
 //
-// Fired by three DB triggers (supabase/migrations/045_slack_triggers.sql):
-// a published feedback-orb note, a new subscriber signup, and a subscriber's
+// Tier 1 (`feedback` / `subscriber_signup` / `subscriber_confirmed`) is fired
+// by three DB triggers (supabase/migrations/045_slack_triggers.sql): a
+// published feedback-orb note, a new subscriber signup, and a subscriber's
 // confirmation. No LLM in the loop — this is a fixed fetch -> claim ->
-// re-read -> render -> post -> settle pipeline over three known event shapes.
+// re-read -> render -> post -> settle pipeline over three known event shapes,
+// and the text posted always comes from a server-side re-read of a real row,
+// never from the request body's own fields.
+//
+// Tier 2 (`agent_post`) is fired by our own role agents (.claude/agents/) to
+// post `daily_report` / `night_crew` updates to #daily-reports /
+// #the-night-crew. Unlike Tier 1, the text IS caller-authored — there is no
+// row to re-read — so its safety comes from three things instead:
+// escapeSlackText applied unconditionally (see request.ts's
+// buildAgentPostText), a channel allowlist a caller cannot escape (planFor in
+// request.ts derives the channel from a fixed `kind`, never from caller
+// input), and a dedupe key namespaced by that same fixed `kind` so an
+// agent-secret holder can never pre-burn a Tier 1 dedupe key (see planFor's
+// header comment for that exact exploit).
 //
 // Deploy with `verify_jwt = false` (see README's Slack section) — pg_net
 // triggers call this function directly and cannot attach a user JWT, so the
 // gateway's JWT check must be off. That makes the function reachable by
 // anyone on the internet who has the URL, which is why the FIRST thing this
 // handler does — before parsing the body, before touching the database — is
-// verify the `X-Slack-Notify-Secret` header against a shared secret that
-// only this function and the DB triggers know (see the auth gate below and
-// 045's header comment for the full threat model this replaces).
+// classify the caller from a shared-secret header (see the auth gate below).
 //
 // Protocol per request:
-//   0. Verify the shared-secret header. Reject unauthenticated callers
-//      before any Supabase call is made.
-//   1. Parse + validate the discriminated body.
-//   2. Claim the dedupe_key: INSERT ... ON CONFLICT (dedupe_key) DO NOTHING
+//   0. Classify the caller (request.ts's classifyCaller, unit-tested
+//      directly): 'trigger' (X-Slack-Notify-Secret), 'agent'
+//      (X-Slack-Agent-Secret), or reject with 401. Both secrets are compared
+//      timing-safe. If SLACK_NOTIFY_SECRET and SLACK_AGENT_SECRET are ever
+//      set to the same value, the split is void (either secret classifies as
+//      either caller) — classifyCaller fails closed on the agent arm only in
+//      that case; see the SECRETS_COLLIDE check below. Reject unauthenticated
+//      callers before any Supabase call.
+//   1. Parse + validate the discriminated body (request.ts's parseRequest).
+//   2. Plan the event (request.ts's planFor) — this also enforces the
+//      capability split (trigger -> Tier 1 arms only, agent -> agent_post
+//      only); a mismatch is a 403, logged distinguishably from a 401.
+//   3. Claim the dedupe_key: INSERT ... ON CONFLICT (dedupe_key) DO NOTHING
 //      RETURNING id (via .upsert(..., { ignoreDuplicates: true })). Zero
 //      rows back means some earlier call (a retried trigger, a replayed
-//      request from a holder of the shared secret) already claimed this
-//      event: return 200 {ok:true,skipped:'duplicate'} and post nothing.
-//   3. Re-read the referenced row with the service role, through a
-//      HARDCODED COLUMN ALLOWLIST. No select('*'), no spreading the row into
-//      the renderer, no JSON.stringify(sub) anywhere — subscribers.token is
-//      the unsubscribe secret; if it reached Slack, anyone in the channel
-//      could unsubscribe that person.
-//   4. Render plain mrkdwn text (./render.ts — pure, unit-tested).
-//   5. Post to Slack (../_shared/slack.ts).
-//   6. Settle the ledger row to 'sent' (with slack_ts) or 'failed' (with an
-//      error string).
-//
-// Extension point for Tiers 2/3: an arbitrary `{channel, text, dedupe_key}`
-// arm would let any caller post free-text to any channel, so unlike the
-// three fixed-shape arms below (whose bodies can only ever reference a real
-// row id and re-read it server-side) it needs its own caller secret before
-// it can be wired up. NOT implemented in Tier 1 — see the commented-out
-// union member below.
+//      request) already claimed this event: re-read that row's slack_ts and
+//      return 200 {ok:true,skipped:'duplicate',slack_ts} — a retry needs the
+//      root ts to thread under, so this is no longer a bare skip.
+//   4. Tier 1: re-read the referenced row with the service role, through a
+//      HARDCODED COLUMN ALLOWLIST (no select('*'), no spreading the row into
+//      the renderer — subscribers.token is the unsubscribe secret and must
+//      never reach Slack), then render plain mrkdwn text (./render.ts).
+//      Tier 2: escape the caller's own text (request.ts's buildAgentPostText)
+//      and resolve its posted identity from the server-side AGENT_IDENTITIES
+//      registry (request.ts's buildAgentPostOpts) — never from caller input.
+//   5. Post to Slack (../_shared/slack.ts), passing the identity/thread
+//      options for Tier 2.
+//   6. Settle the ledger row to 'sent' (with slack_ts, and thread_ts if the
+//      request carried one) or 'failed' (with an error string).
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { timingSafeEqual } from 'jsr:@std/crypto@1/timing-safe-equal'
-import { postMessage, type ChannelKey } from '../_shared/slack.ts'
+import { postMessage, type PostOpts } from '../_shared/slack.ts'
 import {
   renderFeedback,
   renderSignup,
@@ -51,6 +68,7 @@ import {
   type ResolvedNames,
   type Preferences,
 } from './render.ts'
+import { parseRequest, planFor, buildAgentPostText, buildAgentPostOpts, classifyCaller, normalizeSecret, type Req, type Plan, type Caller } from './request.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -62,7 +80,23 @@ const supabase = createClient(
 // Byron creates by hand per 045's header — never committed to a migration).
 // Read once at cold start, not per-request, so a missing secret is visible
 // in the cold-start log line below rather than only surfacing on first call.
-const SLACK_NOTIFY_SECRET = Deno.env.get('SLACK_NOTIFY_SECRET') || null
+// normalizeSecret (request.ts) trims whitespace before the falsy-check —
+// see its docstring for why: HTTP strips optional leading/trailing
+// whitespace from header VALUES, but Deno.env.get() does not, so without
+// this an operator slip in `supabase secrets set` (a trailing space or
+// newline picked up by copy-paste) would silently void the SECRETS_COLLIDE
+// guard below.
+const SLACK_NOTIFY_SECRET = normalizeSecret(Deno.env.get('SLACK_NOTIFY_SECRET'))
+
+// The shared secret Tier 2 agent callers send as X-Slack-Agent-Secret —
+// task-side, deliberately distinct from SLACK_NOTIFY_SECRET (see
+// .env.example / README's Slack section). Missing/unset is NOT itself an
+// error at cold start: it just means the agent_post arm 401s on every call
+// while the three Tier 1 arms keep working off SLACK_NOTIFY_SECRET alone —
+// see the auth gate below for how that fail-closed-per-tier behavior is
+// implemented.
+// Same whitespace-normalization reasoning as SLACK_NOTIFY_SECRET above.
+const SLACK_AGENT_SECRET = normalizeSecret(Deno.env.get('SLACK_AGENT_SECRET'))
 
 // Cold-start env audit. Same pattern as notify-feedback/index.ts:37-41 (the
 // Slack-specific secrets are audited in ../_shared/slack.ts, which every
@@ -71,7 +105,21 @@ console.log('[slack-notify] cold start', {
   has_SUPABASE_URL: !!Deno.env.get('SUPABASE_URL'),
   has_SUPABASE_SERVICE_ROLE_KEY: !!Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
   has_SLACK_NOTIFY_SECRET: !!SLACK_NOTIFY_SECRET,
+  has_SLACK_AGENT_SECRET: !!SLACK_AGENT_SECRET,
 })
+
+// A shared value would silently void the capability split entirely: a holder
+// of either secret could move it to the other header slot and be classified
+// as the other caller. Fail closed on Tier 2 only — Tier 1 must not break.
+// (classifyCaller in request.ts independently enforces this at classification
+// time; this cold-start check exists so the misconfiguration is loud in the
+// logs the moment the function boots, not only discoverable by noticing every
+// agent_post call quietly 401ing.)
+const SECRETS_COLLIDE =
+  !!SLACK_NOTIFY_SECRET && SLACK_NOTIFY_SECRET === SLACK_AGENT_SECRET
+if (SECRETS_COLLIDE) {
+  console.error('[slack-notify] SLACK_NOTIFY_SECRET and SLACK_AGENT_SECRET are set to the SAME value — the capability split is void. Disabling the agent arm until they differ.')
+}
 
 /**
  * Constant-time string comparison for the shared-secret header. Deno's
@@ -104,51 +152,10 @@ function json(data: unknown, status = 200): Response {
   })
 }
 
-// Discriminated request body. Tier 1 implements exactly these three arms.
-type Req =
-  | { event: 'feedback'; id: number }
-  | { event: 'subscriber_signup'; id: string }
-  | { event: 'subscriber_confirmed'; id: string }
-  // Tier 2/3 extension point — NOT implemented:
-  // | { event: 'custom'; channel: string; text: string; dedupe_key: string; secret: string }
-
-interface Plan {
-  dedupeKey: string
-  kind: 'feedback' | 'subscriber_signup' | 'subscriber_confirmed'
-  channelKey: ChannelKey
-}
-
-function parseRequest(body: unknown): Req | null {
-  if (!body || typeof body !== 'object') return null
-  const b = body as Record<string, unknown>
-  if (b.event === 'feedback' && typeof b.id === 'number' && Number.isFinite(b.id)) {
-    return { event: 'feedback', id: b.id }
-  }
-  if (b.event === 'subscriber_signup' && typeof b.id === 'string' && b.id) {
-    return { event: 'subscriber_signup', id: b.id }
-  }
-  if (b.event === 'subscriber_confirmed' && typeof b.id === 'string' && b.id) {
-    return { event: 'subscriber_confirmed', id: b.id }
-  }
-  return null
-}
-
-// Dedupe keys: feedback:{id}, subscriber_signup:{uuid}, subscriber_confirmed:{uuid}.
-function planFor(req: Req): Plan {
-  switch (req.event) {
-    case 'feedback':
-      return { dedupeKey: `feedback:${req.id}`, kind: 'feedback', channelKey: 'public-feedback' }
-    case 'subscriber_signup':
-      return { dedupeKey: `subscriber_signup:${req.id}`, kind: 'subscriber_signup', channelKey: 'public-new-email-subscribers' }
-    case 'subscriber_confirmed':
-      return { dedupeKey: `subscriber_confirmed:${req.id}`, kind: 'subscriber_confirmed', channelKey: 'public-new-email-subscribers' }
-  }
-}
-
 async function settle(
   rowId: number,
   status: 'sent' | 'failed',
-  extra: { slack_ts?: string; error?: string },
+  extra: { slack_ts?: string; error?: string; thread_ts?: string },
 ): Promise<void> {
   const { error } = await supabase
     .from('slack_notifications')
@@ -213,31 +220,69 @@ Deno.serve(async (req) => {
   // attach a JWT), which is what makes it publicly reachable in the first
   // place — this header check is the entire authentication boundary.
   //
-  // Fail closed if the function's own secret isn't configured: a missing
-  // SLACK_NOTIFY_SECRET is a deploy-time misconfiguration (`supabase secrets
-  // set` never ran, or ran against the wrong project), not something a
-  // caller can trigger — log it distinguishably from a bad/forged header so
-  // Byron can tell "the function is broken" from "someone is probing it"
-  // at a glance in the function logs.
-  if (!SLACK_NOTIFY_SECRET) {
-    console.error('[slack-notify] SLACK_NOTIFY_SECRET is not configured on this function — rejecting all requests until it is set')
+  // Classification itself lives in request.ts's classifyCaller (unit-tested
+  // directly there against the full matrix: both unset, notify-only,
+  // agent-only, both set, both set to the SAME value, empty-string header,
+  // empty-string secret, secret in the wrong header slot, both headers sent
+  // at once) — this is the outermost auth boundary on a verify_jwt=false
+  // endpoint, so it gets its own module and its own tests rather than living
+  // inline here where it previously had none:
+  //   caller = 'trigger' if X-Slack-Notify-Secret matches SLACK_NOTIFY_SECRET
+  //          = 'agent'   if X-Slack-Agent-Secret  matches SLACK_AGENT_SECRET
+  //            AND the two secrets are not equal (see SECRETS_COLLIDE above)
+  //          = null      otherwise -> 401
+  // Both compares are timing-safe. PRECEDENCE: the notify header is checked
+  // first and wins on a match — a caller sending both correct headers at
+  // once always classifies 'trigger', never 'agent' (see classifyCaller's
+  // docstring for why that tie-break is the safe default). A caller sending
+  // only its own header still classifies correctly by that header alone.
+  //
+  // FAIL CLOSED, PER TIER: if SLACK_AGENT_SECRET is unset (or collides with
+  // SLACK_NOTIFY_SECRET), no header can ever classify as 'agent', so
+  // agent_post 401s on every call — but the three Tier 1 arms keep working
+  // off SLACK_NOTIFY_SECRET alone. A Tier 2 misconfiguration must never break
+  // Tier 1; this is what makes that true structurally rather than by
+  // convention. Symmetric if SLACK_NOTIFY_SECRET is the one that's unset.
+  // Only if NEITHER secret is configured at all do we log a distinct "not
+  // configured" error (a deploy-time misconfiguration, not something a
+  // caller can trigger) before rejecting everything.
+  if (!SLACK_NOTIFY_SECRET && !SLACK_AGENT_SECRET) {
+    console.error('[slack-notify] neither SLACK_NOTIFY_SECRET nor SLACK_AGENT_SECRET is configured on this function — rejecting all requests until at least one is set')
     return json({ error: 'Not configured' }, 401)
   }
 
-  const provided = req.headers.get('X-Slack-Notify-Secret') ?? ''
-  if (!provided || !timingSafeEqualStrings(provided, SLACK_NOTIFY_SECRET)) {
-    console.warn('[slack-notify] rejected request: missing or invalid X-Slack-Notify-Secret header')
+  const caller: Caller | null = classifyCaller(
+    {
+      notify: req.headers.get('X-Slack-Notify-Secret'),
+      agent: req.headers.get('X-Slack-Agent-Secret'),
+    },
+    { notify: SLACK_NOTIFY_SECRET, agent: SLACK_AGENT_SECRET },
+    timingSafeEqualStrings,
+  )
+  if (!caller) {
+    console.warn('[slack-notify] rejected request: no matching X-Slack-Notify-Secret or X-Slack-Agent-Secret header')
     return json({ error: 'Unauthorized' }, 401)
   }
 
   try {
     const rawBody = await req.json().catch(() => null)
-    const parsed = parseRequest(rawBody)
+    const parsed: Req | null = parseRequest(rawBody)
     if (!parsed) {
       return json({ error: 'invalid request body' }, 400)
     }
 
-    const plan = planFor(parsed)
+    const planResult = planFor(parsed, caller)
+    if (!planResult.ok) {
+      // Distinguishable from the 401 above: this caller authenticated fine,
+      // but with the wrong secret for the event type it's asking for (a
+      // notify-secret holder attempting agent_post, or an agent-secret
+      // holder attempting a Tier 1 arm). Logged separately so a burst of
+      // these reads as "someone/something is using the wrong credential for
+      // this event," not "someone is probing with no credential at all."
+      console.warn('[slack-notify] rejected request: caller not permitted for this event', { caller, event: parsed.event })
+      return json({ error: 'Forbidden' }, 403)
+    }
+    const plan: Plan = planResult.plan
 
     // ── Claim ── INSERT ... ON CONFLICT (dedupe_key) DO NOTHING RETURNING id.
     // ignoreDuplicates:true is supabase-js's spelling of ON CONFLICT DO
@@ -271,15 +316,41 @@ Deno.serve(async (req) => {
     }
 
     if (!claimed) {
-      return json({ ok: true, skipped: 'duplicate' })
+      // Re-read the conflicting row's slack_ts (rather than returning a bare
+      // skip, as before) — a retry needs the root message's ts to thread a
+      // follow-up under, and slack_ts is a public message id the caller is
+      // already authenticated to have posted, so surfacing it here is purely
+      // additive. Any error re-reading is logged but never turned into a
+      // failure response: the original claim/post already succeeded (or is
+      // in flight), and this row is a lookup convenience, not a retry of the
+      // claim itself.
+      const { data: existing, error: existingErr } = await supabase
+        .from('slack_notifications')
+        .select('slack_ts')
+        .eq('dedupe_key', plan.dedupeKey)
+        .maybeSingle()
+      if (existingErr) {
+        console.error('[slack-notify] duplicate re-read failed', { dedupe_key: plan.dedupeKey, existingErr })
+      }
+      return json({ ok: true, skipped: 'duplicate', slack_ts: existing?.slack_ts ?? null })
     }
 
     const rowId = claimed.id as number
+    // Only agent_post ever carries a caller-supplied thread_ts. Threaded here
+    // (not inside the per-event branch below) so both the success and
+    // failure settle() calls persist it — audit-only (046's header comment),
+    // never read back by any code path, purely so a human reading the ledger
+    // can see the threading relationship on a retry.
+    const requestThreadTs = parsed.event === 'agent_post' ? parsed.thread_ts : undefined
 
     try {
       let text: string
+      let postOpts: PostOpts = {}
 
-      if (parsed.event === 'feedback') {
+      if (parsed.event === 'agent_post') {
+        text = buildAgentPostText(parsed)
+        postOpts = buildAgentPostOpts(parsed)
+      } else if (parsed.event === 'feedback') {
         const { data: fb, error: fbErr } = await supabase
           .from('feedback_posts')
           .select('id, body, page_path, created_at')
@@ -344,20 +415,20 @@ Deno.serve(async (req) => {
         }
       }
 
-      const result = await postMessage(plan.channelKey, text)
+      const result = await postMessage(plan.channelKey, text, postOpts)
 
       if (!result.ok) {
         console.error('[slack-notify] post failed', { dedupe_key: plan.dedupeKey, error: result.error })
-        await settle(rowId, 'failed', { error: result.error })
+        await settle(rowId, 'failed', { error: result.error, ...(requestThreadTs !== undefined ? { thread_ts: requestThreadTs } : {}) })
         return json({ error: 'Slack send failed' }, 502)
       }
 
-      await settle(rowId, 'sent', { slack_ts: result.ts })
+      await settle(rowId, 'sent', { slack_ts: result.ts, ...(requestThreadTs !== undefined ? { thread_ts: requestThreadTs } : {}) })
       console.log('[slack-notify] sent', { dedupe_key: plan.dedupeKey, channel_key: plan.channelKey, slack_ts: result.ts })
       return json({ ok: true, slack_ts: result.ts })
     } catch (err) {
       console.error('[slack-notify] render/post fatal', err)
-      await settle(rowId, 'failed', { error: err instanceof Error ? err.message : String(err) })
+      await settle(rowId, 'failed', { error: err instanceof Error ? err.message : String(err), ...(requestThreadTs !== undefined ? { thread_ts: requestThreadTs } : {}) })
       return json({ error: 'Internal error' }, 500)
     }
   } catch (err) {
