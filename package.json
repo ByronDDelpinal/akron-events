@@ -111,7 +111,7 @@
     "find:dupes": "node scripts/find-dupes.js",
     "scrape:run-all": "node scripts/run-all.js",
     "scrape:run-all:dry": "node scripts/run-all.js --dry-run",
-    "scrape:all": "node scripts/run-all.js ; node scripts/scrape-report.js",
+    "scrape:all": "node scripts/run-all.js; s=$?; node scripts/scrape-report.js; exit $s",
     "test": "node --test scripts/tests/test-*.js",
     "test:digest": "node --test scripts/tests/test-send-digest-schema.js",
     "test:normalize": "node --test scripts/tests/test-normalize.js",

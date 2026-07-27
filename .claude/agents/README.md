@@ -30,7 +30,7 @@ architect (design) → developer (implement) → code-reviewer (approve, iterati
 
 Two Cowork scheduled tasks orchestrate the team unattended:
 
-1. **nightly-qa-pipeline** (1am): runs `npm run scrape:all`, then qa checks site availability, search, event submission, email signup, and pipeline health. Findings flow qa → architect → developer → code-reviewer → local commit on `agents/nightly`.
+1. **nightly-qa-pipeline** (1am): qa *inspects* the scrape rather than running it. The scrape itself happens earlier, in the `nightly-scrape` GitHub Actions workflow (`.github/workflows/nightly-scrape.yml`) — the agent sandbox's ~45s process cap can't run `scrape:all`, and double-running it would race the same rows through `dedupe-cross-source --apply`. qa reads that run's output (`scrape-reports/latest.md`, the workflow job summary and artifacts), then checks site availability, search, event submission, email signup, and pipeline health. Findings flow qa → architect → developer → code-reviewer → local commit on `agents/nightly`.
 2. **nightly-data-pipeline** (5am): data-steward audits event/venue data, applies scoped in-the-moment data fixes with a full mutation log, then root-causes each issue through the same architect → developer → code-reviewer → commit chain.
 
 Both cap themselves at two code fixes per night, never touch migrations or RLS unattended, and end with a report of findings, fixes, commits, and anything needing the maintainer.

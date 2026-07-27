@@ -28,17 +28,52 @@
  *   • Events with no linked venue are skipped (can't be matched reliably)
  *
  * Usage:
- *   node scripts/dedupe-cross-source.js          # dry run
- *   node scripts/dedupe-cross-source.js --apply  # do it
+ *   node scripts/dedupe-cross-source.js                    # dry run
+ *   node scripts/dedupe-cross-source.js --apply             # do it
+ *   node scripts/dedupe-cross-source.js --apply --max-deletes=100  # override the safety cap
+ *
+ * Safety cap: unattended callers (run-all.js / the nightly Actions workflow)
+ * always pass --apply, so this script is the only thing standing between a
+ * matching bug and a mass delete. `--max-deletes=<n>` (or env
+ * DEDUPE_MAX_DELETES) sets an explicit cap on how many rows a single run may
+ * delete; without it, the cap defaults to max(50, 2% of loaded events).
+ * Exceeding the cap prints the full plan and exits 1 WITHOUT deleting
+ * anything — regardless of --apply. Every row a real (--apply) run is about
+ * to delete is also written to scrape-reports/dedupe-deletions-<date>.json
+ * before the delete happens, so an unattended run always leaves an audit
+ * trail behind.
  */
 
 import 'dotenv/config'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { supabaseAdmin } from './lib/supabase-admin.js'
-import { normalizeStreetAddress, logUpsertResult, logScraperError } from './lib/normalize.js'
+import { normalizeStreetAddress, logUpsertResult, logScraperError, easternTodayIso } from './lib/normalize.js'
 import { AGGREGATOR_PRIORITY, isSelfCredit } from './lib/source-tiers.js'
 
+const ROOT = fileURLToPath(new URL('..', import.meta.url))
+const REPORT_DIR = join(ROOT, 'scrape-reports')
+
 const APPLY = process.argv.includes('--apply')
+
+/** Parse a numeric value from a CLI/env source; null when absent or invalid. */
+function parseCapValue(v) {
+  if (v === undefined || v === null || v === '') return null
+  const n = Number(v)
+  return Number.isFinite(n) && n >= 0 ? n : null
+}
+
+/**
+ * Resolve the delete-count safety cap for a run. An explicit `--max-deletes=<n>`
+ * flag wins over the `DEDUPE_MAX_DELETES` env var, which wins over the
+ * default of max(50, 2% of the events loaded this run). Exported for tests.
+ */
+export function resolveMaxDeletesCap({ argValue, envValue, uniqueLength }) {
+  const explicit = parseCapValue(argValue) ?? parseCapValue(envValue)
+  if (explicit !== null) return explicit
+  return Math.max(50, Math.ceil(uniqueLength * 0.02))
+}
 
 // Lower index = higher priority (kept as canonical).
 // Direct primary-source scrapers first, then aggregators / republishers last.
@@ -825,6 +860,7 @@ async function main() {
   let totalToDelete = 0
   let preserved    = 0
   const deletes    = []
+  const deletedRows = []  // full rows being deleted — written to an audit file before applying
   const merges     = []  // { id, fields } — canonical events that need a field merge
   const linkMerges = []  // { id, venueIds, orgIds } — junction links donated by deleted dupes
 
@@ -905,7 +941,7 @@ async function main() {
       const tag = protect ? '🛡 KEEP (manual_overrides)' : 'DROP'
       console.log(`  ${tag.padEnd(26)} [${d.source}/${d.source_id}] (${qualityLabel(d)}) ${d.title?.slice(0, 50)}`)
       if (protect) { preserved++ }
-      else         { deletes.push(d.id); totalToDelete++ }
+      else         { deletes.push(d.id); deletedRows.push(d); totalToDelete++ }
     }
 
     if (Object.keys(mergeFields).length > 0) merges.push({ id: canonical.id, fields: mergeFields })
@@ -919,6 +955,26 @@ async function main() {
 
   console.log('')
   console.log(`Summary: ${totalToDelete} to delete, ${enrichedCount} to enrich, ${preserved} preserved by manual_overrides`)
+
+  // Safety cap — the full plan is already printed above (one line per group).
+  // Unattended callers (run-all.js, the nightly Actions workflow) always pass
+  // --apply, so this is the only thing standing between a matching bug and a
+  // mass delete. Checked regardless of --apply so a dry run over cap also
+  // surfaces as a failing exit code (useful as a CI smoke check).
+  const maxDeletesArg = process.argv.find((a) => a.startsWith('--max-deletes='))?.split('=')[1]
+  const maxDeletes = resolveMaxDeletesCap({
+    argValue: maxDeletesArg,
+    envValue: process.env.DEDUPE_MAX_DELETES,
+    uniqueLength: unique.length,
+  })
+  if (totalToDelete > maxDeletes) {
+    console.log('')
+    console.error(`✗  Planned deletes (${totalToDelete}) exceed the safety cap (${maxDeletes}).`)
+    console.error(`   Deleting NOTHING. The full plan is printed above — review it, then either:`)
+    console.error(`     - re-run with --max-deletes=${totalToDelete} (or higher) once you've verified the plan, or`)
+    console.error(`     - fix the matching bug that produced an unexpectedly large group count.`)
+    process.exit(1)
+  }
 
   if (!APPLY) {
     console.log('')
@@ -960,6 +1016,17 @@ async function main() {
       if (ok) linked++
     }
     console.log(`✅  Donated junction links to ${linked} canonical event(s).`)
+  }
+
+  // Audit trail — write every full row about to be deleted BEFORE deleting it.
+  // scrape-reports/ is gitignored and already uploaded as a workflow artifact
+  // by the nightly Actions job, so this survives an unattended run without
+  // needing a git write.
+  if (deletedRows.length > 0) {
+    mkdirSync(REPORT_DIR, { recursive: true })
+    const deletionsPath = join(REPORT_DIR, `dedupe-deletions-${easternTodayIso()}.json`)
+    writeFileSync(deletionsPath, JSON.stringify(deletedRows, null, 2))
+    console.log(`📝  Wrote ${deletedRows.length} planned-deletion row(s) to ${deletionsPath}`)
   }
 
   // Batch deletes

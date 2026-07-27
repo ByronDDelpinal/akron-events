@@ -1,0 +1,260 @@
+# Nightly scrape — runs every active scraper in scripts/manifest.js against
+# production. (Not a fixed number — no test enforces a scraper count, and the
+# manifest grows over time. Check scripts/manifest.js for the current count.)
+#
+# This is the external runner the scrape pipeline has always needed. Scraping
+# every active source takes far longer than an agent session or a serverless
+# function will allow, so it lives here: an Actions job with a 2-hour budget,
+# no laptop required.
+#
+# What it does, in order:
+#   1. run-all.js         — every scraper in scripts/manifest.js, sequentially,
+#                            then dedupe-cross-source.js --apply (unless
+#                            skip_dedupe / --no-dedupe), then a Vercel
+#                            edge-cache purge of the shared `events` tag.
+#   2. geocode-venues.js  — backfills lat/lng for venues the run just created
+#                            that don't have coordinates yet. Best-effort
+#                            (continue-on-error) — a geocoding hiccup must
+#                            never redden an otherwise-healthy scrape.
+#   3. scrape-report.js   — writes scrape-reports/ (health per source).
+#
+# Deliberately NOT `npm run scrape:all`. Locally that script is now
+# `run-all.js; s=$?; scrape-report.js; exit $s` so a failed scrape still
+# turns the local run red — but here they're kept as separate steps anyway,
+# because the report step needs `if: always()` to run when the scrape step
+# itself hard-fails (e.g. before scrape-report.js would ever get a chance to
+# run), and a partial run is exactly when the health report matters most.
+#
+# TIMEZONE — the one that will bite you. Actions runners are UTC. This
+# codebase has a documented class of bug where a local `Date` + `toISOString()`
+# lands an event on the wrong day, and several scrapers parse wall-clock
+# strings with no zone. `TZ: America/New_York` at the job level makes the
+# runner behave like the machine these scrapers were written and tested on.
+# Do not remove it.
+#
+# SCHEDULE — workflow_dispatch ONLY for now. No `schedule:` trigger.
+#
+# The obvious cron, `0 3 * * *` (03:00 UTC = 11pm ET summer / 10pm ET
+# winter), sits inside the 8pm–midnight ET window that
+# scripts/lib/normalize.js:477-487 documents as the UTC-date-is-already-
+# tomorrow trap: several scrapers use raw `new Date().toISOString().split('T')[0]`
+# as a "today" boundary, and in that window the UTC calendar date has already
+# rolled to tomorrow, silently dropping the rest of today's events. Setting
+# `TZ: America/New_York` does NOT fix this — `toISOString()` is UTC by
+# definition regardless of the process timezone.
+#
+# The intended schedule is:
+#
+#   schedule:
+#     - cron: '0 23 * * *'   # 19:00 EDT / 18:00 EST — UTC and Eastern
+#                             # calendar dates agree year-round at this hour,
+#                             # and it's 6-7 hours clear of the 1am
+#                             # nightly-qa-pipeline Cowork task, which inspects
+#                             # this run's output rather than re-scraping.
+#
+# This is commented out deliberately: nobody has measured a real full-run
+# duration yet, and the 120-minute timeout below is unvalidated. Enable the
+# schedule once one manual (workflow_dispatch) run establishes the real
+# duration and confirms the timeout has headroom.
+#
+# Two more reasons a `schedule:` trigger is not "set it and forget it" even
+# once enabled: GitHub Actions defers (delays or drops) scheduled runs under
+# platform load, and GitHub disables `schedule` triggers automatically after
+# 60 days of repository inactivity (no pushes/merges) — both are worth an
+# occasional manual check that the schedule actually fired.
+#
+# Chrome: 11 scrapers use Puppeteer, so unlike ci.yml this workflow cannot
+# skip the browser. `npm ci --ignore-scripts` keeps the postinstall from
+# downloading Chrome on every run; the explicit install step below is cached.
+# That step deliberately carries NO secrets — it executes third-party
+# (puppeteer) package code, and job-level secrets would otherwise leak into
+# that code's environment for no reason.
+#
+# Permissions are read-only and there are no git writes. Nothing here commits,
+# branches, or pushes — the maintainer owns version control.
+
+name: Nightly scrape
+
+on:
+  workflow_dispatch:
+    inputs:
+      group:
+        description: 'Run one manifest group only (e.g. civicplus, ics, wordpress). Blank = all.'
+        required: false
+        type: string
+      key:
+        description: 'Run one scraper by key (e.g. blu_jazz). Blank = all. Overrides group.'
+        required: false
+        type: string
+      dry_run:
+        description: 'Print the run plan and exit without touching the database.'
+        required: false
+        type: boolean
+        default: false
+      skip_dedupe:
+        description: 'Skip cross-source dedupe --apply after scraping (passes --no-dedupe to run-all.js).'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# One scrape at a time, ever. Two concurrent runs would race each other
+# through dedupe-cross-source --apply against the same rows.
+concurrency:
+  group: nightly-scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    name: Scrape all sources
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    # Only the timezone lives at job level. Everything else is scoped to the
+    # individual steps that need it — see the Chrome-install note above for
+    # why: `npx puppeteer browsers install chrome` runs third-party package
+    # code, and job-level env would hand it SUPABASE_SERVICE_ROLE_KEY and
+    # every other secret for no reason.
+    env:
+      TZ: America/New_York
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # Cached separately from node_modules: the Chrome download is ~150MB and
+      # changes far less often than the lockfile.
+      - name: Cache Puppeteer browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: puppeteer-${{ runner.os }}-
+
+      - name: Install Chrome for Puppeteer
+        run: npx puppeteer browsers install chrome
+
+      - name: Verify required secrets are present
+        env:
+          VITE_SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          missing=()
+          [ -n "$VITE_SUPABASE_URL" ]         || missing+=("VITE_SUPABASE_URL")
+          [ -n "$SUPABASE_SERVICE_ROLE_KEY" ] || missing+=("SUPABASE_SERVICE_ROLE_KEY")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required repository secrets: ${missing[*]}"
+            echo "Add them under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          echo "Required secrets present. Runner timezone: $(date +'%Z %z')"
+
+      - name: Run all scrapers
+        id: scrape
+        env:
+          IN_DRY_RUN:     ${{ inputs.dry_run }}
+          IN_KEY:         ${{ inputs.key }}
+          IN_GROUP:       ${{ inputs.group }}
+          IN_SKIP_DEDUPE: ${{ inputs.skip_dedupe }}
+
+          # Core — without these nothing writes.
+          VITE_SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+          # Source APIs.
+          EVENTBRITE_API_KEY:   ${{ secrets.EVENTBRITE_API_KEY }}
+          TICKETMASTER_API_KEY: ${{ secrets.TICKETMASTER_API_KEY }}
+          DICE_API_KEY:         ${{ secrets.DICE_API_KEY }}
+
+          # Content moderation blocklist (base64). Absent = no blocklist applied.
+          MODERATION_TERMS_B64: ${{ secrets.MODERATION_TERMS_B64 }}
+
+          # Edge-cache purge after a successful run. Optional — run-all skips the
+          # purge with a log line when these are unset, and the cache self-heals
+          # via TTL, so a missing token never fails the run.
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID:    ${{ secrets.VERCEL_TEAM_ID }}
+
+          # Optional direct ICS feed URLs. Every scraper here falls back to
+          # discovery or a hardcoded default when its var is unset EXCEPT
+          # AKRON_PUBLIC_SCHOOLS_ICS_URL — that one has no hardcoded fallback
+          # (scripts/scrape-akron-public-schools.js:88-106 throws when
+          # discovery fails), so it genuinely needs its secret set.
+          AKRON_POWER_SQUADRON_ICS_URL: ${{ secrets.AKRON_POWER_SQUADRON_ICS_URL }}
+          AKRON_PUBLIC_SCHOOLS_ICS_URL: ${{ secrets.AKRON_PUBLIC_SCHOOLS_ICS_URL }}
+          AKRON_SYMPHONY_ICS_URL:       ${{ secrets.AKRON_SYMPHONY_ICS_URL }}
+          CITY_OF_GREEN_ICS_URL:        ${{ secrets.CITY_OF_GREEN_ICS_URL }}
+          FULL_GRIP_GAMES_ICS_URL:      ${{ secrets.FULL_GRIP_GAMES_ICS_URL }}
+          LIFE_GURUKULA_ICS_URL:        ${{ secrets.LIFE_GURUKULA_ICS_URL }}
+          NORTH_HILL_CDC_ICS_URL:       ${{ secrets.NORTH_HILL_CDC_ICS_URL }}
+          PENINSULA_ART_ACADEMY_ICS_URL: ${{ secrets.PENINSULA_ART_ACADEMY_ICS_URL }}
+        # Inputs are passed through env (not interpolated into the script body)
+        # and assembled into a quoted bash array — direct `${{ inputs.* }}`
+        # interpolation into `run:` is the most-flagged Actions anti-pattern
+        # (script injection via a crafted input), and unquoted `$args`
+        # word-splitting breaks on any value containing whitespace.
+        run: |
+          args=()
+          [ "$IN_DRY_RUN" = "true" ] && args+=(--dry-run)
+          if   [ -n "$IN_KEY" ];   then args+=(--key "$IN_KEY")
+          elif [ -n "$IN_GROUP" ]; then args+=(--group "$IN_GROUP"); fi
+          [ "$IN_SKIP_DEDUPE" = "true" ] && args+=(--no-dedupe)
+          echo "run-all.js ${args[*]}"
+          node scripts/run-all.js "${args[@]}"
+
+      # Best-effort venue geocoding backfill. New venues appear every run;
+      # unmapped venues degrade the map view and neighborhood hubs, but a
+      # geocoding failure (rate limit, bad token, network blip) must never
+      # redden an otherwise-healthy scrape — hence continue-on-error.
+      - name: Geocode venues
+        if: always() && github.event.inputs.dry_run != 'true'
+        continue-on-error: true
+        env:
+          VITE_MAPBOX_TOKEN:         ${{ secrets.VITE_MAPBOX_TOKEN }}
+          VITE_SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/geocode-venues.js
+
+      # Runs even when the scrape step failed — a partial run is when the
+      # health report matters most.
+      - name: Generate scrape report
+        if: always() && github.event.inputs.dry_run != 'true'
+        env:
+          VITE_SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/scrape-report.js
+
+      # scrape-reports/ is gitignored (regenerated every run), so the artifact
+      # is how the report — and the dedupe deletion audit trail written
+      # alongside it — leaves the runner.
+      - name: Upload scrape report
+        if: always() && github.event.inputs.dry_run != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrape-report-${{ github.run_number }}
+          path: scrape-reports/
+          retention-days: 30
+          if-no-files-found: warn
+
+      # Puts the report on the run's summary page, so a red run can be
+      # triaged from a phone without downloading anything.
+      - name: Publish report to job summary
+        if: always() && github.event.inputs.dry_run != 'true'
+        run: |
+          if [ -f scrape-reports/latest.md ]; then
+            cat scrape-reports/latest.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No scrape report was generated — the run failed early." >> "$GITHUB_STEP_SUMMARY"
+          fi
