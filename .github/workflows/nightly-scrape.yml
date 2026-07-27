@@ -200,6 +200,14 @@ jobs:
           LIFE_GURUKULA_ICS_URL:        ${{ secrets.LIFE_GURUKULA_ICS_URL }}
           NORTH_HILL_CDC_ICS_URL:       ${{ secrets.NORTH_HILL_CDC_ICS_URL }}
           PENINSULA_ART_ACADEMY_ICS_URL: ${{ secrets.PENINSULA_ART_ACADEMY_ICS_URL }}
+
+          # dedupe-cross-source.js --apply safety cap. The computed default is
+          # max(50, ceil(2% of loaded events)) — with ~7932 events that's 159,
+          # against an observed steady state of 6 deletes/night. ~26x headroom
+          # is too loose to catch a matching-logic bug before it mass-deletes;
+          # 40 still gives ~6-7x headroom over the steady state while forcing
+          # a manual --max-deletes review if a bad change spikes the count.
+          DEDUPE_MAX_DELETES: 40
         # Inputs are passed through env (not interpolated into the script body)
         # and assembled into a quoted bash array — direct `${{ inputs.* }}`
         # interpolation into `run:` is the most-flagged Actions anti-pattern
