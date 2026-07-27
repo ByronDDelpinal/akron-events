@@ -86,7 +86,7 @@ export const AGENT_IDENTITIES: Readonly<Record<AgentId, { username: string; icon
   'architect':     { username: 'Architect',     iconUrl: 'https://akronpulse.com/agents/architect-v1.png' },
   'developer':     { username: 'Developer',     iconUrl: 'https://akronpulse.com/agents/developer-v1.png' },
   'code-reviewer': { username: 'Code Reviewer', iconUrl: 'https://akronpulse.com/agents/code-reviewer-v1.png' },
-  'qa':            { username: 'QA',            iconUrl: 'https://akronpulse.com/agents/qa-v1.png' },
+  'qa':            { username: 'QA',            iconUrl: 'https://akronpulse.com/agents/qa-v2.png' },
   'data-steward':  { username: 'Data Steward',  iconUrl: 'https://akronpulse.com/agents/data-steward-v1.png' },
   'analyst':       { username: 'Analyst',       iconUrl: 'https://akronpulse.com/agents/analyst-v1.png' },
   'support':       { username: 'Support',       iconUrl: 'https://akronpulse.com/agents/support-v1.png' },
