@@ -37,11 +37,28 @@
  * matching bug and a mass delete. `--max-deletes=<n>` (or env
  * DEDUPE_MAX_DELETES) sets an explicit cap on how many rows a single run may
  * delete; without it, the cap defaults to max(50, 2% of loaded events).
- * Exceeding the cap prints the full plan and exits 1 WITHOUT deleting
- * anything — regardless of --apply. Every row a real (--apply) run is about
- * to delete is also written to scrape-reports/dedupe-deletions-<date>.json
- * before the delete happens, so an unattended run always leaves an audit
- * trail behind.
+ *
+ * The cap is a PARTIAL DRAIN, not an abort. It used to be all-or-nothing:
+ * a plan over the cap printed and exited 1 having deleted nothing. With a
+ * cap of 40 and a standing backlog of ~230 planned deletes, that meant the
+ * nightly dedupe did literally zero work every night while the backlog
+ * compounded — and reddened the whole nightly run (run-all.js treats any
+ * dedupe non-zero exit as a failure). Now an over-cap run deletes the
+ * highest-confidence groups up to the cap and defers the rest to the next
+ * run, exiting 0. The cap itself is unchanged and still binding: a run can
+ * never delete more than `maxDeletes` rows. Selection only ever considers
+ * tier 0/1 groups (see groupConfidenceTier) and never splits a group, so a
+ * partial drain never leaves half a merge applied.
+ *
+ * One capped case is still red: if a run is over the cap and selects ZERO
+ * deletes (everything left is tier >= 2, or a single group is bigger than the
+ * cap), nothing drains and nothing about the next run will differ. That is the
+ * old do-nothing-forever bug in a new costume, so the run exits 1 instead of
+ * reporting a green no-op. A drain of >= 1 group stays green.
+ *
+ * Every row a real (--apply) run is about to delete is also written to
+ * scrape-reports/dedupe-deletions-<date>.json before the delete happens, so
+ * an unattended run always leaves an audit trail behind.
  */
 
 import 'dotenv/config'
@@ -839,6 +856,287 @@ export async function recordAliases(aliasRows, client = supabaseAdmin) {
   return { recorded: aliasRows.length, error: null }
 }
 
+// ── Per-group planning + capped partial drain ────────────────────────────────
+
+/**
+ * Confidence tier for a duplicate group, derived from the ROWS themselves
+ * rather than from which pass produced the group — the pass is an artifact of
+ * grouping order (an event skipped by Pass 1 because its partner was already
+ * matched can resurface in Pass 2), while the rows are the evidence.
+ *
+ *   tier 0 — identical normalized title AND identical start second AND the
+ *            same location key AND ≥2 distinct sources. This is the
+ *            northfield_park-vs-ticketmaster shape: unambiguous.
+ *   tier 1 — same location key + same start second + ≥2 distinct sources, but
+ *            the titles only match through a flexible arm (prefix peel, shared
+ *            series name, typo/word-split tolerance).
+ *   tier 2 — same location key, start times within FUZZY_TIME_WINDOW_MS
+ *            (the Pass 2 doors-vs-showtime shape).
+ *   tier 3 — everything else: day-level Pass 3 placeholder matches and
+ *            venue-less Pass 4 pairs, plus any group whose members disagree on
+ *            location.
+ *
+ * Only tiers 0 and 1 are eligible for an over-cap partial drain. Tier 1 carries
+ * the ≥2-distinct-sources requirement too (a deviation from a literal reading
+ * of "same locationKey + same second"): Pass 2 has no different-source gate, so
+ * a same-source pair can reach a same-second group, and a cross-SOURCE dedupe
+ * script must never spend its scarce delete budget collapsing two rows from one
+ * source. Such a group simply falls to tier 2 and waits for a human.
+ *
+ * Location is compared with locationKey — never event_venues[0], whose order
+ * PostgREST does not guarantee (that bug is why locationKey exists).
+ * Pure + exported for tests.
+ */
+export function groupConfidenceTier(group) {
+  if (!Array.isArray(group) || group.length < 2) return 3
+
+  const keys = group.map(locationKey)
+  const sameLocation = keys.every((k) => k && k === keys[0])
+  if (!sameLocation) return 3
+
+  const distinctSources = new Set(group.map((e) => e.source)).size
+  const seconds = group.map((e) => toSecondKey(e.start_at))
+  const sameSecond = seconds.every((s) => s === seconds[0])
+
+  if (sameSecond && distinctSources >= 2) {
+    const titles = group.map((e) => normalizeTitle(e.title))
+    if (titles.every((t) => t && t === titles[0])) return 0
+    return 1
+  }
+
+  const times = group.map((e) => new Date(e.start_at).getTime())
+  if (times.every((t) => Number.isFinite(t)) &&
+      Math.max(...times) - Math.min(...times) <= FUZZY_TIME_WINDOW_MS) return 2
+
+  return 3
+}
+
+const hasGoodDesc = (e) => !!(e.description && e.description.trim().length > 20)
+
+function qualityLabel(e) {
+  const img  = e.image_url ? '✓img' : ' img'
+  const desc = hasGoodDesc(e) ? '✓desc' : ' desc'
+  return `${img} ${desc}`
+}
+
+/**
+ * Turn one duplicate group into a self-contained PLAN: which row survives,
+ * which rows would be deleted, the aliases/field merges/link donations that go
+ * with those deletes, and the group's confidence tier.
+ *
+ * Nothing here touches the DB or prints; a plan is inert until it is selected
+ * and flattened. That is what makes a partial drain safe — a deferred group
+ * contributes NOTHING (no delete, no alias, no field merge, no link donation).
+ * Donating a deferred group's links would be actively harmful: the dupe
+ * survives the run, and once the canonical has borrowed its venue link the two
+ * rows re-bucket differently on the next run.
+ *
+ * Pure + exported for tests.
+ */
+export function buildGroupPlan(group) {
+  // Sort to find the canonical event — data quality wins over source priority.
+  //
+  // Tier 1 (best): has both image_url AND a non-trivial description
+  // Tier 2:        has image_url OR a non-trivial description
+  // Tier 3:        has neither
+  //
+  // Within the same tier, fall back to SOURCE_PRIORITY so we consistently
+  // prefer authoritative first-party data over aggregators.
+  const dataScore = (e) => {
+    const hasImage = !!e.image_url
+    if (hasImage && hasGoodDesc(e)) return 0   // best
+    if (hasImage || hasGoodDesc(e)) return 1
+    return 2                                   // worst
+  }
+  // A placeholder-time copy (CVB 09:00 default, etc.) must never be chosen
+  // canonical when a trusted-time copy exists — otherwise the surviving row
+  // would carry the fabricated time. It still donates its image/description
+  // to the canonical via the merge step below.
+  // A venue-less copy (Pass 4) must never be chosen canonical over the
+  // venue-linked row — the whole point is to keep the row that has a venue.
+  const venueScore = (e) => (e.event_venues?.[0]?.venue_id ? 0 : 1)
+  const sorted = [...group].sort((a, b) => {
+    const lcDiff = (isLowConfidenceAggregatorTime(a) ? 1 : 0) - (isLowConfidenceAggregatorTime(b) ? 1 : 0)
+    if (lcDiff !== 0) return lcDiff
+    const vDiff = venueScore(a) - venueScore(b)
+    if (vDiff !== 0) return vDiff
+    const scoreDiff = dataScore(a) - dataScore(b)
+    if (scoreDiff !== 0) return scoreDiff
+    return priority(a.source) - priority(b.source)
+  })
+  const canonical = sorted[0]
+  const dupes     = sorted.slice(1)
+
+  // Collect fields the canonical is missing but a dupe can supply.
+  // We merge image_url and description rather than losing them on deletion.
+  const mergeFields = {}
+  for (const d of dupes) {
+    if (!canonical.image_url && d.image_url && !mergeFields.image_url) {
+      mergeFields.image_url = d.image_url
+    }
+    if (!hasGoodDesc(canonical) && hasGoodDesc(d) && !mergeFields.description) {
+      mergeFields.description = d.description
+    }
+  }
+
+  // manual_overrides rows are NEVER deleted, selected or deferred — they are
+  // preserved, keep their own junction links, and never donate.
+  const preservedRows = dupes.filter(hasManualOverrides)
+  const donors        = dupes.filter((d) => !hasManualOverrides(d))
+  const { venueIds: donatedVenueIds, orgIds: donatedOrgIds } =
+    collectLinkDonations(canonical, donors)
+
+  return {
+    canonical,
+    dupes,
+    preservedRows,
+    preservedCount: preservedRows.length,
+    deleteIds:   donors.map((d) => d.id),
+    deletedRows: donors,
+    // Record the dropped dup → keeper mapping so ingest won't resurrect it.
+    aliasRows:   donors.map((d) => buildAliasRow(canonical.id, d)).filter(Boolean),
+    mergeFields,
+    donatedVenueIds,
+    donatedOrgIds,
+    tier: groupConfidenceTier(group),
+  }
+}
+
+/**
+ * Choose which plans a single run may execute, given the delete-count cap.
+ *
+ * Under (or at) the cap this is a no-op: the SAME array is returned, in the
+ * same order, with nothing dropped — a normal night behaves exactly as before.
+ *
+ * Over the cap, the run drains partially instead of aborting:
+ *   • only tier 0 and tier 1 groups are eligible (see groupConfidenceTier),
+ *   • groups are taken WHOLE — never split, so a group's deletes, aliases,
+ *     field merges and link donations always happen together or not at all,
+ *   • ordering is deterministic: (tier, canonical start_at, canonical id),
+ *   • a group that would overflow the remaining budget is skipped, not
+ *     truncated, and a smaller later group may still fit.
+ *
+ * Everything not selected is deferred to the next run, which re-derives the
+ * whole plan from scratch — deferral loses nothing but a night.
+ *
+ * Pure + exported for tests.
+ *
+ * @returns {{selected: object[], deferred: object[], plannedDeletes: number,
+ *            selectedDeletes: number, deferredDeletes: number, capped: boolean}}
+ */
+export function selectPlansWithinCap(plans, cap) {
+  const plannedDeletes = plans.reduce((n, p) => n + p.deleteIds.length, 0)
+  if (plannedDeletes <= cap) {
+    return {
+      selected: plans, deferred: [],
+      plannedDeletes, selectedDeletes: plannedDeletes, deferredDeletes: 0,
+      capped: false,
+    }
+  }
+
+  const startTs = (p) => {
+    const t = new Date(p.canonical?.start_at).getTime()
+    return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY
+  }
+  const ordered = [...plans].sort((a, b) => {
+    if (a.tier !== b.tier) return a.tier - b.tier
+    const ta = startTs(a), tb = startTs(b)
+    if (ta !== tb) return ta - tb
+    const ia = String(a.canonical?.id ?? ''), ib = String(b.canonical?.id ?? '')
+    return ia < ib ? -1 : ia > ib ? 1 : 0
+  })
+
+  const chosen = new Set()
+  const selected = []
+  let budget = cap
+  for (const p of ordered) {
+    if (p.tier > 1) continue
+    const n = p.deleteIds.length
+    if (n > budget) continue          // skip, never truncate — a smaller group may still fit
+    budget -= n
+    chosen.add(p)
+    selected.push(p)
+  }
+
+  const selectedDeletes = cap - budget
+  return {
+    selected,
+    deferred: plans.filter((p) => !chosen.has(p)),
+    plannedDeletes,
+    selectedDeletes,
+    deferredDeletes: plannedDeletes - selectedDeletes,
+    capped: true,
+  }
+}
+
+/**
+ * Classify what a run's cap actually DID, so the caller can pick an exit code.
+ * Three states, and telling the middle one from the last one is the whole
+ * point:
+ *
+ *   'uncapped'      — the plan fit under the cap; every group ran. Exit 0.
+ *   'partial-drain' — over the cap, but at least one group drained. Healthy:
+ *                     the backlog shrinks tonight and the remainder is
+ *                     re-planned from scratch next run. Exit 0.
+ *   'stalled'       — over the cap and ZERO deletes selected. Every remaining
+ *                     group is tier ≥ 2 (never eligible) or individually
+ *                     bigger than the cap (never fits), so nothing about the
+ *                     next run will differ: the backlog can never shrink on
+ *                     its own. That is the original "nightly dedupe does
+ *                     nothing forever" bug — it must NOT be reported green,
+ *                     so the caller exits non-zero.
+ *
+ * Pure + exported for tests.
+ *
+ * @returns {'uncapped'|'partial-drain'|'stalled'}
+ */
+export function capRunOutcome({ capped, selectedDeletes }) {
+  if (!capped) return 'uncapped'
+  return selectedDeletes > 0 ? 'partial-drain' : 'stalled'
+}
+
+/**
+ * Flatten selected plans into the flat work lists the apply phase consumes.
+ * Only ever called with the SELECTED plans, which is precisely how deferred
+ * groups contribute zero deletes, zero aliases, zero merges and zero
+ * donations. Pure + exported for tests.
+ */
+export function flattenPlans(plans) {
+  const deletes     = []
+  const deletedRows = []
+  const aliasRows   = []
+  const merges      = []   // { id, fields }        — canonicals needing a field merge
+  const linkMerges  = []   // { id, venueIds, orgIds } — links donated by deleted dupes
+  for (const p of plans) {
+    deletes.push(...p.deleteIds)
+    deletedRows.push(...p.deletedRows)
+    aliasRows.push(...p.aliasRows)
+    if (Object.keys(p.mergeFields).length > 0) merges.push({ id: p.canonical.id, fields: p.mergeFields })
+    if (p.donatedVenueIds.length > 0 || p.donatedOrgIds.length > 0) {
+      linkMerges.push({ id: p.canonical.id, venueIds: p.donatedVenueIds, orgIds: p.donatedOrgIds })
+    }
+  }
+  return { deletes, deletedRows, aliasRows, merges, linkMerges }
+}
+
+/** Print one group's plan. `deferred` groups print DEFER instead of DROP and
+ *  advertise no merge, because a deferred group performs no writes at all. */
+function printPlan(plan, deferred) {
+  const { canonical, dupes, mergeFields, donatedVenueIds, donatedOrgIds, tier } = plan
+  const mergeParts = Object.keys(mergeFields)
+  if (donatedVenueIds.length > 0) mergeParts.push(`venue link×${donatedVenueIds.length}`)
+  if (donatedOrgIds.length > 0)   mergeParts.push(`org link×${donatedOrgIds.length}`)
+  const mergeNote = !deferred && mergeParts.length > 0 ? ` [will merge: ${mergeParts.join(', ')}]` : ''
+
+  const groupVenueId = canonical.event_venues?.[0]?.venue_id
+  console.log(`Group: ${canonical.start_at}  venue=${groupVenueId ? groupVenueId.slice(0, 8) + '…' : '(none)'}  tier=${tier}${deferred ? '   ⏭ DEFERRED (over cap — retried next run)' : ''}`)
+  console.log(`  KEEP  [${canonical.source}/${canonical.source_id}] (${qualityLabel(canonical)})${mergeNote} ${canonical.title?.slice(0, 50)}`)
+  for (const d of dupes) {
+    const tag = hasManualOverrides(d) ? '🛡 KEEP (manual_overrides)' : (deferred ? 'DEFER' : 'DROP')
+    console.log(`  ${tag.padEnd(26)} [${d.source}/${d.source_id}] (${qualityLabel(d)}) ${d.title?.slice(0, 50)}`)
+  }
+}
+
 async function main() {
   const runStart = Date.now()
   console.log(`🔍  ${APPLY ? 'APPLYING' : 'DRY RUN —'} cross-source duplicate cleanup`)
@@ -894,128 +1192,85 @@ async function main() {
   console.log(`Found ${dupeGroups.length} duplicate group(s)`)
   console.log('')
 
-  let totalToDelete = 0
-  let preserved    = 0
-  const deletes    = []
-  const deletedRows = []  // full rows being deleted — written to an audit file before applying
-  const aliasRows  = []  // { duplicate_source, duplicate_source_id, canonical_event_id, reason }
-  const merges     = []  // { id, fields } — canonical events that need a field merge
-  const linkMerges = []  // { id, venueIds, orgIds } — junction links donated by deleted dupes
+  // Build an inert plan per group first, then decide which plans this run may
+  // execute. Nothing is printed or flattened until the cap has had its say, so
+  // a deferred group can't leak a field merge or a link donation.
+  const plans = dupeGroups.map(buildGroupPlan)
+  const preserved = plans.reduce((n, p) => n + p.preservedCount, 0)
 
-  for (const group of dupeGroups) {
-    // Sort to find the canonical event — data quality wins over source priority.
-    //
-    // Tier 1 (best): has both image_url AND a non-trivial description
-    // Tier 2:        has image_url OR a non-trivial description
-    // Tier 3:        has neither
-    //
-    // Within the same tier, fall back to SOURCE_PRIORITY so we consistently
-    // prefer authoritative first-party data over aggregators.
-    const dataScore = (e) => {
-      const hasImage = !!e.image_url
-      const hasDesc  = !!(e.description && e.description.trim().length > 20)
-      if (hasImage && hasDesc) return 0   // best
-      if (hasImage || hasDesc) return 1
-      return 2                            // worst
-    }
-    // A placeholder-time copy (CVB 09:00 default, etc.) must never be chosen
-    // canonical when a trusted-time copy exists — otherwise the surviving row
-    // would carry the fabricated time. It still donates its image/description
-    // to the canonical via the merge step below.
-    // A venue-less copy (Pass 4) must never be chosen canonical over the
-    // venue-linked row — the whole point is to keep the row that has a venue.
-    const venueScore = (e) => (e.event_venues?.[0]?.venue_id ? 0 : 1)
-    const sorted = [...group].sort((a, b) => {
-      const lcDiff = (isLowConfidenceAggregatorTime(a) ? 1 : 0) - (isLowConfidenceAggregatorTime(b) ? 1 : 0)
-      if (lcDiff !== 0) return lcDiff
-      const vDiff = venueScore(a) - venueScore(b)
-      if (vDiff !== 0) return vDiff
-      const scoreDiff = dataScore(a) - dataScore(b)
-      if (scoreDiff !== 0) return scoreDiff
-      return priority(a.source) - priority(b.source)
-    })
-    const canonical = sorted[0]
-    const dupes     = sorted.slice(1)
-
-    const qualityLabel = (e) => {
-      const hasImage = !!e.image_url
-      const hasDesc  = !!(e.description && e.description.trim().length > 20)
-      if (hasImage && hasDesc) return '✓img ✓desc'
-      if (hasImage) return '✓img  desc'
-      if (hasDesc)  return ' img ✓desc'
-      return ' img  desc'
-    }
-
-    // Collect fields the canonical is missing but a dupe can supply.
-    // We merge image_url and description rather than losing them on deletion.
-    const mergeFields = {}
-    const hasGoodDesc = (e) => !!(e.description && e.description.trim().length > 20)
-    for (const d of dupes) {
-      if (!canonical.image_url && d.image_url && !mergeFields.image_url) {
-        mergeFields.image_url = d.image_url
-      }
-      if (!hasGoodDesc(canonical) && hasGoodDesc(d) && !mergeFields.description) {
-        mergeFields.description = d.description
-      }
-    }
-    // Junction-link donation — only from copies that will actually be deleted
-    // (manual_overrides-preserved rows keep their own links).
-    const donors = dupes.filter(d => !hasManualOverrides(d))
-    const { venueIds: donatedVenueIds, orgIds: donatedOrgIds } =
-      collectLinkDonations(canonical, donors)
-
-    const mergeParts = Object.keys(mergeFields)
-    if (donatedVenueIds.length > 0) mergeParts.push(`venue link×${donatedVenueIds.length}`)
-    if (donatedOrgIds.length > 0)   mergeParts.push(`org link×${donatedOrgIds.length}`)
-    const mergeNote = mergeParts.length > 0
-      ? ` [will merge: ${mergeParts.join(', ')}]`
-      : ''
-
-    const groupVenueId = sorted[0].event_venues?.[0]?.venue_id
-    console.log(`Group: ${sorted[0].start_at}  venue=${groupVenueId ? groupVenueId.slice(0, 8) + '…' : '(none)'}`)
-    console.log(`  KEEP  [${canonical.source}/${canonical.source_id}] (${qualityLabel(canonical)})${mergeNote} ${canonical.title?.slice(0, 50)}`)
-    for (const d of dupes) {
-      const protect = hasManualOverrides(d)
-      const tag = protect ? '🛡 KEEP (manual_overrides)' : 'DROP'
-      console.log(`  ${tag.padEnd(26)} [${d.source}/${d.source_id}] (${qualityLabel(d)}) ${d.title?.slice(0, 50)}`)
-      if (protect) { preserved++ }
-      else {
-        deletes.push(d.id); deletedRows.push(d); totalToDelete++
-        // Record the dropped dup → keeper mapping so ingest won't resurrect it.
-        const alias = buildAliasRow(canonical.id, d)
-        if (alias) aliasRows.push(alias)
-      }
-    }
-
-    if (Object.keys(mergeFields).length > 0) merges.push({ id: canonical.id, fields: mergeFields })
-    if (donatedVenueIds.length > 0 || donatedOrgIds.length > 0) {
-      linkMerges.push({ id: canonical.id, venueIds: donatedVenueIds, orgIds: donatedOrgIds })
-    }
-  }
-
-  // A canonical may appear in `merges`, `linkMerges`, or both — count it once.
-  const enrichedCount = new Set([...merges, ...linkMerges].map(m => m.id)).size
-
-  console.log('')
-  console.log(`Summary: ${totalToDelete} to delete, ${enrichedCount} to enrich, ${preserved} preserved by manual_overrides`)
-
-  // Safety cap — the full plan is already printed above (one line per group).
-  // Unattended callers (run-all.js, the nightly Actions workflow) always pass
-  // --apply, so this is the only thing standing between a matching bug and a
-  // mass delete. Checked regardless of --apply so a dry run over cap also
-  // surfaces as a failing exit code (useful as a CI smoke check).
+  // Safety cap. Unattended callers (run-all.js, the nightly Actions workflow)
+  // always pass --apply, so this is the only thing standing between a matching
+  // bug and a mass delete. Resolved BEFORE the plan is printed because it now
+  // decides what the printed plan says (DROP vs DEFER).
   const maxDeletesArg = process.argv.find((a) => a.startsWith('--max-deletes='))?.split('=')[1]
   const maxDeletes = resolveMaxDeletesCap({
     argValue: maxDeletesArg,
     envValue: process.env.DEDUPE_MAX_DELETES,
     uniqueLength: unique.length,
   })
-  if (totalToDelete > maxDeletes) {
-    console.log('')
-    console.error(`✗  Planned deletes (${totalToDelete}) exceed the safety cap (${maxDeletes}).`)
-    console.error(`   Deleting NOTHING. The full plan is printed above — review it, then either:`)
-    console.error(`     - re-run with --max-deletes=${totalToDelete} (or higher) once you've verified the plan, or`)
-    console.error(`     - fix the matching bug that produced an unexpectedly large group count.`)
+
+  const {
+    selected, deferred, plannedDeletes, selectedDeletes, deferredDeletes, capped,
+  } = selectPlansWithinCap(plans, maxDeletes)
+  const selectedSet = new Set(selected)
+  for (const plan of plans) printPlan(plan, !selectedSet.has(plan))
+
+  const { deletes, deletedRows, aliasRows, merges, linkMerges } = flattenPlans(selected)
+
+  // Cap invariant — asserted HERE, the instant selection is flattened and
+  // BEFORE this run performs a single write of any kind (in dry-run mode too:
+  // nothing downstream is reachable without passing it).
+  //
+  // It used to live with the other runtime invariants further down, i.e. AFTER
+  // the audit write, the canonical field merges, the junction-link donations
+  // and the alias upsert had all landed. If selection were ever wrong, all of
+  // those would have committed and only the deletes would abort — leaving
+  // canonicals enriched with content and holding venue/org links donated by
+  // dupes that then SURVIVED, which re-buckets both rows together on the next
+  // run. A cap breach means the selection logic is broken; when the plan can't
+  // be trusted, nothing derived from it may be written.
+  if (deletes.length > maxDeletes) {
+    console.error(`✗  Cap violation: selection produced ${deletes.length} deletes with a cap of ${maxDeletes}.`)
+    console.error(`   Aborting before any write — nothing deleted, merged, donated, or aliased.`)
+    process.exit(1)
+  }
+
+  // A canonical may appear in `merges`, `linkMerges`, or both — count it once.
+  const enrichedCount = new Set([...merges, ...linkMerges].map(m => m.id)).size
+  const totalToDelete = deletes.length
+
+  console.log('')
+  console.log(`Summary: ${totalToDelete} to delete, ${enrichedCount} to enrich, ${preserved} preserved by manual_overrides`)
+  const outcome = capRunOutcome({ capped, selectedDeletes })
+  if (outcome === 'partial-drain') {
+    // Not an error: the cap is doing its job, the run drains what it safely
+    // can and the rest is re-planned from scratch on the next run. Exiting
+    // non-zero here would redden the entire nightly chain (run-all.js treats
+    // any dedupe failure as a run failure) for a healthy backlog.
+    console.log(`⚠  PARTIAL DRAIN (healthy): deleting ${selectedDeletes} of ${plannedDeletes} planned (cap ${maxDeletes}); ${deferred.length} group(s) deferred to the next run`)
+    console.log(`   The backlog shrinks by ${selectedDeletes} tonight. Deferred groups are either lower-confidence (tier ≥ 2) or didn't fit the remaining budget; nothing is merged or donated for them.`)
+    console.log(`   To drain the backlog in one pass after reviewing the plan above:`)
+    console.log(`     node scripts/dedupe-cross-source.js --apply --max-deletes=${plannedDeletes}`)
+  } else if (outcome === 'stalled') {
+    // The terminal state a partial drain converges on: the eligible (tier ≤ 1)
+    // backlog is fully drained and everything left is tier ≥ 2 or too big to
+    // fit, so this run deleted NOTHING and every future run will do exactly
+    // the same. Green here would mean "nightly dedupe does nothing forever,
+    // reported as success" — the precise bug the partial drain exists to fix.
+    // Exit 1 so run-all.js (which always treats a dedupe non-zero as a run
+    // failure) turns the nightly red until a human drains it.
+    //
+    // This fires in DRY RUN too, and deliberately: the stall is decided
+    // entirely during planning, before --apply is ever consulted, so a dry run
+    // is a faithful preview of the apply run's exit code. No unattended caller
+    // runs this script without --apply (run-all.js/scrape:all always pass it),
+    // so a red dry run can only ever be a human asking "is dedupe stuck?" and
+    // getting the honest answer.
+    console.error(`✗  DEDUPE STALLED — deleted 0 of ${plannedDeletes} planned (cap ${maxDeletes}).`)
+    console.error(`   All ${deferred.length} remaining group(s) are lower-confidence (tier ≥ 2) or individually larger than the cap, so NO group is eligible to drain — this run did nothing and the next run will do nothing, forever. The backlog cannot shrink on its own.`)
+    console.error(`   This is NOT a partial drain: a healthy capped run deletes at least one group and exits 0.`)
+    console.error(`   Review the plan above, then drain it explicitly:`)
+    console.error(`     node scripts/dedupe-cross-source.js --apply --max-deletes=${plannedDeletes}`)
     process.exit(1)
   }
 
@@ -1129,6 +1384,9 @@ async function main() {
     console.error(`✗  Audit/delete mismatch: ${deletes.length} ids vs ${deletedRows.length} rows. Deleting nothing.`)
     process.exit(1)
   }
+  // (The cap invariant is NOT re-checked here — it is asserted immediately
+  // after flattenPlans, before any write, so that a breach can't leave field
+  // merges and donated links behind. See the comment there.)
   const shielded = deletedRows.filter(hasManualOverrides)
   if (shielded.length > 0) {
     console.error(`✗  ${shielded.length} manual_overrides row(s) reached the delete list. Deleting nothing.`)
@@ -1160,8 +1418,15 @@ async function main() {
   // a dedupe crash at the end of a scrape:all / run-all chain was completely
   // invisible — no row anywhere said whether dedupe ever completed.
   // Columns repurposed: updated = canonicals enriched, skipped = dupes deleted.
+  // `deferredDeletes` records the backlog a capped run left behind — a capped
+  // run is green, so without it a standing backlog reads as a clean night.
+  // NOTE: logUpsertResult currently only forwards status/errorMessage/
+  // durationMs/eventsFound to scraper_runs (there is no column for this yet),
+  // so today this is carried for the caller/meta contract only; the visible
+  // signal is the "Plan exceeded cap" line above and the run's stdout.
   await logUpsertResult('dedupe_cross_source', 0, enrichedCount, deleted, {
     eventsFound: dupeGroups.length,
+    deferredDeletes,
     durationMs:  Date.now() - runStart,
   })
 }
