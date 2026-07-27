@@ -18,6 +18,7 @@ import {
   selectDigestEvents,
   eventPath,
 } from './select.ts'
+import { type SendLogEntry, markChunkFailed } from './batch.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -614,7 +615,14 @@ Deno.serve(async (req) => {
     // and nothing flagged it. Deriving the type means the SDK's contract is
     // the source of truth and drift like that fails the build.
     const emailBatch: Parameters<typeof resend.batch.send>[0] = []
-    const sendLog: { subscriber_id: string; event_count: number; status: string; error_message?: string }[] = []
+    const sendLog: SendLogEntry[] = []
+    // Parallel to emailBatch: batchLogIndex[k] is the sendLog index that
+    // emailBatch[k] actually corresponds to. sendLog also carries 'skipped'
+    // (zero-match) and render-failure entries that never make it into
+    // emailBatch, so the two arrays are NOT parallel by position — this
+    // explicit index is what markChunkFailed uses instead of recomputing a
+    // position from the chunk's offset into emailBatch. See batch.ts.
+    const batchLogIndex: number[] = []
 
     for (const sub of subscribers as Subscriber[]) {
       try {
@@ -634,6 +642,12 @@ Deno.serve(async (req) => {
         const text = buildDigestText(events, sub, allMatching.length)
         const subject = buildSubject(sub, events.length)
 
+        // Record the sendLog index this batch entry will land at BEFORE
+        // pushing to sendLog, so batchLogIndex[k] always points at the
+        // right entry regardless of how many subscribers were skipped
+        // earlier in the loop.
+        const logIndex = sendLog.length
+
         emailBatch.push({
           from: THEME.from,
           to: [sub.email],
@@ -646,6 +660,7 @@ Deno.serve(async (req) => {
             'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
           },
         })
+        batchLogIndex.push(logIndex)
 
         sendLog.push({ subscriber_id: sub.id, event_count: events.length, status: 'sent' })
       } catch (err) {
@@ -658,6 +673,12 @@ Deno.serve(async (req) => {
     let sentCount = 0
     for (let i = 0; i < emailBatch.length; i += BATCH_SIZE) {
       const chunk = emailBatch.slice(i, i + BATCH_SIZE)
+      // The sendLog indices that correspond 1:1 to `chunk`, NOT `i..i +
+      // chunk.length` — sendLog also holds 'skipped'/render-failed entries
+      // that emailBatch never saw, so a recomputed positional range would
+      // (and used to) attribute a failure to the wrong subscribers the
+      // moment any subscriber upstream was skipped.
+      const chunkLogIndexes = batchLogIndex.slice(i, i + BATCH_SIZE)
       const chunkIndex = Math.floor(i / BATCH_SIZE)
 
       try {
@@ -667,18 +688,21 @@ Deno.serve(async (req) => {
 
         if (sendErr) {
           console.error(`[send-digest] Batch chunk ${chunkIndex} error:`, sendErr)
-          // Mark this chunk's subscribers as failed
-          for (let j = i; j < i + chunk.length; j++) {
-            if (sendLog[j]) {
-              sendLog[j].status = 'failed'
-              sendLog[j].error_message = sendErr.message || 'Batch send failed'
-            }
-          }
+          markChunkFailed(sendLog, chunkLogIndexes, sendErr.message || 'Batch send failed')
         } else {
           sentCount += chunk.length
         }
       } catch (err) {
         console.error(`[send-digest] Batch chunk ${chunkIndex} exception:`, err)
+        // A thrown exception (network failure, timeout, response-parse error)
+        // means delivery is genuinely UNKNOWN here — the request may have
+        // reached Resend and even succeeded, with only our handling of the
+        // response failing. 'failed' is therefore a conservative claim, not
+        // a certain one. It is still strictly better than leaving these
+        // sendLog entries at 'sent': that would silently claim delivery for
+        // subscribers who were never confirmed handed off, hiding the very
+        // possibility we can't rule out.
+        markChunkFailed(sendLog, chunkLogIndexes, err instanceof Error ? err.message : String(err))
       }
     }
 
