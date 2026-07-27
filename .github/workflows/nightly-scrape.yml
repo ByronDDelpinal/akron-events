@@ -55,21 +55,38 @@
 # log, 9 failures (the 15%-of-plan threshold is ~20, so the job was green),
 # 256 events inserted, 3,645 updated.
 #
-# Why `0 23 * * *` (23:00 UTC) and not the obvious `0 3 * * *` (03:00 UTC =
-# 11pm ET summer / 10pm ET winter): `0 3 * * *` sits inside the 8pm–midnight
-# ET window that scripts/lib/normalize.js:477-487 documents as the
-# UTC-date-is-already-tomorrow trap: several scrapers use raw
-# `new Date().toISOString().split('T')[0]` as a "today" boundary, and in that
-# window the UTC calendar date has already rolled to tomorrow, silently
-# dropping the rest of today's events. Setting `TZ: America/New_York` does
-# NOT fix this — `toISOString()` is UTC by definition regardless of the
-# process timezone. `0 23 * * *` (19:00 EDT / 18:00 EST) is clear of that
-# window in both DST states — UTC and Eastern calendar dates agree year-round
-# at this hour — and it's 6-7 hours clear of the 1am nightly-qa-pipeline
-# Cowork task, which inspects this run's output rather than re-scraping.
+# Why `0 3 * * *` (03:00 UTC = 11pm EDT / 10pm EST). Note this fires on UTC
+# day D but is the ET evening of D-1.
+#
+# This hour used to be forbidden. 8pm–midnight ET is the window where a
+# `new Date().toISOString()`-derived "today" has already rolled to tomorrow's
+# UTC date, silently dropping (or mis-dating by a year) the rest of today's
+# events — and six scrapers derived "today" that way. That is no longer
+# structural: they were migrated to `easternTodayIso()`
+# (scripts/lib/normalize.js:476-489), and scripts/tests/test-no-utc-today.js
+# now fails the build if the shape reappears. That guard test is what holds
+# the invariant going forward — this schedule has no margin left to absorb a
+# reintroduction, so do not weaken or blanket-allowlist it.
+#
+# DST: cron is fixed UTC, so exactly one phase can be hit on the nose. Eight
+# months of the year this is 11pm ET as intended; four months it is 10pm ET.
+# The drift is one hour and it drifts EARLIER, which is the safe direction —
+# further from midnight, more headroom before qa. The previous schedule
+# accepted an identical one-hour drift, so this is not a new concession.
+#
+# `0 4 * * *` was rejected: it would start the job at midnight ET for eight
+# months, so a ~80-minute run would straddle the ET day boundary and the
+# first and last scrapers of the same job would disagree about what "today"
+# is — trading one day-boundary bug for another.
+#
+# Headroom: ~80 measured minutes from a 23:00 ET start finishes ~00:20 ET.
+# The nightly-qa-pipeline Cowork task, which inspects this run's output
+# rather than re-scraping, was moved 1am → 2am to match, leaving ~100
+# minutes. Actions deferral (see below) eats into that. The scrape hour and
+# the qa hour are now coupled — moving either requires re-checking the other.
 #
 #   schedule:
-#     - cron: '0 23 * * *'   # 19:00 EDT / 18:00 EST — see rationale above.
+#     - cron: '0 3 * * *'   # 11pm EDT / 10pm EST — see rationale above.
 #
 # Timeout: 73.6 measured minutes of scraper time, plus setup, the Chrome
 # install, dedupe, geocode and the report, lands close to 80 minutes total.
@@ -106,9 +123,10 @@ name: Nightly scrape
 
 on:
   schedule:
-    # 19:00 EDT / 18:00 EST — see the SCHEDULE block in the header comment
-    # above for the full rationale (why this hour, not 03:00 UTC).
-    - cron: '0 23 * * *'
+    # 11pm EDT / 10pm EST — see the SCHEDULE block in the header comment
+    # above for the full rationale (DST drift, why not 04:00 UTC, and the
+    # easternTodayIso invariant that makes this hour safe).
+    - cron: '0 3 * * *'
   workflow_dispatch:
     inputs:
       group:
