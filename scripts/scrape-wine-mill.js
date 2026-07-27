@@ -10,9 +10,19 @@
  * entries with current dates), unlike Main Street Barberton's legacy one.
  *
  * Feed notes:
- *   • Events are ALL-DAY entries (start 00:00): the venue lists the day, not
- *     a set time. Stored as-is — midnight-ET start is the house time-less
- *     convention (fairgrounds precedent); no time is fabricated.
+ *   • Most entries are ALL-DAY (`all_day: true`, start_date "…00:00:00",
+ *     end_date "…23:59:59"): the venue lists the day, not a set time. There is
+ *     NO real start time, so we keep the DATE and flag `needs_review` for a
+ *     human to supply the hour — we never publish a fabricated midnight as if
+ *     it were the door time.
+ *   • Timed entries (`all_day: false`) do carry a real clock time — no review
+ *     flag — but their UTC is wrong too, see below.
+ *   • NEVER trust `utc_start_date`/`utc_end_date`: the site declares a fixed
+ *     "UTC-4" timezone rather than America/New_York, so every UTC value it
+ *     publishes is an hour early across the EST half of the year (verified
+ *     2026-07-27: local 2026-12-02 08:00 was published as 12:00Z = 07:00 EST),
+ *     and all-day rows land at 03:00Z, i.e. the PREVIOUS day at 11pm ET.
+ *     We anchor to the local `start_date`/`end_date` with easternToIso instead.
  *   • The "drink-special" category (House Wine Wednesday etc.) is a pricing
  *     promo, not an event — skipped, same reasoning that kept Fun'N'Stuff's
  *     specials page out of the census Build list.
@@ -30,7 +40,7 @@ import {
   enrichWithImageDimensions, upsertEventSafe, linkEventVenue, linkEventOrganization,
   ensureVenue, ensureOrganization, linkOrganizationVenue,
   parseCostFromTribe, parseTagsFromTribe,
-  easternTodayIso,
+  easternTodayIso, easternToIso,
 } from './lib/normalize.js'
 
 export const SOURCE_KEY = 'wine_mill'
@@ -72,9 +82,58 @@ export function buildSourceId(ev) {
   return day ? `${ev.id}-${day}` : String(ev.id)
 }
 
+/**
+ * True when Tribe marks the entry as all-day — the feed's own authoritative
+ * flag. Such rows carry no real time of day; callers keep the date, flag
+ * `needs_review`, and never synthesize or round a clock time.
+ */
+export function isAllDayEvent(ev = {}) {
+  return ev.all_day === true
+}
+
 function parseImage(imageObj, descriptionHtml = '') {
   if (imageObj && imageObj.url) return imageObj.url
   return String(descriptionHtml).match(/<img[^>]+src="([^"]+)"/)?.[1] ?? null
+}
+
+/**
+ * Build an event row from one Tribe REST event. Pure (no I/O) so tests can
+ * exercise the real start-time path against captured feed shapes.
+ *
+ * Times anchor to the LOCAL `start_date`/`end_date` via easternToIso (single-arg
+ * combined form handles "2026-07-31 00:00:00"). The feed's `utc_start_date` is
+ * NOT usable: the site declares a hardcoded "UTC-4" timezone, so every UTC value
+ * it publishes is an hour early once the calendar crosses into EST (verified
+ * live 2026-07-27: local 2026-12-02 08:00 was published as 12:00Z, i.e. 07:00
+ * EST), and all-day rows come through as 03:00Z — the previous evening in ET.
+ *
+ * All-day rows additionally get `needs_review`: the DATE is real, the midnight
+ * is a placeholder the venue never stated. Never round or invent an hour.
+ */
+export function buildRow(ev = {}) {
+  const { price_min, price_max } = parseCostFromTribe(ev.cost, ev.cost_details)
+  const allDay = isAllDayEvent(ev)
+
+  return {
+    title:           stripHtml(ev.title ?? ''),
+    description:     stripHtml(ev.description ?? '') || null,
+    start_at:        easternToIso(ev.start_date),
+    end_at:          allDay ? null : (ev.end_date ? easternToIso(ev.end_date) : null),
+    category:        parseCategory(ev.categories),
+    tags:            parseTagsFromTribe(ev.categories, ev.tags, ['winery', 'live-music', 'wine-mill', 'peninsula']),
+    price_min,
+    price_max,
+    age_restriction: 'not_specified',
+    image_url:       parseImage(ev.image, ev.description),
+    ticket_url:      ev.website || ev.url || null,
+    source:          SOURCE_KEY,
+    source_id:       buildSourceId(ev),
+    status:          'published',
+    // No real time of day — surface for a human, never fabricate one.
+    // `undefined` (not false) so normalize.js's own default still applies.
+    needs_review:    allDay ? true : undefined,
+    featured:        false,
+  }
 }
 
 // ── Fetch ────────────────────────────────────────────────────────────────────
@@ -136,24 +195,7 @@ async function main() {
           skipped++
           continue
         }
-        const { price_min, price_max } = parseCostFromTribe(ev.cost, ev.cost_details)
-        const row = {
-          title:           stripHtml(ev.title ?? ''),
-          description:     stripHtml(ev.description ?? '') || null,
-          start_at:        ev.utc_start_date ? ev.utc_start_date.replace(' ', 'T') + 'Z' : null,
-          end_at:          ev.all_day ? null : (ev.utc_end_date ? ev.utc_end_date.replace(' ', 'T') + 'Z' : null),
-          category:        parseCategory(ev.categories),
-          tags:            parseTagsFromTribe(ev.categories, ev.tags, ['winery', 'live-music', 'wine-mill', 'peninsula']),
-          price_min,
-          price_max,
-          age_restriction: 'not_specified',
-          image_url:       parseImage(ev.image, ev.description),
-          ticket_url:      ev.website || ev.url || null,
-          source:          SOURCE_KEY,
-          source_id:       buildSourceId(ev),
-          status:          'published',
-          featured:        false,
-        }
+        const row = buildRow(ev)
         if (!row.title || !row.start_at) { skipped++; continue }
 
         const { data: upserted, error } = await upsertEventSafe(await enrichWithImageDimensions(row))

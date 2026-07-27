@@ -30,7 +30,9 @@
  */
 
 import 'dotenv/config'
+import { pathToFileURL } from 'node:url'
 import { inferCategory } from './lib/category-inference.js'
+import { isDateOnlyIcsEvent } from './lib/civicplus.js'
 import { runIcsScraper } from './lib/ics.js'
 import { withBrowser, newConfiguredPage } from './lib/puppeteer.js'
 
@@ -168,7 +170,7 @@ async function getIcsText() {
   return text
 }
 
-runIcsScraper({
+export const config = {
   source:     SOURCE_KEY,
   getIcsText,
   organizationName: 'Life Gurukula',
@@ -189,7 +191,15 @@ runIcsScraper({
   },
   mapCategory,
   mapTags,
+  // Multi-day retreats arrive as date-only VEVENTs (DTSTART;VALUE=DATE), for
+  // which normaliseIcsEvent synthesizes a 00:00 ET start that is not a real
+  // door time. Keep the date, flag for a human — never fabricate a time.
+  flagNeedsReview: isDateOnlyIcsEvent,
   defaultPriceMin: null,
   defaultPriceMax: null,
   ageRestriction:  'all_ages',
-})
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  runIcsScraper(config)
+}

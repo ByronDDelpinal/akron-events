@@ -7,7 +7,8 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL = 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 
-import { parseIcs, icsDateToIso, normaliseIcsEvent, expandRecurrence, parseRrule } from '../lib/ics.js'
+import { parseIcs, icsDateToIso, normaliseIcsEvent, expandRecurrence, parseRrule, applyNeedsReviewHook } from '../lib/ics.js'
+import { isDateOnlyIcsEvent } from '../lib/civicplus.js'
 import {
   SIMPLE_FEED,
   FOLDED_FEED,
@@ -294,6 +295,42 @@ describe('ICS: expandRecurrence', () => {
       { windowStartMs: JAN1, windowDays: 14 },
     )
     assert.deepEqual(starts(out), ['20260105T190000', '20260112T190000'])
+  })
+})
+
+describe('ICS: runIcsScraper flagNeedsReview hook', () => {
+  // Unit coverage of the hook itself. The end-to-end wiring — that
+  // scrape-life-gurukula.js's real exported config actually carries
+  // `flagNeedsReview: isDateOnlyIcsEvent` — is asserted against the imported
+  // module in test-life-gurukula.js.
+  const normalise = (ev) => normaliseIcsEvent(ev, { source: 'test_ics' })
+
+  it('flags a date-only VEVENT whose 00:00 ET start is synthesized', () => {
+    const [ev] = parseIcs(ALL_DAY_FEED)
+    const row = applyNeedsReviewHook(normalise(ev), ev, isDateOnlyIcsEvent)
+    assert.equal(row.needs_review, true)
+    // The DATE is kept as-is; no time is invented or rounded away.
+    assert.equal(row.start_at.slice(0, 10), '2026-07-04')
+    assert.equal(row.status, 'published')
+  })
+
+  it('leaves timed VEVENTs untouched (never writes false)', () => {
+    const [ev] = parseIcs(SIMPLE_FEED)
+    const row = applyNeedsReviewHook(normalise(ev), ev, isDateOnlyIcsEvent)
+    assert.equal(row.needs_review, undefined)
+    assert.equal(Object.hasOwn(row, 'needs_review'), false)
+  })
+
+  it('is a no-op when no hook is configured — the other runIcsScraper callers', () => {
+    const [allDay] = parseIcs(ALL_DAY_FEED)
+    assert.equal(applyNeedsReviewHook(normalise(allDay), allDay, undefined).needs_review, undefined)
+    assert.equal(applyNeedsReviewHook(normalise(allDay), allDay, null).needs_review, undefined)
+    // A non-function config value must not throw either.
+    assert.equal(applyNeedsReviewHook(normalise(allDay), allDay, true).needs_review, undefined)
+  })
+
+  it('tolerates a null row without throwing', () => {
+    assert.equal(applyNeedsReviewHook(null, {}, isDateOnlyIcsEvent), null)
   })
 })
 

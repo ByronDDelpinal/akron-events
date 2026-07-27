@@ -731,6 +731,27 @@ export async function discoverIcsFeed(pageUrl, opts = {}) {
 // ════════════════════════════════════════════════════════════════════════════
 
 /**
+ * Apply the optional per-row `flagNeedsReview` hook.
+ *
+ * Feeds that mark some VEVENTs as date-only/all-day have no real start time —
+ * normaliseIcsEvent synthesizes a 00:00 ET start we must not present as
+ * trustworthy. A predicate over the raw VEVENT (e.g. `isDateOnlyIcsEvent`) lets
+ * a caller keep the date and flag the row instead of fabricating a time.
+ *
+ * Only ever sets `true`; never writes `false`, so normalize.js's own
+ * needs_review default still runs when the predicate says no. No predicate =
+ * zero behaviour change.
+ *
+ * Exported pure so tests can cover the hook without invoking the live pipeline.
+ */
+export function applyNeedsReviewHook(row, ev, flagNeedsReview) {
+  if (row && typeof flagNeedsReview === 'function' && flagNeedsReview(ev)) {
+    row.needs_review = true
+  }
+  return row
+}
+
+/**
  * End-to-end pipeline for an ICS-sourced scraper.
  *
  * Fetches the feed, parses + normalises events, ensures venue + organization,
@@ -746,6 +767,9 @@ export async function discoverIcsFeed(pageUrl, opts = {}) {
  *   @param {object}   [config.defaultVenueDetails] — passed to ensureVenue
  *   @param {Function} [config.mapCategory]     — (ev) → category
  *   @param {Function} [config.mapTags]         — (ev) → string[]
+ *   @param {Function} [config.flagNeedsReview] — (ev) → boolean; true marks the
+ *          row needs_review (e.g. `isDateOnlyIcsEvent` for all-day VEVENTs
+ *          whose 00:00 ET start is synthesized, not real)
  *   @param {number}   [config.defaultPriceMin]
  *   @param {number|null} [config.defaultPriceMax]
  *   @param {string}   [config.ageRestriction]
@@ -849,6 +873,10 @@ export async function runIcsScraper(config) {
           defaultImageUrl:  config.defaultImageUrl,
         })
         if (!row || !row.start_at || !row.source_id) { skipped++; continue }
+
+        // Date-only / all-day VEVENTs carry a synthesized midnight — keep the
+        // date, flag for a human, never fabricate a time.
+        applyNeedsReviewHook(row, ev, config.flagNeedsReview)
 
         if (config.skipPast) {
           const sMs = Date.parse(row.start_at)
