@@ -29,7 +29,7 @@
 
 import 'dotenv/config'
 import { execFileSync } from 'node:child_process'
-import { existsSync }   from 'node:fs'
+import { existsSync, mkdirSync as _mkdirSync, writeFileSync as _writeFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, resolve } from 'node:path'
 
@@ -40,6 +40,12 @@ const ROOT      = resolve(__dirname, '..')
 const NODE      = process.execPath
 
 const DEDUPE_SCRIPT = 'scripts/dedupe-cross-source.js'
+
+// run.json is the provenance manifest scrape-report.js reads to know whether
+// (and how) THIS run was filtered, so a `--key`/`--group` run's per-source
+// census doesn't get misread as "the run broke 13 things" (see buildRunManifest).
+const REPORT_DIR        = resolve(ROOT, 'scrape-reports')
+const RUN_MANIFEST_PATH = resolve(REPORT_DIR, 'run.json')
 
 // ── Pure helpers (exported for tests) ────────────────────────────────────────
 
@@ -81,7 +87,7 @@ export function shouldExitFailure(failed, planLength, maxFailuresOverride) {
 
 // ── CLI parsing ───────────────────────────────────────────────────────────────
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const dryRun   = argv.includes('--dry-run')
   const noDedupe = argv.includes('--no-dedupe')
   const groupArg = argv.find((a, i) => a === '--group' && argv[i + 1])
@@ -90,6 +96,110 @@ function parseArgs(argv) {
     ? argv[argv.indexOf('--key') + 1] : null
   const maxFailuresArg = parseEqualsFlag(argv, '--max-failures')
   return { dryRun, noDedupe, groupArg, keyArg, maxFailuresArg }
+}
+
+// ── Run manifest (provenance for scrape-report.js) ────────────────────────────
+//
+// scrape-report.js's census reads scraper_runs over a 14-day window and grades
+// ALL active sources regardless of what ran tonight — that's deliberate (it's
+// also the fleet-health view the nightly-qa-pipeline consumes) but it means the
+// report has no idea whether tonight's invocation was `--key musica` or the
+// full 137-source run. This manifest is the seam: run-all.js is the only thing
+// that knows the true plan, so it writes that plan out for the report to read
+// and label itself with, instead of a `--key` run reading as "the run broke 13
+// things" when those 13 predate it entirely.
+
+/** Identify the CI runner (or lack of one) from env vars, for provenance. */
+function deriveRunner(env = process.env) {
+  if (env.GITHUB_ACTIONS === 'true') {
+    const runId     = env.GITHUB_RUN_ID     ?? null
+    const runNumber = env.GITHUB_RUN_NUMBER ?? null
+    const url = (env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY && runId)
+      ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${runId}`
+      : null
+    return { kind: 'github-actions', runId, runNumber, url }
+  }
+  return { kind: 'local', runId: null, runNumber: null, url: null }
+}
+
+/**
+ * Build the run.json provenance manifest. Pure — derives `scope`/`filter` from
+ * `argv` via the same `parseArgs` main() uses, so there is exactly one place
+ * that decides what a given CLI invocation means. `--key` wins over `--group`
+ * when both are given, matching the sequential filtering at the top of main()
+ * (group filter applied, then key filter applied on top of it).
+ *
+ * Called twice by main(): once right after the plan is computed (only
+ * `startedAt` and `includesDedupe` are known — this copy survives a mid-run
+ * crash, and resolves to `dedupe: 'pending'` rather than optimistically
+ * claiming 'ran'), and once more before exit with `finishedAt`/`failedKeys`/
+ * `dedupeFailed`/`exitCode` filled in from the completed run. `includesDedupe`
+ * (whether dedupe-cross-source.js is on disk and in scope for this run) must
+ * be passed both times so a missing script resolves to 'skipped_missing'
+ * instead of 'ran'.
+ */
+export function buildRunManifest({
+  argv,
+  plan,
+  activeCount,
+  startedAt,
+  finishedAt = null,
+  failedKeys = [],
+  dedupeFailed = false,
+  includesDedupe = false,
+  exitCode = null,
+  env = process.env,
+}) {
+  const { groupArg, keyArg, noDedupe } = parseArgs(argv)
+  const scope = keyArg ? 'single' : groupArg ? 'group' : 'full'
+  const dedupe =
+    scope !== 'full'   ? 'skipped_filtered' :
+    noDedupe           ? 'skipped_flag' :
+    !includesDedupe    ? 'skipped_missing' :
+    finishedAt == null ? 'pending' :
+    dedupeFailed       ? 'failed' : 'ran'
+
+  return {
+    schemaVersion: 1,
+    startedAt,
+    finishedAt,
+    scope,
+    filter: { key: keyArg ?? null, group: groupArg ?? null, noDedupe },
+    plannedKeys: plan.map((s) => s.key),
+    plannedCount: plan.length,
+    activeCount,
+    failedKeys,
+    dedupe,
+    exitCode,
+    runner: deriveRunner(env),
+  }
+}
+
+/**
+ * Write the run manifest to scrape-reports/run.json. `run-all.js`'s main()
+ * has no top-level try/catch, so an unhandled throw here (e.g. mkdirSync
+ * failing on a read-only filesystem) would abort the entire scrape before any
+ * scraper runs — the manifest is provenance, never worth that. Each write is
+ * wrapped individually so a directory-creation failure and a file-write
+ * failure both degrade to a warning rather than propagating.
+ */
+export function writeRunManifest(manifest, {
+  mkdirSync    = _mkdirSync,
+  writeFileSync = _writeFileSync,
+  dir          = REPORT_DIR,
+  path         = RUN_MANIFEST_PATH,
+} = {}) {
+  try {
+    mkdirSync(dir, { recursive: true })
+  } catch (err) {
+    console.warn(`  ⚠ Could not create ${dir} for run manifest (non-fatal): ${err.message}`)
+    return
+  }
+  try {
+    writeFileSync(path, JSON.stringify(manifest, null, 2))
+  } catch (err) {
+    console.warn(`  ⚠ Could not write run manifest (non-fatal): ${err.message}`)
+  }
 }
 
 // ── Edge-cache invalidation ───────────────────────────────────────────────────
@@ -170,6 +280,14 @@ async function main() {
 
   const failed  = []
   const start   = Date.now()
+  const startedAt = new Date(start).toISOString()
+
+  // First write: provenance survives a mid-run crash (no top-level try/catch
+  // below — see writeRunManifest's own doc comment for why every write here
+  // is individually guarded rather than allowed to throw).
+  writeRunManifest(buildRunManifest({
+    argv: args, plan, activeCount: ACTIVE_SCRAPERS.length, startedAt, includesDedupe,
+  }))
 
   console.log(`\n🚀  run-all — ${plan.length} scraper${plan.length !== 1 ? 's' : ''}\n`)
 
@@ -238,6 +356,15 @@ async function main() {
     }
   }
   console.log('═'.repeat(60))
+
+  // Second write: fill in the outcome now that the run (and dedupe) finished.
+  writeRunManifest(buildRunManifest({
+    argv: args, plan, activeCount: ACTIVE_SCRAPERS.length, startedAt, includesDedupe,
+    finishedAt:   new Date().toISOString(),
+    failedKeys:   failed.filter((k) => k !== 'dedupe'),
+    dedupeFailed: failed.includes('dedupe'),
+    exitCode:     exitFailure ? 1 : 0,
+  }))
 
   process.exit(exitFailure ? 1 : 0)
 }
