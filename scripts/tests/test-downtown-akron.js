@@ -15,6 +15,8 @@ import {
   directlyScrapedVenue,
   directlyScrapedTitle,
   parseDetailPage,
+  crawlOutcome,
+  partialCrawlNote,
 } from '../scrape-downtown-akron.js'
 import { easternTodayIso } from '../lib/normalize.js'
 
@@ -187,5 +189,141 @@ describe('Downtown Akron: directly-scraped title suppression', () => {
   it('leaves DAP-only RubberDucks promos alone', () => {
     assert.equal(directlyScrapedTitle('Win RubberDucks Tickets at the Lockview'), null)
     assert.equal(directlyScrapedTitle(null), null)
+  })
+})
+
+// 2026-07-27 incident: all three month-page fetches failed upstream, the
+// per-URL try/catch swallowed every failure into console.warn, future.length
+// landed on 0, and logUpsertResult defaulted to status 'success' — a silent
+// zero-yield run that looked healthy in scraper_runs. crawlOutcome is the
+// pure decision function that closes that gap; these tests cover all three
+// branches without a live run.
+describe('Downtown Akron: crawlOutcome (zero-yield guard)', () => {
+  it('throws-worthy "unreachable" when every page fetch failed', () => {
+    const outcome = crawlOutcome({ pagesAttempted: 3, pagesOk: 0, futureCount: 0 })
+    assert.equal(outcome.kind, 'unreachable')
+    assert.match(outcome.message, /unreachable/i)
+    assert.match(outcome.message, /0 of 3/)
+  })
+
+  it('defaults missing params to 0 rather than treating undefined as healthy (exported API)', () => {
+    // undefined === 0 is false, so without defaults this would fall through
+    // to the 'ok' branch — silently swallowing a malformed call.
+    const outcome = crawlOutcome({})
+    assert.equal(outcome.kind, 'unreachable')
+    assert.equal(crawlOutcome().kind, 'unreachable')
+  })
+
+  it('"zero-yield" when pages fetched but nothing future parsed (parser regression)', () => {
+    const outcome = crawlOutcome({ pagesAttempted: 3, pagesOk: 2, futureCount: 0 })
+    assert.equal(outcome.kind, 'zero-yield')
+    assert.match(outcome.message, /2\/3 pages/)
+    assert.match(outcome.message, /0 future events/)
+    assert.match(outcome.message, /markup may have changed/i)
+  })
+
+  it('"ok" for a healthy run (pages fetched, future events found)', () => {
+    const outcome = crawlOutcome({ pagesAttempted: 3, pagesOk: 3, futureCount: 76 })
+    assert.equal(outcome.kind, 'ok')
+    assert.equal(outcome.message, undefined)
+  })
+
+  it('"unreachable" wins even if futureCount is somehow nonzero (defensive)', () => {
+    // pagesOk === 0 should never coexist with a nonzero futureCount in
+    // practice, but the branch order must still prioritize "site unreachable"
+    // since that's the more actionable diagnosis.
+    const outcome = crawlOutcome({ pagesAttempted: 3, pagesOk: 0, futureCount: 5 })
+    assert.equal(outcome.kind, 'unreachable')
+  })
+
+  // Code review MAJOR 1: pagesOk must count a page as "reached" once the fetch
+  // succeeds, even if the parser then throws on every page (a markup-overhaul
+  // break). Before the fix, pagesOk incremented AFTER parseCalendarHtml, so a
+  // parser exception on every page left pagesOk === 0 and crawlOutcome
+  // reported 'unreachable' ("the site blocked us") instead of 'zero-yield'
+  // ("the parser broke") — the wrong diagnosis and the wrong remediation path.
+  it('reports "zero-yield", not "unreachable", when every page fetched OK but the parser found nothing', () => {
+    // pagesOk === pagesAttempted models "every fetch succeeded" — which is
+    // exactly what main()'s loop now records even when parseCalendarHtml
+    // throws on every page, because pagesOk++ runs before the parse call.
+    const outcome = crawlOutcome({ pagesAttempted: 3, pagesOk: 3, futureCount: 0 })
+    assert.equal(outcome.kind, 'zero-yield')
+    assert.match(outcome.message, /3\/3 pages/)
+    assert.match(outcome.message, /markup may have changed/i)
+  })
+
+  it('mirrors main()\'s per-URL loop: a parse exception on every page still leaves pagesOk at pagesAttempted', () => {
+    // Reproduces the shape of main()'s try/catch (fetch succeeds → pagesOk++
+    // → parse call, which may throw → caught and swallowed) using the real
+    // parseCalendarHtml, so this exercises actual throwing behavior rather
+    // than just asserting on hand-picked crawlOutcome inputs.
+    const urls = ['a', 'b', 'c']
+    let pagesOk = 0
+    for (const _url of urls) {
+      try {
+        const html = undefined // stands in for markup the parser can't handle
+        pagesOk++              // must happen before the parse call, per the fix
+        parseCalendarHtml(html, LATE_EDT) // throws (html.matchAll on undefined)
+      } catch { /* swallowed, same as main() */ }
+    }
+    assert.equal(pagesOk, 3)
+    const outcome = crawlOutcome({ pagesAttempted: urls.length, pagesOk, futureCount: 0 })
+    assert.equal(outcome.kind, 'zero-yield')
+  })
+})
+
+// Code review MAJOR 2: a partial crawl failure (some month pages fetched,
+// some didn't) still reports crawlOutcome 'ok' as long as at least one page
+// worked and at least one future event came out — which is correct, but it
+// used to be completely invisible: logUpsertResult's success call carried no
+// record that N of M pages failed, so a ~2/3 yield drop still looked green.
+// partialCrawlNote is the pure helper that turns that into errorMessage
+// provenance on the success log row without changing status.
+describe('Downtown Akron: partialCrawlNote (partial-failure provenance)', () => {
+  it('returns a "N/M pages failed" note when some pages failed', () => {
+    assert.equal(partialCrawlNote(1, 3), '2/3 pages failed')
+  })
+
+  it('returns null when every page succeeded (nothing to report)', () => {
+    assert.equal(partialCrawlNote(3, 3), null)
+  })
+
+  it('returns null when pagesOk somehow exceeds pagesAttempted (defensive)', () => {
+    assert.equal(partialCrawlNote(4, 3), null)
+  })
+})
+
+describe('Downtown Akron: parseCalendarHtml guard — no /event/ links', () => {
+  it('returns [] for HTML with no /event/ links at all (site markup overhaul)', () => {
+    const html = `<div class="calendar"><p>No events this month.</p></div>`
+    assert.deepEqual(parseCalendarHtml(html, LATE_EDT), [])
+  })
+
+  it('returns [] for an empty string', () => {
+    assert.deepEqual(parseCalendarHtml('', LATE_EDT), [])
+  })
+})
+
+describe('Downtown Akron: parseCalendarHtml round-trips line-broken AND single-line markup', () => {
+  // Real ctycms output varies between a pretty-printed, line-broken card and a
+  // single-line minified one (see the 2026-07 markup-shift regressions on
+  // other ctycms/CivicPlus sources). The parser splits on tag boundaries, not
+  // on literal newlines, so both forms must yield identical results.
+  const singleLine = CALENDAR_HTML.replace(/\r?\n\s*/g, '')
+
+  for (const [label, html] of [['line-broken', CALENDAR_HTML], ['single-line', singleLine]]) {
+    it(`parses all three cards — ${label}`, () => {
+      const events = parseCalendarHtml(html, LATE_EDT)
+      assert.equal(events.length, 3)
+      assert.deepEqual(events.map((e) => e.slug).sort(), [
+        'all-day-art-walk', 'casual-commander-days-1', 'sketchbook-social',
+      ])
+    })
+  }
+
+  it('produces identical parsed output for both forms', () => {
+    const lineBroken = parseCalendarHtml(CALENDAR_HTML, LATE_EDT)
+    const oneLine    = parseCalendarHtml(singleLine, LATE_EDT)
+    assert.deepEqual(oneLine, lineBroken)
   })
 })

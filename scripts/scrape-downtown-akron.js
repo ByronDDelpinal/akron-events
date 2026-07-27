@@ -415,6 +415,57 @@ export function filterFutureEvents(events, today = easternTodayIso()) {
   return (events || []).filter((ev) => ev.dateStr >= today)
 }
 
+/**
+ * Decide how loudly to react to a completed month-page crawl. Pure + exported
+ * so the decision is unit-testable without a live run.
+ *
+ * 2026-07-27 incident: all three month-page fetches failed upstream (a
+ * transient 403/WAF rejection), the per-URL try/catch in main() swallowed
+ * every failure into console.warn, future.length landed on 0, and
+ * logUpsertResult defaulted to status 'success' — a silent zero-yield run
+ * that looked healthy in scraper_runs.
+ *
+ * Two distinct outcomes matter because they need different remediation:
+ *   - 'unreachable': every page fetch failed — the SITE blocked/rejected us.
+ *     Caller should throw so this falls into main()'s existing catch
+ *     (logScraperError → status 'error', exit 1).
+ *   - 'zero-yield': at least one page fetched, but nothing future came out —
+ *     the PARSER likely broke (markup changed). Caller should log an error
+ *     status via logUpsertResult directly and exit 0 so the next scheduled
+ *     run still tries (mirrors scrape-city-of-green.js's zero-events guard).
+ *   - 'ok': healthy run, no special handling.
+ */
+function crawlOutcome({ pagesAttempted = 0, pagesOk = 0, futureCount = 0 } = {}) {
+  if (pagesOk === 0) {
+    return {
+      kind:    'unreachable',
+      message: `Downtown Akron calendar unreachable — 0 of ${pagesAttempted} month page(s) fetched successfully`,
+    }
+  }
+  if (futureCount === 0) {
+    return {
+      kind:    'zero-yield',
+      message: `Calendar fetched (${pagesOk}/${pagesAttempted} pages) but parsed 0 future events — markup may have changed`,
+    }
+  }
+  return { kind: 'ok' }
+}
+
+/**
+ * Provenance note for a partial crawl failure (some month pages fetched OK,
+ * others didn't) when the overall outcome is still 'ok' — crawlOutcome only
+ * escalates on pagesOk === 0 (unreachable) or futureCount === 0 (zero-yield),
+ * so a run that lost, say, 2 of 3 pages but still scraped a handful of
+ * events from the one that worked reports 'ok' with no other signal. That's
+ * a ~2/3 yield drop hiding behind a green status. Returns null when every
+ * page succeeded. Pure + exported so main()'s success-path logUpsertResult
+ * call is testable without a live run.
+ */
+function partialCrawlNote(pagesOk, pagesAttempted) {
+  const failed = pagesAttempted - pagesOk
+  return failed > 0 ? `${failed}/${pagesAttempted} pages failed` : null
+}
+
 // ── Build month URLs ───────────────────────────────────────────────────────
 
 function getMonthUrls() {
@@ -563,10 +614,19 @@ async function main() {
     const allEvents = []
     const seenSlugs = new Set()
 
+    // pagesOk vs monthUrls.length feeds crawlOutcome below — it's how we tell
+    // "the site rejected every fetch" apart from "the parser found nothing".
+    // pagesOk increments right after a successful fetch, BEFORE the parse
+    // call — a parser exception (markup overhaul) still leaves the page
+    // counted as reached, so that case reports as 'zero-yield' (parser
+    // broke) rather than 'unreachable' (site blocked us).
+    let pagesOk = 0
+
     for (const url of monthUrls) {
       console.log(`\n🔍  Fetching ${url}…`)
       try {
-        const html   = await fetchHtml(url)
+        const html = await fetchHtml(url)
+        pagesOk++
         const events = parseCalendarHtml(html, now)
         console.log(`  Found ${events.length} events`)
 
@@ -589,8 +649,20 @@ async function main() {
     const future  = filterFutureEvents(allEvents, easternTodayIso(now))
     console.log(`\n  Total unique future events: ${future.length} (from ${allEvents.length} total found)`)
 
-    if (future.length === 0) {
-      console.warn('  ⚠ No future events found. Calendar page structure may have changed.')
+    const outcome = crawlOutcome({ pagesAttempted: monthUrls.length, pagesOk, futureCount: future.length })
+    if (outcome.kind === 'unreachable') {
+      // Falls into the catch below → logScraperError → status 'error', exit 1.
+      throw new Error(outcome.message)
+    }
+    if (outcome.kind === 'zero-yield') {
+      await logUpsertResult('downtown_akron', 0, 0, 0, {
+        status:       'error',
+        errorMessage: outcome.message,
+        eventsFound:  0,
+        durationMs:   Date.now() - start,
+      })
+      console.warn(`  ⚠ ${outcome.message} — exiting without an error so the next scheduled run still tries.`)
+      process.exit(0)
     }
 
     // Drop events hosted at venues we scrape directly (see DIRECTLY_SCRAPED_VENUES).
@@ -613,11 +685,18 @@ async function main() {
     if (suppressedByTier > 0) console.log(`  Suppressed ${suppressedByTier} event(s) — covered by a trusted source or higher-priority aggregator.`)
     if (flaggedForReview > 0) console.log(`  Flagged ${flaggedForReview} event(s) needs_review — venue has Tier-1/2 coverage but nothing nearby.`)
 
+    // Partial crawl failure (some month pages fetched, some didn't) is still
+    // a healthy 'success' run — but silently losing pages is the same
+    // silent-degradation class this whole fix exists to eliminate. Carry it
+    // through as errorMessage provenance so the nightly median check can see
+    // the yield drop even though status stays 'success'.
+    const partialNote = partialCrawlNote(pagesOk, monthUrls.length)
     await logUpsertResult('downtown_akron', inserted, 0, skipped, {
       eventsFound: future.length,
       suppressed: suppressed + suppressedByTier,
       flaggedForReview,
       durationMs:  Date.now() - start,
+      ...(partialNote ? { errorMessage: partialNote } : {}),
     })
     console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s`)
   } catch (err) {
@@ -627,7 +706,7 @@ async function main() {
 }
 
 // Pure parsers exported for unit tests (no live run on import).
-export { parseCalendarHtml, parseTime, reconstructDate, directlyScrapedVenue, directlyScrapedTitle }
+export { parseCalendarHtml, parseTime, reconstructDate, directlyScrapedVenue, directlyScrapedTitle, crawlOutcome, partialCrawlNote }
 
 // Run only when invoked directly (`node scripts/scrape-downtown-akron.js`); importing the module
 // for tests exposes the pure parsers without triggering a live run.
