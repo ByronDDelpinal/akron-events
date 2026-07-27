@@ -141,6 +141,7 @@ export const SOURCE_PRIORITY = [
   'rubberducks',
   'stan_hywet',              // first-party venue calendar
   'summit_artspace',
+  'tangier',                 // first-party venue (Fairlawn — Tangier West etc.)
   'summit_county_fairgrounds', // first-party venue (Tallmadge)
   'summit_humane',           // first-party (Humane Society) — Give Back events
   'summit_metro_parks',

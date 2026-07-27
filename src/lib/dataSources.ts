@@ -837,6 +837,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'tangier',
+    method:      'HTML scrape',
+    methodDetail:'thetangier.com/events (Webflow) — the "Upcoming Events" section parsed via htmlToText for title/date/venue/price, with the per-event Etix ticket link and banner image pulled from the raw HTML by pattern and zipped in document order',
+    venue:       'Tangier West, 3150 W Market St, Fairlawn (also Our Lady of the Cedars, The Bank at East End, etc. — all Fairlawn/Akron)',
+    notes:       "Tangier — a 65-year-old Akron-area restaurant/banquet/entertainment institution now anchored at Tangier West in Fairlawn (Summit County), so events publish directly with no geo gate. Its Webflow /events page lists marquee dinner-and-show events (variety performers, themed parties, NYE) as a flat img→title→date→'HELD AT <space>: <address>'→description→prices→ticket-buttons sequence. Two parse gotchas handled: (1) every card repeats a BOILERPLATE 'Purchase Tickets' button (Etix id 51986841); we drop it and keep each event's real etix.com/ticket/p/<id> link (the stable id is the source_id); (2) start times appear only in prose, so we extract a doors time when explicitly stated ('Doors open at 6:30PM') and otherwise publish date-only rather than fabricate one. Per-event venue parsed from the HELD-AT block (falls back to Tangier's main Fairlawn address); prices min/max across ticket tiers; ticketing via Etix; category music.",
+    status:      'active',
+  },
+  {
     key:         'barnes_noble_akron',
     method:      'JSON API',
     methodDetail:'B&N locator-api/v1/events queried at the Akron store\'s coordinates (the storeId param is ignored server-side) and filtered to storeId 2902',
@@ -1599,6 +1607,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   hudson_library:          'html',
   the_grove:               'html',
   cvfm:                    'html',
+  tangier:                 'html',
   barnes_noble_akron:      'api',
   city_of_twinsburg:       'civicplus',
   lake_campground:         'html',
