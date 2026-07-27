@@ -1543,7 +1543,14 @@ export async function upsertEventSafe(row) {
   // fabricate scraper_runs insert counts (and everything downstream — the
   // health report, dwindle detection). `existed` comes from the row lookup
   // _stripOverriddenFields already performs.
-  return { data, error, isNew: !error && !!data && !existed }
+  const isNew = !error && !!data && !existed
+
+  // Record the observation for logUpsertResult to prefer over caller-passed
+  // counts (see _recordUpsertObservation) — only for an actual successful
+  // write, never for the alias-skip/validation-failure early returns above.
+  if (!error && data) _recordUpsertObservation(safeRow.source, isNew)
+
+  return { data, error, isNew }
 }
 
 /**
@@ -1742,9 +1749,53 @@ async function _stripOverriddenFields(table, row) {
 // HEALTH LOGGING
 // ════════════════════════════════════════════════════════════════════════════
 
+// ── Observed insert/update tally (Commit A of the honest-counters fix) ───────
+//
+// upsertEventSafe already computes an honest `isNew` per row (from the same
+// (source, source_id) lookup _stripOverriddenFields performs for
+// manual-override stripping), but most of the ~154 logUpsertResult call sites
+// across the scrapers discard it and pass hardcoded/approximate inserted /
+// updated counts instead. Rewriting every call site is Commit B, deferred
+// until after a full production run. This is the centralized Commit A fix:
+// upsertEventSafe records what it actually did here, keyed by `row.source`
+// (NOT a per-file counter — several scrapers write multiple source keys, or
+// log per-source in a loop, from one process), and logUpsertResult prefers
+// that observed tally over whatever the caller passed, so every call site
+// becomes honest without being touched.
+const _observedUpserts = new Map() // source → { inserted, updated }
+
+function _recordUpsertObservation(source, isNew) {
+  if (!source) return
+  const tally = _observedUpserts.get(source) ?? { inserted: 0, updated: 0 }
+  if (isNew) tally.inserted++
+  else tally.updated++
+  _observedUpserts.set(source, tally)
+}
+
+/** Test-only: clear all observed tallies between test cases. */
+export function _resetUpsertObservations() {
+  _observedUpserts.clear()
+}
+
+/** Test-only: snapshot the current observed tallies (does not consume them). */
+export function _getUpsertObservations() {
+  return new Map(_observedUpserts)
+}
+
 /**
  * Log a summary of an upsert result to the console AND write a row to
  * the scraper_runs table for health monitoring.
+ *
+ * If upsertEventSafe recorded an observed tally for `source` (the normal
+ * case for any scraper that ran this call), the OBSERVED inserted/updated
+ * counts are used instead of the caller's arguments — a call site passing a
+ * stale/hardcoded value (e.g. a literal 0) no longer lies to scraper_runs.
+ * A caller/observed mismatch is logged as a warning (naming the source and
+ * both numbers) rather than silently overridden, so drift is discoverable.
+ * The tally is deleted after being read so a second logUpsertResult call for
+ * the same source (e.g. a scraper logging error + success rows) can't
+ * double-count it. `eventsFound` is untouched — it stays derived from the
+ * caller's own arguments, per the existing per-source baseline contract.
  */
 export async function logUpsertResult(source, inserted, updated, skipped, opts = {}) {
   const {
@@ -1755,10 +1806,26 @@ export async function logUpsertResult(source, inserted, updated, skipped, opts =
 
   const eventsFound = opts.eventsFound ?? (inserted + updated + skipped)
 
+  let finalInserted = inserted
+  let finalUpdated  = updated
+
+  const observed = _observedUpserts.get(source)
+  if (observed) {
+    if (observed.inserted !== inserted || observed.updated !== updated) {
+      console.warn(
+        `  ⚠ [${source}] logUpsertResult argument mismatch — caller passed ${inserted} inserted / ${updated} updated, ` +
+        `observed ${observed.inserted} inserted / ${observed.updated} updated from upsertEventSafe. Using observed counts.`
+      )
+    }
+    finalInserted = observed.inserted
+    finalUpdated  = observed.updated
+    _observedUpserts.delete(source)
+  }
+
   const icon = status === 'error' ? '❌' : '✓'
   console.log(
-    `[${source}] ${icon}  ${inserted} inserted  ${updated} updated  ${skipped} skipped` +
-    (eventsFound !== inserted + updated + skipped ? `  (${eventsFound} total from source)` : '') +
+    `[${source}] ${icon}  ${finalInserted} inserted  ${finalUpdated} updated  ${skipped} skipped` +
+    (eventsFound !== finalInserted + finalUpdated + skipped ? `  (${eventsFound} total from source)` : '') +
     (durationMs != null ? `  [${(durationMs / 1000).toFixed(1)}s]` : '')
   )
 
@@ -1769,8 +1836,8 @@ export async function logUpsertResult(source, inserted, updated, skipped, opts =
         scraper_name:    source,
         status,
         events_found:    eventsFound,
-        events_inserted: inserted,
-        events_updated:  updated,
+        events_inserted: finalInserted,
+        events_updated:  finalUpdated,
         events_skipped:  skipped,
         error_message:   errorMessage,
         duration_ms:     durationMs,
