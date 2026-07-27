@@ -139,9 +139,14 @@
 --   select count(*) from vault.secrets where name = 'slack_notify_secret';
 --
 -- This must return exactly 1. If it ever returns more than 1, delete the
--- stale duplicate (`select vault.delete_secret(id) from vault.secrets where
--- name = 'slack_notify_secret' and id <> '<the id to keep>'`) before trusting
--- which value these trigger functions are actually reading.
+-- stale duplicate(s) — there is no `vault.delete_secret()` on this project;
+-- supabase_vault 0.3.1 exposes only `create_secret` and `update_secret` —
+-- using plain DML against the underlying table instead:
+--
+--   select id, name, created_at from vault.secrets where name = 'slack_notify_secret' order by created_at;
+--   delete from vault.secrets where name = 'slack_notify_secret' and id <> '<the id to keep>';
+--
+-- before trusting which value these trigger functions are actually reading.
 -- ════════════════════════════════════════════════════════════════════════════
 
 begin;

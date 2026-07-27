@@ -887,6 +887,15 @@ Deno.test('SECURITY (MAJOR, renderConfirmed): a 100,000-char email cannot grow t
 // A future renderer added to this file without its own capMessage call
 // would have no equivalent test here passing for it — that absence is
 // exactly what should prompt whoever adds it to notice the missing call.
+//
+// The ceiling capMessage actually enforces is CODE POINTS ([...s].length),
+// not UTF-16 units (`.length`) — so these assertions clamp on `[...out]`.
+// All three fixtures below are pure ASCII, so this was numerically a no-op
+// for them; the emoji-bearing fixture further down is what actually
+// exercises the distinction (see MAX_RENDERED_LEN's derivation: the true
+// ceiling is 3,013 code points / <= 6,013 UTF-16 units / <= 12,015 UTF-8
+// bytes — a naive `out.length <= MAX_RENDERED_LEN` assertion silently
+// passed only because no fixture here had ever contained a surrogate pair).
 
 Deno.test('BOUNDED: renderSignup output is always <= MAX_RENDERED_LEN, even with a maximally hostile subscriber', () => {
   const out = renderSignup({
@@ -906,7 +915,7 @@ Deno.test('BOUNDED: renderSignup output is always <= MAX_RENDERED_LEN, even with
       keywords_title_only: true,
     } as unknown as Preferences,
   })
-  assertEquals(out.length <= MAX_RENDERED_LEN, true)
+  assertEquals([...out].length <= MAX_RENDERED_LEN, true)
 })
 
 Deno.test('BOUNDED: renderFeedback output is always <= MAX_RENDERED_LEN, even with a maximally hostile feedback row', () => {
@@ -915,12 +924,47 @@ Deno.test('BOUNDED: renderFeedback output is always <= MAX_RENDERED_LEN, even wi
     page_path: 'x'.repeat(1_000_000),
     created_at: '2026-07-01T12:00:00Z',
   })
-  assertEquals(out.length <= MAX_RENDERED_LEN, true)
+  assertEquals([...out].length <= MAX_RENDERED_LEN, true)
 })
 
 Deno.test('BOUNDED: renderConfirmed output is always <= MAX_RENDERED_LEN, even with a maximally hostile email', () => {
   const out = renderConfirmed('x'.repeat(1_000_000))
-  assertEquals(out.length <= MAX_RENDERED_LEN, true)
+  assertEquals([...out].length <= MAX_RENDERED_LEN, true)
+})
+
+// The three fixtures above are pure ASCII, so `[...out].length` and
+// `out.length` were numerically identical for them — the fixed assertion
+// was never actually exercised in the unit it claims to bound. This
+// fixture is emoji-heavy (every hostile field uses a surrogate-pair
+// character instead of 'x'), so it fails on the OLD `out.length <=
+// MAX_RENDERED_LEN` assertion (UTF-16 units can run up to ~2x the
+// code-point ceiling here) while passing on the fixed `[...out].length`
+// one — proving the fix actually matters, not just restating it.
+Deno.test('BOUNDED: renderSignup output is always <= MAX_RENDERED_LEN in CODE POINTS, even with an emoji-heavy hostile subscriber', () => {
+  const out = renderSignup({
+    email: `${EMOJI.repeat(20_000)}@example.com`,
+    frequency: '<!channel>'.repeat(10_000),
+    lookahead_days: 999_999,
+    preferences: {
+      intents: Array(50_000).fill(EMOJI.repeat(1000)),
+      categories: Array(50_000).fill(EMOJI.repeat(1000)),
+      venue_ids: Array(50_000).fill(EMOJI.repeat(1000)),
+      org_ids: Array(50_000).fill(EMOJI.repeat(1000)),
+      price_max: 1e21,
+      age_restriction: EMOJI.repeat(1000),
+      event_days: Array(200_000).fill(0),
+      location: { mode: 'zipcode', label: EMOJI.repeat(20_000), radius_miles: 5 },
+      keywords: Array(50_000).fill(EMOJI.repeat(1000)),
+      keywords_title_only: true,
+    } as unknown as Preferences,
+  })
+  // The real ceiling: 3,013 code points / <= 6,013 UTF-16 units / <=
+  // 12,015 UTF-8 bytes (MAX_MESSAGE_LEN=3000 code points, each up to a
+  // 2-unit / 4-byte surrogate pair, plus the 13-code-point / 15-byte
+  // ASCII+ellipsis TRUNCATION_MARKER).
+  assertEquals([...out].length <= MAX_RENDERED_LEN, true)
+  assertEquals(out.length <= 2 * MAX_MESSAGE_LEN + TRUNCATION_MARKER.length, true)
+  assertEquals(hasLoneSurrogate(out), false)
 })
 
 // ── 14c. capMessage itself — the shared backstop ──────────────────────────
@@ -1023,4 +1067,35 @@ Deno.test('SECURITY (MINOR 2): page_path — emoji at the clampLabel boundary in
   const pagePath = 'a'.repeat(59) + EMOJI + 'ZZZ'
   const out = renderFeedback({ body: 'hello', page_path: pagePath, created_at: '2026-07-01T12:00:00Z' })
   assertEquals(hasLoneSurrogate(out), false)
+})
+
+// ── 14e. blockquote — code-point vs UTF-16-unit truncation (fixed MINOR) ──
+//
+// `blockquote`'s FEEDBACK_BODY_MAX_LEN mirrors migration 043's DB CHECK
+// `char_length(body) between 1 and 1000`, which counts CODE POINTS.
+// `body.slice(0, 1000)` counts UTF-16 UNITS instead — for emoji-heavy
+// bodies that pass the DB check at exactly 1000 code points, that mismatch
+// either lands mid-surrogate-pair (emitting a lone surrogate Slack renders
+// as U+FFFD) or silently drops the majority of the content. Same class as
+// the MINOR 2 fixes above; blockquote was the one site that had been missed.
+
+function blockquoteCodePointLen(out: string): number {
+  const line = out.split('\n').find((l) => l.startsWith('> '))
+  if (!line) throw new Error('no blockquote line found')
+  return [...line.slice(2)].length
+}
+
+Deno.test('SECURITY (blockquote): 999 poop emoji + 1 ascii char (1000 code points, passes the DB CHECK) never produces a lone surrogate', () => {
+  const body = 'a' + EMOJI.repeat(999) // 1 + 999 = 1000 code points — right at the DB CHECK's ceiling.
+  const out = renderFeedback({ body, page_path: null, created_at: '2026-07-01T12:00:00Z' })
+  assertEquals(hasLoneSurrogate(out), false)
+  assertEquals(blockquoteCodePointLen(out), 1000)
+})
+
+Deno.test('SECURITY (blockquote): an emoji-heavy 1000-code-point body keeps all 1000 code points, not 506', () => {
+  const body = 'Great site! ' + EMOJI.repeat(988) // 12 + 988 = 1000 code points.
+  assertEquals([...body].length, 1000)
+  const out = renderFeedback({ body, page_path: null, created_at: '2026-07-01T12:00:00Z' })
+  assertEquals(hasLoneSurrogate(out), false)
+  assertEquals(blockquoteCodePointLen(out), 1000)
 })

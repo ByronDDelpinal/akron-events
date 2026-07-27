@@ -436,7 +436,15 @@ export function describePreferences(
 const FEEDBACK_BODY_MAX_LEN = 1000
 
 function blockquote(body: string): string {
-  const truncated = body.length > FEEDBACK_BODY_MAX_LEN ? body.slice(0, FEEDBACK_BODY_MAX_LEN) : body
+  // Code-point slicing, not `.slice()` (UTF-16 code units): `char_length` in
+  // the migration 043 CHECK this mirrors counts code points, so a body full
+  // of surrogate-pair characters (e.g. emoji) can pass the DB constraint at
+  // 1000 chars while being ~1800 UTF-16 units long. A `.slice(0, 1000)` on
+  // that string both under-keeps content (drops far more than the intended
+  // amount) and risks landing mid-surrogate-pair, emitting a lone surrogate
+  // that Slack renders as U+FFFD. Same fix as capList/clampLabel/capMessage.
+  const chars = [...body]
+  const truncated = chars.length > FEEDBACK_BODY_MAX_LEN ? chars.slice(0, FEEDBACK_BODY_MAX_LEN).join('') : body
   return escapeSlackText(truncated)
     .split(/\r\n|\r|\n/)
     .map((line) => `> ${line}`)
