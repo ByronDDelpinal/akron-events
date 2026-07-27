@@ -55,8 +55,26 @@ scrape-reports/
 # raw / uncompressed video source files — only the compressed output belongs in the repo
 public/video/*-source.*
 
-# local docs — diagrams, exports, reference material
+# local docs — diagrams, exports, reference material. Also the home for design
+# source: docs/design-source/ holds the designer's originals (category glyphs,
+# logo kits). Only the processed, code-referenced exports belong in public/.
 docs/
+
+# design source files — originals belong in docs/design-source/, never in the
+# repo. These reached the root and public/ once already: 19 category-glyph
+# SVGs sat in the project root duplicating public/*_pulse.svg, and a .psd plus
+# a .zip logo kit sat in public/ where they deployed to the CDN and were
+# publicly downloadable despite no code referencing them.
+*.psd
+*.psb
+*.ai
+*.sketch
+*.fig
+
+# agent memory — Cowork writes per-space memory under spaces/<uuid>/memory/.
+# That is session state, not project source; a memory file was committed here
+# once already. Never belongs in the repo.
+spaces/
 
 # local design explorations — mood boards, palette studies, etc.
 design-proposals/
