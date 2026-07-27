@@ -26,6 +26,7 @@ import {
   ensureVenue,
   ensureOrganization,
   easternToIso,
+  easternTodayIso,
 } from './lib/normalize.js'
 
 const BASE_URL   = 'https://www.ohioshakespearefestival.com'
@@ -47,13 +48,15 @@ const MONTH_MAP = {
   sep: 9, sept: 9, oct: 10, nov: 11, dec: 12,
 }
 
-function inferYear(month, day) {
-  const today = new Date()
+// `now` is injectable so tests can freeze the clock; production passes nothing.
+function inferYear(month, day, now = new Date()) {
+  // Anchor "today" to Eastern time — a UTC-derived today is already tomorrow
+  // between 8pm and midnight ET, which shifts the inferred year.
+  const [ty, tm, td] = easternTodayIso(now).split('-').map(Number)
+  const tMs = Date.UTC(ty, tm - 1, td)
   for (let offset = 0; offset <= 2; offset++) {
-    const year = today.getFullYear() + offset
-    const d    = new Date(Date.UTC(year, month - 1, day))
-    const t    = new Date(today.toISOString().split('T')[0] + 'T00:00:00Z')
-    if (d >= t) return year
+    const year = ty + offset
+    if (Date.UTC(year, month - 1, day) >= tMs) return year
   }
   return null
 }
@@ -64,7 +67,7 @@ function inferYear(month, day) {
  *          "March 5", "April 3, 2026"
  * Returns the opening night as "YYYY-MM-DD" or null.
  */
-function parseDateString(raw) {
+function parseDateString(raw, now = new Date()) {
   if (!raw) return null
   const s = raw.trim()
 
@@ -85,7 +88,7 @@ function parseDateString(raw) {
     const [, mon, day] = rangeMatch
     const m = MONTH_MAP[mon.toLowerCase()]
     if (m) {
-      const year = inferYear(m, parseInt(day))
+      const year = inferYear(m, parseInt(day), now)
       if (year) return `${year}-${String(m).padStart(2,'0')}-${String(parseInt(day)).padStart(2,'0')}`
     }
   }
@@ -96,7 +99,7 @@ function parseDateString(raw) {
     const [, mon, day] = singleMatch
     const m = MONTH_MAP[mon.toLowerCase()]
     if (m) {
-      const year = inferYear(m, parseInt(day))
+      const year = inferYear(m, parseInt(day), now)
       if (year) return `${year}-${String(m).padStart(2,'0')}-${String(parseInt(day)).padStart(2,'0')}`
     }
   }
@@ -203,7 +206,7 @@ function extractShowSlugs(homeHtml) {
 
 // ── Parse individual show page ─────────────────────────────────────────────
 
-function parseShowPage(html, _slug) {
+function parseShowPage(html, _slug, now = new Date()) {
   // Get og:image meta tag (Squarespace reliably has this)
   const ogImage = html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]+)"/) ??
                   html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:image"/)
@@ -238,7 +241,7 @@ function parseShowPage(html, _slug) {
     const matches = [...bodyText.matchAll(pattern)]
     for (const m of matches) {
       const raw    = m[0]
-      const parsed = parseDateString(raw)
+      const parsed = parseDateString(raw, now)
       if (parsed) {
         dateStr = parsed
         // Pull a time only from the text immediately after the date (the
@@ -263,14 +266,16 @@ function parseShowPage(html, _slug) {
 
 // ── Fetch and process shows ────────────────────────────────────────────────
 
-async function fetchAndProcessShows(_organizerId) {
+async function fetchAndProcessShows(_organizerId, now = new Date()) {
   console.log(`\n🔍  Fetching homepage: ${HOME_URL}…`)
   const homeHtml = await fetchHtml(HOME_URL)
   const slugs    = extractShowSlugs(homeHtml)
   console.log(`  Found ${slugs.length} potential show slugs: ${slugs.join(', ')}`)
 
-  const now     = new Date()
-  const todayMs = new Date(now.toISOString().split('T')[0] + 'T00:00:00Z').getTime()
+  // Eastern-anchored midnight, as a NUMBER — the comparison below has
+  // `new Date(...).getTime()` on the left, so both sides must be numeric.
+  const [ty, tm, td] = easternTodayIso(now).split('-').map(Number)
+  const todayMs = Date.UTC(ty, tm - 1, td)
 
   const results  = []
 
@@ -280,7 +285,7 @@ async function fetchAndProcessShows(_organizerId) {
       await new Promise(r => setTimeout(r, 1000)) // polite 1s delay
       console.log(`  Fetching ${url}…`)
       const showHtml = await fetchHtml(url)
-      const parsed   = parseShowPage(showHtml, slug)
+      const parsed   = parseShowPage(showHtml, slug, now)
 
       if (!parsed.title) {
         console.warn(`    ⚠ No title found for /${slug} — skipping`)
@@ -389,6 +394,9 @@ async function main() {
     process.exit(1)
   }
 }
+
+// Pure parsers exported for unit tests (no live run on import).
+export { inferYear, parseDateString, parseShowPage }
 
 // Run only when invoked directly (`node scripts/scrape-ohio-shakespeare.js`); importing the module
 // for tests exposes the pure parsers without triggering a live run.

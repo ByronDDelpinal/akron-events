@@ -26,6 +26,7 @@ import {
   ensureVenue,
   ensureOrganization,
   easternToIso,
+  easternTodayIso,
 } from './lib/normalize.js'
 
 const CALENDAR_URL  = 'https://www.paintingwithatwist.com/studio/akron-fairlawn/calendar/'
@@ -44,7 +45,7 @@ const MONTH_MAP = {
  * Parse a PWT date-time string like "Sun, Mar 22, 6:30 pm".
  * Returns { dateStr: "YYYY-MM-DD", timeStr: "HH:MM:00" } or { dateStr: null, timeStr: null }.
  */
-function parsePwtDateTime(raw) {
+function parsePwtDateTime(raw, now = new Date()) {
   if (!raw) return { dateStr: null, timeStr: null }
   const s = raw.trim()
 
@@ -58,12 +59,12 @@ function parsePwtDateTime(raw) {
     const m = MONTH_MAP[mon.toLowerCase()]
     if (!m) return { dateStr: null, timeStr: null }
 
-    // Infer year: if this month-day is in the past this year, it's next year
-    const now       = new Date()
-    let   year      = now.getFullYear()
-    const candidate = new Date(Date.UTC(year, m - 1, parseInt(day)))
-    const today     = new Date(now.toISOString().split('T')[0] + 'T00:00:00Z')
-    if (candidate < today) year++
+    // Infer year: if this month-day is in the past this year, it's next year.
+    // "Today" is Eastern-anchored (a UTC today is already tomorrow after 8pm
+    // ET), and both sides of the compare are NUMBERS.
+    const [ty, tm, td] = easternTodayIso(now).split('-').map(Number)
+    let   year = ty
+    if (Date.UTC(year, m - 1, parseInt(day)) < Date.UTC(ty, tm - 1, td)) year++
 
     let hr = parseInt(hour, 10)
     if (mer.toLowerCase() === 'pm' && hr !== 12) hr += 12
@@ -170,9 +171,21 @@ export function isLikelyTitle(line = '') {
  * Strategy: find all <a href*="/event/"> links, extract surrounding container text,
  * then parse date/price/title from that text.
  */
-function parseEvents(html) {
+function parseEvents(html, now = new Date()) {
   const events = []
   const seen   = new Set()
+
+  // Hoisted ONCE: computing "today" inside the loops meant a parse straddling
+  // midnight compared different rows against different days. Eastern-anchored
+  // "YYYY-MM-DD"; every dateStr below is the same shape, so these are lexical
+  // STRING comparisons — no Date coercion.
+  //
+  // NOT LOAD-BEARING: the two `< todayYmd` past-filters below can never fire.
+  // PWT listings carry no year, so parsePwtDateTime infers one by rolling any
+  // past month/day forward — its output is >= todayYmd by construction. The
+  // filters are kept as defence in case a future format grows an explicit year;
+  // do not treat them as the thing that keeps stale classes out.
+  const todayYmd = easternTodayIso(now)
 
   // Find all event links — /event/{id}/
   const eventLinkPattern = /href="(\/studio\/akron-fairlawn\/event\/(\d+)\/)"/gi
@@ -229,14 +242,13 @@ function parseEvents(html) {
 
     if (!dateTimeStr || !title) continue
 
-    const { dateStr, timeStr } = parsePwtDateTime(dateTimeStr)
+    const { dateStr, timeStr } = parsePwtDateTime(dateTimeStr, now)
     if (!dateStr) continue
 
     const { price_min, price_max } = parsePrice(priceStr)
 
     // Skip past events
-    const now = new Date()
-    if (new Date(dateStr) < new Date(now.toISOString().split('T')[0])) continue
+    if (dateStr < todayYmd) continue
 
     seen.add(id)
     events.push({ id, title, dateStr, timeStr, price_min, price_max })
@@ -255,7 +267,7 @@ function parseEvents(html) {
     for (const block of blocks) {
       const dtMatch = block.match(/([A-Za-z]{2,3},\s+[A-Za-z]{3,}\s+\d{1,2},\s+\d{1,2}:\d{2}\s*[ap]m)/i)
       if (dtMatch) {
-        const { dateStr, timeStr } = parsePwtDateTime(dtMatch[1])
+        const { dateStr, timeStr } = parsePwtDateTime(dtMatch[1], now)
         currentDate = dateStr
         currentTime = timeStr
       }
@@ -279,8 +291,7 @@ function parseEvents(html) {
 
           if (!titleLine) continue
 
-          const now = new Date()
-          if (new Date(currentDate) < new Date(now.toISOString().split('T')[0])) continue
+          if (currentDate < todayYmd) continue
 
           seen.add(id)
           events.push({ id, title: titleLine, dateStr: currentDate, timeStr: currentTime, price_min, price_max })
@@ -451,6 +462,9 @@ async function main() {
     process.exit(1)
   }
 }
+
+// Pure parsers exported for unit tests (no live run on import).
+export { parseEvents, parsePwtDateTime, parsePrice }
 
 // Run only when invoked directly (`node scripts/scrape-painting-twist.js`); importing the module
 // for tests exposes the pure parsers without triggering a live run.

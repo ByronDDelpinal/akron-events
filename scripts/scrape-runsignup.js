@@ -30,7 +30,7 @@ import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
 import {
   logUpsertResult, logScraperError, enrichWithImageDimensions, upsertEventSafe,
-  linkEventVenue, ensureVenue, easternToIso,
+  linkEventVenue, ensureVenue, easternToIso, easternTodayIso,
 } from './lib/normalize.js'
 import { searchRunSignupRaces, fetchRunSignupRaceById, parseRunSignupRace } from './lib/runsignup.js'
 import { classifySummitLocation } from './lib/summit-county.js'
@@ -41,6 +41,27 @@ const SEARCH_RADIUS = 25        // miles — generous; the Summit County gate tr
 const MAX_DAYS_AHEAD = 300
 
 const ymd = (d) => d.toISOString().slice(0, 10)
+
+/**
+ * The { startDate, endDate } window handed to RunSignup's /rest/races search.
+ *
+ * `startDate` is the API's server-side FLOOR: races starting before it are
+ * never returned, so no local filter can recover them. It MUST be Eastern
+ * "today" — a UTC-derived today is already tomorrow between 8pm and midnight
+ * ET, so an 11pm run would ask for races starting tomorrow onward and lose
+ * every race happening today.
+ *
+ * `endDate` is the far horizon (MAX_DAYS_AHEAD from the current instant).
+ * Being a day generous there is harmless, so it keeps the plain UTC formatting.
+ *
+ * Exported (with an injectable clock) so the floor is unit-testable.
+ */
+export function searchWindow(now = new Date()) {
+  return {
+    startDate: easternTodayIso(now),
+    endDate:   ymd(new Date(now.getTime() + MAX_DAYS_AHEAD * 86_400_000)),
+  }
+}
 
 /**
  * Locality for a race — strict Summit mandate (2026-07-14): 'out' races are
@@ -88,9 +109,7 @@ async function main() {
   console.log('🏁  Starting RunSignup (Summit County races) ingestion…')
   const start = Date.now()
   try {
-    const now = new Date()
-    const startDate = ymd(now)
-    const endDate   = ymd(new Date(now.getTime() + MAX_DAYS_AHEAD * 86_400_000))
+    const { startDate, endDate } = searchWindow()
 
     const races = await searchRunSignupRaces({ zipcode: SEARCH_ZIP, radius: SEARCH_RADIUS, startDate, endDate })
     const inArea = races.filter(isIngestableRace)

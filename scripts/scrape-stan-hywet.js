@@ -49,6 +49,7 @@ import {
   ensureOrganization,
   linkOrganizationVenue,
   easternToIso,
+  easternTodayIso,
 } from './lib/normalize.js'
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -172,7 +173,7 @@ function toYmd(year, month, day) {
  * Returns a { dateStr } for the soonest date >= today, or null when the string
  * holds fewer than two dates (single-date events keep their existing handling).
  */
-function pickUpcomingFromList(s, nowYear) {
+function pickUpcomingFromList(s, nowYear, now = new Date()) {
   const tokens = [...s.matchAll(DATE_TOKEN_RE)]
     .map((m) => {
       const month = MONTH_MAP[m[1].toLowerCase()]
@@ -184,7 +185,11 @@ function pickUpcomingFromList(s, nowYear) {
 
   if (tokens.length < 2) return null
 
-  const todayMs = (() => { const d = new Date(); d.setUTCHours(0, 0, 0, 0); return d.getTime() })()
+  // Eastern-anchored midnight as a NUMBER, matching how `t.ms` is built above.
+  // A UTC-derived midnight is already tomorrow after 8pm ET, which made a
+  // late-evening run skip today's occurrence and pick the NEXT date in the list.
+  const [ty, tm, td] = easternTodayIso(now).split('-').map(Number)
+  const todayMs = Date.UTC(ty, tm - 1, td)
   const upcoming = tokens.filter((t) => t.ms >= todayMs).sort((a, b) => a.ms - b.ms)
   const chosen = upcoming[0] ?? tokens.sort((a, b) => a.ms - b.ms)[0]
   return { dateStr: chosen.dateStr }
@@ -201,10 +206,15 @@ function pickUpcomingFromList(s, nowYear) {
  *   6) Short date (no year):      "October 30" → infer current/next year
  * Returns nulls when nothing parses; the caller skips the event in that case.
  */
-export function parseStanHywetDate(raw) {
+export function parseStanHywetDate(raw, now = new Date()) {
   if (!raw) return { dateStr: null, timeStr: DEFAULT_TIME, endDateStr: null }
   const s = raw.replace(/–|—/g, '-').trim()
-  const nowYear = new Date().getFullYear()
+  // ONE Eastern "today" for every branch below that needs one — the recurring
+  // start date, the multi-date list, and the short-date year inference all read
+  // from these, so they can never disagree about what day (or year) it is.
+  const todayYmd = easternTodayIso(now)
+  const [tYear, tMonth, tDay] = todayYmd.split('-').map(Number)
+  const nowYear = tYear
 
   // Inline start time (handles ranges, inherited meridiems and "a.m."/"p.m.").
   const timeStr = extractStartTime(s) ?? DEFAULT_TIME
@@ -213,9 +223,11 @@ export function parseStanHywetDate(raw) {
   const numericRange = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/)
   const recurringMarker = /sundays|mondays|tuesdays|wednesdays|thursdays|fridays|saturdays|weekly|every/i.test(s)
   if (numericRange && recurringMarker) {
-    // Recurring event with an end date — start "today" so it surfaces immediately.
-    const today = new Date()
-    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    // Recurring event with an end date — start "today" so it surfaces
+    // immediately. "Today" is the Eastern date hoisted above: a LOCAL
+    // getFullYear/getMonth/getDate build was both un-injectable (it ignored
+    // `now` entirely) and wrong on any runner not set to America/New_York.
+    const dateStr = todayYmd
     const [, mm, dd, yy] = numericRange
     const year = yy.length === 2 ? 2000 + parseInt(yy, 10) : parseInt(yy, 10)
     const endDateStr = `${year}-${String(parseInt(mm, 10)).padStart(2, '0')}-${String(parseInt(dd, 10)).padStart(2, '0')}`
@@ -249,7 +261,7 @@ export function parseStanHywetDate(raw) {
 
   // 4) Multi-date list — "August 9, October 25, & December 6" → next upcoming.
   //    Runs after the range strategies so true ranges keep their start+end.
-  const upcoming = pickUpcomingFromList(s, nowYear)
+  const upcoming = pickUpcomingFromList(s, nowYear, now)
   if (upcoming) {
     return { dateStr: upcoming.dateStr, timeStr, endDateStr: null }
   }
@@ -276,10 +288,10 @@ export function parseStanHywetDate(raw) {
     if (m) {
       // Infer year: if the resulting date is in the past, roll to next year.
       // This handles Dec listings in November.
+      // Numeric compare on both sides, against Eastern "today".
       let year = nowYear
-      const candidate = new Date(Date.UTC(year, m - 1, parseInt(day, 10)))
-      const today     = new Date(); today.setUTCHours(0, 0, 0, 0)
-      if (candidate < today) year += 1
+      const todayMs = Date.UTC(tYear, tMonth - 1, tDay)
+      if (Date.UTC(year, m - 1, parseInt(day, 10)) < todayMs) year += 1
       return {
         dateStr: `${year}-${String(m).padStart(2, '0')}-${String(parseInt(day, 10)).padStart(2, '0')}`,
         timeStr,
@@ -444,9 +456,17 @@ function parseTags(title = '', alert = '') {
 async function processEvents(cards, venueId, organizerId) {
   let inserted = 0, skipped = 0
 
+  // ONE run-level clock for the whole corpus. This loop does a network fetch
+  // per card (fetchEventDescription below), so it spans minutes — with an 11pm
+  // ET start, cards near the end of the list are parsed AFTER midnight ET.
+  // Letting each call take its own `new Date()` would give two cards in the
+  // same run two different "today"s. Matches scrape-downtown-akron.js and
+  // scrape-painting-twist.js.
+  const now = new Date()
+
   for (const card of cards) {
     try {
-      const { dateStr, timeStr, endDateStr } = parseStanHywetDate(card.dateText)
+      const { dateStr, timeStr, endDateStr } = parseStanHywetDate(card.dateText, now)
       if (!dateStr) {
         console.warn(`  ⚠ Skipping "${card.title}" — unparseable date: "${card.dateText}"`)
         skipped++

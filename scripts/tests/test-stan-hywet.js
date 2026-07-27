@@ -16,12 +16,16 @@
 
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 // ── Set dummy env vars before importing the scraper module ──────────────────
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
 import { extractStartTime, parseStanHywetDate, resolveStartTime } from '../scrape-stan-hywet.js'
+import { LATE_EDT, LATE_EDT_TODAY, LATE_EST, LATE_EST_TODAY } from './fixtures/late-night-clocks.js'
 
 describe('extractStartTime — start-of-range + a.m./p.m. handling', () => {
   const cases = [
@@ -120,6 +124,53 @@ describe('parseStanHywetDate — multi-date lists surface the next upcoming date
   })
 })
 
+// The nightly scrape is moving to 11pm ET, which lands inside the window where
+// the UTC calendar date has already rolled to tomorrow. For a multi-date list
+// that is a WRONG-DATA bug, not a missing-data one: today's occurrence looks
+// past, so the parser silently advertises the NEXT date in the list.
+describe('parseStanHywetDate — late-evening ET runs (11pm) keep today', () => {
+  it('picks today, not the next date in the list (11:30pm ET on Aug 9)', () => {
+    const lateAug9 = new Date('2026-08-10T03:30:00Z')   // 2026-08-09 23:30 EDT
+    const { dateStr } = parseStanHywetDate('August 9, October 25, & December 6 | 11am', lateAug9)
+    assert.equal(dateStr, '2026-08-09')                  // NOT 2026-10-25
+  })
+
+  it('still advances past a genuinely past date in the list', () => {
+    const lateAug10 = new Date('2026-08-11T03:30:00Z')  // 2026-08-10 23:30 EDT
+    const { dateStr } = parseStanHywetDate('August 9, October 25, & December 6 | 11am', lateAug10)
+    assert.equal(dateStr, '2026-10-25')
+  })
+
+  // The recurring branch ("Sundays through 10/25/26") starts the event at
+  // "today" so it surfaces immediately. That branch used to build its own date
+  // from a bare `new Date()` with LOCAL getFullYear/getMonth/getDate, which
+  // ignored the injected clock entirely — so it read the real wall-clock day on
+  // a frozen-clock test, and on any runner not set to America/New_York it read
+  // the wrong day in production too.
+  it('recurring start date honours the injected Eastern clock (EDT)', () => {
+    const { dateStr, endDateStr } = parseStanHywetDate('Sundays through 10/25/26 | 1pm', LATE_EDT)
+    assert.equal(dateStr, LATE_EDT_TODAY)                // 2026-07-15, not the real today
+    assert.equal(endDateStr, '2026-10-25')
+  })
+
+  it('recurring start date honours the injected Eastern clock (EST)', () => {
+    const { dateStr } = parseStanHywetDate('Wednesdays through 3/25/26 | 1pm', LATE_EST)
+    assert.equal(dateStr, LATE_EST_TODAY)                // 2026-01-15
+  })
+
+  it('does not roll the year on a single date that is today (11:30pm ET Dec 31)', () => {
+    const lateNye = new Date('2027-01-01T04:30:00Z')    // 2026-12-31 23:30 EST
+    const { dateStr } = parseStanHywetDate('December 31 | 8pm', lateNye)
+    assert.equal(dateStr, '2026-12-31')                  // NOT 2027-12-31
+  })
+
+  it('still rolls the year for a date that has genuinely passed', () => {
+    const lateNye = new Date('2027-01-01T04:30:00Z')    // 2026-12-31 23:30 EST
+    const { dateStr } = parseStanHywetDate('December 30 | 8pm', lateNye)
+    assert.equal(dateStr, '2027-12-30')
+  })
+})
+
 describe('parseStanHywetDate — single dates and ranges are unchanged', () => {
   it('full single date with year', () => {
     const { dateStr, endDateStr } = parseStanHywetDate('April 21, 2026 | 6pm')
@@ -141,5 +192,56 @@ describe('parseStanHywetDate — single dates and ranges are unchanged', () => {
   it('returns null dateStr when nothing parses', () => {
     const { dateStr } = parseStanHywetDate('Continues until the End of May')
     assert.equal(dateStr, null)
+  })
+})
+
+// ── Run-level clock (source-level pin) ─────────────────────────────────────
+//
+// This is a SOURCE assertion, not a behavioural one, and it is labelled as such
+// on purpose. `processEvents` is not exported, and it cannot be: every iteration
+// awaits `fetchEventDescription(card.href)` (network) and `upsertEventSafe`
+// (database), so there is no way to exercise it in unit tests without a real
+// network call. What CAN be pinned without lying about it is the one line that
+// matters — that the loop hoists a single clock and hands it to the parser.
+//
+// Why it matters: that per-card fetch makes the loop span minutes. With the
+// nightly job moving to 11pm ET, a ~74-minute run crosses midnight ET, so if
+// each call took its own default `new Date()` the cards parsed before and after
+// midnight would resolve DIFFERENT "today"s inside one run — the multi-date
+// list and the recurring-start branch would disagree card to card.
+// scrape-downtown-akron.js and scrape-painting-twist.js already hoist.
+describe('scrape-stan-hywet.js — processEvents uses one run-level clock', () => {
+  const src = readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'scrape-stan-hywet.js'),
+    'utf8'
+  )
+
+  it('hoists a single `now` in processEvents', () => {
+    const body = src.slice(src.indexOf('async function processEvents('))
+    assert.match(
+      body.slice(0, 800), /const now = new Date\(\)/,
+      'processEvents must hoist `const now = new Date()` once before the card loop'
+    )
+  })
+
+  it('passes that clock into parseStanHywetDate', () => {
+    assert.match(
+      src, /parseStanHywetDate\(card\.dateText,\s*now\)/,
+      'processEvents must call parseStanHywetDate(card.dateText, now); the bare ' +
+      'one-argument form takes a fresh default clock per card, so a run that ' +
+      'crosses midnight ET parses two halves of the corpus against two different days'
+    )
+  })
+
+  it('leaves no bare one-argument parseStanHywetDate call in the scraper', () => {
+    const bare = src.split('\n')
+      .map((line, i) => ({ line: line.trim(), no: i + 1 }))
+      .filter(({ line }) => /parseStanHywetDate\([^,)]*\)/.test(line) && !line.startsWith('*') && !line.startsWith('//'))
+      .filter(({ line }) => !line.startsWith('export function'))
+    assert.deepEqual(
+      bare, [],
+      `every parseStanHywetDate() call inside the scraper must pass the hoisted clock:\n` +
+      bare.map((b) => `  scrape-stan-hywet.js:${b.no}  ${b.line}`).join('\n')
+    )
   })
 })

@@ -28,6 +28,7 @@ import {
   ensureVenue,
   ensureOrganization,
   easternToIso,
+  easternTodayIso,
 } from './lib/normalize.js'
 import { getPublishedEventsAtVenue, classifyAggregatorEvent } from './lib/source-tiers.js'
 
@@ -44,16 +45,18 @@ const MONTH_MAP = {
 
 // Short month abbreviations as used in the ctycms DOM:
 // "Sunday 22 Mar" → day-of-week, day number, month abbrev
-function reconstructDate(dayNum, monthAbbr) {
+// `now` is injectable so tests can freeze the clock; production passes nothing.
+function reconstructDate(dayNum, monthAbbr, now = new Date()) {
   const m = MONTH_MAP[monthAbbr.toLowerCase()]
   if (!m) return null
-  const now   = new Date()
-  let   year  = now.getFullYear()
-  const d     = parseInt(dayNum, 10)
-  // If this month+day combination is in the past this year, move to next year
-  const candidate = new Date(Date.UTC(year, m - 1, d))
-  const today     = new Date(now.toISOString().split('T')[0] + 'T00:00:00Z')
-  if (candidate < today) year++
+  // Anchor "today" to Eastern time. Between 8pm and midnight ET the UTC date is
+  // already tomorrow, which used to push today's listings a full year forward.
+  const [ty, tm, td] = easternTodayIso(now).split('-').map(Number)
+  let   year = ty
+  const d    = parseInt(dayNum, 10)
+  // If this month+day combination is in the past this year, move to next year.
+  // Compare NUMBERS on both sides — never a Date against a string.
+  if (Date.UTC(year, m - 1, d) < Date.UTC(ty, tm - 1, td)) year++
   return `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 }
 
@@ -261,7 +264,7 @@ async function fetchHtml(url) {
  * Example innerText:
  *   "Man of LaMancha\n\t\t2 p.m. / Ohio Shakespeare Festival\n\t\tView Details\n\t\n\t\t\tSunday\t\t22\t\tMar"
  */
-function parseCalendarHtml(html) {
+function parseCalendarHtml(html, now = new Date()) {
   const events = []
 
   // Find all event links
@@ -357,7 +360,7 @@ function parseCalendarHtml(html) {
 
     if (!dayNum || !monthAb) continue
 
-    const dateStr = reconstructDate(dayNum, monthAb)
+    const dateStr = reconstructDate(dayNum, monthAb, now)
     if (!dateStr) continue
 
     events.push({ title, dateStr, timeStr, venueName, slug, linkHref })
@@ -400,6 +403,16 @@ export function parseDetailPage(html) {
   const imageUrl = img ? decodeEntities(img[1]) : null
 
   return { description, imageUrl }
+}
+
+/**
+ * Drop events whose date has already passed. `today` is an Eastern-time
+ * "YYYY-MM-DD" string and `ev.dateStr` is the same shape, so the comparison is
+ * a lexical string compare (no Date coercion). Pure + exported so the
+ * boundary behaviour is testable — it used to live inline in main().
+ */
+export function filterFutureEvents(events, today = easternTodayIso()) {
+  return (events || []).filter((ev) => ev.dateStr >= today)
 }
 
 // ── Build month URLs ───────────────────────────────────────────────────────
@@ -537,6 +550,12 @@ async function main() {
   console.log('🚀  Starting Downtown Akron Partnership ingestion…')
   const start = Date.now()
 
+  // Read the clock ONCE for the whole run. The crawl below fetches three month
+  // pages with a polite delay between each, so it can straddle midnight; taking
+  // a fresh `new Date()` per page (and again for the past-filter) would judge
+  // different rows against different days.
+  const now = new Date()
+
   try {
     const organizerId = await ensureDapOrganizer()
 
@@ -548,7 +567,7 @@ async function main() {
       console.log(`\n🔍  Fetching ${url}…`)
       try {
         const html   = await fetchHtml(url)
-        const events = parseCalendarHtml(html)
+        const events = parseCalendarHtml(html, now)
         console.log(`  Found ${events.length} events`)
 
         for (const ev of events) {
@@ -565,10 +584,9 @@ async function main() {
       await new Promise(r => setTimeout(r, 500))
     }
 
-    // Filter out past events
-    const now     = new Date()
-    const today   = now.toISOString().split('T')[0]
-    const future  = allEvents.filter(ev => ev.dateStr >= today)
+    // Filter out past events (Eastern "today", not UTC "today"), against the
+    // same instant the pages were parsed with.
+    const future  = filterFutureEvents(allEvents, easternTodayIso(now))
     console.log(`\n  Total unique future events: ${future.length} (from ${allEvents.length} total found)`)
 
     if (future.length === 0) {

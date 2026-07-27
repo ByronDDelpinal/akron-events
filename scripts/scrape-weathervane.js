@@ -33,6 +33,7 @@ import {
   ensureVenue,
   ensureOrganization,
   easternToIso,
+  easternTodayIso,
 } from './lib/normalize.js'
 
 const BASE_URL    = 'https://www.weathervaneplayhouse.com'
@@ -66,7 +67,7 @@ function slugify(s) {
  * Year inference: months Jan–Jul → next occurrence starting from today;
  * months Aug–Dec → current year if not yet passed, else next year.
  */
-function parseDateString(raw) {
+function parseDateString(raw, now = new Date()) {
   if (!raw) return null
   const s = raw.trim().toUpperCase()
 
@@ -94,7 +95,7 @@ function parseDateString(raw) {
       // Prefer an explicit year in the range (e.g. "JUNE 18 - JULY 12, 2026")
       // over inference, so a currently-running show isn't rolled to next year.
       const explicit = stripped.match(/\b(\d{4})\b/)
-      const year = explicit ? parseInt(explicit[1], 10) : inferYear(m, parseInt(day))
+      const year = explicit ? parseInt(explicit[1], 10) : inferYear(m, parseInt(day), now)
       if (!year) return null
       return `${year}-${String(m).padStart(2,'0')}-${String(parseInt(day)).padStart(2,'0')}`
     }
@@ -106,7 +107,7 @@ function parseDateString(raw) {
     const [, mon, day] = singleMatch
     const m = MONTH_MAP[mon.toLowerCase()]
     if (m) {
-      const year = inferYear(m, parseInt(day))
+      const year = inferYear(m, parseInt(day), now)
       if (!year) return null
       return `${year}-${String(m).padStart(2,'0')}-${String(parseInt(day)).padStart(2,'0')}`
     }
@@ -119,13 +120,14 @@ function parseDateString(raw) {
  * Infer the year for a month/day combo.
  * Returns the next future occurrence of that month/day, looking ahead up to 2 years.
  */
-function inferYear(month, day) {
-  const today = new Date()
+function inferYear(month, day, now = new Date()) {
+  // Anchor "today" to Eastern time — a UTC-derived today is already tomorrow
+  // between 8pm and midnight ET, which shifts the inferred year.
+  const [ty, tm, td] = easternTodayIso(now).split('-').map(Number)
+  const tMs = Date.UTC(ty, tm - 1, td)
   for (let offset = 0; offset <= 2; offset++) {
-    const year = today.getFullYear() + offset
-    const d    = new Date(Date.UTC(year, month - 1, day))
-    const t    = new Date(today.toISOString().split('T')[0] + 'T00:00:00Z')
-    if (d >= t) return year
+    const year = ty + offset
+    if (Date.UTC(year, month - 1, day) >= tMs) return year
   }
   return null
 }
@@ -161,7 +163,7 @@ function isDateLine(line) {
 // together with no whitespace at all.
 const MONTH_NAME_RE = /(JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)/i
 
-export function parseShows(html) {
+export function parseShows(html, now = new Date()) {
   const shows = []
 
   // Remove scripts and styles
@@ -170,8 +172,10 @@ export function parseShows(html) {
     .replace(/<style[\s\S]*?<\/style>/gi, '')
 
   const seen    = new Set()
-  const now     = new Date()
-  const todayMs = new Date(now.toISOString().split('T')[0] + 'T00:00:00Z').getTime()
+  // Eastern-anchored midnight, as a NUMBER — the compare below has
+  // `new Date(dateStr).getTime()` on the left, so both sides must be numeric.
+  const [ty, tm, td] = easternTodayIso(now).split('-').map(Number)
+  const todayMs = Date.UTC(ty, tm - 1, td)
 
   const linkPattern = /<a[^>]+href="(\/events\/([a-z0-9-]+))"[^>]*>([\s\S]*?)<\/a>/gi
 
@@ -194,7 +198,7 @@ export function parseShows(html) {
     if (!title || title.length <= 3) continue
     if (!isDateLine(dateLine) || isSeasonHeader(dateLine) || isSeasonHeader(title)) continue
 
-    const dateStr = parseDateString(dateLine)
+    const dateStr = parseDateString(dateLine, now)
     if (!dateStr) continue
 
     // Skip past shows

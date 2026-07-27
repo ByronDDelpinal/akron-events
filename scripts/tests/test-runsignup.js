@@ -13,7 +13,49 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ||
 
 const { isRunSignupUrl, extractRaceId, parseRunSignupRace, runSignupDateTimeToIso, runSignupStartIso, runSignupPriceRange } =
   await import('../lib/runsignup.js')
-const { isIngestableRace, fallbackStartIso, buildTags } = await import('../scrape-runsignup.js')
+const { isIngestableRace, fallbackStartIso, buildTags, searchWindow } = await import('../scrape-runsignup.js')
+const { LATE_EDT, LATE_EST } = await import('./fixtures/late-night-clocks.js')
+
+/** Whole days between two 'YYYY-MM-DD' strings (pure date arithmetic). */
+const daysBetween = (a, b) => {
+  const [ay, am, ad] = a.split('-').map(Number)
+  const [by, bm, bd] = b.split('-').map(Number)
+  return (Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000
+}
+
+// HIGHEST-severity case in this family: startDate is the API's server-side
+// FLOOR. At 11pm ET a UTC-derived floor asks RunSignup for races starting
+// TOMORROW onward, so today's races never come back at all and no local filter
+// can recover them.
+describe('scraper: searchWindow (API search floor)', () => {
+  it('floors the search at Eastern today, not UTC tomorrow (EDT)', () => {
+    assert.equal(searchWindow(LATE_EDT).startDate, '2026-07-15')   // NOT '2026-07-16'
+  })
+
+  it('floors the search at Eastern today, not UTC tomorrow (EST)', () => {
+    assert.equal(searchWindow(LATE_EST).startDate, '2026-01-15')   // NOT '2026-01-16'
+  })
+
+  it('keeps the 300-day horizon (guards against a silent regression)', () => {
+    // endDate is MAX_DAYS_AHEAD from the current INSTANT and stays UTC-formatted
+    // (documented in the scraper): being a day generous on the far end is
+    // harmless, unlike the floor. Assert the concrete values so neither the
+    // horizon length nor its formatting can drift unnoticed.
+    const edt = searchWindow(LATE_EDT)
+    assert.equal(edt.endDate, '2027-05-12')
+    assert.equal(daysBetween(edt.startDate, edt.endDate), 301)
+
+    const est = searchWindow(LATE_EST)
+    assert.equal(est.endDate, '2026-11-12')
+    assert.equal(daysBetween(est.startDate, est.endDate), 301)
+  })
+
+  it('is a plain YYYY-MM-DD window', () => {
+    const { startDate, endDate } = searchWindow(LATE_EDT)
+    assert.match(startDate, /^\d{4}-\d{2}-\d{2}$/)
+    assert.match(endDate,   /^\d{4}-\d{2}-\d{2}$/)
+  })
+})
 
 // A detail-shaped race object with multiple events (distances) + tiered fees.
 const DETAIL = {

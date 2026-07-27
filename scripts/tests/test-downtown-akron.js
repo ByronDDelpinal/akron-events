@@ -6,13 +6,69 @@ process.env.VITE_SUPABASE_URL = 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 
 import { F1, F2, CALENDAR_HTML } from './fixtures/downtown-akron-events.js'
+import { LATE_EDT, LATE_EST, LATE_EDT_TODAY, LATE_EST_TODAY } from './fixtures/late-night-clocks.js'
 import {
   parseCalendarHtml,
   parseTime,
+  reconstructDate,
+  filterFutureEvents,
   directlyScrapedVenue,
   directlyScrapedTitle,
   parseDetailPage,
 } from '../scrape-downtown-akron.js'
+import { easternTodayIso } from '../lib/normalize.js'
+
+// The bug: at 11pm ET the UTC calendar date is already tomorrow, so both the
+// year-rollover heuristic and the past-event filter treated today as past.
+describe('Downtown Akron: late-evening ET runs keep today\'s events', () => {
+  it('reconstructDate does not roll today into next year (EDT)', () => {
+    assert.equal(reconstructDate('15', 'Jul', LATE_EDT), '2026-07-15')  // not 2027-07-15
+  })
+
+  it('reconstructDate does not roll today into next year (EST)', () => {
+    assert.equal(reconstructDate('15', 'Jan', LATE_EST), '2026-01-15')  // not 2027-01-15
+  })
+
+  it('reconstructDate still rolls a genuinely past month/day forward', () => {
+    assert.equal(reconstructDate('14', 'Jul', LATE_EDT), '2027-07-14')
+  })
+
+  it('filterFutureEvents keeps today and drops yesterday', () => {
+    const rows = [
+      { slug: 'yesterday', dateStr: '2026-07-14' },
+      { slug: 'today',     dateStr: '2026-07-15' },
+      { slug: 'tomorrow',  dateStr: '2026-07-16' },
+    ]
+    const today = easternTodayIso(LATE_EDT)
+    assert.equal(today, LATE_EDT_TODAY)
+    assert.deepEqual(filterFutureEvents(rows, today).map((r) => r.slug), ['today', 'tomorrow'])
+  })
+
+  it('filterFutureEvents keeps today in winter too', () => {
+    const rows = [{ slug: 'today', dateStr: '2026-01-15' }, { slug: 'yesterday', dateStr: '2026-01-14' }]
+    assert.equal(easternTodayIso(LATE_EST), LATE_EST_TODAY)
+    assert.deepEqual(filterFutureEvents(rows, easternTodayIso(LATE_EST)).map((r) => r.slug), ['today'])
+  })
+
+  it('end-to-end: a card dated today survives the calendar parse', () => {
+    // The shipped fixture plus one card for "today" in Eastern terms.
+    const todayCard = `
+      <a href="/event/opens-tonight" class="event-card">
+        <div class="title">Opens Tonight</div>
+        <div class="time">7pm</div>
+        <div class="venue">Musica</div>
+        <div class="dow">Wednesday</div><div class="day">15</div><div class="mon">Jul</div>
+      </a>`
+    const events = parseCalendarHtml(CALENDAR_HTML + todayCard, LATE_EDT)
+    const tonight = events.find((e) => e.slug === 'opens-tonight')
+    assert.ok(tonight, 'today\'s card must parse')
+    assert.equal(tonight.dateStr, '2026-07-15')   // not 2027-07-15
+    assert.equal(tonight.timeStr, '19:00:00')
+
+    const future = filterFutureEvents(events, easternTodayIso(LATE_EDT))
+    assert.ok(future.some((e) => e.slug === 'opens-tonight'), 'and must survive the past-filter')
+  })
+})
 
 describe('Downtown Akron: detail-page parser (description + image)', () => {
   const DETAIL = `
@@ -66,7 +122,7 @@ describe('Downtown Akron: time parsing', () => {
 })
 
 describe('Downtown Akron: venue parsing', () => {
-  const events = parseCalendarHtml(CALENDAR_HTML)
+  const events = parseCalendarHtml(CALENDAR_HTML, LATE_EDT)
 
   it('parses all three event cards', () => {
     assert.equal(events.length, 3)
@@ -115,7 +171,7 @@ describe('Downtown Akron: directly-scraped venue suppression', () => {
   })
 
   it('removes the Full Grip event when filtering a parsed batch', () => {
-    const events  = parseCalendarHtml(CALENDAR_HTML)
+    const events  = parseCalendarHtml(CALENDAR_HTML, LATE_EDT)
     const visible = events.filter(e => !directlyScrapedVenue(e.venueName))
     assert.equal(visible.length, 2)
     assert.deepEqual(visible.map(e => e.slug).sort(), ['all-day-art-walk', 'sketchbook-social'])

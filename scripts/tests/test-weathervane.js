@@ -6,32 +6,73 @@ process.env.VITE_SUPABASE_URL = 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 
 import { F1, F2 } from './fixtures/weathervane-events.js'
+import { LATE_EDT, LATE_EST } from './fixtures/late-night-clocks.js'
 import { parseShows, extractWvDescription, extractWvTicketUrl } from '../scrape-weathervane.js'
 
-function parseDateString(raw) {
-  const rangePat = /^(\w+)\s+(\d{1,2})\s*-\s*(?:(\w+)\s+)?(\d{1,2}),\s+(\d{4})$/
-  const m = raw.match(rangePat)
-  if (!m) return null
-  const startStr = new Date(`${m[1]} ${m[2]}, ${m[5]}`).toISOString().split('T')[0]
-  const endMonth = m[3] || m[1]
-  const endStr = new Date(`${endMonth} ${m[4]}, ${m[5]}`).toISOString().split('T')[0]
-  return { start: startStr, end: endStr }
-}
+// Real listing markup: an <a href="/events/{slug}"> wrapping a poster <img> and
+// the title + month-name date text (the contract parseShows documents). Built
+// as a helper so every date assertion below goes through the REAL htmlToText
+// path rather than a forked reimplementation.
+const card = (slug, title, dateText) =>
+  `<a href="/events/${slug}"><img src="https://www.weathervaneplayhouse.com/${slug}.png" alt="${title}">
+     <div>${title}</div>
+     <div>${dateText}</div>
+   </a>`
 
-describe('Weathervane: Date Range Parsing', () => {
-  it('parses month-to-month range', () => {
-    const p = parseDateString(F1.raw)
-    assert.ok(p)
-    assert.equal(p.start, F1.expStart)
-    assert.equal(p.end, F1.expEnd)
+/** Same card with no whitespace or block boundaries between the fields. */
+const cardOneLine = (slug, title, dateText) =>
+  `<a href="/events/${slug}"><img src="https://www.weathervaneplayhouse.com/${slug}.png"><span>${title}</span><span>${dateText}</span></a>`
+
+describe('Weathervane: date-range parsing via the real parser', () => {
+  it('parses a month-to-month range from a listing card', () => {
+    // F1: "March 15 - April 10, 2026" — future at the winter clock.
+    const shows = parseShows(card('urinetown', 'Urinetown', F1.raw), LATE_EST)
+    assert.equal(shows.length, 1)
+    assert.equal(shows[0].dateStr, F1.expStart)
   })
 
-  it('parses day range in same month', () => {
-    const p = parseDateString(F2.raw)
-    assert.ok(p)
-    assert.equal(p.start, F2.expStart)
-    assert.equal(p.end, F2.expEnd)
+  it('parses a same-month day range from a listing card', () => {
+    // F2: "May 5 - 28, 2026"
+    const shows = parseShows(card('the-play', 'The Play That Goes Wrong', F2.raw), LATE_EST)
+    assert.equal(shows.length, 1)
+    assert.equal(shows[0].dateStr, F2.expStart)
   })
+})
+
+// The bug: at 11pm ET the UTC date is already tomorrow, so a UTC-derived
+// `todayMs` cut today's show out of the listing entirely.
+describe('Weathervane: late-evening ET runs keep today\'s shows', () => {
+  for (const [label, now, todayText, todayYmd, pastText, pastYmd] of [
+    ['EDT (11:30pm Jul 15)', LATE_EDT, 'JULY 15, 2026',    '2026-07-15', 'JULY 14, 2026',    '2026-07-14'],
+    ['EST (11:30pm Jan 15)', LATE_EST, 'JANUARY 15, 2026', '2026-01-15', 'JANUARY 14, 2026', '2026-01-14'],
+  ]) {
+    it(`keeps a show dated TODAY and drops yesterday's — ${label}`, () => {
+      const html = card('opens-today', 'Opens Today', todayText) +
+                   card('closed-yesterday', 'Closed Yesterday', pastText)
+      const shows = parseShows(html, now)
+      const today = shows.find((s) => s.slug === 'opens-today')
+      assert.ok(today, `today's show must survive the past-filter (${label})`)
+      assert.equal(today.dateStr, todayYmd)
+      assert.equal(shows.find((s) => s.slug === 'closed-yesterday'), undefined,
+        `yesterday's show must still be dropped (${label}) — got ${pastYmd}`)
+    })
+
+    it(`infers the year for a year-less date without rolling to next year — ${label}`, () => {
+      // "JULY 15" with no year: inferYear must resolve to the CURRENT Eastern
+      // year. A UTC "today" of the 16th pushed this a full year forward.
+      const bare = todayText.replace(/,\s*\d{4}$/, '')
+      const shows = parseShows(card('year-less', 'Year Less Show', bare), now)
+      assert.equal(shows.length, 1)
+      assert.equal(shows[0].dateStr, todayYmd)
+    })
+
+    it(`applies the same cutoff to single-line markup — ${label}`, () => {
+      const shows = parseShows(cardOneLine('glued-today', 'Glued Today', todayText), now)
+      assert.equal(shows.length, 1)
+      assert.equal(shows[0].title, 'Glued Today')
+      assert.equal(shows[0].dateStr, todayYmd)
+    })
+  }
 })
 
 // 2026-07-02 rework: crawl each show's own detail page for description +
@@ -44,12 +85,12 @@ describe('Weathervane: listing-page parsing (rework 2026-07-02)', () => {
   `
 
   it('skips season-header cards (two-year range, no explicit show)', () => {
-    const shows = parseShows(listingHtml)
+    const shows = parseShows(listingHtml, LATE_EDT)
     assert.ok(!shows.some(s => s.slug === '92nd-season'))
   })
 
   it('captures title, date, detail-page href, and poster image for a real show card', () => {
-    const shows = parseShows(listingHtml)
+    const shows = parseShows(listingHtml, LATE_EDT)
     const dt = shows.find(s => s.slug === 'deathtrap')
     assert.ok(dt, 'Deathtrap card parsed')
     assert.equal(dt.title, 'Deathtrap')
@@ -62,7 +103,7 @@ describe('Weathervane: listing-page parsing (rework 2026-07-02)', () => {
     // htmlToText doesn't break on <span>/<div> boundaries, only <p>/<br>/<li>/headings —
     // real markup could glue "DeathtrapOctober 8 - November 1, 2026" together.
     const glued = `<a href="/events/deathtrap"><img src="https://x.com/d.png"><span>Deathtrap</span><span>October 8 - November 1, 2026</span></a>`
-    const shows = parseShows(glued)
+    const shows = parseShows(glued, LATE_EDT)
     assert.equal(shows.length, 1)
     assert.equal(shows[0].title, 'Deathtrap')
     assert.equal(shows[0].dateStr, '2026-10-08')
@@ -70,7 +111,7 @@ describe('Weathervane: listing-page parsing (rework 2026-07-02)', () => {
 
   it('skips cards with no poster image (nav links, not show cards)', () => {
     const noPoster = `<a href="/events/deathtrap">Deathtrap October 8 - November 1, 2026</a>`
-    assert.equal(parseShows(noPoster).length, 0)
+    assert.equal(parseShows(noPoster, LATE_EDT).length, 0)
   })
 })
 
