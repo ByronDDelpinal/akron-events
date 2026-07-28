@@ -176,6 +176,15 @@ export function filterEventsForSubscriber(allEvents: Event[], sub: Subscriber, n
   })
 
   // Keyword matches — BYPASS all other filters except the date window.
+  //
+  // The description is matched with the default-time disclosure subtracted
+  // (see withoutTimeNote below). Because this path overrides the subscriber's
+  // own category, venue, org, price and location filters, a keyword that only
+  // hit scraper boilerplate would be the strongest possible false positive:
+  // common note words ("time", "organizer", "confirm", "placeholder",
+  // "listing", "shown") would drag every noted event in the region into that
+  // subscriber's digest past the filters they set. The note describes our
+  // uncertainty about the data, not the event, so it is never keyword-matchable.
   const keywordMatched: Event[] = []
   if (prefs.keywords.length > 0) {
     for (const event of allEvents) {
@@ -187,7 +196,7 @@ export function filterEventsForSubscriber(allEvents: Event[], sub: Subscriber, n
         const kw = keyword.toLowerCase()
         const re = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
         if (re.test(event.title)) { keywordMatched.push(event); break }
-        if (!prefs.keywords_title_only && event.description && re.test(event.description)) { keywordMatched.push(event); break }
+        if (!prefs.keywords_title_only && event.description && re.test(withoutTimeNote(event.description))) { keywordMatched.push(event); break }
       }
     }
   }
@@ -247,10 +256,46 @@ export function hasImage(e: Event): boolean {
   return urls.some((u) => !!u && /^https?:\/\//i.test(u))
 }
 
-function baseScore(e: Event): number {
+// ── Default-time disclosure notes ────────────────────────────────────
+// Three scrapers append a fixed sentence to the description when they had
+// to invent a start time. They are the source of truth for the wording:
+//   scripts/scrape-city-of-cuyahoga-falls.js  TIME_NOTE
+//   scripts/scrape-ohio-erie-canalway.js      TIME_NOTE
+//   scripts/scrape-ohio-festivals.js          TIME_NOTE
+// This module is Deno and cannot import from scripts/, so the literals are
+// duplicated here, the same duplicate-with-a-pointer pattern the slug logic
+// below uses. Edit both sides; test-digest-selection.js fails on drift.
+//
+// They are subtracted everywhere the description is read as a signal about
+// the EVENT, because the note is a statement about our data, not about the
+// event. Two call sites, both above/below:
+//   1. baseScore's `described` weight, so a noted event is scored on its real
+//      prose alone. Otherwise an event whose description was previously short
+//      or null clears the 40-char gate on boilerplate and outranks a genuinely
+//      described event in a digest whose cap is already saturated.
+//   2. filterEventsForSubscriber's keyword path, which bypasses every other
+//      subscriber filter. Otherwise a keyword hitting boilerplate overrides
+//      the categories and location that subscriber actually chose.
+// Any future read of description-as-signal belongs on this list.
+export const TIME_NOTES: readonly string[] = [
+  'We could not confirm a start time for this listing, so the time shown is a placeholder. Confirm with the organizer before you go.',
+  'This listing does not include a start time, so the time shown is a placeholder. Confirm with the organizer before you go.',
+  'The guide does not list a start time, so the time shown is a placeholder. Confirm with the organizer before you go.',
+]
+
+/** The description with any default-time disclosure removed. */
+export function withoutTimeNote(description: string): string {
+  let out = description
+  for (const note of TIME_NOTES) {
+    if (out.includes(note)) out = out.split(note).join(' ')
+  }
+  return out
+}
+
+export function baseScore(e: Event): number {
   let s = 0
   if (isFree(e)) s += SCORE.free
-  if (e.description && e.description.trim().length > 40) s += SCORE.described
+  if (e.description && withoutTimeNote(e.description).trim().length > 40) s += SCORE.described
   if (e.ticket_url) s += SCORE.ticketed
   return s
 }

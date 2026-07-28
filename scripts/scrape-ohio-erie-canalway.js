@@ -41,7 +41,7 @@
 import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
 import {
-  logUpsertResult, logScraperError, htmlToText, stripHtml, decodeEntities,
+  logUpsertResult, logScraperError, htmlToText, stripHtml, decodeEntities, clampChars,
   easternToIso, inferCategory, enrichWithImageDimensions, upsertEventSafe,
   ensureVenue, ensureOrganization, linkEventVenue, linkEventOrganization,
   splitCommaLocation,
@@ -52,9 +52,39 @@ export const SOURCE_KEY = 'ohio_erie_canalway'
 const SITE = 'https://www.ohioeriecanal.org'
 const EVENTS_URL = `${SITE}/events`
 const USER_AGENT = 'Mozilla/5.0 (compatible; AkronPulse-bot/1.0; +https://akronpulse.com)'
+// SANCTIONED-DEFAULT-TIME
+// Some detail pages publish no "Time:" line at all, so we invent a morning
+// start. That is deliberate, not an oversight: an event stored at midnight
+// falls out of every feed on its own day under the no-grace-window rule, so a
+// daytime default is what keeps it visible to the people it is for. The default
+// must never be silent, so the description discloses it (see TIME_NOTE below).
+// Do not "fix" this to midnight or to null without reading the full record in
+// docs/default-event-times-decision-2026-07-28.md (maintainer-local; docs/ is
+// gitignored, so that file is a secondary reference, not the primary one).
 const DEFAULT_TIME = '9:00 AM'          // detail-less events: sensible morning default
 const DEFAULT_VENUE = 'Ohio & Erie Canal Towpath Trail'
 const MAX_DAYS_AHEAD = 450
+
+// The disclosure for the default above. Accurate as worded because it fires
+// only on a genuinely absent "Time:" line, never on a time we failed to parse.
+//
+// Duplicated as a literal in supabase/functions/send-digest/select.ts, which
+// subtracts it before scoring description length and cannot import from
+// scripts/. Edit both; scripts/tests/test-digest-selection.js fails on drift.
+export const TIME_NOTE =
+  'This listing does not include a start time, so the time shown is a placeholder. Confirm with the organizer before you go.'
+
+// Cap on the stored description, applied in parseDetail and again in
+// buildDescription so appending the note cannot push past it. This source's
+// descriptions are a single meta paragraph, hence a much smaller cap than
+// scrape-city-of-cuyahoga-falls.js uses, but the shape is deliberately the
+// same: cap the base, reserve the note, never let the sum exceed the cap.
+//
+// `description` is a Postgres `text` column with no length limit, so the number
+// is a project convention rather than a constraint. It is enforced rather than
+// dropped because a cap that silently does not hold is worse than no cap: it
+// reads as a guarantee at every call site while providing none.
+export const MAX_DESCRIPTION = 2000
 
 // Localities we recognize when scanning free prose for an event's city. The
 // Summit County allowlist is the source of truth for the gate; a few nearby
@@ -181,10 +211,10 @@ export function parseDetail(html) {
   let description = null
   const metaM = s.match(/<meta[^>]+name="description"[^>]+content="([^"]*)"/i)
   if (metaM && metaM[1].trim()) {
-    description = decodeEntities(metaM[1]).replace(/\s+/g, ' ').trim().slice(0, 2000)
+    description = clampChars(decodeEntities(metaM[1]).replace(/\s+/g, ' ').trim(), MAX_DESCRIPTION)
   } else {
     const para = bodyText.split('\n').map((p) => p.trim()).find((p) => p.length > 60)
-    if (para) description = para.slice(0, 2000)
+    if (para) description = clampChars(para, MAX_DESCRIPTION)
   }
 
   // Image: og:image is the reliable social card.
@@ -193,6 +223,38 @@ export function parseDetail(html) {
   if (ogM && ogM[1].trim()) imageUrl = decodeEntities(ogM[1]).trim()
 
   return { time, location, city, description, imageUrl }
+}
+
+/**
+ * The description we store for one event. Appends TIME_NOTE only on the
+ * fallback path, keyed on the same `!detail.time` expression that selects
+ * DEFAULT_TIME, so the disclosure stops firing the moment the source starts
+ * publishing a time. Exported so tests exercise the real text.
+ *
+ * detail.description is already whitespace-flattened by parseDetail, so no
+ * strip helper is needed; the note itself is authored in code. The includes()
+ * guard keeps a source page that quotes the sentence from doubling it.
+ *
+ * A null or empty description stays null: the note is a suffix to real prose,
+ * never a description in its own right. A note-only description would read as a
+ * complete listing to anything measuring description length (the digest's
+ * `described` weight, for one) and would promote a bare listing above events
+ * with real prose.
+ *
+ * The note is reserved for, never truncated: room is MAX_DESCRIPTION minus the
+ * note and its separating space, so the disclosure always lands whole. A half
+ * sentence would be worse than none, and withoutTimeNote() in the digest
+ * matches the note verbatim, so a clipped copy would survive subtraction and
+ * score as prose. Without the reservation a base capped at MAX_DESCRIPTION
+ * plus the note stored 2122 characters against a 2000 cap.
+ */
+export function buildDescription(detail) {
+  const base = detail?.description || null
+  if (!base || !base.trim()) return base
+  if (detail?.time) return base
+  if (base.includes(TIME_NOTE)) return base
+  const room = MAX_DESCRIPTION - TIME_NOTE.length - 1
+  return `${clampChars(base, room)} ${TIME_NOTE}`
 }
 
 const slugify = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -266,7 +328,7 @@ async function main() {
         const category = inferCategory(row.title, detail.description || '') || 'other'
         const row_ = {
           title:           row.title,
-          description:     detail.description || null,
+          description:     buildDescription(detail),
           start_at:        startIso,
           end_at:          null,
           category:        category === 'other' ? 'community' : category,

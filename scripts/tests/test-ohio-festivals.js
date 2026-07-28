@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-const { parseFestivalLine, parseFestivals, buildYmd, SOURCE_KEY } =
+const { parseFestivalLine, parseFestivals, buildYmd, buildEventRow, TIME_NOTE, SOURCE_KEY } =
   await import('../scrape-ohio-festivals.js')
 const { isSummitCountyLocation } = await import('../lib/summit-county.js')
 
@@ -141,6 +141,55 @@ describe('range preservation through normalization (2026-07 fix)', () => {
     const fests = parseFestivals('7/23 – Taste of Akron – Akron 8/1 – Nepali Fest – Cuyahoga Falls', NOW)
     assert.equal(fests.length, 2)
     assert.equal(fests[1].startYmd, '2026-08-01')
+  })
+})
+
+describe('default-time disclosure (2026-07-28 decision)', () => {
+  // buildEventRow is the real row builder main() calls, so these assertions
+  // cover the shipped description and the shipped start time, not a copy.
+  const FEST = { name: 'The Fairlawn Fest', city: 'Fairlawn', startYmd: '2026-07-11', endYmd: null, unconfirmed: false }
+
+  it('ends every description with the placeholder-time note', () => {
+    const row = buildEventRow(FEST)
+    assert.ok(row.description.endsWith(TIME_NOTE), 'note must be the final clause')
+    assert.match(row.description, /Listed in the Ohio Festivals guide\. The guide does not list a start time/)
+  })
+
+  it('still discloses on a tentative-date entry, after the tentative clause', () => {
+    const row = buildEventRow({ ...FEST, unconfirmed: true })
+    assert.match(row.description, /Dates are tentative/)
+    assert.ok(row.description.endsWith(TIME_NOTE))
+  })
+
+  it('does not double the note when the same row is built twice', () => {
+    // The description is rebuilt from parsed fields every run and never read
+    // back from the DB, so re-running must be identical, not cumulative.
+    const first  = buildEventRow(FEST)
+    const second = buildEventRow(FEST)
+    assert.equal(first.description, second.description)
+    assert.equal(second.description.split(TIME_NOTE).length - 1, 1, 'note must appear exactly once')
+  })
+
+  it('REGRESSION: start_at is unchanged, still the noon Eastern default', () => {
+    // The fix is cosmetic by mandate: start_at is the retention key, so it must
+    // remain 12:00 PM Eastern (16:00Z in July / EDT).
+    const row = buildEventRow(FEST)
+    assert.equal(row.start_at, '2026-07-11T16:00:00.000Z')
+    assert.equal(row.end_at, null)
+  })
+
+  it('REGRESSION: the fabricated 8:00 PM end time is unchanged for ranges', () => {
+    const row = buildEventRow({ ...FEST, endYmd: '2026-07-12' })
+    assert.equal(row.start_at, '2026-07-11T16:00:00.000Z')
+    assert.equal(row.end_at, '2026-07-13T00:00:00.000Z')   // 8:00 PM EDT on 7/12
+  })
+
+  it('returns null (skip) for an unparseable date, as before', () => {
+    assert.equal(buildEventRow({ ...FEST, startYmd: 'not-a-date' }), null)
+  })
+
+  it('never marks a row featured', () => {
+    assert.equal(buildEventRow(FEST).featured, false)
   })
 })
 

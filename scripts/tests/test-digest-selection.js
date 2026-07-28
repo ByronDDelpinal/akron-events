@@ -29,9 +29,13 @@ const {
   filterEventsForSubscriber,
   MAX_EVENTS_PER_EMAIL,
   MAX_PER_ORG,
+  SCORE,
+  baseScore,
   orgKey,
   eventPath,
   hasImage,
+  TIME_NOTES,
+  withoutTimeNote,
 } = await import(SELECT)
 
 const NOW = new Date('2026-06-15T08:00:00Z')
@@ -268,5 +272,141 @@ describe('digest event URLs', () => {
     for (const e of samples) {
       assert.equal(eventPath(e), appEventPath(e), `slug drift for "${e.title}"`)
     }
+  })
+})
+
+describe('default-time note does not inflate ranking (2026-07-28)', async () => {
+  // The scrapers are import-safe but their shared helpers read these.
+  process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
+  process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
+
+  // The real scraper constants, not copies, so this fails the moment the two
+  // sides of the duplicated literal drift apart.
+  const scraperNotes = [
+    (await import('../scrape-city-of-cuyahoga-falls.js')).TIME_NOTE,
+    (await import('../scrape-ohio-erie-canalway.js')).TIME_NOTE,
+    (await import('../scrape-ohio-festivals.js')).TIME_NOTE,
+  ]
+
+  it('DRIFT GUARD: every scraper note is present verbatim in TIME_NOTES', () => {
+    for (const note of scraperNotes) {
+      assert.ok(
+        TIME_NOTES.includes(note),
+        `select.ts TIME_NOTES is missing a scraper's TIME_NOTE:\n  ${note}`,
+      )
+    }
+    assert.equal(TIME_NOTES.length, scraperNotes.length, 'TIME_NOTES has a stale entry')
+  })
+
+  it('every note is long enough to clear the described gate on its own', () => {
+    // If this stops being true the subtraction is pointless, but it also means
+    // the bug it guards against was real: the note alone would have scored.
+    for (const note of scraperNotes) assert.ok(note.trim().length > 40)
+  })
+
+  it('a note-only description does not earn the `described` weight', () => {
+    for (const note of scraperNotes) {
+      const noted = ev(1, 1, { description: note })
+      const bare  = ev(1, 1, { description: null })
+      assert.equal(baseScore(noted), baseScore(bare), `note scored on its own: ${note}`)
+      assert.equal(withoutTimeNote(note).trim(), '')
+    }
+  })
+
+  it('a short description plus a note does not cross the 40-char gate', () => {
+    const short = 'Cruise in.' // 10 chars, well under the gate
+    for (const note of scraperNotes) {
+      const noted   = ev(1, 1, { description: `${short} ${note}` })
+      const plain   = ev(1, 1, { description: short })
+      const nulled  = ev(1, 1, { description: null })
+      assert.equal(baseScore(noted), baseScore(plain), `note lifted a short description: ${note}`)
+      assert.equal(baseScore(noted), baseScore(nulled), 'short + note must not score as described')
+    }
+  })
+
+  it('real prose still earns the weight, with or without a note', () => {
+    const prose = 'A full afternoon of live music, food trucks and fireworks on the riverfront.'
+    for (const note of scraperNotes) {
+      const noted = ev(1, 1, { description: `${prose} ${note}` })
+      const plain = ev(1, 1, { description: prose })
+      const bare  = ev(1, 1, { description: null })
+      assert.equal(baseScore(noted), baseScore(plain))
+      assert.equal(baseScore(noted) - baseScore(bare), SCORE.described)
+    }
+  })
+
+  it('withoutTimeNote leaves an un-noted description byte-identical', () => {
+    const prose = 'A full afternoon of live music, food trucks and fireworks on the riverfront.'
+    assert.equal(withoutTimeNote(prose), prose)
+    assert.equal(withoutTimeNote(''), '')
+  })
+
+  // ── The keyword path (round 2) ──────────────────────────────────────
+  // filterEventsForSubscriber's keyword branch BYPASSES category, venue, org,
+  // price and location. A keyword hitting the note there is worse than the
+  // scoring bug above: it does not merely re-rank, it overrides the filters
+  // the subscriber set for themselves.
+  //
+  // The subscriber below wants theatre only; every fixture event is music, so
+  // nothing can reach the digest except through the keyword branch.
+  const PROSE = 'A full afternoon of live music, food trucks and fireworks on the riverfront.'
+  const keywordSub = (keywords, extra = {}) => {
+    const s = sub()
+    s.preferences.intents = ['theatre']
+    s.preferences.categories = ['theatre']
+    s.preferences.keywords = keywords
+    Object.assign(s.preferences, extra)
+    return s
+  }
+
+  // Ordinary words that appear ONLY in the boilerplate. Each is a plausible
+  // real subscriber keyword: "organizer" and "listing" especially.
+  const NOTE_WORDS = ['placeholder', 'organizer', 'confirm', 'shown']
+
+  it('a keyword matching only note text does NOT pull the event in', () => {
+    for (const note of scraperNotes) {
+      const noted = ev(1, 1, { description: `${PROSE} ${note}`, categories: ['music'] })
+      for (const word of NOTE_WORDS) {
+        assert.ok(
+          new RegExp(`\\b${word}\\b`, 'i').test(note),
+          `fixture is stale: "${word}" is no longer in the note`,
+        )
+        assert.ok(
+          !new RegExp(`\\b${word}\\b`, 'i').test(PROSE),
+          `fixture is stale: "${word}" leaked into the prose`,
+        )
+        const matched = filterEventsForSubscriber([noted], keywordSub([word]), NOW)
+        assert.deepEqual(
+          matched.map(e => e.id), [],
+          `keyword "${word}" matched boilerplate and bypassed the category filter`,
+        )
+      }
+    }
+  })
+
+  it('a keyword matching real description prose still pulls the event in', () => {
+    for (const note of scraperNotes) {
+      const noted = ev(1, 1, { description: `${PROSE} ${note}`, categories: ['music'] })
+      const plain = ev(2, 1, { description: PROSE, categories: ['music'] })
+      for (const event of [noted, plain]) {
+        const matched = filterEventsForSubscriber([event], keywordSub(['fireworks']), NOW)
+        assert.deepEqual(
+          matched.map(e => e.id), [event.id],
+          'a real prose keyword must still bypass the other filters',
+        )
+      }
+    }
+  })
+
+  it('a title keyword is unaffected: the note never reaches the title', () => {
+    const noted = ev(3, 1, { title: 'Riverfront Placeholder Party', description: scraperNotes[0], categories: ['music'] })
+    const matched = filterEventsForSubscriber([noted], keywordSub(['placeholder']), NOW)
+    assert.deepEqual(matched.map(e => e.id), ['3'], 'title matching must be untouched')
+  })
+
+  it('keywords_title_only still ignores the description entirely', () => {
+    const noted = ev(4, 1, { description: `${PROSE} ${scraperNotes[0]}`, categories: ['music'] })
+    const s = keywordSub(['fireworks'], { keywords_title_only: true })
+    assert.deepEqual(filterEventsForSubscriber([noted], s, NOW).map(e => e.id), [])
   })
 })

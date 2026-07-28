@@ -35,6 +35,7 @@
 
 import 'dotenv/config'
 import {
+  clampChars,
   easternToIso,
   enrichWithImageDimensions,
   ensureOrganization,
@@ -98,8 +99,22 @@ function timeStr(hr, min, isPm) {
   return `${String(h).padStart(2, '0')}:${min}:00`
 }
 
-export function parseTimeFromText(text) {
-  if (!text) return '12:00:00'
+// SANCTIONED-DEFAULT-TIME
+// This source publishes no clock time for many events, so when the prose
+// carries none we invent noon. That is deliberate, not an oversight: an event
+// stored at midnight falls out of every feed on its own day under the
+// no-grace-window rule, so a mid-day default is what keeps it visible to the
+// people it is for. The default must never be silent, so the caller discloses
+// it in the description (see TIME_NOTE below). Do not "fix" this to midnight
+// or to null without reading the full record in
+// docs/default-event-times-decision-2026-07-28.md (maintainer-local; docs/ is
+// gitignored, so that file is a secondary reference, not the primary one).
+//
+// `inferred` is what tells the caller which path produced the time: comparing
+// the returned string to '12:00:00' would false-positive on a genuine noon
+// event.
+export function parseTimeFromTextDetailed(text) {
+  if (!text) return { time: '12:00:00', inferred: true }   // SANCTIONED-DEFAULT-TIME, see above
 
   // Range: "<start>[meridiem] (-|–|—|to) <end> meridiem"
   const range = text.match(
@@ -119,14 +134,79 @@ export function parseTimeFromText(text) {
       // past the end across the noon line (e.g. "11 - 1 p.m." → 11 a.m.).
       startPm = endPm && to24(startHr, true) <= to24(endHr, true)
     }
-    return timeStr(startHr, startMin, startPm)
+    return { time: timeStr(startHr, startMin, startPm), inferred: false }
   }
 
   // Single time: "beginning at 7 p.m.", "10:30 a.m."
   const single = text.match(/(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)/i)
-  if (single) return timeStr(parseInt(single[1], 10), single[2] ?? '00', /p/i.test(single[3]))
+  if (single) {
+    return {
+      time: timeStr(parseInt(single[1], 10), single[2] ?? '00', /p/i.test(single[3])),
+      inferred: false,
+    }
+  }
 
-  return '12:00:00'
+  return { time: '12:00:00', inferred: true }   // SANCTIONED-DEFAULT-TIME, see above
+}
+
+/** Backwards-compatible wrapper: the parsed time only, same values as before. */
+export function parseTimeFromText(text) {
+  return parseTimeFromTextDetailed(text).time
+}
+
+// The description disclosure for the fallback path above. Worded for a listing
+// page because that is what the reader clicks through to. It has to cover three
+// different fallbacks (no time in the prose, a time we could not parse such as
+// "at dusk", and a detail fetch that failed outright), so it claims only that we
+// could not confirm a time, never that the source omitted one.
+//
+// Duplicated as a literal in supabase/functions/send-digest/select.ts, which
+// subtracts it before scoring description length and cannot import from
+// scripts/. Edit both; scripts/tests/test-digest-selection.js fails on drift.
+export const TIME_NOTE =
+  'We could not confirm a start time for this listing, so the time shown is a placeholder. Confirm with the organizer before you go.'
+
+// Cap on the stored description, applied in fetchDetail and again in
+// buildDescription so appending the note cannot push past it.
+//
+// `description` is a Postgres `text` column with no length limit, so this is a
+// project convention, not a database constraint. It is still enforced rather
+// than dropped: a cap that silently does not hold is worse than no cap, and an
+// unbounded description is a real hazard downstream (the digest renders it into
+// an email, and the site indexes it). scrape-ohio-erie-canalway.js applies the
+// same reserve-then-append shape at its own, smaller cap.
+export const MAX_DESCRIPTION = 5000
+
+/**
+ * The description we store for one occurrence. Appends TIME_NOTE only when the
+ * time was invented, so a real 12:00 PM event is untouched. Exported so tests
+ * exercise the real text.
+ *
+ * A null or empty base stays null: the note is a suffix to real prose, never a
+ * description in its own right. A note-only description would read as a
+ * complete listing to anything measuring description length (the digest's
+ * `described` weight, for one) and would promote an event whose detail fetch
+ * failed above events with real prose.
+ *
+ * `base` was already run through stripHtml in fetchDetail and must not be run
+ * through it again: stripHtml strips tags and then decodes entities, so a
+ * second pass turns a double-encoded source ("&amp;lt;script&amp;gt;") into
+ * literal markup in the stored description. The includes() guard keeps a page
+ * that quotes the sentence from doubling it.
+ *
+ * The note is reserved for, never truncated: room is MAX_DESCRIPTION minus the
+ * note and its separating space, so the disclosure always lands whole. A half
+ * sentence would be worse than none, and withoutTimeNote() in the digest
+ * matches the note verbatim, so a clipped copy would survive subtraction and
+ * score as prose.
+ */
+export function buildDescription(detail) {
+  const base = detail?.description || null
+  if (!base || !base.trim()) return base
+  if (!detail?.timeInferred) return base
+  if (base.includes(TIME_NOTE)) return base
+  const room = MAX_DESCRIPTION - TIME_NOTE.length - 1
+  return `${clampChars(base, room)} ${TIME_NOTE}`
 }
 
 // ── HTTP ─────────────────────────────────────────────────────────────────────
@@ -237,16 +317,22 @@ function metaContent(html, prop) {
 
 async function fetchDetail(slug, cache) {
   if (cache.has(slug)) return cache.get(slug)
-  let detail = { title: null, description: null, imageUrl: null, timeStr: '12:00:00' }
+  // A failed fetch leaves the noon default in place, so it counts as inferred.
+  // SANCTIONED-DEFAULT-TIME, see parseTimeFromTextDetailed above. Description
+  // stays null here, so buildDescription adds nothing and the event is not
+  // scored as a complete listing on the strength of the disclosure alone.
+  let detail = { title: null, description: null, imageUrl: null, timeStr: '12:00:00', timeInferred: true }
   try {
     const html = await fetchHtml(`${BASE_URL}/events/${slug}`)
     const h1 = (html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i) || [])[1]
     const desc = metaContent(html, 'og:description') || metaContent(html, 'description')
+    const parsedTime = parseTimeFromTextDetailed(desc || '')
     detail = {
-      title:       h1 ? stripHtml(h1) : (metaContent(html, 'og:title') || null),
-      description: desc ? stripHtml(desc).slice(0, 5000) : null,
-      imageUrl:    metaContent(html, 'og:image') || null,
-      timeStr:     parseTimeFromText(desc || ''),
+      title:        h1 ? stripHtml(h1) : (metaContent(html, 'og:title') || null),
+      description:  desc ? clampChars(stripHtml(desc), MAX_DESCRIPTION) : null,
+      imageUrl:     metaContent(html, 'og:image') || null,
+      timeStr:      parsedTime.time,
+      timeInferred: parsedTime.inferred,
     }
   } catch (err) {
     console.warn(`  ⚠ detail fetch failed for ${slug}: ${err.message}`)
@@ -320,7 +406,7 @@ async function main() {
 
         const row = {
           title,
-          description:     detail.description,
+          description:     buildDescription(detail),
           start_at:        startAt,
           end_at:          null,
           category:        mapCategory(title, detail.description || ''),

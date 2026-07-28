@@ -79,6 +79,42 @@ export function stripHtml(html = '') {
 }
 
 /**
+ * Clamp a string to at most `max` UTF-16 code units, cutting only on a whole
+ * CHARACTER boundary. No ellipsis: callers are enforcing a storage cap, not
+ * signalling truncation to a reader.
+ *
+ * Why not a bare `s.slice(0, max)`: most emoji (plus every astral symbol and
+ * some CJK) are a surrogate pair, two UTF-16 units for one character, so the
+ * cut can land mid-pair and leave a lone surrogate. That string is not
+ * well-formed UTF-16: it fails isWellFormed() and renders as U+FFFD. Same
+ * defect and same fix as the Slack feedback-body clamp (commit 960c219).
+ *
+ * Why not a bare `[...s].slice(0, max).join('')` either: that counts CHARACTERS
+ * against a cap the callers measure in `.length`, so a run of surrogate pairs
+ * comes back up to twice `max` units long and quietly overruns the very cap it
+ * was called to enforce. Accumulating instead gives both guarantees at once:
+ * never longer than `max` by `.length`, never split through a character.
+ *
+ * A character that does not fit whole is dropped whole, so the result can be
+ * one unit shorter than `max`. Returns the input unchanged when it already
+ * fits, so the common path allocates nothing.
+ */
+export function clampChars(str, max) {
+  if (str == null) return str
+  const s = String(str)
+  if (s.length <= max) return s
+  const kept = []
+  let used = 0
+  // for...of over a string iterates by code point, not by code unit.
+  for (const ch of s) {
+    if (used + ch.length > max) break
+    kept.push(ch)
+    used += ch.length
+  }
+  return kept.join('')
+}
+
+/**
  * Convert HTML to structured plain text, preserving paragraph breaks and lists.
  */
 export function htmlToText(html = '') {

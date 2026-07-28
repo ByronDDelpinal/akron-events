@@ -21,7 +21,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ||
 
 const {
   parseEvents, parseDetail, parseCanalwayDate,
-  cityFromLocationLine, cityFromProse, SOURCE_KEY,
+  cityFromLocationLine, cityFromProse, buildDescription, TIME_NOTE, MAX_DESCRIPTION, SOURCE_KEY,
 } = await import('../scrape-ohio-erie-canalway.js')
 const { isSummitCountyLocation } = await import('../lib/summit-county.js')
 
@@ -145,4 +145,85 @@ describe('Summit County gate', () => {
 
 describe('SOURCE_KEY', () => {
   it('is ohio_erie_canalway', () => assert.equal(SOURCE_KEY, 'ohio_erie_canalway'))
+})
+
+// Same page shape as FLOAT_DETAIL with the "Time: " line removed; the case
+// where the scraper falls back to the 9:00 AM default.
+const NO_TIME_DETAIL = `
+<meta name="description" content="Join us for a guided towpath cleanup along the Ohio &amp; Erie Canal in Akron.">
+<h1>Canal Cleanup</h1>
+<div class="clearfix text-formatted field field--name-body field--type-text-with-summary">
+  <h4>Event Details</h4>
+  <p><strong>Date: </strong>Saturday, August 1<br><strong>Location:</strong> Mustill Store, 248 Ferndale Street, Akron</p>
+</div>
+`
+
+describe('default-time disclosure (2026-07-28 decision)', () => {
+  // buildDescription is the function main() calls for the stored description,
+  // and the details below come from the real parseDetail, so this is the
+  // shipped path end to end.
+  it('appends the note when the detail page publishes no time', () => {
+    const d = parseDetail(NO_TIME_DETAIL)
+    assert.equal(d.time, null, 'fixture must exercise the fallback path')
+    const description = buildDescription(d)
+    assert.ok(description.startsWith('Join us for a guided towpath cleanup'))
+    assert.ok(description.endsWith(TIME_NOTE), 'note must be the final clause')
+  })
+
+  it('does NOT append the note when the source does publish a time', () => {
+    const d = parseDetail(FLOAT_DETAIL)
+    assert.equal(d.time, '8:00 AM')
+    assert.equal(buildDescription(d), d.description)
+    assert.ok(!buildDescription(d).includes(TIME_NOTE))
+  })
+
+  it('does not double the note when the incoming description already contains it', () => {
+    const already = { time: null, description: `Some blurb. ${TIME_NOTE}` }
+    const description = buildDescription(already)
+    assert.equal(description, already.description)
+    assert.equal(description.split(TIME_NOTE).length - 1, 1, 'note must appear exactly once')
+  })
+
+  it('leaves a null description null: the note is a suffix, never a description', () => {
+    // A note-only description would be 100+ chars of boilerplate that reads as
+    // a complete listing to anything measuring description length, including
+    // the digest's `described` weight. Null in, null out, on both branches.
+    assert.equal(buildDescription({ time: null, description: null }), null)
+    assert.equal(buildDescription({ time: null, description: '' }), null)
+  })
+
+  it('leaves a timed event with no description null, as before', () => {
+    assert.equal(buildDescription({ time: '8:00 AM', description: null }), null)
+  })
+
+  it('never exceeds the description cap, note included', () => {
+    // parseDetail caps the base at MAX_DESCRIPTION; appending a ~122-char note
+    // used to push the stored value to 2122. The cap now reserves room for it.
+    const base = 'a'.repeat(MAX_DESCRIPTION)
+    const out = buildDescription({ time: null, description: base })
+    assert.ok(out.length <= MAX_DESCRIPTION, `description was ${out.length} chars`)
+    assert.ok(out.endsWith(TIME_NOTE), 'the note must survive the cap intact')
+  })
+
+  it('truncates on a character boundary, not mid-surrogate-pair', () => {
+    const room = MAX_DESCRIPTION - TIME_NOTE.length - 1
+    const base = `${'a'.repeat(room - 1)}🚣${'b'.repeat(200)}`
+    const out = buildDescription({ time: null, description: base })
+    assert.ok(out.isWellFormed(), 'truncation produced a lone surrogate')
+    assert.ok(out.length <= MAX_DESCRIPTION, `description was ${out.length} chars`)
+    assert.ok(out.endsWith(TIME_NOTE), 'the note must survive the cap intact')
+    assert.ok(!out.includes('🚣'), 'a character that does not fit is dropped whole')
+  })
+
+  it('parseDetail caps the base it hands to buildDescription', () => {
+    // The real parse path, so the two caps are demonstrably the same number.
+    const long = 'x'.repeat(MAX_DESCRIPTION + 500)
+    const html = `<html><head><meta name="description" content="${long}"></head><body>
+      <p><strong>Date: </strong>Saturday, August 1<br><strong>Location:</strong> Mustill Store, 248 Ferndale Street, Akron</p>
+    </body></html>`
+    const d = parseDetail(html)
+    assert.equal(d.time, null, 'fixture must exercise the fallback path')
+    assert.equal(d.description.length, MAX_DESCRIPTION)
+    assert.ok(buildDescription(d).length <= MAX_DESCRIPTION)
+  })
 })

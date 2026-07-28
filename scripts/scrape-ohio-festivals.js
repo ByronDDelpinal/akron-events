@@ -57,12 +57,31 @@ import { isSummitCountyLocation } from './lib/summit-county.js'
 export const SOURCE_KEY = 'ohio_festivals'
 const GUIDE_URL = 'https://ohiofestivals.net/ohio-festivals/'
 const USER_AGENT = 'Mozilla/5.0 (compatible; AkronPulse-bot/1.0; +https://akronpulse.com)'
-const DEFAULT_TIME = '12:00 PM'   // festivals list no time — midday default
-const END_TIME     = '8:00 PM'
+// SANCTIONED-DEFAULT-TIME
+// The guide publishes date, name and city only, so both clock times below are
+// invented for every row. That is deliberate, not an oversight: an event stored
+// at midnight falls out of every feed on its own day under the no-grace-window
+// rule, so a midday start and an evening end are what keep a festival visible to
+// the people it is for. The defaults must never be silent, so every description
+// discloses them (see TIME_NOTE below). Do not "fix" these to midnight or to
+// null without reading the full record in
+// docs/default-event-times-decision-2026-07-28.md (maintainer-local; docs/ is
+// gitignored, so that file is a secondary reference, not the primary one).
+const DEFAULT_TIME = '12:00 PM'   // festivals list no time; midday default
+const END_TIME     = '8:00 PM'    // SANCTIONED-DEFAULT-TIME, same decision as above
 const MAX_DAYS_AHEAD = 400
 const TENTATIVE_MAX_DAYS_AHEAD = 180  // starred (unconfirmed) dates only publish within ~6 months
 
 const DASH = '–'  // en-dash field separator
+
+// The disclosure for the defaults above. Accurate as worded because this source
+// genuinely never publishes a time.
+//
+// Duplicated as a literal in supabase/functions/send-digest/select.ts, which
+// subtracts it before scoring description length and cannot import from
+// scripts/. Edit both; scripts/tests/test-digest-selection.js fails on drift.
+export const TIME_NOTE =
+  'The guide does not list a start time, so the time shown is a placeholder. Confirm with the organizer before you go.'
 
 // ── Pure parsers (exported for tests) ───────────────────────────────────────
 
@@ -177,6 +196,47 @@ export function directSourceFor(f) {
   return null
 }
 
+// ── Row construction ──────────────────────────────────────────────────────
+
+/**
+ * Build the event row for one parsed festival, or null when the date cannot be
+ * resolved to an instant. Pure and exported so tests exercise the real start
+ * time and the real description text instead of a copy of them.
+ *
+ * The description is rebuilt from the parsed fields on every run and is never
+ * read back from the database, so appending TIME_NOTE is idempotent by
+ * construction. It fires unconditionally because this source never publishes a
+ * time.
+ */
+export function buildEventRow(f) {
+  const startIso = easternToIso(f.startYmd, DEFAULT_TIME)
+  if (!startIso) return null
+
+  const description =
+    `${f.name} is a festival in ${f.city}, Summit County, Ohio.` +
+    (f.unconfirmed ? ' Dates are tentative; confirm before attending.' : '') +
+    ' Listed in the Ohio Festivals guide.' +
+    ` ${TIME_NOTE}`
+
+  return {
+    title:           f.name,
+    description,
+    start_at:        startIso,
+    end_at:          f.endYmd ? easternToIso(f.endYmd, END_TIME) : null,
+    category:        'festival',
+    tags:            ['festival', 'ohio-festivals', slugify(f.city)],
+    price_min:       null,            // never assume free
+    price_max:       null,
+    age_restriction: 'all_ages',
+    image_url:       null,
+    ticket_url:      GUIDE_URL,
+    source:          SOURCE_KEY,
+    source_id:       `${slugify(f.name)}-${f.startYmd}`,
+    status:          'published',
+    featured:        false,
+  }
+}
+
 // ── Fetch ─────────────────────────────────────────────────────────────────
 
 async function fetchHtml(url) {
@@ -208,9 +268,9 @@ async function main() {
 
     for (const f of summit) {
       try {
-        const startIso = easternToIso(f.startYmd, DEFAULT_TIME)
-        if (!startIso) { skipped++; continue }
-        const ms = Date.parse(startIso)
+        const row = buildEventRow(f)
+        if (!row) { skipped++; continue }
+        const ms = Date.parse(row.start_at)
         if (ms < now - 86_400_000 || ms > cutoff) { skipped++; continue }
         // Starred entries far out are the guide's prior-year guesses — wait
         // for it to firm them up before publishing.
@@ -225,28 +285,6 @@ async function main() {
           continue
         }
 
-        const description =
-          `${f.name} is a festival in ${f.city}, Summit County, Ohio.` +
-          (f.unconfirmed ? ' Dates are tentative — confirm before attending.' : '') +
-          ' Listed in the Ohio Festivals guide.'
-
-        const row = {
-          title:           f.name,
-          description,
-          start_at:        startIso,
-          end_at:          f.endYmd ? easternToIso(f.endYmd, END_TIME) : null,
-          category:        'festival',
-          tags:            ['festival', 'ohio-festivals', slugify(f.city)],
-          price_min:       null,            // never assume free
-          price_max:       null,
-          age_restriction: 'all_ages',
-          image_url:       null,
-          ticket_url:      GUIDE_URL,
-          source:          SOURCE_KEY,
-          source_id:       `${slugify(f.name)}-${f.startYmd}`,
-          status:          'published',
-          featured:        false,
-        }
         const { error } = await upsertEventSafe(await enrichWithImageDimensions(row))
         if (error) { console.warn(`  ⚠ Upsert failed "${row.title}":`, error.message); skipped++; continue }
         seenSourceIds.add(row.source_id)
