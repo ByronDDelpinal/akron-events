@@ -360,9 +360,11 @@ describe('deferred groups contribute nothing; selected groups keep their aliases
     for (const p of res.selected) {
       assert.deepEqual(
         p.aliasRows,
-        p.deletedRows.map((d) => buildAliasRow(p.canonical.id, d)),
+        p.deletedRows.map((d) => buildAliasRow(p.canonical.id, d, p.tier, p.canonical.source)),
       )
-      for (const a of p.aliasRows) assert.equal(a.reason, 'dedupe-cross-source')
+      // Provenance-tagged (2026-07-28 incident follow-up): tier + same/cross-source,
+      // so the dropped-alias set for a bad run can be found with a query, not stdout.
+      for (const a of p.aliasRows) assert.match(a.reason, /^dedupe-cross-source:tier\d+:(same-source|cross-source)$/)
     }
   })
 
@@ -651,6 +653,43 @@ describe('main() exit code — real module, real path, dry run only', () => {
       const { out } = runDedupe(rows, args)
       assert.ok(!out.includes('HARNESS_MUTATION_ATTEMPTED'), `${args}: ${out}`)
     }
+  })
+})
+
+// ── MAJOR: hasSiblingSessionRisk's wiring in main() must be pinned ───────────
+//
+// The unit tests in test-dedupe-grouping.js (Change 2 describe block) do the
+// `.filter((p) => !p.siblingSessionRisk)` partition INSIDE the test body —
+// they prove the helper and the field are correct, but not that main() ever
+// calls the filter before selectPlansWithinCap. Deleting main()'s partition
+// (dedupe-cross-source.js's `siblingRiskPlans`/`eligiblePlans` split) and
+// reverting its `selectPlansWithinCap(eligiblePlans, ...)` call back to
+// `selectPlansWithinCap(plans, ...)` would leave every one of those unit
+// tests green. Only a real end-to-end run of main() can catch that class of
+// regression, so this exercises the exact anchored 3-member shape from
+// Blocker 1 (third-source anchor absorbing two same-source siblings at
+// different times — the_grove/akron_life Chair Yoga shape, reachable via
+// Pass 2's fuzzy-window match since Pass 2 only gates each candidate against
+// the anchor, never against its cluster-mates) through the real subprocess
+// harness, at a cap generous enough that selectPlansWithinCap's own
+// (unrelated) tier filter never gets a chance to run either.
+describe('main() — Blocker 1 wiring: the anchored sibling-session shape must never reach DROP', () => {
+  it('third-source anchor + two same-source siblings at different times: held for NEEDS HUMAN REVIEW, not deleted, at a cap that fits the whole plan', () => {
+    const siblingVenue = { venue_id: 'v-grove', venues: { name: 'The Grove', address: '123 Grove Ave' } }
+    const rows = [
+      row({ id: 'anchor', source: 'the_grove', source_id: 'tg-1', title: 'Chair Yoga Class',
+            start_at: '2026-08-03T15:00:00+00:00', venue: siblingVenue }),   // 11:00 ET
+      row({ id: 'sib-early', source: 'akron_life', source_id: 'al-1', title: 'Chair Yoga Class',
+            start_at: '2026-08-03T15:15:00+00:00', venue: siblingVenue }),  // 11:15 ET — real, distinct class
+      row({ id: 'sib-late', source: 'akron_life', source_id: 'al-2', title: 'Chair Yoga Class',
+            start_at: '2026-08-03T16:30:00+00:00', venue: siblingVenue }),  // 12:30 ET — real, distinct class
+    ]
+    const { status, out } = runDedupe(rows, ['--max-deletes=40'])
+    assert.equal(status, 0, out)
+    assert.match(out, /Summary: 0 to delete/, out)
+    assert.match(out, /NEEDS HUMAN REVIEW/, out)
+    assert.ok(!out.includes('DROP'), `no row of this group may be dropped:\n${out}`)
+    assert.ok(!out.includes('HARNESS_MUTATION_ATTEMPTED'), out)
   })
 })
 

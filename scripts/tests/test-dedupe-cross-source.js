@@ -301,14 +301,24 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ||
 const { buildAliasRow, recordAliases } = await import('../dedupe-cross-source.js')
 
 describe('buildAliasRow', () => {
-  it('records a dropped dup → keeper mapping with the dedupe reason', () => {
+  it('records a dropped dup → keeper mapping tagged with tier + cross-source provenance', () => {
     const keeperId = '11111111-1111-1111-1111-111111111111'
     const dup = { id: 'dup-x', source: 'akron_life', source_id: 'evt-42' }
-    assert.deepEqual(buildAliasRow(keeperId, dup), {
+    assert.deepEqual(buildAliasRow(keeperId, dup, 0, 'ticketmaster'), {
       duplicate_source:    'akron_life',
       duplicate_source_id: 'evt-42',
       canonical_event_id:  keeperId,
-      reason:              'dedupe-cross-source',
+      reason:              'dedupe-cross-source:tier0:cross-source',
+    })
+  })
+
+  it('tags same-source drops distinctly from cross-source ones', () => {
+    const dup = { id: 'dup-x', source: 'akron_library', source_id: 'evt-42' }
+    assert.deepEqual(buildAliasRow('k', dup, 2, 'akron_library'), {
+      duplicate_source:    'akron_library',
+      duplicate_source_id: 'evt-42',
+      canonical_event_id:  'k',
+      reason:              'dedupe-cross-source:tier2:same-source',
     })
   })
 
@@ -337,17 +347,19 @@ describe('recordAliases (--apply path)', () => {
       { source: 'akron_life',     source_id: 'a-1' },
       { source: 'ohio_festivals', source_id: 'o-9' },
     ]
-    const aliasRows = dupes.map((d) => buildAliasRow(keeperId, d))
+    const aliasRows = dupes.map((d) => buildAliasRow(keeperId, d, 0, 'northfield_park'))
     const { recorded, error } = await recordAliases(aliasRows, mockClient)
 
     assert.equal(recorded, 2)
     assert.equal(error, null)
     assert.equal(calls.length, 1)
     assert.equal(calls[0].table, 'event_aliases')
+    // The provenance tag lives in `reason`, which is NOT part of this key —
+    // tagging it must never fragment the upsert's conflict target.
     assert.equal(calls[0].opts.onConflict, 'duplicate_source,duplicate_source_id')
     assert.deepEqual(calls[0].rows, [
-      { duplicate_source: 'akron_life',     duplicate_source_id: 'a-1', canonical_event_id: keeperId, reason: 'dedupe-cross-source' },
-      { duplicate_source: 'ohio_festivals', duplicate_source_id: 'o-9', canonical_event_id: keeperId, reason: 'dedupe-cross-source' },
+      { duplicate_source: 'akron_life',     duplicate_source_id: 'a-1', canonical_event_id: keeperId, reason: 'dedupe-cross-source:tier0:cross-source' },
+      { duplicate_source: 'ohio_festivals', duplicate_source_id: 'o-9', canonical_event_id: keeperId, reason: 'dedupe-cross-source:tier0:cross-source' },
     ])
   })
 

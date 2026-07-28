@@ -25,12 +25,14 @@
  *   • Default is dry-run — pass `--apply` to delete
  *   • Events whose `manual_overrides` is non-empty are NEVER deleted, even
  *     when not chosen as canonical (respects manual edits — Byron's policy)
- *   • Events with no linked venue are skipped (can't be matched reliably)
+ *   • Events with no linked venue are skipped by the venue-keyed passes (1–3);
+ *     a titled one can still be matched by the venue-less Pass 4, so "no venue"
+ *     is not by itself protection from deletion
  *
  * Usage:
  *   node scripts/dedupe-cross-source.js                    # dry run
  *   node scripts/dedupe-cross-source.js --apply             # do it
- *   node scripts/dedupe-cross-source.js --apply --max-deletes=100  # override the safety cap
+ *   node scripts/dedupe-cross-source.js --apply --max-deletes=100  # raise the cap; a value >= the planned delete count drops the tier filter and deletes EVERY group
  *
  * Safety cap: unattended callers (run-all.js / the nightly Actions workflow)
  * always pass --apply, so this script is the only thing standing between a
@@ -46,9 +48,9 @@
  * dedupe non-zero exit as a failure). Now an over-cap run deletes the
  * highest-confidence groups up to the cap and defers the rest to the next
  * run, exiting 0. The cap itself is unchanged and still binding: a run can
- * never delete more than `maxDeletes` rows. Selection only ever considers
- * tier 0/1 groups (see groupConfidenceTier) and never splits a group, so a
- * partial drain never leaves half a merge applied.
+ * never delete more than `maxDeletes` rows. When the plan is over the cap,
+ * selection only ever considers tier 0/1 groups (see groupConfidenceTier) and
+ * never splits a group, so a partial drain never leaves half a merge applied.
  *
  * One capped case is still red: if a run is over the cap and selects ZERO
  * deletes (everything left is tier >= 2, or a single group is bigger than the
@@ -669,6 +671,18 @@ export function findDuplicateGroups(events) {
       for (let j = i + 1; j < unmatched.length; j++) {
         const b = unmatched[j]
         if (matchedIds.has(b.id)) continue
+        // Different-source gate, mirroring Pass 1 (:634) and Pass 4 (:747).
+        // Pass 2 exists for "doors open vs. show start" and "aggregator feeds
+        // that round times differently" — both are two SOURCES disagreeing
+        // about the same event. One source publishing two rows within the
+        // fuzzy window at one venue is publishing two sessions (age-banded
+        // story times, sequential class sessions, back-to-back comedy shows,
+        // morning vs. evening yoga classes), not disagreeing with itself.
+        // Same-source fuzzy-time matching was a category error, not a
+        // tunable — it is what deleted 73 real, distinct same-source events
+        // on 2026-07-28. `continue` (not `break`): only this candidate is
+        // disqualified, the sorted-time window scan must keep going.
+        if (b.source === a.source) continue
         if (Math.abs(new Date(a.start_at) - new Date(b.start_at)) > FUZZY_TIME_WINDOW_MS) break
         if (fuzzyTitlesMatch(a.title, b.title)) cluster.push(b)
       }
@@ -677,10 +691,14 @@ export function findDuplicateGroups(events) {
   }
 
   // ── Pass 3: placeholder-time copies (same venue + same Eastern day) ─────────
-  // Anchor on a first-party (trusted-time) event and pull in low-confidence
-  // aggregator copies of the same show on the same day with a STRICT title
-  // match. Never anchors on an aggregator and never pulls in a trusted-time
-  // event, so two genuine same-day shows can't be merged here.
+  // Anchor on a trusted-time event and pull in low-confidence aggregator copies
+  // of the same show on the same day with a STRICT title match. The anchor is
+  // barred only from PLACEHOLDER_SOURCES (other aggregators can still anchor),
+  // and a candidate must be a placeholder-time copy, so no trusted-time row is
+  // ever pulled in. That is NOT a guarantee that two genuine same-day shows
+  // can't merge here: this pass has no umbrella/sub-event guard, and one anchor
+  // can absorb two DISTINCT placeholder rows hours apart (the EarthQuaker Day
+  // group). What holds that shape back is hasSiblingSessionRisk, downstream.
   for (const evs of byVenue.values()) {
     const unmatched = evs.filter(e => !matchedIds.has(e.id))
     const byDay = new Map()
@@ -832,20 +850,32 @@ export function collectLinkDonations(canonical, donors) {
  * mapping, so a future re-scrape of the dup's (source, source_id) is skipped at
  * ingest instead of resurrecting the merged event. Returns null for a dup with
  * no source_id — there is no stable key to record.
+ *
+ * `reason` is tagged with the group's confidence tier and whether the drop
+ * was same-source or cross-source. This morning's remediation (the
+ * 2026-07-28 incident: 188 deleted, 73 of them same-source and largely
+ * distinct events) required reconstructing which aliases to delete from
+ * stdout because `reason` was a constant — this makes it a query instead:
+ *   delete from event_aliases where reason like 'dedupe-cross-source:%same-source';
+ * `reason` is free text (src/lib/database.types.ts:102) so this needs no
+ * migration. `tier`/`canonicalSource` are optional so callers that don't
+ * have them (or old test fixtures) still get a valid, if less specific, row.
  */
-export function buildAliasRow(canonicalId, dup) {
+export function buildAliasRow(canonicalId, dup, tier, canonicalSource) {
   if (!dup || dup.source_id == null) return null
   return {
     duplicate_source: dup.source,
     duplicate_source_id: dup.source_id,
     canonical_event_id: canonicalId,
-    reason: 'dedupe-cross-source',
+    reason: `dedupe-cross-source:tier${tier ?? 'unknown'}:${canonicalSource === dup.source ? 'same-source' : 'cross-source'}`,
   }
 }
 
 /**
  * Upsert alias rows, lossless + idempotent on the (duplicate_source,
  * duplicate_source_id) unique key — the same key ingest upserts events on.
+ * The provenance tag lives in `reason`, which is NOT part of this key, so
+ * tagging it can never fragment the upsert's conflict target.
  * Accepts an injected client so tests can assert the write args without a DB.
  */
 export async function recordAliases(aliasRows, client = supabaseAdmin) {
@@ -879,10 +909,14 @@ export async function recordAliases(aliasRows, client = supabaseAdmin) {
  *
  * Only tiers 0 and 1 are eligible for an over-cap partial drain. Tier 1 carries
  * the ≥2-distinct-sources requirement too (a deviation from a literal reading
- * of "same locationKey + same second"): Pass 2 has no different-source gate, so
- * a same-source pair can reach a same-second group, and a cross-SOURCE dedupe
- * script must never spend its scarce delete budget collapsing two rows from one
- * source. Such a group simply falls to tier 2 and waits for a human.
+ * of "same locationKey + same second"): a cross-SOURCE dedupe script must
+ * never spend its scarce delete budget collapsing two rows from one source.
+ * (Pass 2 used to have no different-source gate, so a same-source pair could
+ * reach a same-second group here — fixed 2026-07-28; every pass is now
+ * different-source-gated. This tier-1 check is kept as defense in depth: a
+ * future pass that forgets the gate still can't buy same-source rows a
+ * partial-drain eligibility.) Such a group simply falls to tier 2 and waits
+ * for a human.
  *
  * Location is compared with locationKey — never event_venues[0], whose order
  * PostgREST does not guarantee (that bug is why locationKey exists).
@@ -910,6 +944,70 @@ export function groupConfidenceTier(group) {
       Math.max(...times) - Math.min(...times) <= FUZZY_TIME_WINDOW_MS) return 2
 
   return 3
+}
+
+/**
+ * True when a duplicate group is UNSAFE to ever auto-delete, regardless of
+ * how large the cap is: at least one SOURCE contributes rows at more than one
+ * distinct start second.
+ *
+ * This used to require the WHOLE group to be single-source. That guard
+ * protected an UNREACHABLE shape: after every pass was gated to different
+ * sources (Pass 1 at :634, Pass 2 at :683, Pass 4 at :758, and Pass 3's
+ * anchor/candidate split which makes a same-source pair structurally
+ * impossible as an anchor), no pass can produce a group where EVERY member
+ * shares one source. The shape that IS reachable is a cluster ANCHORED by a
+ * third source, carrying two same-source rows at different times —
+ * `findDuplicateGroups` only ever requires each member to differ from the
+ * ANCHOR, never from each other. Two real incidents of exactly this shape:
+ * `the_grove` 7am/8:30am "Chair Yoga Class" pair, both pulled in alongside an
+ * `akron_life` anchor; and the EarthQuaker Day group, where an `intake_email`
+ * anchor absorbed two distinct `akron_life` performer rows three hours apart
+ * (Pass 3 has no equivalent of Pass 4's `isUmbrellaSubEventPair` guard). The
+ * old `sources.size !== 1` check passes both of these straight through to
+ * DROP, because the anchor's source makes the group multi-source.
+ *
+ * The corrected predicate: bucket the group's rows by source, and flag it if
+ * ANY source's rows span more than one distinct start second — regardless of
+ * how many other sources are in the group. This is a strict superset of the
+ * old whole-group check (anything the old predicate flagged, this flags too,
+ * since a single-source group IS one source's bucket), so nothing currently
+ * held is released; it additionally catches the anchored multi-source shape
+ * the old predicate missed.
+ *
+ * Same-source + same-second within a bucket is still allowed through — that's
+ * the genuine cosmetic-double-listing shape (wolf_creek `-1-` variants,
+ * rubberducks 819018/819019, identical-title akron_library pairs): published
+ * twice by mistake, safe to collapse. Same-source + different-second within a
+ * bucket is the sibling-session shape (distinct real events: age-banded story
+ * times, sequential class sessions, 7:30/9:30pm comedy shows, 7am/8:30am yoga
+ * classes, or two distinct performers under one festival umbrella) —
+ * collapsing it PERMANENTLY DELETES a real event.
+ *
+ * This check is unconditional and sits UPSTREAM of the cap (see main()), so a
+ * cap large enough to fit the whole plan — the 2026-07-28 incident's
+ * `--max-deletes=207` for a 188-delete plan — can never disable it: unlike
+ * `groupConfidenceTier`'s tier gate, which lives INSIDE `selectPlansWithinCap`
+ * and is only consulted once `plannedDeletes > cap`.
+ *
+ * A predicate on CAUSE, not STATE: it doesn't key off delete counts or the
+ * cap, so it survives re-scraping. Groups it flags are not suppressed —
+ * they're routed to the printed report for a human, indefinitely, until a
+ * dedicated same-second recovery pass (same source + same location key +
+ * exact same second + identical normalized title — NOT this function, and
+ * NOT built by loosening any pass's different-source guard) picks up the
+ * genuine cosmetic dupes among them.
+ *
+ * Pure + exported for tests.
+ */
+export function hasSiblingSessionRisk(group) {
+  if (!Array.isArray(group) || group.length < 2) return false
+  const secondsBySource = new Map()
+  for (const e of group) {
+    if (!secondsBySource.has(e.source)) secondsBySource.set(e.source, new Set())
+    secondsBySource.get(e.source).add(toSecondKey(e.start_at))
+  }
+  return [...secondsBySource.values()].some((secs) => secs.size > 1)
 }
 
 const hasGoodDesc = (e) => !!(e.description && e.description.trim().length > 20)
@@ -987,6 +1085,11 @@ export function buildGroupPlan(group) {
   const { venueIds: donatedVenueIds, orgIds: donatedOrgIds } =
     collectLinkDonations(canonical, donors)
 
+  // Computed before aliasRows below so buildAliasRow can tag provenance —
+  // both are cheap pure derivations of `group`/`canonical`, not writes.
+  const tier = groupConfidenceTier(group)
+  const siblingSessionRisk = hasSiblingSessionRisk(group)
+
   return {
     canonical,
     dupes,
@@ -995,11 +1098,19 @@ export function buildGroupPlan(group) {
     deleteIds:   donors.map((d) => d.id),
     deletedRows: donors,
     // Record the dropped dup → keeper mapping so ingest won't resurrect it.
-    aliasRows:   donors.map((d) => buildAliasRow(canonical.id, d)).filter(Boolean),
+    // Tagged with tier + same/cross-source provenance so a future incident
+    // (like 2026-07-28's 188-delete run) can be audited with a query instead
+    // of reconstructing it from stdout.
+    aliasRows: donors.map((d) => buildAliasRow(canonical.id, d, tier, canonical.source)).filter(Boolean),
     mergeFields,
     donatedVenueIds,
     donatedOrgIds,
-    tier: groupConfidenceTier(group),
+    tier,
+    // See hasSiblingSessionRisk: true when this group must never auto-delete
+    // regardless of the cap. main() partitions on this BEFORE calling
+    // selectPlansWithinCap so it can never be defeated by a sufficiently
+    // large --max-deletes.
+    siblingSessionRisk,
   }
 }
 
@@ -1120,20 +1231,36 @@ export function flattenPlans(plans) {
   return { deletes, deletedRows, aliasRows, merges, linkMerges }
 }
 
-/** Print one group's plan. `deferred` groups print DEFER instead of DROP and
- *  advertise no merge, because a deferred group performs no writes at all. */
-function printPlan(plan, deferred) {
+/**
+ * Print one group's plan. `status` is one of:
+ *   'selected' — will DROP the non-canonical rows this run
+ *   'deferred' — over the cap, DEFER'd to the next run (which re-plans from
+ *                scratch — this is a normal, healthy, temporary state)
+ *   'unsafe'   — a source within the group spans more than one start second
+ *                (see hasSiblingSessionRisk). NEVER auto-deleted by any cap.
+ *                Deliberately NOT labelled DEFER: DEFER implies "the next run
+ *                handles it automatically," which is false here — this group
+ *                needs a human, indefinitely, until a dedicated same-second
+ *                recovery pass exists.
+ */
+function printPlan(plan, status) {
   const { canonical, dupes, mergeFields, donatedVenueIds, donatedOrgIds, tier } = plan
   const mergeParts = Object.keys(mergeFields)
   if (donatedVenueIds.length > 0) mergeParts.push(`venue link×${donatedVenueIds.length}`)
   if (donatedOrgIds.length > 0)   mergeParts.push(`org link×${donatedOrgIds.length}`)
-  const mergeNote = !deferred && mergeParts.length > 0 ? ` [will merge: ${mergeParts.join(', ')}]` : ''
+  const mergeNote = status === 'selected' && mergeParts.length > 0 ? ` [will merge: ${mergeParts.join(', ')}]` : ''
 
+  const bannerByStatus = {
+    deferred: '   ⏭ DEFERRED (over cap — retried next run)',
+    unsafe:   '   🛑 NEEDS HUMAN REVIEW (a source spans more than one start second — never auto-deleted)',
+    selected: '',
+  }
   const groupVenueId = canonical.event_venues?.[0]?.venue_id
-  console.log(`Group: ${canonical.start_at}  venue=${groupVenueId ? groupVenueId.slice(0, 8) + '…' : '(none)'}  tier=${tier}${deferred ? '   ⏭ DEFERRED (over cap — retried next run)' : ''}`)
+  console.log(`Group: ${canonical.start_at}  venue=${groupVenueId ? groupVenueId.slice(0, 8) + '…' : '(none)'}  tier=${tier}${bannerByStatus[status]}`)
   console.log(`  KEEP  [${canonical.source}/${canonical.source_id}] (${qualityLabel(canonical)})${mergeNote} ${canonical.title?.slice(0, 50)}`)
   for (const d of dupes) {
-    const tag = hasManualOverrides(d) ? '🛡 KEEP (manual_overrides)' : (deferred ? 'DEFER' : 'DROP')
+    const tagByStatus = { selected: 'DROP', deferred: 'DEFER', unsafe: 'HOLD (needs review)' }
+    const tag = hasManualOverrides(d) ? '🛡 KEEP (manual_overrides)' : tagByStatus[status]
     console.log(`  ${tag.padEnd(26)} [${d.source}/${d.source_id}] (${qualityLabel(d)}) ${d.title?.slice(0, 50)}`)
   }
 }
@@ -1199,6 +1326,23 @@ async function main() {
   const plans = dupeGroups.map(buildGroupPlan)
   const preserved = plans.reduce((n, p) => n + p.preservedCount, 0)
 
+  // Partition out groups that must NEVER auto-execute, regardless of the cap
+  // (see hasSiblingSessionRisk's doc comment). Done HERE, upstream of
+  // selectPlansWithinCap, so a --max-deletes large enough to fit the whole
+  // remaining plan can never disable this again — which is exactly the
+  // mechanism of the 2026-07-28 incident: every sibling-session-risk group is
+  // tier ≥ 2, and the tier filter inside selectPlansWithinCap (`if (p.tier >
+  // 1) continue`) is only reachable on the OVER-cap path. That morning's
+  // `--max-deletes=207` fit the whole 188-delete plan, so `plannedDeletes <=
+  // cap` returned early and the tier filter never ran.
+  //
+  // selectPlansWithinCap itself is intentionally untouched — it carries the
+  // partial-drain/stall exit-code contract that run-all.js's red/green logic
+  // depends on. The at-risk groups are removed from ITS INPUT instead, so
+  // they can never be selected and never inflate `plannedDeletes` below.
+  const siblingRiskPlans = plans.filter((p) => p.siblingSessionRisk)
+  const eligiblePlans    = plans.filter((p) => !p.siblingSessionRisk)
+
   // Safety cap. Unattended callers (run-all.js, the nightly Actions workflow)
   // always pass --apply, so this is the only thing standing between a matching
   // bug and a mass delete. Resolved BEFORE the plan is printed because it now
@@ -1212,9 +1356,16 @@ async function main() {
 
   const {
     selected, deferred, plannedDeletes, selectedDeletes, deferredDeletes, capped,
-  } = selectPlansWithinCap(plans, maxDeletes)
+  } = selectPlansWithinCap(eligiblePlans, maxDeletes)
   const selectedSet = new Set(selected)
-  for (const plan of plans) printPlan(plan, !selectedSet.has(plan))
+  for (const plan of plans) {
+    printPlan(plan, plan.siblingSessionRisk ? 'unsafe' : (selectedSet.has(plan) ? 'selected' : 'deferred'))
+  }
+  if (siblingRiskPlans.length > 0) {
+    const siblingRiskDeletes = siblingRiskPlans.reduce((n, p) => n + p.deleteIds.length, 0)
+    console.log('')
+    console.log(`🛑  ${siblingRiskPlans.length} group(s) / ${siblingRiskDeletes} row(s) tagged NEEDS HUMAN REVIEW above: a source within the group spans more than one start second. These are the sibling-session shape (age-banded story times, sequential class sessions, differently-timed comedy/yoga sessions, distinct performers under one festival umbrella), not disagreeing duplicates — they are NEVER auto-deleted by any cap, at ANY group size (not just single-source groups), and are NOT counted in the ${plannedDeletes} planned below.`)
+  }
 
   const { deletes, deletedRows, aliasRows, merges, linkMerges } = flattenPlans(selected)
 
@@ -1240,8 +1391,11 @@ async function main() {
   const enrichedCount = new Set([...merges, ...linkMerges].map(m => m.id)).size
   const totalToDelete = deletes.length
 
+  const holdSummary = siblingRiskPlans.length > 0
+    ? `, ${siblingRiskPlans.length} group(s) held for NEEDS HUMAN REVIEW`
+    : ''
   console.log('')
-  console.log(`Summary: ${totalToDelete} to delete, ${enrichedCount} to enrich, ${preserved} preserved by manual_overrides`)
+  console.log(`Summary: ${totalToDelete} to delete, ${enrichedCount} to enrich, ${preserved} preserved by manual_overrides${holdSummary}`)
   const outcome = capRunOutcome({ capped, selectedDeletes })
   if (outcome === 'partial-drain') {
     // Not an error: the cap is doing its job, the run drains what it safely
@@ -1250,8 +1404,9 @@ async function main() {
     // any dedupe failure as a run failure) for a healthy backlog.
     console.log(`⚠  PARTIAL DRAIN (healthy): deleting ${selectedDeletes} of ${plannedDeletes} planned (cap ${maxDeletes}); ${deferred.length} group(s) deferred to the next run`)
     console.log(`   The backlog shrinks by ${selectedDeletes} tonight. Deferred groups are either lower-confidence (tier ≥ 2) or didn't fit the remaining budget; nothing is merged or donated for them.`)
-    console.log(`   To drain the backlog in one pass after reviewing the plan above:`)
-    console.log(`     node scripts/dedupe-cross-source.js --apply --max-deletes=${plannedDeletes}`)
+    console.log(`   To see what a larger cap WOULD additionally include, first DRY RUN it (no --apply, nothing is written):`)
+    console.log(`     node scripts/dedupe-cross-source.js --max-deletes=${plannedDeletes}`)
+    console.log(`   Raising --max-deletes past the planned count does not just widen the budget — it takes the run off the capped path entirely, and EVERY group runs regardless of tier. That is the 2026-07-28 incident (--max-deletes=207 for a 188-delete plan deleted 73 same-source, largely distinct events). The tier filter is a prioritisation heuristic for over-cap runs, not a confidence gate; the only unconditional gate is the NEEDS HUMAN REVIEW hold. Never guess a bigger cap from this number.`)
   } else if (outcome === 'stalled') {
     // The terminal state a partial drain converges on: the eligible (tier ≤ 1)
     // backlog is fully drained and everything left is tier ≥ 2 or too big to
@@ -1270,8 +1425,10 @@ async function main() {
     console.error(`✗  DEDUPE STALLED — deleted 0 of ${plannedDeletes} planned (cap ${maxDeletes}).`)
     console.error(`   All ${deferred.length} remaining group(s) are lower-confidence (tier ≥ 2) or individually larger than the cap, so NO group is eligible to drain — this run did nothing and the next run will do nothing, forever. The backlog cannot shrink on its own.`)
     console.error(`   This is NOT a partial drain: a healthy capped run deletes at least one group and exits 0.`)
-    console.error(`   Review the plan above, then drain it explicitly:`)
-    console.error(`     node scripts/dedupe-cross-source.js --apply --max-deletes=${plannedDeletes}`)
+    console.error(`   Do NOT raise --max-deletes to ${plannedDeletes} to clear this. It does not widen the budget — once plannedDeletes <= cap the run leaves the capped path and EVERY remaining group is deleted regardless of tier. That is the 2026-07-28 incident (--max-deletes=207 for a 188-delete plan deleted 73 same-source, largely distinct events).`)
+    console.error(`   Review the plan above FIRST, as a DRY RUN (no --apply):`)
+    console.error(`     node scripts/dedupe-cross-source.js --max-deletes=${plannedDeletes}`)
+    console.error(`   The tier >= 2 filter is a prioritisation heuristic for over-cap runs, not a confidence gate — only the NEEDS HUMAN REVIEW hold survives any cap. Draining what is left is a manual, reviewed decision, group by group.`)
     process.exit(1)
   }
 

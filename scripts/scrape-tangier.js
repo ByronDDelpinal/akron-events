@@ -31,7 +31,7 @@
 import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
 import {
-  logUpsertResult, logScraperError, easternToIso, htmlToText, decodeEntities,
+  logUpsertResult, logScraperError, easternToIso, htmlToText, stripHtml, decodeEntities,
   enrichWithImageDimensions, upsertEventSafe, linkEventVenue, linkEventOrganization,
   ensureVenue, ensureOrganization, linkOrganizationVenue,
 } from './lib/normalize.js'
@@ -65,9 +65,16 @@ export function parseDate(str) {
   return `${m[3]}-${String(month + 1).padStart(2, '0')}-${String(parseInt(m[2], 10)).padStart(2, '0')}`
 }
 
-/** Extract a doors/start time from prose → "HH:MM" (24h), or '' if none stated. */
-export function parseDoorsTime(text) {
-  const m = String(text || '').match(/doors?\s+open(?:s)?\s+at\s+(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s*m/i)
+/**
+ * Start time from an event's prose → "HH:MM" (24h), or '' if none stated.
+ *
+ * These events state the start only in the description ("…lounge at 6:00 pm",
+ * "Open Bar from 7 pm", "Doors open at 6:30PM"), so we take the FIRST clock time
+ * in the block — the opening/doors time. Returning '' (date-only) is correct
+ * when no time is stated; we never fabricate one.
+ */
+export function parseStartTime(text) {
+  const m = String(text || '').match(/(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s*m\b/i)
   if (!m) return ''
   let hour = parseInt(m[1], 10)
   const min = m[2] || '00'
@@ -104,92 +111,88 @@ export function parsePrices(text) {
   return { min: Math.min(...nums), max: Math.max(...nums) }
 }
 
-const lastNonEmpty = (s) => String(s).split('\n').map((l) => l.trim()).filter(Boolean).pop() || null
-
 /**
  * Parse the /events page into event objects.
  *
- * Three independently-extracted, document-ordered lists are zipped by index:
- *   • real Etix ticket links (etix.com/ticket/p/<id>, minus the boilerplate id),
- *   • banner images (…website-files… "Banner"/"bkg" .png), best-effort,
- *   • text blocks from htmlToText, segmented by each "Month DD, YYYY" date line
- *     (title = the line before the date; body = through the next event's title).
- * The ticket links are the authoritative event count; images only attach when
- * their count matches (never mis-associated). Returns [] if nothing parses.
+ * Anchored on each event's raw <h2> title tag, NOT on the flattened text — on
+ * the live page the previous card's inline buttons ("Purchase Tickets",
+ * "Reserve A Table", "View Menu") render onto the same text line as the next
+ * title with no break, so a "line before the date" heuristic would prepend that
+ * button noise to the title (it did: shipped a title of "Purchase Tickets…
+ * Halloween Party with Roxxymoron"). Raw <h2> tags delimit titles cleanly.
+ *
+ * For each event, its block is the HTML between its <h2> and the next event's
+ * <h2>; date/venue/price/time/description come from htmlToText(block); the real
+ * Etix link (minus the boilerplate id) comes from the block's raw HTML; the
+ * banner image is the last event image before this <h2>. Returns [] if nothing
+ * parses.
  */
 export function parseTangierEvents(html) {
   const raw = String(html || '')
 
-  // 1. Real ticket links (drop the boilerplate), in order, deduped by product id.
-  const links = []
-  const seenLink = new Set()
-  for (const m of raw.matchAll(/etix\.com\/ticket\/p\/(\d+)\/([a-z0-9-]+)/gi)) {
-    const id = m[1]
-    if (id === BOILERPLATE_ETIX_ID || seenLink.has(id)) continue
-    seenLink.add(id)
-    links.push({ id, url: `https://www.etix.com/ticket/p/${id}/${m[2]}` })
+  // Scope to the Upcoming Events region (raw HTML).
+  const upIdx = raw.search(/Upcoming Events/i)
+  const galIdx = raw.search(/Event Gallery/i)
+  const region = upIdx === -1 ? raw : raw.slice(upIdx, galIdx > upIdx ? galIdx : undefined)
+
+  // Event-title <h2>s (drop the section headers), with positions.
+  const SECTION = /^(Upcoming Events|Entertainment Schedule|Event Gallery|Events)$/i
+  const titles = []
+  for (const m of region.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/gi)) {
+    const t = decodeEntities(stripHtml(m[1])).trim()
+    if (!t || SECTION.test(t)) continue
+    titles.push({ text: t, start: m.index, end: m.index + m[0].length })
   }
 
-  // 2. Banner images (best-effort), in order, deduped.
-  const images = []
-  const seenImg = new Set()
-  // Allow parens (a banner filename is "…Banner (1).png") but stop at whitespace/
-  // quotes. Keep the URL percent-encoded — a literal space would break <img src>.
-  for (const m of raw.matchAll(/https?:\/\/[^\s"']*website-files\.com\/[^\s"']*?(?:banner|bkg)[^\s"']*\.(?:png|jpe?g|webp)/gi)) {
-    const u = m[0].split('?')[0]
-    if (seenImg.has(u)) continue
-    seenImg.add(u)
-    images.push(u)
+  // Event banner images (…website-files… "Banner"/"bkg"), positioned; parens
+  // allowed (filename "…Banner (1).png") but URL kept percent-encoded.
+  const banners = []
+  for (const m of region.matchAll(/https?:\/\/[^\s"']*website-files\.com\/[^\s"']*?(?:banner|bkg)[^\s"']*\.(?:png|jpe?g|webp)/gi)) {
+    banners.push({ url: m[0].split('?')[0], idx: m.index })
+  }
+  const imageBefore = (pos) => {
+    let best = null
+    for (const b of banners) { if (b.idx < pos) best = b.url; else break }
+    return best
   }
 
-  // 3. Text blocks from the "Upcoming Events" region.
-  const text = htmlToText(raw)
-  const up = text.search(/Upcoming Events/i)
-  const gal = text.search(/Event Gallery/i)
-  const region = up === -1 ? text : text.slice(up, gal > up ? gal : undefined)
-
-  const DATE_RE = /[A-Za-z]+\s+\d{1,2},\s*\d{4}/g
-  const dates = [...region.matchAll(DATE_RE)]
-  const blocks = dates.map((d, i) => {
-    const title = lastNonEmpty(region.slice(i === 0 ? 0 : dates[i - 1].index + dates[i - 1][0].length, d.index))
-    // body runs from after this date to just before the NEXT event's title line
-    let bodyEnd = region.length
-    if (i + 1 < dates.length) {
-      const nextTitle = lastNonEmpty(region.slice(d.index + d[0].length, dates[i + 1].index))
-      const idx = nextTitle ? region.indexOf(nextTitle, d.index) : -1
-      bodyEnd = idx === -1 ? dates[i + 1].index : idx
-    }
-    return { title, date: d[0], body: region.slice(d.index + d[0].length, bodyEnd) }
-  })
-
-  // Zip. Ticket links are authoritative; require a title+date to publish.
-  const n = Math.min(blocks.length, links.length)
-  const imagesAligned = images.length === blocks.length
   const out = []
-  for (let i = 0; i < n; i++) {
-    const b = blocks[i]
-    const dateYmd = parseDate(b.date)
-    const title = b.title && decodeEntities(b.title.trim())
-    if (!dateYmd || !title) continue
-    const venue = parseHeldAt(b.body) || { ...DEFAULT_VENUE }
-    const { min, max } = parsePrices(b.body)
-    // Description: the body minus the HELD-AT line and the price lines.
-    const description = b.body
+  for (let i = 0; i < titles.length; i++) {
+    const blockHtml = region.slice(titles[i].end, i + 1 < titles.length ? titles[i + 1].start : region.length)
+    const blockText = htmlToText(blockHtml)
+
+    const dateYmd = parseDate((blockText.match(/[A-Za-z]+\s+\d{1,2},\s*\d{4}/) || [])[0])
+    if (!dateYmd) continue
+
+    // Real Etix ticket link in this block (skip the boilerplate id).
+    let ticket = null
+    for (const lm of blockHtml.matchAll(/etix\.com\/ticket\/p\/(\d+)\/([a-z0-9-]+)/gi)) {
+      if (lm[1] === BOILERPLATE_ETIX_ID) continue
+      ticket = { id: lm[1], url: `https://www.etix.com/ticket/p/${lm[1]}/${lm[2]}` }
+      break
+    }
+    if (!ticket) continue
+
+    const venue = parseHeldAt(blockText) || { ...DEFAULT_VENUE }
+    const { min, max } = parsePrices(blockText)
+    const description = blockText
       .replace(/This EVENT WILL BE HELD AT[\s\S]*?\d{5}/i, '')
       .replace(/\$\d[\d,]*\.\d{2}[^\n]*/g, '')
+      .replace(/\b(?:Purchase Tickets|Reserve A Table|View Menu)\b/gi, '')
+      .replace(/[A-Za-z]+\s+\d{1,2},\s*\d{4}/, '')
       .replace(/\n{3,}/g, '\n\n').trim() || null
 
     out.push({
-      title,
+      title:      titles[i].text,
       dateYmd,
-      time: parseDoorsTime(b.body),
+      time:       parseStartTime(blockText),
       venue,
-      priceMin: min,
-      priceMax: max,
+      priceMin:   min,
+      priceMax:   max,
       description,
-      ticketUrl: links[i].url,
-      imageUrl: imagesAligned ? images[i] : null,
-      sourceId: `${SOURCE_KEY}-${links[i].id}`,
+      ticketUrl:  ticket.url,
+      imageUrl:   imageBefore(titles[i].start),
+      sourceId:   `${SOURCE_KEY}-${ticket.id}`,
     })
   }
   return out
