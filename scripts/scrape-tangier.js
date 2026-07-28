@@ -10,15 +10,24 @@
  *
  * Platform: a Webflow marketing site. /events renders an "Upcoming Events"
  * section as a flat sequence of banner image → <h2> title → date → a "HELD AT
- * <space>: <address>" block → description → prices → ticket buttons. Two gotchas
- * this parser handles:
+ * <space>: <address>" block → description → prices → ticket buttons. Four
+ * gotchas this parser handles:
  *   1. Every event card carries a BOILERPLATE "Purchase Tickets" button pointing
  *      at one recurring Etix product (id 51986841, the Disco Inferno NYE at The
  *      Bank). The event's REAL ticket link is a different etix.com/ticket/p/<id>
  *      — we drop id 51986841 and keep the rest, in document order.
- *   2. Times live only in prose ("Doors open at 6:30PM"); we extract a doors time
- *      when one is clearly stated and otherwise publish the event date-only
- *      rather than fabricate a start time.
+ *   2. Times live only in prose ("Doors open at 6:30PM"); we look for a doors /
+ *      showtime CUE first and only fall back to the first clock time on the
+ *      card, so an UNCUED time (box-office hours, an on-sale date, a set time)
+ *      can never outrank a cued one — see parseStartTime for what the cue does
+ *      NOT buy us. With no time stated at all we publish date-only, never a
+ *      fabricated one.
+ *   3. The CTA buttons sit in sibling <div>s, and htmlToText does not newline
+ *      </div>, so they flatten into one unseparated run at the end of the block
+ *      ("Purchase TicketsReserve A TableView MenuPurchase Tickets") — see
+ *      cleanDescription for why \b-anchored stripping can never match it.
+ *   4. Webflow richtext spacer paragraphs (<p>&zwj;</p>) leave invisible
+ *      zero-width joiners mid-description; cleanDescription removes them.
  *
  * Ticketing is Etix; ticket_url is the per-event Etix product page. The stable
  * Etix product id is the source_id, so the twice-daily run is idempotent.
@@ -65,16 +74,45 @@ export function parseDate(str) {
   return `${m[3]}-${String(month + 1).padStart(2, '0')}-${String(parseInt(m[2], 10)).padStart(2, '0')}`
 }
 
+// A clock time: "6", "6:30", "6:00 pm", "6:30PM", "7 p.m.".
+const CLOCK_SRC = String.raw`(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s*m\b`
+// Phrases that introduce the DOORS/START time, as opposed to an UNCUED clock
+// time on the card (set times, box-office hours, on-sale dates). A cued buffet
+// time is NOT excluded — see parseStartTime.
+// The leading \b matters: without it "Concert restarts at 9 pm" matches the
+// bare "starts at" alternative mid-word and beats a later, real doors cue.
+const START_CUE_SRC = String.raw`\b(?:doors?\s+(?:will\s+)?opens?(?:\s+at)?|show(?:time)?\s+(?:starts?\s+)?at|(?:starts?|begins?)\s+at|open\s+bar\s+from|lounge\s+(?:opens?\s+)?at)`
+const CUED_TIME = new RegExp(`${START_CUE_SRC}\\s*(?:promptly\\s+)?${CLOCK_SRC}`, 'i')
+const ANY_TIME  = new RegExp(CLOCK_SRC, 'i')
+
 /**
  * Start time from an event's prose → "HH:MM" (24h), or '' if none stated.
  *
  * These events state the start only in the description ("…lounge at 6:00 pm",
- * "Open Bar from 7 pm", "Doors open at 6:30PM"), so we take the FIRST clock time
- * in the block — the opening/doors time. Returning '' (date-only) is correct
- * when no time is stated; we never fabricate one.
+ * "Open Bar from 7 pm", "Doors open at 6:30PM"). Taking the first clock time
+ * anywhere in the block is fragile: a card that opened with "box office opens
+ * at 10 am" or listed an on-sale date first would publish that as the start.
+ * So we look for a START CUE first — alternation makes JS pick the LEFTMOST
+ * cue, which is the earliest stated opening (Frankie states "lounge at 6:00 pm"
+ * before "dinner will start at 7:00 pm", and 6:00 pm is the right answer) — and
+ * only fall back to the first clock time when no cue is present.
+ *
+ * The cue NARROWS the failure mode; it does not eliminate it. "starts at" /
+ * "begins at" are themselves cues, so "The buffet starts at 5:30 pm. Doors open
+ * at 7 pm." yields 17:30, not 19:00 — the leftmost cue wins and the phrase
+ * ahead of it is not inspected. That is a deliberate trade: dropping the bare
+ * "starts at" alternative would lose the only cue covering "the show begins at
+ * 8 pm", and for these dinner-show cards the buffet time is in practice when
+ * the doors are useful anyway. What the cue reliably buys us is that an UNCUED
+ * time (a box-office hour, a set time, an on-sale date) can never outrank a
+ * cued one.
+ *
+ * Returning '' (date-only) is correct when no time is stated; we never
+ * fabricate one.
  */
 export function parseStartTime(text) {
-  const m = String(text || '').match(/(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s*m\b/i)
+  const s = String(text || '')
+  const m = s.match(CUED_TIME) || s.match(ANY_TIME)
   if (!m) return ''
   let hour = parseInt(m[1], 10)
   const min = m[2] || '00'
@@ -83,6 +121,62 @@ export function parseStartTime(text) {
   if (!pm && hour === 12) hour = 0
   if (hour > 23) return ''
   return `${String(hour).padStart(2, '0')}:${min}`
+}
+
+// ── Description scrubbing ────────────────────────────────────────────────────
+//
+// Every card ends with the same inline CTA buttons. They live in sibling
+// <div>s, and htmlToText does NOT newline </div>, so they flatten into ONE
+// unbroken run with no separator at all:
+//     "Purchase TicketsReserve A TableView MenuPurchase Tickets"
+// The previous scrubber wrapped the alternation in \b, which can never match
+// here: every boundary position sits between two word characters (s→R, e→V,
+// u→P, and the leading one on the final "Purchase"), so the scrubber silently
+// did nothing and the run shipped into every description.
+//
+// Dropping \b alone would be an over-match: "purchase tickets" is ordinary
+// prose for a venue ("Purchase tickets at the box office"), and a global
+// case-insensitive replace would gut a legitimate sentence mid-clause. So we
+// only strip the two shapes that cannot be prose:
+//   1. two or more labels glued together with no separator — a machine artifact;
+//   2. a run of labels at the very END of the block, which is where the button
+//      row always sits (the block ends at the next card's <h2>).
+// A "purchase tickets" inside a real sentence is left alone.
+const BUTTON_LABEL_SRC = String.raw`(?:Purchase Tickets|Reserve A Table|View Menu)`
+const GLUED_BUTTONS    = new RegExp(`${BUTTON_LABEL_SRC}{2,}`, 'gi')
+const TRAILING_BUTTONS = new RegExp(`(?:\\s*${BUTTON_LABEL_SRC})+\\s*$`, 'i')
+// Webflow richtext emits spacer paragraphs holding a single zero-width joiner
+// (<p>&zwj;</p>), which land as an invisible "\n\n\u200D\n\n" mid-description.
+// They also turn up glued between the CTA buttons, where they are load-bearing
+// for the scrubbers below — see cleanDescription for why this strip runs first.
+const ZERO_WIDTH = /[\u200B-\u200D\u2060\uFEFF]/g
+
+/**
+ * Block text → a clean description, or null when nothing is left.
+ *
+ * ZERO_WIDTH runs FIRST, ahead of everything that pattern-matches. JS `\s` does
+ * NOT include U+200B–U+200D or U+2060 (of the zero-width set only U+FEFF is
+ * whitespace), so a joiner left in place defeats BOTH button scrubbers:
+ * GLUED_BUTTONS needs literal adjacency, and TRAILING_BUTTONS's `\s*` cannot
+ * step over one. A single ZWJ between two buttons — the same character Webflow
+ * already emits elsewhere in this document — would otherwise ship a
+ * half-stripped run ("Purchase TicketsReserve A Table"). Stripping invisible
+ * characters is a normalization pass, so it belongs before the matchers, not
+ * among them.
+ *
+ * The `\n{3,}` collapse stays LAST, which is what lets an emptied spacer
+ * paragraph close to a single blank line instead of leaving "\n\n\n\n".
+ */
+export function cleanDescription(blockText) {
+  return String(blockText || '')
+    .replace(ZERO_WIDTH, '')
+    .replace(/This EVENT WILL BE HELD AT[\s\S]*?\d{5}/i, '')
+    .replace(/\$\d[\d,]*\.\d{2}[^\n]*/g, '')
+    .replace(GLUED_BUTTONS, '')
+    .replace(TRAILING_BUTTONS, '')
+    .replace(/[A-Za-z]+\s+\d{1,2},\s*\d{4}/, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n').trim() || null
 }
 
 /**
@@ -175,12 +269,7 @@ export function parseTangierEvents(html) {
 
     const venue = parseHeldAt(blockText) || { ...DEFAULT_VENUE }
     const { min, max } = parsePrices(blockText)
-    const description = blockText
-      .replace(/This EVENT WILL BE HELD AT[\s\S]*?\d{5}/i, '')
-      .replace(/\$\d[\d,]*\.\d{2}[^\n]*/g, '')
-      .replace(/\b(?:Purchase Tickets|Reserve A Table|View Menu)\b/gi, '')
-      .replace(/[A-Za-z]+\s+\d{1,2},\s*\d{4}/, '')
-      .replace(/\n{3,}/g, '\n\n').trim() || null
+    const description = cleanDescription(blockText)
 
     out.push({
       title:      titles[i].text,
