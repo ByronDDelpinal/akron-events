@@ -1,5 +1,9 @@
 // send-digest — daily cron-triggered function that sends personalized event digests
-// Triggered by pg_cron at 8:30 AM ET daily
+// Triggered by the `send-daily-digest` pg_cron job (cron.job jobid 1). pg_cron
+// runs in UTC, so the schedule is `30 12 * * *` = 12:30 UTC = 8:30 AM ET during
+// EDT. NOTE: a fixed UTC time drifts with daylight saving — 12:30 UTC is 7:30 AM
+// ET during EST (winter). For year-round 8:30 AM ET, gate on the Eastern hour in
+// scheduled mode and widen the cron (see the digest-cron memory / TODO).
 //
 // Architecture (cost-optimized):
 //   1. Query WHO is due today (subscribers by frequency + send_day)
