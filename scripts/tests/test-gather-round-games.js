@@ -12,7 +12,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-const { cleanTitle, isProductRelease, inferYear, parseService, isIngestableService, buildTags, SOURCE_KEY } =
+const { cleanTitle, isProductRelease, inferYear, parseService, isIngestableService, buildTags, ingestOutcome, SOURCE_KEY } =
   await import('../scrape-gather-round-games.js')
 
 // Real rendered text from grgcollect.com/service-page/friday-night-magic-2
@@ -124,4 +124,65 @@ describe('buildTags', () => {
 
 describe('SOURCE_KEY', () => {
   it('is gather_round_games', () => assert.equal(SOURCE_KEY, 'gather_round_games'))
+})
+
+// The alarm. events_found counts SERVICE PAGES, not events, so a run that
+// discovered 6 services and ingested nothing still logged status='success'.
+// events_inserted was 0 on all 22 runs since 2026-06-24 and nobody saw it.
+describe('ingestOutcome', () => {
+  it('reports no-services when the homepage yields no /service-page/ links', () => {
+    const o = ingestOutcome({ servicesFound: 0, servicesIngestable: 0, sessionsUpserted: 0 })
+    assert.equal(o.kind, 'no-services')
+  })
+
+  it('names both suspects (restructure, late Wix hydration) in the no-services message', () => {
+    const { message } = ingestOutcome({ servicesFound: 0 })
+    assert.match(message, /restructur/i)
+    assert.match(message, /wix/i)
+    assert.match(message, /hydrat/i)
+    assert.match(message, /networkidle2/)
+  })
+
+  it('reports no-ingestable when services exist but none pass the filter', () => {
+    const o = ingestOutcome({ servicesFound: 6, servicesIngestable: 0, sessionsUpserted: 0 })
+    assert.equal(o.kind, 'no-ingestable')
+    assert.match(o.message, /\b6\b/)                        // carries the count it saw
+    assert.match(o.message, /drift|stopped running/i)       // names both suspects
+  })
+
+  it('reports zero-yield when ingestable services produced no surviving session', () => {
+    const o = ingestOutcome({ servicesFound: 6, servicesIngestable: 2, sessionsUpserted: 0 })
+    assert.equal(o.kind, 'zero-yield')
+    assert.match(o.message, /\b2\b/)
+    assert.match(o.message, /\b6\b/)
+  })
+
+  it('reports ok on a healthy run', () => {
+    assert.equal(ingestOutcome({ servicesFound: 6, servicesIngestable: 2, sessionsUpserted: 11 }).kind, 'ok')
+  })
+
+  // Every parameter defaults to 0, so a forgotten argument can never read as
+  // healthy — that "silent success" is the whole bug this guard exists for.
+  it('never falls through to ok when called with no counts', () => {
+    assert.equal(ingestOutcome().kind, 'no-services')
+    assert.equal(ingestOutcome({}).kind, 'no-services')
+    assert.notEqual(ingestOutcome().kind, 'ok')
+    assert.notEqual(ingestOutcome({}).kind, 'ok')
+  })
+
+  it('does not report ok when only some counts are supplied', () => {
+    assert.equal(ingestOutcome({ servicesFound: 6 }).kind, 'no-ingestable')
+    assert.equal(ingestOutcome({ servicesFound: 6, servicesIngestable: 2 }).kind, 'zero-yield')
+    assert.equal(ingestOutcome({ sessionsUpserted: 11 }).kind, 'no-services')
+  })
+
+  it('returns a message for every non-ok kind and none for ok', () => {
+    for (const args of [{}, { servicesFound: 6 }, { servicesFound: 6, servicesIngestable: 2 }]) {
+      const o = ingestOutcome(args)
+      assert.notEqual(o.kind, 'ok')
+      assert.equal(typeof o.message, 'string')
+      assert.ok(o.message.length > 0)
+    }
+    assert.equal(ingestOutcome({ servicesFound: 1, servicesIngestable: 1, sessionsUpserted: 1 }).message, undefined)
+  })
 })

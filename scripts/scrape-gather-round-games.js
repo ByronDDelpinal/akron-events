@@ -132,6 +132,50 @@ export function buildTags(title, description) {
   return [...new Set(tags)]
 }
 
+/**
+ * Decide how loudly to react to a completed ingest run. Pure + exported so the
+ * decision is unit-testable without a live run. Modelled on `crawlOutcome` in
+ * scrape-downtown-akron.js — same house pattern, same reason.
+ *
+ * Why this exists: `events_found` here is the count of SERVICE PAGES
+ * discovered, not events. A run that found 6 service pages and ingested
+ * nothing still logged `status='success'` with a healthy-looking
+ * `events_found: 6`. That masked two separate failures for 5 weeks —
+ * `events_inserted` was 0 on all 22 runs since 2026-06-24, and for the last
+ * three nights the homepage stopped yielding `/service-page/` anchors at all.
+ * The guard therefore keys on the INGESTED counts, never on serviceUrls.length.
+ *
+ * Three distinct outcomes because they need different remediation:
+ *   - 'no-services': discovery found nothing to even look at.
+ *   - 'no-ingestable': services exist but none survived isIngestableService.
+ *   - 'zero-yield': ingestable services existed but no session was upserted.
+ *
+ * Every parameter defaults to 0 so a caller that forgets an argument (or
+ * passes nothing) reports 'no-services' rather than falling through to 'ok' —
+ * a missing count must never be readable as a healthy run.
+ */
+export function ingestOutcome({ servicesFound = 0, servicesIngestable = 0, sessionsUpserted = 0 } = {}) {
+  if (servicesFound === 0) {
+    return {
+      kind:    'no-services',
+      message: `Gather Round Games homepage yielded 0 /service-page/ links (0 services found) — the site may have restructured, or the Wix Bookings widget now hydrates after networkidle2`,
+    }
+  }
+  if (servicesIngestable === 0) {
+    return {
+      kind:    'no-ingestable',
+      message: `Found ${servicesFound} service page(s) but 0 passed isIngestableService — parser/filter drift, or the store genuinely stopped running recurring community nights`,
+    }
+  }
+  if (sessionsUpserted === 0) {
+    return {
+      kind:    'zero-yield',
+      message: `${servicesIngestable} of ${servicesFound} service(s) were ingestable but 0 session(s) survived the ${MAX_DAYS_AHEAD}-day date window`,
+    }
+  }
+  return { kind: 'ok' }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -156,6 +200,9 @@ async function main() {
     const now = Date.now()
     const cutoff = now + MAX_DAYS_AHEAD * 86_400_000
     let inserted = 0, skipped = 0
+    // Feeds ingestOutcome below. `inserted` doubles as sessionsUpserted — it
+    // increments once per session row that actually landed.
+    let servicesIngestable = 0
 
     for (const url of serviceUrls) {
       try {
@@ -163,6 +210,7 @@ async function main() {
         const data = await evaluateOnPage(url, () => ({ title: document.title, text: document.body.innerText }))
         const service = parseService(data)
         if (!isIngestableService(service)) { skipped++; continue }
+        servicesIngestable++
 
         const tags = buildTags(service.title, service.description)
         let added = 0
@@ -200,6 +248,28 @@ async function main() {
         console.warn(`  ⚠ Error on ${url}:`, err.message)
         skipped++
       }
+    }
+
+    // `eventsFound` stays serviceUrls.length — per logUpsertResult's contract
+    // that field means "total seen at source". The health decision keys on the
+    // ingested counts instead, which is exactly what events_found could not see.
+    const outcome = ingestOutcome({
+      servicesFound:      serviceUrls.length,
+      servicesIngestable,
+      sessionsUpserted:   inserted,
+    })
+    if (outcome.kind !== 'ok') {
+      // Deliberately NOT a throw: navigation succeeded, so this is a data
+      // problem, not a run failure. Throwing would hand run-all.js an exit 1.
+      // Exit 0 keeps the next nightly running (mirrors scrape-city-of-green.js).
+      await logUpsertResult(SOURCE_KEY, 0, 0, skipped, {
+        status:       'error',
+        errorMessage: outcome.message,
+        eventsFound:  serviceUrls.length,
+        durationMs:   Date.now() - start,
+      })
+      console.warn(`  ⚠ ${outcome.message} — exiting without an error so the next scheduled run still tries.`)
+      process.exit(0)
     }
 
     await logUpsertResult(SOURCE_KEY, inserted, 0, skipped, { eventsFound: serviceUrls.length, durationMs: Date.now() - start })
