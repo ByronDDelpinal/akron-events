@@ -514,9 +514,15 @@ async function processEvents(events, organizerId) {
   for (const ev of events) {
     try {
       const venueId = await ensureVenueByName(ev.venueName)
-      // Timeless cards get midnight ET (the repo convention for timeless
-      // events) via easternToIso's combined-form/empty-time branch — never a
-      // fabricated noon.
+      // Timeless cards get midnight ET via easternToIso's empty-time branch.
+      // Known consequence: the list, map, first-page, and digest feeds filter
+      // .gte('start_at', now()) with no grace window, so a midnight row is
+      // still matched at exactly 00:00:00 but drops out of results from
+      // 00:00:01 ET on its own day (useRelatedEvents is an exception: it has
+      // a 3-hour grace window, see src/hooks/useEvents.ts:548). This is an
+      // OPEN QUESTION, not settled convention.
+      // See the SANCTIONED-DEFAULT-TIME grep marker in scrape-city-of-cuyahoga-falls.js,
+      // scrape-ohio-erie-canalway.js, and scrape-ohio-festivals.js; pending the maintainer's decision.
       const startAt = easternToIso(ev.dateStr, ev.timeStr ?? '')
       if (!startAt) { skipped++; continue }
 
