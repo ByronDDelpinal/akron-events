@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useOrganization } from '@/hooks/useEvents'
 import CategoryBadge from '@/components/CategoryBadge'
+import ShareButtons from '@/components/ShareButtons'
 import {
   SEO,
   buildGraph,
@@ -100,6 +101,14 @@ export default function OrganizationDetailPage() {
                 {[org.address, org.city, org.state].filter(Boolean).join(', ')}
               </p>
             )}
+            <div className="org-detail-share">
+              <ShareButtons
+                url={`/organizations/${org.id}`}
+                title={org.name}
+                text={seoDesc}
+                campaign="organization_detail"
+              />
+            </div>
           </div>
         </div>
       </div>

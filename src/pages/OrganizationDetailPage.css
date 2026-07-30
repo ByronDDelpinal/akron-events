@@ -56,6 +56,14 @@
   font-size: var(--text-sm); color: var(--overlay-light-50);
   margin-top: var(--space-xs);
 }
+/* Share row sits on the dark hero, so the default light-surface button
+ * tokens (--text / --border) are re-pointed to the hero's overlay-light
+ * scale for contrast. Amber hover/focus is inherited from ShareButtons.css. */
+.org-detail-share { margin-top: var(--space-lg); }
+.org-detail-share .share-btn {
+  color: var(--overlay-light-70);
+  border-color: var(--overlay-light-12);
+}
 
 @media (max-width: 600px) {
   .org-detail-hero-inner { flex-direction: column; align-items: flex-start; gap: var(--space-lg); }
