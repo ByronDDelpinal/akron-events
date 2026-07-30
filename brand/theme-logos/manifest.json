@@ -1,0 +1,1042 @@
+[
+  {
+    "theme": "akron-pulse",
+    "name": "Civic Teal",
+    "font": "Sora",
+    "layout": "horizontal",
+    "variant": "on-dark",
+    "file": "AkronPulse_Civic-Teal_horizontal_on-dark.png",
+    "size": [
+      3121,
+      776
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#56B0C2",
+      "mark": [
+        "#FFFFFF",
+        "#56B0C2"
+      ]
+    }
+  },
+  {
+    "theme": "akron-pulse",
+    "name": "Civic Teal",
+    "font": "Sora",
+    "layout": "stacked",
+    "variant": "on-dark",
+    "file": "AkronPulse_Civic-Teal_stacked_on-dark.png",
+    "size": [
+      2243,
+      1846
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#56B0C2",
+      "mark": [
+        "#FFFFFF",
+        "#56B0C2"
+      ]
+    }
+  },
+  {
+    "theme": "akron-pulse",
+    "name": "Civic Teal",
+    "font": "Sora",
+    "layout": "horizontal",
+    "variant": "on-light",
+    "file": "AkronPulse_Civic-Teal_horizontal_on-light.png",
+    "size": [
+      3121,
+      776
+    ],
+    "colors": {
+      "akron": "#1F2A30",
+      "pulse": "#0E5163",
+      "mark": [
+        "#0E5163",
+        "#0E5163"
+      ]
+    }
+  },
+  {
+    "theme": "akron-pulse",
+    "name": "Civic Teal",
+    "font": "Sora",
+    "layout": "stacked",
+    "variant": "on-light",
+    "file": "AkronPulse_Civic-Teal_stacked_on-light.png",
+    "size": [
+      2243,
+      1846
+    ],
+    "colors": {
+      "akron": "#1F2A30",
+      "pulse": "#0E5163",
+      "mark": [
+        "#0E5163",
+        "#0E5163"
+      ]
+    }
+  },
+  {
+    "theme": "grand-piano",
+    "name": "Grand Piano",
+    "font": "Playfair Display",
+    "layout": "horizontal",
+    "variant": "on-dark",
+    "file": "AkronPulse_Grand-Piano_horizontal_on-dark.png",
+    "size": [
+      2901,
+      741
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#BBBBBB",
+      "mark": [
+        "#FFFFFF",
+        "#BBBBBB"
+      ]
+    }
+  },
+  {
+    "theme": "grand-piano",
+    "name": "Grand Piano",
+    "font": "Playfair Display",
+    "layout": "stacked",
+    "variant": "on-dark",
+    "file": "AkronPulse_Grand-Piano_stacked_on-dark.png",
+    "size": [
+      2046,
+      1731
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#BBBBBB",
+      "mark": [
+        "#FFFFFF",
+        "#BBBBBB"
+      ]
+    }
+  },
+  {
+    "theme": "grand-piano",
+    "name": "Grand Piano",
+    "font": "Playfair Display",
+    "layout": "horizontal",
+    "variant": "on-light",
+    "file": "AkronPulse_Grand-Piano_horizontal_on-light.png",
+    "size": [
+      2901,
+      741
+    ],
+    "colors": {
+      "akron": "#0D0D0D",
+      "pulse": "#1A1A1A",
+      "mark": [
+        "#1A1A1A",
+        "#1A1A1A"
+      ]
+    }
+  },
+  {
+    "theme": "grand-piano",
+    "name": "Grand Piano",
+    "font": "Playfair Display",
+    "layout": "stacked",
+    "variant": "on-light",
+    "file": "AkronPulse_Grand-Piano_stacked_on-light.png",
+    "size": [
+      2046,
+      1731
+    ],
+    "colors": {
+      "akron": "#0D0D0D",
+      "pulse": "#1A1A1A",
+      "mark": [
+        "#1A1A1A",
+        "#1A1A1A"
+      ]
+    }
+  },
+  {
+    "theme": "pulse-red",
+    "name": "Pulse Red",
+    "font": "Fraunces",
+    "layout": "horizontal",
+    "variant": "on-dark",
+    "file": "AkronPulse_Pulse-Red_horizontal_on-dark.png",
+    "size": [
+      2703,
+      714
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#F26352",
+      "mark": [
+        "#FFFFFF",
+        "#F26352"
+      ]
+    }
+  },
+  {
+    "theme": "pulse-red",
+    "name": "Pulse Red",
+    "font": "Fraunces",
+    "layout": "stacked",
+    "variant": "on-dark",
+    "file": "AkronPulse_Pulse-Red_stacked_on-dark.png",
+    "size": [
+      1862,
+      1596
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#F26352",
+      "mark": [
+        "#FFFFFF",
+        "#F26352"
+      ]
+    }
+  },
+  {
+    "theme": "pulse-red",
+    "name": "Pulse Red",
+    "font": "Fraunces",
+    "layout": "horizontal",
+    "variant": "on-light",
+    "file": "AkronPulse_Pulse-Red_horizontal_on-light.png",
+    "size": [
+      2703,
+      714
+    ],
+    "colors": {
+      "akron": "#1F2A40",
+      "pulse": "#C03423",
+      "mark": [
+        "#C03423",
+        "#C03423"
+      ]
+    }
+  },
+  {
+    "theme": "pulse-red",
+    "name": "Pulse Red",
+    "font": "Fraunces",
+    "layout": "stacked",
+    "variant": "on-light",
+    "file": "AkronPulse_Pulse-Red_stacked_on-light.png",
+    "size": [
+      1862,
+      1596
+    ],
+    "colors": {
+      "akron": "#1F2A40",
+      "pulse": "#C03423",
+      "mark": [
+        "#C03423",
+        "#C03423"
+      ]
+    }
+  },
+  {
+    "theme": "twilight-plum",
+    "name": "Twilight Plum",
+    "font": "Cormorant Garamond",
+    "layout": "horizontal",
+    "variant": "on-dark",
+    "file": "AkronPulse_Twilight-Plum_horizontal_on-dark.png",
+    "size": [
+      2514,
+      647
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#B888AE",
+      "mark": [
+        "#FFFFFF",
+        "#B888AE"
+      ]
+    }
+  },
+  {
+    "theme": "twilight-plum",
+    "name": "Twilight Plum",
+    "font": "Cormorant Garamond",
+    "layout": "stacked",
+    "variant": "on-dark",
+    "file": "AkronPulse_Twilight-Plum_stacked_on-dark.png",
+    "size": [
+      1764,
+      1510
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#B888AE",
+      "mark": [
+        "#FFFFFF",
+        "#B888AE"
+      ]
+    }
+  },
+  {
+    "theme": "twilight-plum",
+    "name": "Twilight Plum",
+    "font": "Cormorant Garamond",
+    "layout": "horizontal",
+    "variant": "on-light",
+    "file": "AkronPulse_Twilight-Plum_horizontal_on-light.png",
+    "size": [
+      2514,
+      647
+    ],
+    "colors": {
+      "akron": "#2D1A28",
+      "pulse": "#4A2640",
+      "mark": [
+        "#4A2640",
+        "#4A2640"
+      ]
+    }
+  },
+  {
+    "theme": "twilight-plum",
+    "name": "Twilight Plum",
+    "font": "Cormorant Garamond",
+    "layout": "stacked",
+    "variant": "on-light",
+    "file": "AkronPulse_Twilight-Plum_stacked_on-light.png",
+    "size": [
+      1764,
+      1510
+    ],
+    "colors": {
+      "akron": "#2D1A28",
+      "pulse": "#4A2640",
+      "mark": [
+        "#4A2640",
+        "#4A2640"
+      ]
+    }
+  },
+  {
+    "theme": "forest-amber",
+    "name": "Forest & Amber",
+    "font": "Domine",
+    "layout": "horizontal",
+    "variant": "on-dark",
+    "file": "AkronPulse_Forest-Amber_horizontal_on-dark.png",
+    "size": [
+      3050,
+      763
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#6BA47E",
+      "mark": [
+        "#FFFFFF",
+        "#6BA47E"
+      ]
+    }
+  },
+  {
+    "theme": "forest-amber",
+    "name": "Forest & Amber",
+    "font": "Domine",
+    "layout": "stacked",
+    "variant": "on-dark",
+    "file": "AkronPulse_Forest-Amber_stacked_on-dark.png",
+    "size": [
+      2181,
+      1817
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#6BA47E",
+      "mark": [
+        "#FFFFFF",
+        "#6BA47E"
+      ]
+    }
+  },
+  {
+    "theme": "forest-amber",
+    "name": "Forest & Amber",
+    "font": "Domine",
+    "layout": "horizontal",
+    "variant": "on-light",
+    "file": "AkronPulse_Forest-Amber_horizontal_on-light.png",
+    "size": [
+      3050,
+      763
+    ],
+    "colors": {
+      "akron": "#1F2D24",
+      "pulse": "#234F35",
+      "mark": [
+        "#234F35",
+        "#234F35"
+      ]
+    }
+  },
+  {
+    "theme": "forest-amber",
+    "name": "Forest & Amber",
+    "font": "Domine",
+    "layout": "stacked",
+    "variant": "on-light",
+    "file": "AkronPulse_Forest-Amber_stacked_on-light.png",
+    "size": [
+      2181,
+      1817
+    ],
+    "colors": {
+      "akron": "#1F2D24",
+      "pulse": "#234F35",
+      "mark": [
+        "#234F35",
+        "#234F35"
+      ]
+    }
+  },
+  {
+    "theme": "civic-classic",
+    "name": "Civic Classic",
+    "font": "Libre Caslon Text",
+    "layout": "horizontal",
+    "variant": "on-dark",
+    "file": "AkronPulse_Civic-Classic_horizontal_on-dark.png",
+    "size": [
+      3229,
+      814
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#D4922A",
+      "mark": [
+        "#FFFFFF",
+        "#D4922A"
+      ]
+    }
+  },
+  {
+    "theme": "civic-classic",
+    "name": "Civic Classic",
+    "font": "Libre Caslon Text",
+    "layout": "stacked",
+    "variant": "on-dark",
+    "file": "AkronPulse_Civic-Classic_stacked_on-dark.png",
+    "size": [
+      2299,
+      1921
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#D4922A",
+      "mark": [
+        "#FFFFFF",
+        "#D4922A"
+      ]
+    }
+  },
+  {
+    "theme": "civic-classic",
+    "name": "Civic Classic",
+    "font": "Libre Caslon Text",
+    "layout": "horizontal",
+    "variant": "on-light",
+    "file": "AkronPulse_Civic-Classic_horizontal_on-light.png",
+    "size": [
+      3229,
+      814
+    ],
+    "colors": {
+      "akron": "#17200F",
+      "pulse": "#96671E",
+      "mark": [
+        "#96671E",
+        "#96671E"
+      ]
+    }
+  },
+  {
+    "theme": "civic-classic",
+    "name": "Civic Classic",
+    "font": "Libre Caslon Text",
+    "layout": "stacked",
+    "variant": "on-light",
+    "file": "AkronPulse_Civic-Classic_stacked_on-light.png",
+    "size": [
+      2299,
+      1921
+    ],
+    "colors": {
+      "akron": "#17200F",
+      "pulse": "#96671E",
+      "mark": [
+        "#96671E",
+        "#96671E"
+      ]
+    }
+  },
+  {
+    "theme": "harbor-civic",
+    "name": "Harbor Civic",
+    "font": "Playfair Display",
+    "layout": "horizontal",
+    "variant": "on-dark",
+    "file": "AkronPulse_Harbor-Civic_horizontal_on-dark.png",
+    "size": [
+      2901,
+      741
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#E07050",
+      "mark": [
+        "#FFFFFF",
+        "#E07050"
+      ]
+    }
+  },
+  {
+    "theme": "harbor-civic",
+    "name": "Harbor Civic",
+    "font": "Playfair Display",
+    "layout": "stacked",
+    "variant": "on-dark",
+    "file": "AkronPulse_Harbor-Civic_stacked_on-dark.png",
+    "size": [
+      2046,
+      1731
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#E07050",
+      "mark": [
+        "#FFFFFF",
+        "#E07050"
+      ]
+    }
+  },
+  {
+    "theme": "harbor-civic",
+    "name": "Harbor Civic",
+    "font": "Playfair Display",
+    "layout": "horizontal",
+    "variant": "on-light",
+    "file": "AkronPulse_Harbor-Civic_horizontal_on-light.png",
+    "size": [
+      2901,
+      741
+    ],
+    "colors": {
+      "akron": "#1A1F28",
+      "pulse": "#B04E31",
+      "mark": [
+        "#B04E31",
+        "#B04E31"
+      ]
+    }
+  },
+  {
+    "theme": "harbor-civic",
+    "name": "Harbor Civic",
+    "font": "Playfair Display",
+    "layout": "stacked",
+    "variant": "on-light",
+    "file": "AkronPulse_Harbor-Civic_stacked_on-light.png",
+    "size": [
+      2046,
+      1731
+    ],
+    "colors": {
+      "akron": "#1A1F28",
+      "pulse": "#B04E31",
+      "mark": [
+        "#B04E31",
+        "#B04E31"
+      ]
+    }
+  },
+  {
+    "theme": "violet-hour",
+    "name": "Violet Hour",
+    "font": "DM Serif Display",
+    "layout": "horizontal",
+    "variant": "on-dark",
+    "file": "AkronPulse_Violet-Hour_horizontal_on-dark.png",
+    "size": [
+      2732,
+      695
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#9A68CD",
+      "mark": [
+        "#FFFFFF",
+        "#9A68CD"
+      ]
+    }
+  },
+  {
+    "theme": "violet-hour",
+    "name": "Violet Hour",
+    "font": "DM Serif Display",
+    "layout": "stacked",
+    "variant": "on-dark",
+    "file": "AkronPulse_Violet-Hour_stacked_on-dark.png",
+    "size": [
+      1933,
+      1621
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#9A68CD",
+      "mark": [
+        "#FFFFFF",
+        "#9A68CD"
+      ]
+    }
+  },
+  {
+    "theme": "violet-hour",
+    "name": "Violet Hour",
+    "font": "DM Serif Display",
+    "layout": "horizontal",
+    "variant": "on-light",
+    "file": "AkronPulse_Violet-Hour_horizontal_on-light.png",
+    "size": [
+      2732,
+      695
+    ],
+    "colors": {
+      "akron": "#18121E",
+      "pulse": "#663399",
+      "mark": [
+        "#663399",
+        "#663399"
+      ]
+    }
+  },
+  {
+    "theme": "violet-hour",
+    "name": "Violet Hour",
+    "font": "DM Serif Display",
+    "layout": "stacked",
+    "variant": "on-light",
+    "file": "AkronPulse_Violet-Hour_stacked_on-light.png",
+    "size": [
+      1933,
+      1621
+    ],
+    "colors": {
+      "akron": "#18121E",
+      "pulse": "#663399",
+      "mark": [
+        "#663399",
+        "#663399"
+      ]
+    }
+  },
+  {
+    "theme": "boardwalk",
+    "name": "Boardwalk",
+    "font": "Recursive",
+    "layout": "horizontal",
+    "variant": "on-dark",
+    "file": "AkronPulse_Boardwalk_horizontal_on-dark.png",
+    "size": [
+      2984,
+      753
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#FE7F63",
+      "mark": [
+        "#FFFFFF",
+        "#FE7F63"
+      ]
+    }
+  },
+  {
+    "theme": "boardwalk",
+    "name": "Boardwalk",
+    "font": "Recursive",
+    "layout": "stacked",
+    "variant": "on-dark",
+    "file": "AkronPulse_Boardwalk_stacked_on-dark.png",
+    "size": [
+      2123,
+      1772
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#FE7F63",
+      "mark": [
+        "#FFFFFF",
+        "#FE7F63"
+      ]
+    }
+  },
+  {
+    "theme": "boardwalk",
+    "name": "Boardwalk",
+    "font": "Recursive",
+    "layout": "horizontal",
+    "variant": "on-light",
+    "file": "AkronPulse_Boardwalk_horizontal_on-light.png",
+    "size": [
+      2984,
+      753
+    ],
+    "colors": {
+      "akron": "#12243A",
+      "pulse": "#D62801",
+      "mark": [
+        "#D62801",
+        "#D62801"
+      ]
+    }
+  },
+  {
+    "theme": "boardwalk",
+    "name": "Boardwalk",
+    "font": "Recursive",
+    "layout": "stacked",
+    "variant": "on-light",
+    "file": "AkronPulse_Boardwalk_stacked_on-light.png",
+    "size": [
+      2123,
+      1772
+    ],
+    "colors": {
+      "akron": "#12243A",
+      "pulse": "#D62801",
+      "mark": [
+        "#D62801",
+        "#D62801"
+      ]
+    }
+  },
+  {
+    "theme": "olive-grove",
+    "name": "Olive Grove",
+    "font": "Libre Baskerville",
+    "layout": "horizontal",
+    "variant": "on-dark",
+    "file": "AkronPulse_Olive-Grove_horizontal_on-dark.png",
+    "size": [
+      3277,
+      817
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#A6A867",
+      "mark": [
+        "#FFFFFF",
+        "#A6A867"
+      ]
+    }
+  },
+  {
+    "theme": "olive-grove",
+    "name": "Olive Grove",
+    "font": "Libre Baskerville",
+    "layout": "stacked",
+    "variant": "on-dark",
+    "file": "AkronPulse_Olive-Grove_stacked_on-dark.png",
+    "size": [
+      2349,
+      1954
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#A6A867",
+      "mark": [
+        "#FFFFFF",
+        "#A6A867"
+      ]
+    }
+  },
+  {
+    "theme": "olive-grove",
+    "name": "Olive Grove",
+    "font": "Libre Baskerville",
+    "layout": "horizontal",
+    "variant": "on-light",
+    "file": "AkronPulse_Olive-Grove_horizontal_on-light.png",
+    "size": [
+      3277,
+      817
+    ],
+    "colors": {
+      "akron": "#1B2021",
+      "pulse": "#51513D",
+      "mark": [
+        "#51513D",
+        "#51513D"
+      ]
+    }
+  },
+  {
+    "theme": "olive-grove",
+    "name": "Olive Grove",
+    "font": "Libre Baskerville",
+    "layout": "stacked",
+    "variant": "on-light",
+    "file": "AkronPulse_Olive-Grove_stacked_on-light.png",
+    "size": [
+      2349,
+      1954
+    ],
+    "colors": {
+      "akron": "#1B2021",
+      "pulse": "#51513D",
+      "mark": [
+        "#51513D",
+        "#51513D"
+      ]
+    }
+  },
+  {
+    "theme": "arcade-night",
+    "name": "Arcade Night",
+    "font": "Unbounded",
+    "layout": "horizontal",
+    "variant": "on-dark",
+    "file": "AkronPulse_Arcade-Night_horizontal_on-dark.png",
+    "size": [
+      3628,
+      839
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#FF9FE5",
+      "mark": [
+        "#FFFFFF",
+        "#FF9FE5"
+      ]
+    }
+  },
+  {
+    "theme": "arcade-night",
+    "name": "Arcade Night",
+    "font": "Unbounded",
+    "layout": "stacked",
+    "variant": "on-dark",
+    "file": "AkronPulse_Arcade-Night_stacked_on-dark.png",
+    "size": [
+      2725,
+      2173
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#FF9FE5",
+      "mark": [
+        "#FFFFFF",
+        "#FF9FE5"
+      ]
+    }
+  },
+  {
+    "theme": "arcade-night",
+    "name": "Arcade Night",
+    "font": "Unbounded",
+    "layout": "horizontal",
+    "variant": "on-light",
+    "file": "AkronPulse_Arcade-Night_horizontal_on-light.png",
+    "size": [
+      3628,
+      839
+    ],
+    "colors": {
+      "akron": "#272727",
+      "pulse": "#D20099",
+      "mark": [
+        "#D20099",
+        "#D20099"
+      ]
+    }
+  },
+  {
+    "theme": "arcade-night",
+    "name": "Arcade Night",
+    "font": "Unbounded",
+    "layout": "stacked",
+    "variant": "on-light",
+    "file": "AkronPulse_Arcade-Night_stacked_on-light.png",
+    "size": [
+      2725,
+      2173
+    ],
+    "colors": {
+      "akron": "#272727",
+      "pulse": "#D20099",
+      "mark": [
+        "#D20099",
+        "#D20099"
+      ]
+    }
+  },
+  {
+    "theme": "stargazer",
+    "name": "Stargazer",
+    "font": "Fraunces",
+    "layout": "horizontal",
+    "variant": "on-dark",
+    "file": "AkronPulse_Stargazer_horizontal_on-dark.png",
+    "size": [
+      2739,
+      719
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#A89AD0",
+      "mark": [
+        "#FFFFFF",
+        "#A89AD0"
+      ]
+    }
+  },
+  {
+    "theme": "stargazer",
+    "name": "Stargazer",
+    "font": "Fraunces",
+    "layout": "stacked",
+    "variant": "on-dark",
+    "file": "AkronPulse_Stargazer_stacked_on-dark.png",
+    "size": [
+      1896,
+      1618
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#A89AD0",
+      "mark": [
+        "#FFFFFF",
+        "#A89AD0"
+      ]
+    }
+  },
+  {
+    "theme": "stargazer",
+    "name": "Stargazer",
+    "font": "Fraunces",
+    "layout": "horizontal",
+    "variant": "on-light",
+    "file": "AkronPulse_Stargazer_horizontal_on-light.png",
+    "size": [
+      2739,
+      719
+    ],
+    "colors": {
+      "akron": "#1A1A2E",
+      "pulse": "#313D5A",
+      "mark": [
+        "#313D5A",
+        "#313D5A"
+      ]
+    }
+  },
+  {
+    "theme": "stargazer",
+    "name": "Stargazer",
+    "font": "Fraunces",
+    "layout": "stacked",
+    "variant": "on-light",
+    "file": "AkronPulse_Stargazer_stacked_on-light.png",
+    "size": [
+      1896,
+      1618
+    ],
+    "colors": {
+      "akron": "#1A1A2E",
+      "pulse": "#313D5A",
+      "mark": [
+        "#313D5A",
+        "#313D5A"
+      ]
+    }
+  },
+  {
+    "theme": "prime-time",
+    "name": "Prime Time",
+    "font": "Oswald",
+    "layout": "horizontal",
+    "variant": "on-dark",
+    "file": "AkronPulse_Prime-Time_horizontal_on-dark.png",
+    "size": [
+      2742,
+      791
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#F76436",
+      "mark": [
+        "#FFFFFF",
+        "#F76436"
+      ]
+    }
+  },
+  {
+    "theme": "prime-time",
+    "name": "Prime Time",
+    "font": "Oswald",
+    "layout": "stacked",
+    "variant": "on-dark",
+    "file": "AkronPulse_Prime-Time_stacked_on-dark.png",
+    "size": [
+      1763,
+      1573
+    ],
+    "colors": {
+      "akron": "#FFFFFF",
+      "pulse": "#F76436",
+      "mark": [
+        "#FFFFFF",
+        "#F76436"
+      ]
+    }
+  },
+  {
+    "theme": "prime-time",
+    "name": "Prime Time",
+    "font": "Oswald",
+    "layout": "horizontal",
+    "variant": "on-light",
+    "file": "AkronPulse_Prime-Time_horizontal_on-light.png",
+    "size": [
+      2742,
+      791
+    ],
+    "colors": {
+      "akron": "#0A1E38",
+      "pulse": "#D03808",
+      "mark": [
+        "#D03808",
+        "#D03808"
+      ]
+    }
+  },
+  {
+    "theme": "prime-time",
+    "name": "Prime Time",
+    "font": "Oswald",
+    "layout": "stacked",
+    "variant": "on-light",
+    "file": "AkronPulse_Prime-Time_stacked_on-light.png",
+    "size": [
+      1763,
+      1573
+    ],
+    "colors": {
+      "akron": "#0A1E38",
+      "pulse": "#D03808",
+      "mark": [
+        "#D03808",
+        "#D03808"
+      ]
+    }
+  }
+]
