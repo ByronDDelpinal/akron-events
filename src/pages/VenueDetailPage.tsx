@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useVenue, useVenueEvents } from '@/hooks/useEvents'
 import { VenueMap } from '@/components/MapView'
 import CategoryBadge from '@/components/CategoryBadge'
+import ShareButtons from '@/components/ShareButtons'
 import {
   SEO,
   buildGraph,
@@ -103,6 +104,14 @@ export default function VenueDetailPage() {
           {venue.status && venue.status !== 'published' && (
             <span className="venue-detail-status">{venue.status.replace('_', ' ')}</span>
           )}
+          <div className="venue-detail-share">
+            <ShareButtons
+              url={`/venues/${venue.id}`}
+              title={venue.name}
+              text={seoDesc}
+              campaign="venue_detail"
+            />
+          </div>
         </div>
       </div>
 
