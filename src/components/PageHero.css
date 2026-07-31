@@ -10,6 +10,70 @@
   max-width: 680px;
   margin: 0 auto;
 }
+
+/* ── Media (background video) variant ─────────────────────────────────────
+   Mirrors the homepage hero video treatment (HomePage.css): slides under the
+   transparent sticky nav, poster underneath, deferred video that fades in,
+   and a scrim on top. */
+.page-hero--media {
+  position: relative;
+  margin-top: -65px;                 /* slide under the transparent nav, like .hero */
+  padding-top: calc(52px + 65px);
+  padding-bottom: var(--space-5xl);
+  /* Approximates the homepage hero band height so the animation reads the
+     same size; the inner content centers within it. */
+  min-height: 500px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.page-hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+.page-hero-bg-poster {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+}
+.page-hero-bg-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  animation: page-hero-video-fadein 1.4s ease forwards;
+}
+@keyframes page-hero-video-fadein {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.page-hero-bg-scrim {
+  position: absolute;
+  inset: 0;
+  /* Slightly darkened: a touch heavier than the homepage scrim (0.52 → 0.72)
+     so the white title clears WCAG AA over the brighter frames, while the
+     footage stays clearly visible. */
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.58) 0%,
+    rgba(0, 0, 0, 0.66) 45%,
+    rgba(0, 0, 0, 0.74) 100%
+  );
+}
+.page-hero--media .page-hero-inner {
+  position: relative;
+  z-index: 1;
+}
+/* Phones only get the poster (the video never mounts below 768px), so the
+   band doesn't need the full desktop height. */
+@media (max-width: 767px) {
+  .page-hero--media { min-height: 400px; }
+}
 .page-hero-eyebrow {
   font-family: var(--font-display);
   font-size: var(--text-tag);

@@ -35,7 +35,13 @@ export default function AboutPage() {
         path="/about"
         jsonLd={seoGraph}
       />
-      <PageHero title={<>Never miss <span>a beat</span></>}>
+      <PageHero
+        title={<>Never miss <span>a beat</span></>}
+        media={{
+          videoSrc:  '/video/akron-pulse-about-cascade.mp4',
+          posterSrc: '/video/akron-pulse-about-cascade-poster.jpg',
+        }}
+      >
         Amazing concerts, exhibitions, games, gatherings, and experiences are
         happening every week. Akron Pulse has them all.
       </PageHero>
