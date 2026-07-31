@@ -69,8 +69,6 @@
   position: relative;
   z-index: 1;
 }
-/* Phones only get the poster (the video never mounts below 768px), so the
-   band doesn't need the full desktop height. */
 @media (max-width: 767px) {
   .page-hero--media { min-height: 400px; }
 }

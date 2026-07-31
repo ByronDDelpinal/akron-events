@@ -3,8 +3,8 @@ import './PageHero.css'
 
 interface PageHeroMedia {
   /**
-   * Deferred background video (mp4). Desktop-only, mounts after window load.
-   * Omit for a static image-only hero (the poster alone).
+   * Deferred background video (mp4). Mounts after window load on any viewport
+   * width. Omit for a static image-only hero (the poster alone).
    */
   videoSrc?: string
   /** First frame of the video, shown from first paint until the video mounts. */
@@ -20,20 +20,23 @@ interface PageHeroProps {
   children?: ReactNode
   /**
    * Optional background video + poster. Follows the homepage hero playbook:
-   * the poster paints immediately, and the video element only mounts after
-   * the window `load` event, and only for desktop viewports without
-   * reduced-motion or data-saver enabled. Eligibility is checked at unlock
-   * time (not mount) so an SSR/hydration mismatch is impossible.
+   * the poster paints immediately and the video element only mounts after the
+   * window `load` event. Eligibility is checked at unlock time (not mount) so
+   * an SSR/hydration mismatch is impossible.
    */
   media?: PageHeroMedia
 }
 
-/** Mirrors the homepage hero-video eligibility gate (HomePage.tsx). */
+/**
+ * Deliberately looser than the homepage hero gate (HomePage.tsx), which is
+ * desktop-only: these page heroes carry a much smaller file and the homepage's
+ * mobile-payload concern doesn't apply, so phones get the video too. The
+ * accessibility and data-cost opt-outs still hold.
+ */
 function isVideoEligible(): boolean {
   type NetInfo = { saveData?: boolean }
   const conn = (navigator as Navigator & { connection?: NetInfo }).connection
   return (
-    window.matchMedia('(min-width: 768px)').matches &&
     !window.matchMedia('(prefers-reduced-motion: reduce)').matches &&
     !conn?.saveData
   )
@@ -57,8 +60,12 @@ export default function PageHero({ eyebrow, title, children, media }: PageHeroPr
     if (isVideoEligible()) setVideoUnlocked(true)
   }, [])
 
+  // Depend on the URL string, not the `media` object: callers pass an inline
+  // object literal, so a new reference every render would re-run this effect
+  // and cancel the pending unlock frame each time.
+  const videoSrc = media?.videoSrc
   useEffect(() => {
-    if (!media?.videoSrc) return
+    if (!videoSrc) return
     // Defer past the initial page load (same intent as the homepage, which
     // waits for the first page of events) so the video never competes with
     // first-paint resources.
@@ -68,7 +75,7 @@ export default function PageHero({ eyebrow, title, children, media }: PageHeroPr
     }
     window.addEventListener('load', unlock, { once: true })
     return () => window.removeEventListener('load', unlock)
-  }, [media, unlock])
+  }, [videoSrc, unlock])
 
   return (
     <header className={`page-hero${media ? ' page-hero--media' : ''}`}>
