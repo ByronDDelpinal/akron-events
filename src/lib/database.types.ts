@@ -388,35 +388,6 @@ export type Database = {
         }
         Relationships: []
       }
-      feedback_votes: {
-        Row: {
-          created_at: string
-          id: number
-          post_id: number
-          voter_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: never
-          post_id: number
-          voter_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: never
-          post_id?: number
-          voter_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "feedback_votes_post_id_fkey"
-            columns: ["post_id"]
-            isOneToOne: false
-            referencedRelation: "feedback_posts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       moderation_allowlist: {
         Row: {
           phrase: string
@@ -540,6 +511,45 @@ export type Database = {
           ran_at?: string
           scraper_name?: string
           status?: string
+        }
+        Relationships: []
+      }
+      slack_notifications: {
+        Row: {
+          channel_key: string
+          completed_at: string | null
+          created_at: string
+          dedupe_key: string
+          error: string | null
+          id: number
+          kind: string
+          slack_ts: string | null
+          status: string
+          thread_ts: string | null
+        }
+        Insert: {
+          channel_key: string
+          completed_at?: string | null
+          created_at?: string
+          dedupe_key: string
+          error?: string | null
+          id?: number
+          kind: string
+          slack_ts?: string | null
+          status?: string
+          thread_ts?: string | null
+        }
+        Update: {
+          channel_key?: string
+          completed_at?: string | null
+          created_at?: string
+          dedupe_key?: string
+          error?: string | null
+          id?: number
+          kind?: string
+          slack_ts?: string | null
+          status?: string
+          thread_ts?: string | null
         }
         Relationships: []
       }
