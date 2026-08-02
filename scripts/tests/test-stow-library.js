@@ -17,6 +17,8 @@ const {
   mapCategory, isSkippable, parseIsFamily, parseTags, parsePrice,
   resolveVenue, shouldDropForGeo, buildRow, SOURCE_KEY,
 } = await import('../scrape-stow-library.js')
+// The real shared constant, not a copy: the digest subtracts this exact string.
+const { DATE_ONLY_TIME_NOTE } = await import('../lib/ics.js')
 
 // A real feed object (2- to 5-Year-Old Story Time), trimmed.
 const storyTime = {
@@ -183,19 +185,73 @@ describe('buildRow', () => {
     assert.equal(row.source_id, 'smfpl_111_20260701')
   })
 
-  it('flags an all-day event needs_review (synthesized midnight, keep the date)', () => {
+  it('flags an all-day event needs_review and defaults it to noon ET', () => {
     // The real LibCal feed never sends a bare date — all-day events arrive as
-    // "…  00:00:00" WITH all_day:true, so the fabricated midnight must be caught
-    // off the authoritative flag, not a clock-in-string regex.
+    // "…  00:00:00" WITH all_day:true, so the missing time must be caught off
+    // the authoritative flag, not a clock-in-string regex.
     const { row } = buildRow({
       id: 444, title: 'Library Book Sale', startdt: '2026-07-31 00:00:00',
       all_day: true, ymd: '20260731', url: 'https://events.smfpl.org/event/444',
       location: 'Stow-Munroe Falls Room', audiences: [{ name: 'All Ages' }],
       categories_arr: [{ name: 'Book Sale' }], registration_cost: '', online_event: false,
     })
+    // Noon is a default, not a confirmed time: the review queue is its only
+    // audit trail, so the flag stays even though the time now looks plausible.
     assert.equal(row.needs_review, true)
-    // The date survives; time is the fabricated midnight ET (04:00Z in EDT).
-    assert.equal(row.start_at, '2026-07-31T04:00:00.000Z')
+    // SANCTIONED-DEFAULT-TIME: the date survives and the clock is noon ET
+    // (16:00Z in EDT), NOT the 04:00Z midnight that fell out of every feed at
+    // 00:00:01 on the morning of the event.
+    assert.equal(row.start_at, '2026-07-31T16:00:00.000Z')
+  })
+
+  it('discloses the invented time in the description, exactly once', () => {
+    const base = { id: 445, title: 'Seed Swap', startdt: '2026-07-31 00:00:00',
+      all_day: true, ymd: '20260731', url: 'https://events.smfpl.org/event/445',
+      location: 'Stow-Munroe Falls Room', audiences: [{ name: 'All Ages' }],
+      categories_arr: [{ name: 'Contest' }], registration_cost: '', online_event: false }
+
+    const { row } = buildRow({ ...base, description: '<p>Bring seeds, take seeds.</p>' })
+    assert.ok(row.description.endsWith(DATE_ONLY_TIME_NOTE), 'note must be the final clause')
+    assert.equal(row.description.split(DATE_ONLY_TIME_NOTE).length - 1, 1)
+
+    // A source that already quotes the sentence must not get it twice.
+    const { row: quoted } = buildRow({
+      ...base, description: `Bring seeds. ${DATE_ONLY_TIME_NOTE}`,
+    })
+    assert.equal(quoted.description.split(DATE_ONLY_TIME_NOTE).length - 1, 1)
+
+    // No prose = no note. A note-only description would read as a real
+    // listing to anything measuring description length.
+    assert.equal(buildRow({ ...base, description: '' }).row.description, null)
+  })
+
+  it('nulls an all-day end_at that the noon shift would invert', () => {
+    // LibCal sends midnight-to-midnight for a same-day all-day row. Left
+    // alone, end_at (04:00Z) would now precede start_at (16:00Z).
+    const { row } = buildRow({
+      id: 446, title: 'Food Drive', startdt: '2026-07-31 00:00:00',
+      enddt: '2026-07-31 00:00:00', all_day: true, ymd: '20260731',
+      url: 'https://events.smfpl.org/event/446', location: '',
+      audiences: [{ name: 'All Ages' }], categories_arr: [{ name: 'Contest' }],
+      registration_cost: '', online_event: false,
+    })
+    assert.equal(row.start_at, '2026-07-31T16:00:00.000Z')
+    assert.equal(row.end_at, null)
+  })
+
+  it('does NOT touch the description or the clock of a timed row', () => {
+    const { row } = buildRow({
+      id: 447, title: 'Chess Club', startdt: '2026-07-31 18:00:00',
+      enddt: '2026-07-31 19:30:00', all_day: false, ymd: '20260731',
+      description: '<p>Boards provided.</p>',
+      url: 'https://events.smfpl.org/event/447', location: 'Stow-Munroe Falls Room',
+      audiences: [{ name: 'Adult' }], categories_arr: [{ name: 'Club' }],
+      registration_cost: '', online_event: false,
+    })
+    assert.equal(row.start_at, '2026-07-31T22:00:00.000Z')
+    assert.equal(row.end_at, '2026-07-31T23:30:00.000Z')
+    assert.equal(row.description, 'Boards provided.')
+    assert.equal(row.needs_review, undefined)
   })
 
   it('does NOT force needs_review on a timed, non-all-day startdt', () => {

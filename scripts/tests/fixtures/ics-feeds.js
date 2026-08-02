@@ -56,6 +56,80 @@ export const ALL_DAY_FEED = [
   'END:VCALENDAR',
 ].join('\r\n')
 
+/**
+ * Date-only VEVENTs that exercise the noon default (SANCTIONED-DEFAULT-TIME).
+ *
+ *   dateonly-desc     — real prose, so the disclosure note gets appended
+ *   dateonly-nodesc   — no prose; the note must NOT become the description
+ *   dateonly-sameday  — DTEND on the START date (a real municipal-feed shape),
+ *                       so the noon shift inverts the interval
+ *   dateonly-morning  — DTEND with a real 09:00 clock time, between 00:00 and
+ *                       the new noon start: the other inversion shape
+ *   dateonly-quoted   — DESCRIPTION already quotes the note verbatim
+ *   timed-control     — a normal timed VEVENT in the same feed, which must
+ *                       come through completely untouched
+ */
+export const DATE_ONLY_DEFAULT_TIME_FEED = [
+  'BEGIN:VCALENDAR',
+  'VERSION:2.0',
+  'BEGIN:VEVENT',
+  'UID:dateonly-desc',
+  'SUMMARY:Summer Reading Kickoff',
+  'DESCRIPTION:Stop by the lawn for books and popsicles.',
+  'DTSTART;VALUE=DATE:20260704',
+  'DTEND;VALUE=DATE:20260705',
+  'END:VEVENT',
+  'BEGIN:VEVENT',
+  'UID:dateonly-nodesc',
+  'SUMMARY:Leaf Pickup Week',
+  'DTSTART;VALUE=DATE:20261116',
+  'END:VEVENT',
+  'BEGIN:VEVENT',
+  'UID:dateonly-sameday',
+  'SUMMARY:Household Hazardous Waste Drop-Off',
+  'DTSTART;VALUE=DATE:20260704',
+  'DTEND;VALUE=DATE:20260704',
+  'END:VEVENT',
+  'BEGIN:VEVENT',
+  'UID:dateonly-morning',
+  'SUMMARY:Pancake Breakfast',
+  'DTSTART;VALUE=DATE:20260704',
+  'DTEND:20260704T090000',
+  'END:VEVENT',
+  'BEGIN:VEVENT',
+  'UID:dateonly-quoted',
+  'SUMMARY:Founders Day',
+  'DESCRIPTION:A day on the square. This listing does not include a start time\\, so the time shown is a placeholder. Confirm with the organizer before you go.',
+  'DTSTART;VALUE=DATE:20260704',
+  'END:VEVENT',
+  'BEGIN:VEVENT',
+  'UID:timed-control',
+  'SUMMARY:Evening Band Concert',
+  'DESCRIPTION:Bring a lawn chair.',
+  'DTSTART;TZID=America/New_York:20260704T193000',
+  'DTEND;TZID=America/New_York:20260704T210000',
+  'END:VEVENT',
+  'END:VCALENDAR',
+].join('\r\n')
+
+/**
+ * A VEVENT tagged VALUE=DATE that nonetheless carries a real clock time.
+ * Malformed per RFC 5545, but feeds do it. The stated time must survive: the
+ * noon default is gated on the raw value being a bare date, not on the
+ * broader isDateOnlyIcsEvent predicate that drives needs_review.
+ */
+export const VALUE_DATE_WITH_TIME_FEED = [
+  'BEGIN:VCALENDAR',
+  'VERSION:2.0',
+  'BEGIN:VEVENT',
+  'UID:mislabelled-1',
+  'SUMMARY:Council Meeting',
+  'DESCRIPTION:Regular session.',
+  'DTSTART;VALUE=DATE:20260704T190000',
+  'END:VEVENT',
+  'END:VCALENDAR',
+].join('\r\n')
+
 /** Feed containing a VALARM block nested inside VEVENT (should be ignored). */
 export const FEED_WITH_ALARM = [
   'BEGIN:VCALENDAR',

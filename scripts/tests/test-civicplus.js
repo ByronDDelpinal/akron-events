@@ -126,14 +126,17 @@ describe('CivicPlus row: date-only VEVENTs flag needs_review, keep the date', ()
     return row
   }
 
-  it('flags an all-day VALUE=DATE event and preserves the (untrusted midnight) date', () => {
+  it('flags an all-day VALUE=DATE event and defaults it to noon ET', () => {
     const row = buildAndFlag({
       SUMMARY: 'City-Wide Scavenger Hunt', UID: '9001',
       DTSTART: { value: '20260731', params: { VALUE: 'DATE' } },
     })
+    // Noon is a sanctioned default, not a confirmed time, so the flag stays.
     assert.equal(row.needs_review, true)
-    // The date survives; the time is the synthesized midnight ET (04:00Z in EDT).
-    assert.equal(row.start_at, '2026-07-31T04:00:00.000Z')
+    // SANCTIONED-DEFAULT-TIME: the date survives and the clock is noon ET
+    // (16:00Z in EDT). It is deliberately NOT the old 04:00Z midnight, which
+    // dropped the row out of every feed at 00:00:01 on the event's own day.
+    assert.equal(row.start_at, '2026-07-31T16:00:00.000Z')
   })
 
   it('flags a bare 8-char date event', () => {

@@ -57,6 +57,11 @@ import {
   enrichWithImageDimensions, upsertEventSafe, linkEventVenue, linkEventOrganization,
   ensureVenue, ensureOrganization, linkOrganizationVenue,
 } from './lib/normalize.js'
+// The date-only default-time disclosure lives in lib/ics.js next to the other
+// consumer of the same product decision. LibCal is not an ICS feed, but the
+// note string is what the digest matches on, so it is shared rather than
+// re-declared.
+import { withDateOnlyTimeNote } from './lib/ics.js'
 import { classifySummitLocation } from './lib/summit-county.js'
 
 export const SOURCE_KEY = 'stow_library'
@@ -209,8 +214,9 @@ export function shouldDropForGeo(venue) {
  * Build an event row (+ resolved venue) from one LibCal feed object. Returns
  * null when the event is unusable (missing/undatable) or should be skipped
  * (internal meeting). `startdt`/`enddt` are Eastern-local strings the platform
- * already parsed, so easternToIso converts them directly — no time is ever
- * synthesized.
+ * already parsed, so easternToIso converts them directly. The single exception
+ * is an `all_day` row, whose clock time the feed does not supply at all — see
+ * the SANCTIONED-DEFAULT-TIME note below.
  */
 export function buildRow(e = {}) {
   const title = htmlToText(e.title || '').trim()
@@ -219,20 +225,41 @@ export function buildRow(e = {}) {
   if (!title) return null
   if (isSkippable(categoryNames, title)) return null
 
-  const startAt = easternToIso(e.startdt)
-  if (!startAt) return null
-  const endAt = e.enddt ? easternToIso(e.enddt) : null
-
   // All-day events arrive as `startdt: "…  00:00:00"` WITH the authoritative
-  // `all_day` feed flag set — easternToIso then synthesizes a midnight ET time
-  // that isn't real. Key detection off `all_day` (a "00:00" clock never
-  // survives the regex) and flag the row so a human can supply the real time.
+  // `all_day` feed flag set — the feed supplies no real clock time. Key
+  // detection off `all_day`: a literal "00:00" is indistinguishable from a
+  // genuine (if unlikely) midnight event, and the flag is the source's own
+  // answer.
   const isAllDay = e.all_day === true
+
+  // SANCTIONED-DEFAULT-TIME — same product decision as scripts/lib/ics.js and
+  // the four non-ICS scrapers that carry the marker. A row stored at midnight
+  // falls out of every feed at 00:00:01 on the morning it happens, because the
+  // feeds filter `start_at >= now()` with no grace window. Noon keeps it
+  // visible; the description discloses it and needs_review below keeps the
+  // audit trail. Two-arg easternToIso: date from `startdt`, time from us.
+  const startAt = isAllDay ? easternToIso(e.startdt, '12:00:00') : easternToIso(e.startdt)
+  if (!startAt) return null
+  let endAt = e.enddt ? easternToIso(e.enddt) : null
+
+  // Pushing the start to noon can invert the interval: an all-day row's
+  // `enddt` is typically midnight on the same date. An unknown end is honest,
+  // a backwards one is not. (NaN <= n is false, so a malformed end is left be.)
+  if (isAllDay && endAt && Date.parse(endAt) <= Date.parse(startAt)) endAt = null
 
   const online = e.online_event === true
   const venue = resolveVenue(e.location, online)
   const { price_min, price_max } = parsePrice(e.registration_cost)
-  const desc = e.description ? htmlToText(e.description).slice(0, 5000) || null : null
+  let desc = e.description ? htmlToText(e.description).slice(0, 5000) || null : null
+  // Disclose the invented time. The note text and the reserve-then-append
+  // shape are imported, not copied: the digest subtracts this exact string
+  // before scoring description length, so a fourth local copy of the literal
+  // is a drift hazard, not a convenience.
+  if (isAllDay) desc = withDateOnlyTimeNote(desc)
+
+  // Derived from the UTC date of start_at, which the noon shift does not move
+  // (00:00 and 12:00 ET both land on the same UTC calendar day), so source_id
+  // stays stable across the change and no all-day row is re-inserted.
   const ymd = e.ymd || String(startAt).slice(0, 10).replace(/-/g, '')
 
   return {
@@ -252,7 +279,7 @@ export function buildRow(e = {}) {
       source: SOURCE_KEY,
       source_id: `smfpl_${e.id}_${ymd}`,
       status: 'published',
-      // All-day rows have a synthesized midnight time — surface for review.
+      // Noon is a default, not a confirmed time — surface for review.
       needs_review: isAllDay ? true : undefined,
       featured: false,
     },

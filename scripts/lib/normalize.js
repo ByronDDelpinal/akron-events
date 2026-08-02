@@ -1258,12 +1258,28 @@ const TITLE_CASE_KEEP_UPPER = new Set([
  * Convert an ALL-CAPS title to standard title case (2026-07-02 data-quality
  * plan, task 7 — 28 shouted titles across eventbrite/rialto/killbox_comedy).
  * Only fires when the title has no lowercase letters at all and is longer
- * than 25 characters, so normal mixed-case titles (the vast majority) are
- * never touched. Small connector words are lowercased except at the ends; a
+ * than `minLength` characters, so normal mixed-case titles (the vast majority)
+ * are never touched. Small connector words are lowercased except at the ends; a
  * short allowlist of common acronyms stays uppercase. Exported for tests.
+ *
+ * Options (both default to the historical behaviour, so every existing caller
+ * is unchanged):
+ *
+ *   minLength — the length floor. The 25-char default protects short titles
+ *     that are plausibly one acronym ("LIVE MUSIC NIGHT" is left alone). A
+ *     source whose feed is 100% shouted (workz) passes 0 so its SHORT titles
+ *     are cased the same way as its long ones — otherwise one title in twelve
+ *     gets de-shouted and the rest stay screaming.
+ *
+ *   keepShortInitialisms — keep 2–3 letter VOWEL-LESS tokens uppercase
+ *     ("SB MUSIC" → "SB Music", not "Sb Music"; "DT & THE SHAKES" → "DT & the
+ *     Shakes"). Shape-based, not a name list. Only useful together with a low
+ *     minLength, where such a token is a large fraction of the whole title, so
+ *     it is opt-in rather than the default. Y counts as a vowel, which keeps
+ *     real words like "SKY"/"FLY"/"GYM" out of it.
  */
-export function titleCaseIfShouting(title) {
-  if (!title || title.length <= 25) return title
+export function titleCaseIfShouting(title, { minLength = 25, keepShortInitialisms = false } = {}) {
+  if (!title || title.length <= minLength) return title
   if (/[a-z]/.test(title)) return title // already has lowercase — not shouting
   if (!/[A-Z]/.test(title)) return title // no letters at all (pure punctuation/numbers)
 
@@ -1289,6 +1305,7 @@ export function titleCaseIfShouting(title) {
         .map((segment, segIdx) => {
           if (!segment) return segment
           if (TITLE_CASE_KEEP_UPPER.has(segment)) return segment
+          if (keepShortInitialisms && /^[A-Z]{2,3}$/.test(segment) && !/[AEIOUY]/.test(segment)) return segment
           const lower = segment.toLowerCase()
           const isSegFirst = isFirst && segIdx === 0
           const isSegLast  = isLast && segIdx === segments.length - 1

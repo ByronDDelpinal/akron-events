@@ -845,6 +845,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'workz',
+    method:      'JSON API',
+    methodDetail:'playattheworkz.com/music-events embeds an Events Calendar by eventscalendar.co (Inffuse platform) widget; events come from its public JSON endpoint inffuse.eventscalendar.co/api/v0.1/projects/<project>/data/public/events?app=calendar — one row per dated instance, clock time from startHour/startMinutes (America/New_York), not the date-only `start` ms',
+    venue:       'THE WORKZ on the Riverfront — 2220 Front St, Cuyahoga Falls (plus the occasional off-site Cuyahoga Falls listing)',
+    notes:       "The Workz is a family entertainment center on the Cuyahoga Falls riverfront (Summit County) — restaurant, bar, bowling, arcade, VR, a hidden speakeasy, and a busy live-music/entertainment calendar (bands, DJ nights, line dancing, salsa, paint & sip, board-game nights, parties). The Music & Events page's calendar is a third-party eventscalendar.co widget, NOT Wix Events (the leftover Wix Events app holds only two stale 2023 rows); its data is a public per-project JSON feed with an account-stable project id baked into the widget config (the widget's user= param is ignored server-side). We publish the real events and drop the recurring food/play/bar specials, hours/deal notices and closures that share the calendar — All You Can Eat Wings, Kids/Kidz Eat & Play FREE, Wing Wednesday/Night, Happy Hour, Strikes-N-Slices, Family Fun Fridays, Extended Hours/DEAL FOR DAD, and both CLOSED- and - Closed days (isNonEvent). Mostly but not entirely its own room: the venue is resolved per row and anything off-site goes through the Summit County gate and is dropped unless it classifies in-county, and The Workz is credited as organizer only for events in its own building. All-day rows (festivals, the Prohibition Party) carry no clock time, so they publish at the sanctioned 7pm default rather than midnight, which would hide them behind every feed's upcoming filter. 21+ programming (speakeasy shows, 21+ parties) flagged from the title/description.",
+    status:      'active',
+  },
+  {
     key:         'barnes_noble_akron',
     method:      'JSON API',
     methodDetail:'B&N locator-api/v1/events queried at the Akron store\'s coordinates (the storeId param is ignored server-side) and filtered to storeId 2902',
@@ -1582,6 +1590,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   akron_rec_parks:     'recdesk',
   city_of_akron_lock3: 'revize',
   killbox_comedy:      'seatengine',
+  workz:               'eventscalendar',
   akron_marathon:      'html',
   akron_promise:       'html',
   runsignup:           'runsignup',

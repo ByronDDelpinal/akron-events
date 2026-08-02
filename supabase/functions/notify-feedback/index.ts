@@ -2,11 +2,11 @@
 //
 // POST-only. Body: { body: string, page_path?: string }
 //
-// Fired from FeedbackOrb.tsx immediately after a successful insert into
+// Fired from src/components/FeedbackDialog.tsx immediately after a successful insert into
 // feedback_posts. Unlike notify-pending-event (which is handed an event_id
 // and re-reads the row with the service role), this function never gets an
 // id to look up: the orb's insert is fire-and-forget and never reads the row
-// back (see FeedbackOrb.tsx's insert comment — orb rows are is_private=true,
+// back (see FeedbackDialog.tsx's insert comment — orb rows are is_private=true,
 // so anon can't SELECT them either, and the frontend has no service-role
 // access to do a privileged read). So the payload carries the note content
 // directly instead of a row reference, and this function does no DB read —
@@ -53,7 +53,7 @@ const ADMIN_NOTIFY_EMAIL = (Deno.env.get('ADMIN_NOTIFY_EMAIL') || '')
 
 // Mirrors the DB CHECK constraint in migration 043
 // (`char_length(body) between 1 and 1000`) and MAX_LEN in
-// src/lib/feedbackOrb.ts. This function can't import that frontend module
+// src/lib/feedback.ts. This function can't import that frontend module
 // (different Deno/bundler runtime), so the limit is duplicated here as a
 // last-line defense: even if some future caller sends a longer string, the
 // rendered email never carries more than what the DB itself would accept.

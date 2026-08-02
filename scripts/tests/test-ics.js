@@ -7,12 +7,21 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL = 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 
-import { parseIcs, icsDateToIso, normaliseIcsEvent, expandRecurrence, parseRrule, applyNeedsReviewHook } from '../lib/ics.js'
+import {
+  parseIcs, icsDateToIso, normaliseIcsEvent, expandRecurrence, parseRrule,
+  applyNeedsReviewHook, icsDateOnlyToNoonIso, withDateOnlyTimeNote,
+  DATE_ONLY_TIME_NOTE, MAX_DESCRIPTION,
+} from '../lib/ics.js'
+// Imported through civicplus.js on purpose: the predicate moved to ics.js and
+// civicplus.js re-exports it, so this also asserts the re-export still works
+// for the scrapers that import it from there.
 import { isDateOnlyIcsEvent } from '../lib/civicplus.js'
 import {
   SIMPLE_FEED,
   FOLDED_FEED,
   ALL_DAY_FEED,
+  DATE_ONLY_DEFAULT_TIME_FEED,
+  VALUE_DATE_WITH_TIME_FEED,
   FEED_WITH_ALARM,
   ESCAPED_FEED,
   IMAGE_FEED,
@@ -298,6 +307,156 @@ describe('ICS: expandRecurrence', () => {
   })
 })
 
+// ── SANCTIONED-DEFAULT-TIME: date-only DTSTART → noon ET ────────────────────
+//
+// These run the REAL normaliseIcsEvent over REAL parseIcs output. The bug this
+// covers (49 future published rows stranded at 00:00 ET, invisible from
+// 00:00:01 on their own morning) survived two rounds of "flag it" fixes
+// precisely because the flag was tested and the resulting timestamp was not.
+describe('ICS: date-only DTSTART defaults to noon ET', () => {
+  const feed = parseIcs(DATE_ONLY_DEFAULT_TIME_FEED)
+  const byUid = Object.fromEntries(feed.map((ev) => [ev.UID, ev]))
+  const normalise = (ev) => normaliseIcsEvent(ev, { source: 'test_ics' })
+
+  it('parses every fixture VEVENT (guards the fixture itself)', () => {
+    assert.deepEqual(Object.keys(byUid).sort(), [
+      'dateonly-desc', 'dateonly-morning', 'dateonly-nodesc',
+      'dateonly-quoted', 'dateonly-sameday', 'timed-control',
+    ])
+  })
+
+  it('lands a date-only start at 12:00 ET, not 00:00', () => {
+    const row = normalise(byUid['dateonly-desc'])
+    // 2026-07-04 is EDT (UTC-4), so noon ET is 16:00Z. The old behaviour was
+    // 04:00Z — same calendar day, but before every "upcoming" cutoff.
+    assert.equal(row.start_at, '2026-07-04T16:00:00.000Z')
+    // Sanity-check the intent rather than only the constant: the stored
+    // instant must render as 12:00 in Eastern.
+    assert.equal(
+      new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false,
+      }).format(new Date(row.start_at)),
+      '12:00',
+    )
+  })
+
+  it('holds across the DST boundary (November date, EST)', () => {
+    const row = normalise(byUid['dateonly-nodesc'])
+    // 2026-11-16 is EST (UTC-5) → noon ET is 17:00Z. An arithmetic -4 offset
+    // would put this at 16:00Z, i.e. 11:00 ET.
+    assert.equal(row.start_at, '2026-11-16T17:00:00.000Z')
+  })
+
+  it('appends the disclosure note verbatim, as the final clause', () => {
+    const row = normalise(byUid['dateonly-desc'])
+    assert.ok(row.description.startsWith('Stop by the lawn'))
+    assert.ok(row.description.endsWith(DATE_ONLY_TIME_NOTE), 'note must be last')
+    assert.equal(row.description.split(DATE_ONLY_TIME_NOTE).length - 1, 1)
+  })
+
+  it('DOUBLE-APPEND GUARD: normalising the same VEVENT twice appends once', () => {
+    const ev = byUid['dateonly-desc']
+    const first  = normalise(ev)
+    const second = normalise(ev)
+    assert.equal(second.description.split(DATE_ONLY_TIME_NOTE).length - 1, 1)
+    assert.equal(first.description, second.description)
+
+    // And the shape that actually bites: a description that already carries
+    // the sentence, whether the feed quoted it or it was read back out of the
+    // database and re-normalised.
+    const quoted = normalise(byUid['dateonly-quoted'])
+    assert.equal(quoted.description.split(DATE_ONLY_TIME_NOTE).length - 1, 1)
+    assert.ok(quoted.description.startsWith('A day on the square.'))
+  })
+
+  it('never invents a description out of the note alone', () => {
+    // A note-only description scores on the digest's `described` weight and
+    // would promote an event that has no prose at all.
+    const row = normalise(byUid['dateonly-nodesc'])
+    assert.equal(row.description, null)
+  })
+
+  it('END_AT INVERSION: nulls a DTEND that the shift puts at or before start', () => {
+    const sameDay = normalise(byUid['dateonly-sameday'])
+    assert.equal(sameDay.start_at, '2026-07-04T16:00:00.000Z')
+    assert.equal(sameDay.end_at, null, 'a same-date DTEND would now precede the start')
+
+    const morning = normalise(byUid['dateonly-morning'])
+    assert.equal(morning.start_at, '2026-07-04T16:00:00.000Z')
+    assert.equal(morning.end_at, null, '09:00 ET precedes the new noon start')
+  })
+
+  it('keeps a DTEND that still follows the shifted start', () => {
+    // The RFC-correct all-day shape: exclusive DTEND on the NEXT day.
+    const row = normalise(byUid['dateonly-desc'])
+    assert.equal(row.end_at, '2026-07-05T04:00:00.000Z')
+    assert.ok(Date.parse(row.end_at) > Date.parse(row.start_at))
+  })
+
+  it('CONTROL: a timed VEVENT in the same feed is completely unaffected', () => {
+    const row = normalise(byUid['timed-control'])
+    assert.equal(row.start_at, '2026-07-04T23:30:00.000Z')  // 19:30 ET
+    assert.equal(row.end_at,   '2026-07-05T01:00:00.000Z')  // 21:00 ET
+    assert.equal(row.description, 'Bring a lawn chair.')
+    assert.ok(!row.description.includes(DATE_ONLY_TIME_NOTE))
+    assert.equal(row.needs_review, undefined)
+    assert.equal(row.featured, false)
+  })
+
+  it('does NOT overwrite a real time on a mislabelled VALUE=DATE property', () => {
+    const [ev] = parseIcs(VALUE_DATE_WITH_TIME_FEED)
+    // The broad predicate still flags it for review…
+    assert.equal(isDateOnlyIcsEvent(ev), true)
+    const row = normalise(ev)
+    // …but 19:00 ET is a real time, so neither the clock nor the prose moves.
+    assert.equal(row.start_at, '2026-07-04T23:00:00.000Z')
+    assert.equal(row.description, 'Regular session.')
+  })
+
+  it('the pre-existing ALL_DAY_FEED fixture moves to noon too', () => {
+    const [ev] = parseIcs(ALL_DAY_FEED)
+    assert.equal(normalise(ev).start_at, '2026-07-04T16:00:00.000Z')
+  })
+})
+
+describe('ICS: date-only helpers', () => {
+  it('icsDateOnlyToNoonIso only fires on a bare date', () => {
+    assert.equal(icsDateOnlyToNoonIso('20260704'), '2026-07-04T16:00:00.000Z')
+    assert.equal(icsDateOnlyToNoonIso('20260704T190000'), null)
+    assert.equal(icsDateOnlyToNoonIso(''), null)
+    assert.equal(icsDateOnlyToNoonIso(null), null)
+    assert.equal(icsDateOnlyToNoonIso(undefined), null)
+  })
+
+  it('icsDateToIso itself still reads VALUE=DATE as RFC midnight', () => {
+    // DTEND depends on this: an all-day event's exclusive end really is 00:00
+    // on the following day. The noon default is a normaliseIcsEvent decision
+    // about start_at, deliberately not baked into the RFC converter.
+    assert.equal(icsDateToIso('20260704'), '2026-07-04T04:00:00.000Z')
+  })
+
+  it('withDateOnlyTimeNote leaves an empty base alone', () => {
+    assert.equal(withDateOnlyTimeNote(null), null)
+    assert.equal(withDateOnlyTimeNote(''), '')
+    assert.equal(withDateOnlyTimeNote('   '), '   ')
+  })
+
+  it('reserves room for the note rather than truncating it', () => {
+    const out = withDateOnlyTimeNote('a'.repeat(MAX_DESCRIPTION))
+    assert.ok(out.length <= MAX_DESCRIPTION, `description was ${out.length} chars`)
+    assert.ok(out.endsWith(DATE_ONLY_TIME_NOTE), 'the note must survive the cap intact')
+  })
+
+  it('does not split a surrogate pair while making room', () => {
+    // clampChars, not slice: a lone surrogate is invalid UTF-8 for Postgres.
+    const room = MAX_DESCRIPTION - DATE_ONLY_TIME_NOTE.length - 1
+    const out = withDateOnlyTimeNote('x'.repeat(room - 1) + '😀' + 'y'.repeat(50))
+    assert.ok(out.length <= MAX_DESCRIPTION)
+    assert.ok(out.endsWith(DATE_ONLY_TIME_NOTE))
+    assert.equal(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(out), false, 'lone high surrogate')
+  })
+})
+
 describe('ICS: runIcsScraper flagNeedsReview hook', () => {
   // Unit coverage of the hook itself. The end-to-end wiring — that
   // scrape-life-gurukula.js's real exported config actually carries
@@ -308,9 +467,10 @@ describe('ICS: runIcsScraper flagNeedsReview hook', () => {
   it('flags a date-only VEVENT whose 00:00 ET start is synthesized', () => {
     const [ev] = parseIcs(ALL_DAY_FEED)
     const row = applyNeedsReviewHook(normalise(ev), ev, isDateOnlyIcsEvent)
+    // normaliseIcsEvent has already moved the start to the sanctioned noon
+    // default; the flag is what records that no human confirmed it.
     assert.equal(row.needs_review, true)
-    // The DATE is kept as-is; no time is invented or rounded away.
-    assert.equal(row.start_at.slice(0, 10), '2026-07-04')
+    assert.equal(row.start_at, '2026-07-04T16:00:00.000Z')
     assert.equal(row.status, 'published')
   })
 

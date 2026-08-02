@@ -33,7 +33,7 @@
  */
 
 import 'dotenv/config'
-import { fetchIcsFeed, parseIcs, normaliseIcsEvent } from './ics.js'
+import { fetchIcsFeed, parseIcs, normaliseIcsEvent, isDateOnlyIcsEvent } from './ics.js'
 import {
   ensureOrganization,
   ensureVenue,
@@ -98,19 +98,16 @@ export function isPublicCivicPlusEvent(summary) {
 }
 
 /**
- * True when an ICS VEVENT is all-day / date-only — its DTSTART carries
- * VALUE=DATE or an 8-char date value ("20260731") with no time component.
- * Such rows have no real start time; normaliseIcsEvent synthesizes a 00:00 ET
- * start we must NOT publish as trustworthy. Callers flag needs_review and keep
- * the date (never fabricate a time). Timed VEVENTs return false.
+ * Re-export of the date-only VEVENT predicate, which now lives in ics.js
+ * alongside normaliseIcsEvent — the code that acts on it.
+ *
+ * It was defined here first, but two independent call paths consume it (this
+ * runner and runIcsScraper's `flagNeedsReview` hook, reached by
+ * scrape-life-gurukula.js), and owning it from the CivicPlus module made it
+ * far too easy to change one path's behaviour and miss the other. The
+ * re-export keeps every existing `from './lib/civicplus.js'` importer working.
  */
-export function isDateOnlyIcsEvent(ev) {
-  const dt = ev?.DTSTART
-  if (!dt) return false
-  if (dt.params?.VALUE === 'DATE') return true
-  const raw = (dt.value || '').trim()
-  return raw.length === 8 && !raw.includes('T')
-}
+export { isDateOnlyIcsEvent }
 
 // ── Default category / tag mapping ──────────────────────────────────────────
 // Cities can override these, but the defaults handle typical municipal
@@ -267,9 +264,11 @@ export async function runCivicPlusScraper(config) {
         })
         if (!row || !row.start_at || !row.source_id) { skipped++; continue }
 
-        // Date-only / all-day VEVENTs have no real start time; normaliseIcsEvent
-        // synthesized a 00:00 ET start we must not present as trustworthy. Keep
-        // the date but flag for a human glance rather than fabricating midnight.
+        // Date-only / all-day VEVENTs have no real start time. normaliseIcsEvent
+        // defaults them to noon ET (SANCTIONED-DEFAULT-TIME — midnight drops the
+        // row out of every feed on its own day) and discloses that in the
+        // description. Noon is still invented, so keep flagging for review: this
+        // queue is the only audit trail for a fabricated time.
         if (isDateOnlyIcsEvent(ev)) row.needs_review = true
 
         // The VEVENT URL field points back at the feed, not the event (a

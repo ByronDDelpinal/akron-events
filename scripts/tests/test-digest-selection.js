@@ -281,12 +281,22 @@ describe('default-time note does not inflate ranking (2026-07-28)', async () => 
   process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
   // The real scraper constants, not copies, so this fails the moment the two
-  // sides of the duplicated literal drift apart.
+  // sides of the duplicated literal drift apart. lib/ics.js is in the list
+  // because scrape-stow-library.js and every ICS scraper reach the note
+  // through it — one entry, not one per consumer.
   const scraperNotes = [
     (await import('../scrape-city-of-cuyahoga-falls.js')).TIME_NOTE,
     (await import('../scrape-ohio-erie-canalway.js')).TIME_NOTE,
     (await import('../scrape-ohio-festivals.js')).TIME_NOTE,
+    (await import('../lib/ics.js')).DATE_ONLY_TIME_NOTE,
   ]
+
+  // TIME_NOTES is a set of distinct sentences the digest subtracts, not a
+  // roster of writers: lib/ics.js deliberately reuses scrape-ohio-erie-
+  // canalway.js's wording verbatim so the fix needed no edge deploy and
+  // introduced no new ranking signal. Count distinct strings, or a correct
+  // reuse would read as a stale entry.
+  const distinctNotes = [...new Set(scraperNotes)]
 
   it('DRIFT GUARD: every scraper note is present verbatim in TIME_NOTES', () => {
     for (const note of scraperNotes) {
@@ -295,7 +305,7 @@ describe('default-time note does not inflate ranking (2026-07-28)', async () => 
         `select.ts TIME_NOTES is missing a scraper's TIME_NOTE:\n  ${note}`,
       )
     }
-    assert.equal(TIME_NOTES.length, scraperNotes.length, 'TIME_NOTES has a stale entry')
+    assert.equal(TIME_NOTES.length, distinctNotes.length, 'TIME_NOTES has a stale entry')
   })
 
   it('every note is long enough to clear the described gate on its own', () => {

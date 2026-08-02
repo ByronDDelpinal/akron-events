@@ -145,6 +145,7 @@ export const SOURCE_PRIORITY = [
   'summit_artspace',
   'tangier',                 // first-party venue (Fairlawn — Tangier West etc.)
   'summit_county_fairgrounds', // first-party venue (Tallmadge)
+  'workz',                   // first-party venue (The Workz — Cuyahoga Falls riverfront)
   'summit_humane',           // first-party (Humane Society) — Give Back events
   'summit_metro_parks',
   'torchbearers',

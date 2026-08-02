@@ -39,6 +39,7 @@ import {
   logUpsertResult,
   logScraperError,
   stripHtml,
+  clampChars,
   enrichWithImageDimensions,
   upsertEventSafe,
   linkEventVenue,
@@ -123,6 +124,119 @@ function splitUnquoted(str, sep) {
   return out
 }
 
+// ── Date-only (all-day) VEVENTs ────────────────────────────────────────────
+
+/**
+ * True when an ICS VEVENT is all-day / date-only — its DTSTART carries
+ * VALUE=DATE or an 8-char date value ("20260731") with no time component.
+ * Such rows carry no real start time, so callers flag needs_review and keep
+ * the review queue as the audit trail. Timed VEVENTs return false.
+ *
+ * Lives here (not in civicplus.js, which re-exports it for its existing
+ * importers) because two independent call paths need it: the CivicPlus runner
+ * and runIcsScraper's `flagNeedsReview` hook. Keeping the predicate next to
+ * normaliseIcsEvent is what stops one path from being fixed and the other
+ * silently left behind — which is exactly what happened before 2026-07-31.
+ */
+export function isDateOnlyIcsEvent(ev) {
+  const dt = ev?.DTSTART
+  if (!dt) return false
+  if (dt.params?.VALUE === 'DATE') return true
+  return isBareIcsDate(dt.value)
+}
+
+/**
+ * True when a raw ICS date value is a bare date ("20260704") with no time
+ * component — i.e. exactly the input for which icsDateToIso has to synthesize
+ * a clock time, because the feed supplied none.
+ *
+ * This, not isDateOnlyIcsEvent, is the gate on the noon default below.
+ * A VEVENT tagged `VALUE=DATE` whose value nonetheless carries a real time
+ * ("20260704T190000") has a time we must not overwrite; it still earns
+ * needs_review through the broader predicate.
+ */
+function isBareIcsDate(rawValue) {
+  const raw = (rawValue || '').trim()
+  return raw.length === 8 && !raw.includes('T')
+}
+
+// SANCTIONED-DEFAULT-TIME
+// A date-only DTSTART has no clock time, so we invent noon Eastern. That is
+// deliberate, not an oversight: every feed query filters `start_at >= now()`
+// with no grace window, so a row stored at 00:00 disappears from the entire
+// site at 00:00:01 on the very morning it happens — the one day it matters.
+// A mid-day default is what keeps it visible to the people it is for.
+//
+// This is the same product decision already carried by four non-ICS scrapers
+// (scrape-city-of-cuyahoga-falls.js, scrape-downtown-akron.js,
+// scrape-ohio-erie-canalway.js, scrape-ohio-festivals.js). None of them route
+// through this module, so there is no double-apply.
+//
+// The default must never be silent, so normaliseIcsEvent discloses it in the
+// description (see DATE_ONLY_TIME_NOTE) and the caller's needs_review flag is
+// left untouched: noon is still an invented time, and the review queue is the
+// only audit trail we have for it. Do not "fix" this back to midnight.
+const DATE_ONLY_DEFAULT_TIME = '12:00:00'
+
+/**
+ * Eastern noon on the date carried by a bare ICS date value, as ISO 8601 UTC.
+ * Returns null for anything that is not a bare date, so the caller falls back
+ * to whatever icsDateToIso already parsed.
+ */
+export function icsDateOnlyToNoonIso(rawValue) {
+  if (!isBareIcsDate(rawValue)) return null
+  const raw = rawValue.trim()
+  const y = raw.slice(0, 4)
+  const m = raw.slice(4, 6)
+  const d = raw.slice(6, 8)
+  return easternWallTimeToUtc(`${y}-${m}-${d}T${DATE_ONLY_DEFAULT_TIME}`)
+}
+
+// The description disclosure for the noon default above.
+//
+// Copied VERBATIM from the second entry of TIME_NOTES in
+// supabase/functions/send-digest/select.ts, which subtracts every known note
+// before scoring description length and cannot import from scripts/. Reusing
+// an existing note rather than writing a new one means no edge function has to
+// be redeployed and no new ranking signal is introduced: anything appended to
+// `description` counts toward the digest's `described` weight unless the digest
+// already knows to subtract it. scripts/tests/test-digest-selection.js fails on
+// drift. scrape-ohio-erie-canalway.js carries the same sentence for the same
+// reason — the digest matches on the string, not on which scraper wrote it.
+export const DATE_ONLY_TIME_NOTE =
+  'This listing does not include a start time, so the time shown is a placeholder. Confirm with the organizer before you go.'
+
+/**
+ * Cap on the stored description. Applied to the base text and again when the
+ * note is appended, so the disclosure can never push the row past it.
+ */
+export const MAX_DESCRIPTION = 5000
+
+/**
+ * Append DATE_ONLY_TIME_NOTE to a description, reserve-then-append.
+ *
+ * Mirrors buildDescription() in scrape-city-of-cuyahoga-falls.js:
+ *
+ *   • A null/blank base stays null. The note is a suffix to real prose, never
+ *     a description in its own right — a note-only description reads as a
+ *     complete listing to anything measuring description length and would
+ *     promote an event with no prose above events that have some.
+ *   • The includes() guard keeps a feed that already quotes the sentence (or a
+ *     description round-tripped back out of the database) from doubling it.
+ *   • The note is reserved for, never truncated: room is MAX_DESCRIPTION minus
+ *     the note and its separating space. A half sentence would be worse than
+ *     none, and withoutTimeNote() in the digest matches the note verbatim, so
+ *     a clipped copy would survive subtraction and score as prose.
+ *
+ * Exported so tests exercise the real text.
+ */
+export function withDateOnlyTimeNote(base) {
+  if (!base || !base.trim()) return base
+  if (base.includes(DATE_ONLY_TIME_NOTE)) return base
+  const room = MAX_DESCRIPTION - DATE_ONLY_TIME_NOTE.length - 1
+  return `${clampChars(base, room)} ${DATE_ONLY_TIME_NOTE}`
+}
+
 // ── Date/time conversion ───────────────────────────────────────────────────
 
 /**
@@ -133,6 +247,12 @@ function splitUnquoted(str, sep) {
  *   20260101T190000                  → floating — we treat as Eastern local
  *   20260101T190000  + TZID param    → convert from named TZ via Intl
  *   20260101                         → all-day — midnight Eastern
+ *
+ * The all-day branch stays at midnight on purpose. This is the literal RFC
+ * 5545 reading of a VALUE=DATE property, and DTEND relies on it: an all-day
+ * event's exclusive end really is 00:00 on the following day. The product
+ * decision to show a date-only event at noon belongs to normaliseIcsEvent
+ * (see icsDateOnlyToNoonIso), which applies it to start_at only.
  */
 export function icsDateToIso(rawValue, params = {}) {
   if (!rawValue) return null
@@ -590,12 +710,38 @@ export function normaliseIcsEvent(ev, config = {}) {
   const title = stripHtml((ev.SUMMARY ?? '').trim())
   if (!title) return null
 
-  const startAt = ev.DTSTART ? icsDateToIso(ev.DTSTART.value, ev.DTSTART.params) : null
-  const endAt   = ev.DTEND   ? icsDateToIso(ev.DTEND.value,   ev.DTEND.params)   : null
+  let startAt = ev.DTSTART ? icsDateToIso(ev.DTSTART.value, ev.DTSTART.params) : null
+  let endAt   = ev.DTEND   ? icsDateToIso(ev.DTEND.value,   ev.DTEND.params)   : null
   if (!startAt) return null
 
+  // SANCTIONED-DEFAULT-TIME — see icsDateOnlyToNoonIso above. A bare-date
+  // DTSTART got a synthesized 00:00 ET from icsDateToIso; move it to noon so
+  // the row survives the feeds' `start_at >= now()` filter on its own day.
+  // Gate on the raw value, not isDateOnlyIcsEvent: a VALUE=DATE property that
+  // nonetheless carries a real clock time has a time we must not overwrite.
+  const timeSynthesized = isBareIcsDate(ev.DTSTART?.value)
+  if (timeSynthesized) {
+    const noon = icsDateOnlyToNoonIso(ev.DTSTART.value)
+    if (noon) startAt = noon
+
+    // Pushing the start forward 12 hours can invert the interval. A same-day
+    // all-day VEVENT (DTEND on the start date, which some feeds emit instead
+    // of the RFC's exclusive next-day value) or a DTEND with a real morning
+    // time would now end before it begins. Drop the end rather than store a
+    // negative duration — an unknown end is honest, a backwards one is not.
+    // Date.parse of an unparseable end yields NaN, and NaN <= n is false, so
+    // a malformed end falls through untouched instead of being silently eaten.
+    if (endAt && Date.parse(endAt) <= Date.parse(startAt)) endAt = null
+  }
+
   const rawDesc = ev.DESCRIPTION ?? ''
-  const description = rawDesc ? stripHtml(rawDesc).slice(0, 5000) || null : null
+  let description = rawDesc ? stripHtml(rawDesc).slice(0, MAX_DESCRIPTION) || null : null
+
+  // Disclose the invented time in the prose. Never silent: the note is the
+  // only signal a reader gets that noon is a placeholder. needs_review is left
+  // to the caller's hook — noon is still invented, and the review queue stays
+  // the audit trail.
+  if (timeSynthesized) description = withDateOnlyTimeNote(description)
 
   // Some feeds embed the image in a custom X-… property or an ATTACH.
   // Prefer X-ALT-IMAGE, then X-IMAGE. X-APPLE-STRUCTURED-LOCATION is a geo
@@ -733,10 +879,11 @@ export async function discoverIcsFeed(pageUrl, opts = {}) {
 /**
  * Apply the optional per-row `flagNeedsReview` hook.
  *
- * Feeds that mark some VEVENTs as date-only/all-day have no real start time —
- * normaliseIcsEvent synthesizes a 00:00 ET start we must not present as
- * trustworthy. A predicate over the raw VEVENT (e.g. `isDateOnlyIcsEvent`) lets
- * a caller keep the date and flag the row instead of fabricating a time.
+ * Feeds that mark some VEVENTs as date-only/all-day have no real start time.
+ * normaliseIcsEvent defaults those to noon ET (SANCTIONED-DEFAULT-TIME) and
+ * discloses it in the description, but noon is still invented. A predicate over
+ * the raw VEVENT (e.g. `isDateOnlyIcsEvent`) lets a caller flag the row so the
+ * review queue records that a human never confirmed the time.
  *
  * Only ever sets `true`; never writes `false`, so normalize.js's own
  * needs_review default still runs when the predicate says no. No predicate =
@@ -769,7 +916,7 @@ export function applyNeedsReviewHook(row, ev, flagNeedsReview) {
  *   @param {Function} [config.mapTags]         — (ev) → string[]
  *   @param {Function} [config.flagNeedsReview] — (ev) → boolean; true marks the
  *          row needs_review (e.g. `isDateOnlyIcsEvent` for all-day VEVENTs
- *          whose 00:00 ET start is synthesized, not real)
+ *          whose noon ET start is a sanctioned default, not a real time)
  *   @param {number}   [config.defaultPriceMin]
  *   @param {number|null} [config.defaultPriceMax]
  *   @param {string}   [config.ageRestriction]
@@ -874,8 +1021,9 @@ export async function runIcsScraper(config) {
         })
         if (!row || !row.start_at || !row.source_id) { skipped++; continue }
 
-        // Date-only / all-day VEVENTs carry a synthesized midnight — keep the
-        // date, flag for a human, never fabricate a time.
+        // Date-only / all-day VEVENTs carry a sanctioned noon default that
+        // normaliseIcsEvent already applied and disclosed — flag for a human
+        // so the invented time has an audit trail.
         applyNeedsReviewHook(row, ev, config.flagNeedsReview)
 
         if (config.skipPast) {

@@ -34,7 +34,7 @@ const { config } = mod
 // actually wired into it, not merely present in the module.
 const { mapCategory, mapTags } = config
 
-import { parseIcs, normaliseIcsEvent, applyNeedsReviewHook } from '../lib/ics.js'
+import { parseIcs, normaliseIcsEvent, applyNeedsReviewHook, DATE_ONLY_TIME_NOTE } from '../lib/ics.js'
 import { isDateOnlyIcsEvent } from '../lib/civicplus.js'
 
 // ── Fixture provenance (be honest about what this is) ───────────────────────
@@ -100,13 +100,22 @@ describe('Life Gurukula: needs_review wiring', () => {
     assert.equal(config.flagNeedsReview, isDateOnlyIcsEvent)
   })
 
-  it('a date-only retreat row is flagged needs_review and keeps its date', () => {
+  it('a date-only retreat row is flagged needs_review and defaults to noon ET', () => {
     const row = normaliseIcsEvent(RETREAT_EV, config)
     applyNeedsReviewHook(row, RETREAT_EV, config.flagNeedsReview)
+    // Noon is a default, not a confirmed door time, so the flag still stands.
     assert.equal(row.needs_review, true)
-    // The date survives untouched; the synthesized 00:00 is never presented as
-    // a real door time, and no time is invented in its place.
-    assert.equal(row.start_at.slice(0, 10), '2026-06-25')
+    // SANCTIONED-DEFAULT-TIME. This is the second of the two call paths that
+    // reach a date-only DTSTART (the other is lib/civicplus.js). Fixing only
+    // one is what left life_gurukula stranded at midnight before 2026-07-31,
+    // so this asserts the real timestamp, not just the date: noon ET on
+    // 2026-06-25 is 16:00Z in EDT.
+    assert.equal(row.start_at, '2026-06-25T16:00:00.000Z')
+    // The multi-day DTEND still follows the shifted start, so it survives.
+    assert.equal(row.end_at, '2026-06-29T04:00:00.000Z')
+    // …and the invented time is disclosed in the prose, exactly once.
+    assert.ok(row.description.endsWith(DATE_ONLY_TIME_NOTE))
+    assert.equal(row.description.split(DATE_ONLY_TIME_NOTE).length - 1, 1)
     assert.equal(row.source_id, '1257-1782345600-1782691199@lifegurukula.org')
     assert.equal(row.featured, false)
   })
@@ -118,6 +127,9 @@ describe('Life Gurukula: needs_review wiring', () => {
     // manual_overrides and becomes a permanent lock.
     assert.equal(row.needs_review, undefined)
     assert.equal(Object.hasOwn(row, 'needs_review'), false)
+    // The real 9:30am ET start and its prose are untouched by the noon default.
+    assert.equal(row.start_at, '2026-06-21T13:30:00.000Z')
+    assert.equal(row.description, 'Join us for a morning of yoga and meditation.')
     // 09:30 America/New_York on 2026-06-21 (EDT) = 13:30Z, matching the epoch
     // encoded in the stored source_id.
     assert.equal(new Date(row.start_at).toISOString(), '2026-06-21T13:30:00.000Z')

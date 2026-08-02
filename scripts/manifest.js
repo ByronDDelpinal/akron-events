@@ -56,6 +56,7 @@ export const SCRAPERS = [
   { key: 'kent_stage',           script: 'scripts/scrape-kent-stage.js',              label: 'The Kent Stage',                 group: 'custom',         active: false },
   { key: 'highland_square_theatre', script: 'scripts/scrape-highland-square-theatre.js', label: 'Highland Square Theatre',  group: 'custom',         active: true  },
   { key: 'killbox_comedy',       script: 'scripts/scrape-killbox-comedy.js',          label: 'KillBox Comedy Club',          group: 'custom',         active: true  },
+  { key: 'workz',                script: 'scripts/scrape-workz.js',                   label: 'The Workz',                    group: 'eventscalendar', active: true, defaultCategory: 'music' },
 
   // ── Arts & culture ─────────────────────────────────────────────────────
   { key: 'akron_art_museum',     script: 'scripts/scrape-akron-art-museum.js',        label: 'Akron Art Museum',             group: 'wordpress',      active: true  },
