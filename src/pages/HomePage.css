@@ -555,6 +555,8 @@
   margin-right: auto;
 }
 .btn-clear:hover { border-color: var(--amber); color: var(--amber); }
+.empty-state-feedback { margin-top: var(--space-xl); }
+.empty-state-feedback p { margin: 0 0 var(--space-xs); font-size: var(--text-sm); }
 
 /* ── GRID PROMO ── */
 /* When used as a standalone end-of-grid block */

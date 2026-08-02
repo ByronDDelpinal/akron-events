@@ -11,6 +11,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import type { TablesInsert } from '@/lib/database.types'
 import { trackEvent, EVENTS } from '@/lib/analytics'
+import type { FeedbackPlacement } from '@/lib/analyticsEvents'
 import {
   MAX_LEN,
   COOLDOWN_MS,
@@ -35,11 +36,17 @@ const CLOSE_ANIMATION_MS = 150 // matches --transition-medium
  * repo-wide "no em dashes in user-facing copy" rule overrides the spec's
  * literal punctuation there. Wording/meaning is unchanged, only the dash
  * is swapped for a colon / period.
+ *
+ * 2026-08 revision: `heading` and `placeholder` were superseded by a
+ * question-led rewrite (ask what would make Akron Pulse better, prompt for
+ * specifics) when the dialog gained contextual mounts beyond the header.
+ * The spec citations above stay as historical record; every other key is
+ * still the spec's text.
  */
 const COPY = {
-  heading: 'Share your thoughts',
+  heading: 'What would make Akron Pulse better?',
   textareaLabel: 'Your feedback',
-  placeholder: "Tell us anything: what's working, what's broken, or what you wish this site did.",
+  placeholder: 'A missing event, a wrong time, a confusing page, or something you wish this site did. Be specific if you can.',
   helper: "Your note goes straight to the small team that builds this site. Sent from the page you're on.",
   send: 'Send',
   sending: 'Sending…',
@@ -53,15 +60,30 @@ const COPY = {
 
 interface FeedbackDialogProps {
   /**
+   * Which surface this mount lives on. Passed through as the `placement`
+   * parameter on every feedback analytics event so the funnels from the
+   * different mounts stay readable apart.
+   */
+  placement: FeedbackPlacement
+  /**
    * Extra class name(s) for the trigger button. Each mount point (desktop
    * header CTA row, mobile menu sheet, admin toolbar) passes its own local
    * button classes so the trigger matches its surrounding chrome exactly —
    * everything else about this component is identical everywhere it's used.
    */
   triggerClassName?: string
+  /** Trigger button label; contextual mounts pass a surface-specific prompt. */
+  triggerLabel?: string
+  /** Which trigger edge the popover anchors to. Header-style mounts keep the default 'right'. */
+  align?: 'right' | 'left' | 'center'
 }
 
-export default function FeedbackDialog({ triggerClassName = '' }: FeedbackDialogProps) {
+export default function FeedbackDialog({
+  placement,
+  triggerClassName = '',
+  triggerLabel = '+Feedback',
+  align = 'right',
+}: FeedbackDialogProps) {
   const [open, setOpen] = useState(false)
   const [closing, setClosing] = useState(false)
   const [value, setValue] = useState('')
@@ -89,12 +111,12 @@ export default function FeedbackDialog({ triggerClassName = '' }: FeedbackDialog
     setPhase(cooldownUntil != null && Date.now() < cooldownUntil ? 'cooldown' : 'form')
     setClosing(false)
     setOpen(true)
-    trackEvent(EVENTS.FEEDBACK_OPENED)
-  }, [])
+    trackEvent(EVENTS.FEEDBACK_OPENED, { placement })
+  }, [placement])
 
   const requestClose = useCallback(() => {
     if (!open || closing) return
-    if (!submittedThisOpenRef.current) trackEvent(EVENTS.FEEDBACK_DISMISSED)
+    if (!submittedThisOpenRef.current) trackEvent(EVENTS.FEEDBACK_DISMISSED, { placement })
     if (prefersReducedMotion()) {
       setOpen(false)
       triggerRef.current?.focus()
@@ -106,7 +128,7 @@ export default function FeedbackDialog({ triggerClassName = '' }: FeedbackDialog
       setClosing(false)
       triggerRef.current?.focus()
     }, CLOSE_ANIMATION_MS)
-  }, [open, closing])
+  }, [open, closing, placement])
 
   // Clicking the trigger toggles: opens when closed, closes when open —
   // the same toggle behavior the floating orb's tap gesture had.
@@ -224,7 +246,7 @@ export default function FeedbackDialog({ triggerClassName = '' }: FeedbackDialog
       if (error) throw error
 
       submittedThisOpenRef.current = true
-      trackEvent(EVENTS.FEEDBACK_SUBMITTED)
+      trackEvent(EVENTS.FEEDBACK_SUBMITTED, { placement })
       const until = Date.now() + COOLDOWN_MS
       writeCooldownUntil(until)
       setPhase('success')
@@ -266,13 +288,13 @@ export default function FeedbackDialog({ triggerClassName = '' }: FeedbackDialog
         aria-expanded={open}
         onClick={togglePopover}
       >
-        +Feedback
+        {triggerLabel}
       </button>
 
       {open && (
         <div
           ref={popoverRef}
-          className={`feedback-menu-popover${closing ? ' closing' : ''}`}
+          className={`feedback-menu-popover${align !== 'right' ? ` feedback-menu-popover--${align}` : ''}${closing ? ' closing' : ''}`}
           role="dialog"
           aria-modal="false"
           aria-labelledby={headingId}

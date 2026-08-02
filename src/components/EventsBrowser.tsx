@@ -2,7 +2,9 @@ import { useState, useEffect, useMemo, useRef, useCallback, type ReactNode } fro
 import { useEvents, useMapEvents, PAGE_SIZE, type AppEvent } from '@/hooks/useEvents'
 import { useRestorablePagination } from '@/hooks/useRestorablePagination'
 import { useEventFilters } from '@/hooks/useEventFilters'
+import { useEmbed } from '@/hooks/useEmbed'
 import EventCard from '@/components/EventCard'
+import FeedbackDialog from '@/components/FeedbackDialog'
 import FilterBar, { type LockedDimensions } from '@/components/FilterBar'
 import MapView from '@/components/MapView'
 import CalendarView from '@/components/CalendarView'
@@ -68,6 +70,9 @@ export default function EventsBrowser({
   onItemsChange,
 }: EventsBrowserProps) {
   const { effective } = filters
+  // Null outside the embed; gates the empty-state feedback prompt off
+  // partner iframes (white-label rule).
+  const embed = useEmbed()
 
   // View toggle gated by feature flags: an unavailable view falls back to list.
   const viewAllowed =
@@ -303,6 +308,12 @@ export default function EventsBrowser({
               <button className="btn-clear" onClick={filters.clearFilters}>
                 Clear filters
               </button>
+              {!embed && (
+                <div className="empty-state-feedback">
+                  <p>Can't find an event you know about?</p>
+                  <FeedbackDialog placement="empty_results" align="center" triggerLabel="Tell us what's missing" triggerClassName="btn-feedback-inline" />
+                </div>
+              )}
             </div>
           )}
 

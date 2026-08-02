@@ -8,6 +8,7 @@ import { embedEventPath } from '@/lib/embedConfig'
 import { VenueMap } from '@/components/MapView'
 import { CategoryBadges, FacetBadges } from '@/components/CategoryBadge'
 import RelatedEvents from '@/components/RelatedEvents'
+import FeedbackDialog from '@/components/FeedbackDialog'
 import ShareButtons from '@/components/ShareButtons'
 import NewsletterCTA from '@/components/NewsletterCTA'
 import {
@@ -300,6 +301,13 @@ export default function EventPage() {
               ? <EventDescription text={event.description} />
               : <p className="event-detail-desc">No description available.</p>
             }
+
+            {/* Listing-correction prompt; omitted in the embed (white-label rule). */}
+            {!embed && (
+              <div className="event-feedback-cta">
+                <FeedbackDialog placement="event_page" align="left" triggerLabel="Something wrong with this listing?" triggerClassName="btn-feedback-inline" />
+              </div>
+            )}
 
             {/* Subscribe CTA is omitted in the embed (white-label rule). */}
             {!embed && <NewsletterCTA variant="event" surface="event_detail" />}

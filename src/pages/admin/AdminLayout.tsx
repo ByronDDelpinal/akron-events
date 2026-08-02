@@ -159,7 +159,7 @@ export default function AdminLayout() {
               on /admin), so the feedback affordance is mounted here
               separately — same component, same plumbing, idiomatic admin
               chrome spot next to Log out. */}
-          <FeedbackDialog triggerClassName="btn-admin-ghost" />
+          <FeedbackDialog placement="admin_toolbar" triggerClassName="btn-admin-ghost" />
           <button className="btn-admin-ghost" onClick={handleLogout}>Log out</button>
         </div>
       </div>

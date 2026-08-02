@@ -58,6 +58,13 @@ export type SourceTier = 'venue_official' | 'platform' | 'aggregator' | 'manual'
 export type CategoryFilterAction = 'include' | 'exclude' | 'clear'
 
 /**
+ * Which surface a feedback interaction came from. The dialog is one shared
+ * component mounted in several places; without this dimension the feedback
+ * funnel numbers from all surfaces would be indistinguishable.
+ */
+export type FeedbackPlacement = 'header' | 'mobile_menu' | 'admin_toolbar' | 'empty_results' | 'event_page'
+
+/**
  * Which search box fired. `search_term` is a GA4 *recommended* param, so every
  * surface's searches roll into one report unless we discriminate — without this
  * the About page's data-source lookup would pollute event-search demand data.
@@ -134,7 +141,7 @@ export interface EventParams {
   add_to_calendar:          { method: CalendarMethod; category: string }
   category_filter:          { category: string; action: CategoryFilterAction }
   theme_changed:            { theme: string; previous_theme: string }
-  feedback_opened:    Record<string, never>
-  feedback_submitted: Record<string, never>
-  feedback_dismissed: Record<string, never>
+  feedback_opened:    { placement: FeedbackPlacement }
+  feedback_submitted: { placement: FeedbackPlacement }
+  feedback_dismissed: { placement: FeedbackPlacement }
 }

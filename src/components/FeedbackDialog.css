@@ -6,7 +6,9 @@
  *
  * Trigger button typography/height come from whichever caller class is
  * passed in via `triggerClassName` (btn-nav-cta-outline, mobile-menu-cta-
- * outline, btn-admin-ghost) — this file only owns the popover dropdown.
+ * outline, btn-admin-ghost) — this file owns the popover dropdown plus one
+ * caller-agnostic trigger style, `.btn-feedback-inline`, the link-styled
+ * trigger the contextual mounts (empty results, event page) pass in.
  */
 
 .feedback-menu-wrap {
@@ -17,6 +19,24 @@
 .feedback-menu-trigger {
   white-space: nowrap;
 }
+
+/* Link-styled trigger for inline contextual mounts (empty-state prompt,
+ * event-page "something wrong?" line). Passed via triggerClassName like
+ * the chrome-specific button classes, but owned here because it belongs
+ * to no single caller. */
+.btn-feedback-inline {
+  background: transparent;
+  border: none;
+  padding: 0;
+  min-height: 44px;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color var(--transition-medium);
+}
+.btn-feedback-inline:hover { color: var(--amber); }
 
 /* ── Popover ─────────────────────────────────────────────────────────── */
 .feedback-menu-popover {
@@ -33,6 +53,22 @@
   box-shadow: var(--shadow-popover);
   transform-origin: top right;
   animation: feedback-menu-popover-in var(--transition-slow) cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Alignment variants for contextual mounts. The centered variant uses the
+ * standalone `translate` property, NOT transform: the open/close keyframes
+ * animate transform and would clobber a transform-based centering. */
+.feedback-menu-popover--left {
+  left: 0;
+  right: auto;
+  transform-origin: top left;
+}
+
+.feedback-menu-popover--center {
+  left: 50%;
+  right: auto;
+  translate: -50% 0;
+  transform-origin: top center;
 }
 
 .feedback-menu-popover.closing {

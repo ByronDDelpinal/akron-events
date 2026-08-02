@@ -100,7 +100,7 @@ export default function Header() {
 
         <div className="nav-cta-group">
           <Link to="/submit" className="btn-nav-cta btn-nav-cta-outline">+ Submit Event</Link>
-          <FeedbackDialog triggerClassName="btn-nav-cta btn-nav-cta-outline" />
+          <FeedbackDialog placement="header" triggerClassName="btn-nav-cta btn-nav-cta-outline" />
           <Link to="/subscribe" className="btn-nav-cta">Subscribe</Link>
         </div>
 
@@ -160,7 +160,7 @@ export default function Header() {
           <button className={`mobile-nav-link ${isActive('/about') ? 'active' : ''}`} onClick={() => navTo('/about')}>About</button>
           <button className={`mobile-nav-link ${isActive('/organizers') ? 'active' : ''}`} onClick={() => navTo('/organizers')}>Organizers &amp; Partners</button>
           <button className="mobile-menu-cta mobile-menu-cta-outline" onClick={() => navTo('/submit')}>+ Submit Event</button>
-          <FeedbackDialog triggerClassName="mobile-menu-cta mobile-menu-cta-outline" />
+          <FeedbackDialog placement="mobile_menu" triggerClassName="mobile-menu-cta mobile-menu-cta-outline" />
           <button className="mobile-menu-cta" onClick={() => navTo('/subscribe')}>Subscribe</button>
         </div>
       )}

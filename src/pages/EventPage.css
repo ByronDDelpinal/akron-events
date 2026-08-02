@@ -281,6 +281,9 @@
 .mobile-info-val { font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); }
 .mobile-info-val.amber { color: var(--amber); font-weight: 700; }
 
+/* Listing-correction feedback prompt below the description. */
+.event-feedback-cta { margin-top: var(--space-lg); }
+
 /* Mobile venue card — venue + map, shown only on mobile where the sidebar
  * is hidden. Uses --bg-secondary to match the mobile-info-cells aesthetic
  * (rather than --bg-card, which the sticky desktop sidebar uses). The first
