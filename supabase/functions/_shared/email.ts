@@ -172,6 +172,13 @@ export function renderEmailShell({ preheader, content, footer }: ShellOptions): 
           Have an event? <a href="https://akronpulse.com/submit" style="color:${c.white};font-weight:600;text-decoration:underline;text-underline-offset:2px;">Submit it here</a>, see it live in 24 hours.
         </span>
       </td>
+    </tr>
+    <tr>
+      <td align="center" style="padding:0 8px 14px;">
+        <span style="font-family:${f.body};font-size:12px;color:${onCanvasSoft};">
+          Hit reply and tell us what you'd change.
+        </span>
+      </td>
     </tr>`
     : ''
 

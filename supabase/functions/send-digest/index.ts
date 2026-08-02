@@ -426,6 +426,7 @@ function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: numb
     'Never miss a beat.',
     'Thanks for checking Akron Pulse, your free, customizable, and go-to regional events calendar.',
     `Have an event? Submit it here, see it live in 24 hours: ${withUtm(`${BASE_URL}/submit`, campaign, 'submit')}`,
+    "Hit reply and tell us what you'd change.",
     '',
     `Manage preferences: ${BASE_URL}/subscribe/preferences?token=${sub.token}`,
     `Unsubscribe: ${BASE_URL}/unsubscribe?token=${sub.token}`,
