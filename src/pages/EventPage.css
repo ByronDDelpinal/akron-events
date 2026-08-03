@@ -57,6 +57,21 @@
 .event-detail-layout .newsletter-cta {
   clear: both;
 }
+
+/* Listing-correction prompt. Same float problem as the newsletter CTA: without
+   `clear` it renders in the narrow column beside a tall float image, stranded
+   in whitespace under a short description. Clearing drops it below the image
+   so it reads as a footnote to the whole section. The trigger's 44px touch
+   target comes from padding here rather than min-height, which would otherwise
+   center the text in a 44px box and look like stray vertical space. */
+.event-feedback-cta {
+  clear: both;
+  margin-top: var(--space-xl);
+}
+.event-feedback-cta .btn-feedback-inline {
+  min-height: 0;
+  padding: var(--space-sm) 0;
+}
 .banner-scrim {
   position: absolute;
   inset: 0;

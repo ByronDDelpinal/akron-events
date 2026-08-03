@@ -59,9 +59,24 @@ const VENUE_INFO = {
 const MONTH_MAP = {
   january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
   july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
+  jan: 1, feb: 2, mar: 3, apr: 4, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9,
+  oct: 10, nov: 11, dec: 12,
 }
 
 const USER_AGENT = 'Mozilla/5.0 (compatible; AkronPulse-bot/1.0; +https://akronpulse.com)'
+
+// Count of date segments whose month token failed MONTH_MAP lookup — surfaced
+// in the run summary next to inserted/skipped so a markup/format drift shows
+// up in nightly output instead of silently thinning the results.
+let unmappedMonthCount = 0
+
+export function resetUnmappedMonthCount() {
+  unmappedMonthCount = 0
+}
+
+export function getUnmappedMonthCount() {
+  return unmappedMonthCount
+}
 
 // ── HTTP ──────────────────────────────────────────────────────────────────
 
@@ -136,6 +151,7 @@ export function parseDatePart(datePart) {
   if (rangeM && MONTH_MAP[rangeM[1].toLowerCase()]) {
     return expandDateRange(rangeM[1], parseInt(rangeM[2], 10), parseInt(rangeM[3], 10))
   }
+  if (rangeM) unmappedMonthCount++
 
   // Single: month name + D  (e.g. "June 8" or "Monday June 8")
   const singleM = datePart.match(/([A-Za-z]+)\s+(\d{1,2})$/)
@@ -143,6 +159,7 @@ export function parseDatePart(datePart) {
     const ymd = resolveYear(singleM[1], parseInt(singleM[2], 10))
     return ymd ? [ymd] : []
   }
+  if (singleM) unmappedMonthCount++
 
   return []
 }
@@ -310,6 +327,7 @@ export function mapAgeRestriction(rating) {
 async function main() {
   console.log('🎬  Starting Highland Square Theatre ingestion…')
   const start = Date.now()
+  resetUnmappedMonthCount()
 
   try {
     const organizerId = await ensureOrganization('Highland Square Theatre', {
@@ -396,7 +414,7 @@ async function main() {
       eventsFound: totalShowtimes,
       durationMs:  Date.now() - start,
     })
-    console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s — ${inserted} upserted, ${skipped} skipped`)
+    console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s — ${inserted} upserted, ${skipped} skipped, ${getUnmappedMonthCount()} unmapped-month`)
   } catch (err) {
     await logScraperError(SOURCE_KEY, err, start)
     process.exit(1)

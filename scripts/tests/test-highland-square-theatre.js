@@ -12,7 +12,13 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-const { buildDescription } = await import('../scrape-highland-square-theatre.js')
+const {
+  buildDescription,
+  parseDatePart,
+  resolveYear,
+  getUnmappedMonthCount,
+  resetUnmappedMonthCount,
+} = await import('../scrape-highland-square-theatre.js')
 
 describe('Highland Square buildDescription', () => {
   it('includes runtime and rating when present', () => {
@@ -31,5 +37,40 @@ describe('Highland Square buildDescription', () => {
 
   it('never returns empty', () => {
     assert.ok(buildDescription(undefined).length > 20)
+  })
+})
+
+describe('Highland Square month abbreviations (regression)', () => {
+  it('resolveYear resolves the 3-letter abbreviation "Aug"', () => {
+    assert.strictEqual(resolveYear('Aug', 1), resolveYear('August', 1))
+  })
+
+  it('resolveYear resolves the "Sept" variant', () => {
+    assert.strictEqual(resolveYear('Sept', 1), resolveYear('September', 1))
+  })
+
+  it('parseDatePart resolves "Monday Aug 1" the same as the full month name', () => {
+    resetUnmappedMonthCount()
+    const abbrev = parseDatePart('Monday Aug 1')
+    const full   = parseDatePart('Monday August 1')
+    assert.deepStrictEqual(abbrev, full)
+    assert.ok(abbrev.length > 0, 'abbreviated month should resolve to a date')
+    assert.strictEqual(getUnmappedMonthCount(), 0)
+  })
+
+  it('parseDatePart resolves "Monday Sept 1" the same as the full month name', () => {
+    resetUnmappedMonthCount()
+    const abbrev = parseDatePart('Monday Sept 1')
+    const full   = parseDatePart('Monday September 1')
+    assert.deepStrictEqual(abbrev, full)
+    assert.ok(abbrev.length > 0, 'Sept should resolve to a date')
+    assert.strictEqual(getUnmappedMonthCount(), 0)
+  })
+
+  it('rejects a garbage month token and counts it as unmapped', () => {
+    resetUnmappedMonthCount()
+    const result = parseDatePart('Monday Foo 1')
+    assert.deepStrictEqual(result, [])
+    assert.strictEqual(getUnmappedMonthCount(), 1)
   })
 })

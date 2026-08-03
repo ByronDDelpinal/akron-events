@@ -119,6 +119,8 @@
     "test:library": "node --test scripts/tests/test-akron-library.js",
     "moderation:encode": "node scripts/encode-moderation-terms.js",
     "moderation:load": "node scripts/load-moderation-terms.js",
+    "categorize:backfill": "node scripts/backfill-categories.js",
+    "categorize:backfill:execute": "node scripts/backfill-categories.js --apply",
     "health": "node scripts/check-scraper-health.js",
     "check:venues": "node scripts/check-venue-duplicates.js",
     "check:attribution": "node scripts/check-attribution.js",
