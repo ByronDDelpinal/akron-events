@@ -309,15 +309,17 @@ jobs:
       # Best-effort venue geocoding backfill. New venues appear every run;
       # unmapped venues degrade the map view and neighborhood hubs, but a
       # geocoding failure (rate limit, bad token, network blip) must never
-      # redden an otherwise-healthy scrape — hence continue-on-error.
+      # redden an otherwise-healthy scrape — hence continue-on-error. A
+      # nonzero exit under continue-on-error otherwise vanishes with no
+      # trace, so a failure is also mirrored to the job summary — loud
+      # enough to catch a Nominatim policy block without failing the run.
       - name: Geocode venues
         if: always() && github.event.inputs.dry_run != 'true'
         continue-on-error: true
         env:
-          VITE_MAPBOX_TOKEN:         ${{ secrets.VITE_MAPBOX_TOKEN }}
           VITE_SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node scripts/geocode-venues.js
+        run: npm run geocode:venues || { echo "🚨 geocode-venues FAILED (possible Nominatim policy block)" >> "$GITHUB_STEP_SUMMARY"; exit 1; }
 
       # Runs even when the scrape step failed — a partial run is when the
       # health report matters most.
