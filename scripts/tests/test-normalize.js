@@ -31,6 +31,9 @@ const {
   parseTagsFromTribe,
   parseEventbritePrice,
   canonicalVenueName,
+  isJunkVenueName,
+  looksLikeStreetAddress,
+  ensureVenue,
   orgNameKey,
   titleCaseIfShouting,
   absoluteUrl,
@@ -1097,6 +1100,129 @@ describe('upsertEventSafe — event_aliases enforcement', () => {
       assert.equal(calls.upsert, 1)
     } finally {
       delete process.env.DISABLE_ALIAS_SKIP
+      __setClientForTests(null)
+    }
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// isJunkVenueName + ensureVenue mint-time junk gate
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('isJunkVenueName', () => {
+  it('flags virtual/placeholder markers (exact, case-insensitive)', () => {
+    assert.equal(isJunkVenueName('Virtual'), true)
+    assert.equal(isJunkVenueName('ONLINE EVENT'), true)
+    assert.equal(isJunkVenueName('  zoom  '), true)
+    assert.equal(isJunkVenueName('Webinar'), true)
+    assert.equal(isJunkVenueName('TBD'), true)
+    assert.equal(isJunkVenueName('tba'), true)
+    assert.equal(isJunkVenueName('Livestream'), true)
+  })
+
+  it('flags bare US state names', () => {
+    assert.equal(isJunkVenueName('Ohio'), true)
+    assert.equal(isJunkVenueName('ohio'), true)
+    assert.equal(isJunkVenueName('West Virginia'), true)
+    assert.equal(isJunkVenueName('New York'), true)
+  })
+
+  it('flags house-number-less street fragments (last token is a street suffix)', () => {
+    assert.equal(isJunkVenueName('Church Street'), true)
+    assert.equal(isJunkVenueName('Main St'), true)
+    assert.equal(isJunkVenueName('Kenmore Blvd'), true)
+    assert.equal(isJunkVenueName('W Market Street'), true)
+  })
+
+  it('does NOT flag real venue names', () => {
+    assert.equal(isJunkVenueName('Townhall'), false)           // substring-of-suffix only
+    assert.equal(isJunkVenueName('Lock 3'), false)             // digit-bearing
+    assert.equal(isJunkVenueName('Front Street Brewing'), false) // suffix not LAST token
+    assert.equal(isJunkVenueName("Jilly's Music Room"), false)
+    assert.equal(isJunkVenueName('BLU Jazz+'), false)
+    assert.equal(isJunkVenueName('Akron Civic Theatre'), false)
+    assert.equal(isJunkVenueName('Ohio & Erie Canal Towpath Trailhead'), false) // >3 tokens
+  })
+
+  it('digit-bearing strings are looksLikeStreetAddress territory, never junk-name', () => {
+    assert.equal(isJunkVenueName('83 Church Street'), false)
+    assert.equal(looksLikeStreetAddress('83 Church Street'), true)
+    // and the complement: no house number → not an address, but IS junk
+    assert.equal(looksLikeStreetAddress('Church Street'), false)
+    assert.equal(isJunkVenueName('Church Street'), true)
+  })
+
+  it('empty / non-string input → false', () => {
+    assert.equal(isJunkVenueName(''), false)
+    assert.equal(isJunkVenueName(null), false)
+    assert.equal(isJunkVenueName(undefined), false)
+    assert.equal(isJunkVenueName(42), false)
+  })
+})
+
+// Minimal venues-table mock for ensureVenue: name lookup resolves via
+// .limit(1) (thenable), insert via .insert().select('id').single().
+function makeVenuesMock({ existingRows = [], insertedId = 'v-new' } = {}) {
+  const calls = { insert: 0, insertRow: null }
+  function builder() {
+    const chain = {
+      select() { return chain },
+      eq()     { return chain },
+      not()    { return chain },
+      order()  { return chain },
+      update() { return chain },
+      limit()  { return Promise.resolve({ data: existingRows, error: null }) },
+      insert(row) { calls.insert++; calls.insertRow = row; return chain },
+      single() { return Promise.resolve({ data: { id: insertedId }, error: null }) },
+      then(onF, onR) { return Promise.resolve({ data: [], error: null }).then(onF, onR) },
+    }
+    return chain
+  }
+  return { client: { from: builder }, calls }
+}
+
+describe('ensureVenue — junk-name mint gate', () => {
+  // NOTE: ensureVenue's per-process name cache has no reset hook, so each test
+  // uses a distinct venue name to stay independent.
+
+  it('refuses to MINT a junk-named venue: returns null, no insert', async () => {
+    const { client, calls } = makeVenuesMock({ existingRows: [] })
+    __setClientForTests(client)
+    try {
+      const id = await ensureVenue('Church Street')
+      assert.equal(id, null)
+      assert.equal(calls.insert, 0)
+      // rejection is cached — second call short-circuits, still no insert
+      assert.equal(await ensureVenue('Church Street'), null)
+      assert.equal(calls.insert, 0)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('junk name ALREADY in the DB keeps resolving by exact name (gate is mint-time only)', async () => {
+    const { client, calls } = makeVenuesMock({
+      existingRows: [{ id: 'v-virtual', neighborhood_slug: null }],
+    })
+    __setClientForTests(client)
+    try {
+      const id = await ensureVenue('Virtual')
+      assert.equal(id, 'v-virtual')
+      assert.equal(calls.insert, 0)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('opts.allowGenericName bypasses the gate and mints', async () => {
+    const { client, calls } = makeVenuesMock({ existingRows: [], insertedId: 'v-ohio' })
+    __setClientForTests(client)
+    try {
+      const id = await ensureVenue('Ohio', {}, { allowGenericName: true })
+      assert.equal(id, 'v-ohio')
+      assert.equal(calls.insert, 1)
+      assert.equal(calls.insertRow.name, 'Ohio')
+    } finally {
       __setClientForTests(null)
     }
   })

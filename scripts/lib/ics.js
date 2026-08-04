@@ -48,6 +48,7 @@ import {
   ensureOrganization,
   linkOrganizationVenue,
   splitCommaLocation,
+  isJunkVenueName,
 } from './normalize.js'
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1058,6 +1059,10 @@ export async function runIcsScraper(config) {
             venueCache.set(locName, vId)
             venueId = vId
           }
+          // A location name was present but rejected as junk at mint time
+          // (isJunkVenueName in ensureVenue) — the event goes in venue-less,
+          // so flag it for a human instead of letting it slip by silently.
+          if (!venueId && isJunkVenueName(locName)) row.needs_review = true
         }
 
         const enrichedRow = await enrichWithImageDimensions(row)

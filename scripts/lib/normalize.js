@@ -856,6 +856,55 @@ export function looksLikeStreetAddress(value) {
   return words.some((w) => STREET_SUFFIXES.has(w))
 }
 
+/** Bare US state names — a venue literally named "Ohio" is a feed's region
+ *  field leaking into the location slot, never a real place. */
+const US_STATE_NAMES = new Set([
+  'alabama', 'alaska', 'arizona', 'arkansas', 'california', 'colorado',
+  'connecticut', 'delaware', 'florida', 'georgia', 'hawaii', 'idaho',
+  'illinois', 'indiana', 'iowa', 'kansas', 'kentucky', 'louisiana', 'maine',
+  'maryland', 'massachusetts', 'michigan', 'minnesota', 'mississippi',
+  'missouri', 'montana', 'nebraska', 'nevada', 'new hampshire', 'new jersey',
+  'new mexico', 'new york', 'north carolina', 'north dakota', 'ohio',
+  'oklahoma', 'oregon', 'pennsylvania', 'rhode island', 'south carolina',
+  'south dakota', 'tennessee', 'texas', 'utah', 'vermont', 'virginia',
+  'washington', 'west virginia', 'wisconsin', 'wyoming',
+])
+
+/** Placeholder "location" strings feeds use for online / unannounced events. */
+const VIRTUAL_MARKERS = new Set([
+  'virtual', 'online', 'virtual event', 'online event', 'webinar', 'zoom',
+  'livestream', 'tbd', 'tba',
+])
+
+/**
+ * Is this venue NAME junk that must never mint a new venues row? Three closed
+ * families (nothing fuzzy — every rule is an exact-token match):
+ *   1. a bare US state name ("Ohio")
+ *   2. a virtual/placeholder marker ("Virtual", "Online Event", "TBD")
+ *   3. a house-number-less street fragment: ≤3 digit-free tokens whose LAST
+ *      token is a recognized street suffix ("Church Street", "Main St").
+ *      Complements looksLikeStreetAddress, which requires a leading house
+ *      number and so lets these through. Token-exact on the last word, so
+ *      "Townhall" (substring only) and "Front Street Brewing" (suffix not
+ *      last) never match.
+ * Pure + exported for tests. Consumed by ensureVenue at MINT time only —
+ * venues already in the DB under such a name keep resolving normally.
+ */
+export function isJunkVenueName(name) {
+  if (!name || typeof name !== 'string') return false
+  const key = decodeEntities(name).toLowerCase().replace(/\s+/g, ' ').trim()
+  if (!key) return false
+  if (US_STATE_NAMES.has(key)) return true
+  if (VIRTUAL_MARKERS.has(key)) return true
+  // Street fragments: digit-bearing strings are looksLikeStreetAddress's
+  // territory (or legit number-led names like "Lock 3") — never ours.
+  if (/\d/.test(key)) return false
+  const tokens = key.replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean)
+  if (tokens.length < 1 || tokens.length > 3) return false
+  const last = tokens[tokens.length - 1]
+  return STREET_SUFFIXES.has(STREET_SUFFIX_MAP[last] ?? last)
+}
+
 // normalizedAddress → venueId, built once per process from the venues table.
 let _venueAddressIndex = null
 
@@ -1167,6 +1216,21 @@ export async function ensureVenue(name, details = {}, opts = {}) {
       _venueNameCache.set(trimmed, byAddress)
       return byAddress
     }
+  }
+
+  // Guard: never MINT a venue from a junk generic name ("Virtual", "Ohio",
+  // "Church Street" — see isJunkVenueName). Deliberately placed AFTER both the
+  // exact-name lookup and the address fallback so any venue that already
+  // exists in the DB under such a name keeps resolving; this gate only stops
+  // NEW rows, which would otherwise land with city defaulting to 'Akron'.
+  // opts.allowGenericName lets a curated caller opt out.
+  if (!opts.allowGenericName && isJunkVenueName(trimmed)) {
+    console.warn(
+      `  ⚠ Refusing to create junk-named venue "${trimmed}" — bare state / virtual marker / street fragment. ` +
+      `Event left venue-less; pass opts.allowGenericName to override.`,
+    )
+    _venueNameCache.set(trimmed, null)
+    return null
   }
 
   // Build insert payload, omitting null/undefined values so Postgres
