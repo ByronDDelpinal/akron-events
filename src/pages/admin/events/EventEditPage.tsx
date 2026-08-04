@@ -19,7 +19,7 @@ const DEFAULT_EVENT: Row = {
   title: '', description: '', status: 'published', categories: [],
   start_at: '', end_at: '', price_min: 0, price_max: null,
   age_restriction: 'not_specified', ticket_url: '', source_url: '', image_url: '',
-  featured: false, manual_overrides: {},
+  featured: false, is_family: false, manual_overrides: {},
 }
 
 export default function EventEditPage() {
@@ -141,6 +141,7 @@ function EventForm({
       source_url:      form.source_url ?? null,
       image_url:       form.image_url ?? null,
       featured:        form.featured ?? false,
+      is_family:       form.is_family ?? false,
       manual_overrides: overrides,
     }
 
@@ -249,6 +250,18 @@ function EventForm({
             <label className="admin-checkbox-label">
               <input type="checkbox" checked={!!form.featured} onChange={(e) => setField('featured', e.target.checked)} />
               Featured event
+            </label>
+          </FormField>
+          {/* Locked (not just left-toggled off) so a scraper re-run can never
+              flip this back after a human corrects it — see the family safety
+              veto: scrapers/inference re-derive is_family on every scrape, and
+              only a manual_overrides.is_family stamp survives that (mirrors
+              _stripOverriddenFields in normalize.js). Before this control
+              existed, the only way to set it was a raw SQL update. */}
+          <FormField label="Family" field="is_family" overrides={overrides} onToggleOverride={toggleOverride}>
+            <label className="admin-checkbox-label">
+              <input type="checkbox" checked={!!form.is_family} onChange={(e) => setField('is_family', e.target.checked)} />
+              Family-friendly event
             </label>
           </FormField>
         </FormFieldRow>
