@@ -7,11 +7,20 @@
  * { family, fundraiser } scored independently of content.
  *
  * Pure & dependency-light (imports only the canonical slug list). Contract:
- *   inferCategories(title, desc) -> { categories: string[1..2], family, fundraiser }
+ *   inferCategories(title, desc) -> { categories: string[1..2], family, fundraiser, familyVeto }
+ *   inferFacets(title, desc)     -> { family, fundraiser, familyVeto }
  *   inferCategory(title, desc)   -> string   (primary content category; back-compat)
  *
  * `family` is HIGH-BAR on purpose: explicit kid/family PROGRAMMING language
  * only (not "all ages", not beneficiary words like "supporting local youth").
+ *
+ * `familyVeto` is `null | { rule: 'child-harm'|'serious-harm', terms: string[],
+ * suppressed: boolean }` — see "Family safety veto" below. IMPORTANT:
+ * `familyVeto != null` on its own only means the text is harm-bearing; it does
+ * NOT mean a family flag was struck down. Check `familyVeto.suppressed` for
+ * that. The veto is evaluated on every call, regardless of whether a family
+ * signal fired, so `normalize.js` can log a source-declared conflict even when
+ * inference itself never proposed `family: true`.
  */
 
 import { CATEGORY_SLUGS } from '../../src/lib/categories.js'
@@ -275,6 +284,167 @@ function _familySubject(text) {
   for (const re of _FAMILY_EXCLUSIONS) t = t.replace(re, ' ')
   return t
 }
+
+// ── Family safety veto ──────────────────────────────────────────────────────
+// A hard veto on the FAMILY FACET ONLY. When the text describes serious harm,
+// especially harm to a child, `is_family` is never set no matter what else
+// matched. Content categories are untouched: a documentary about a crime is
+// still `film`.
+//
+// Incident 2026-08-03: "Baby Doe" (Nightlight Cinema, 5 showtimes) — a
+// documentary about a woman prosecuted over her newborn's death — was flagged
+// family by FAMILY_RE's bare `baby|babies` alternative ("Baby Doe" + "the baby
+// was stillborn") and shown to families. `_FAMILY_EXCLUSIONS` above strips
+// negated-admission, "kids of all ages", performer-bio possessives, and
+// youth-beneficiary/adult-camp contexts — none of which describe a child's
+// death, so nothing intervened.
+//
+// This is a document-level VETO, not a strip. It deliberately does NOT live
+// inside `_FAMILY_EXCLUSIONS`: those are span strippers that delete a phrase
+// and let the remaining text re-score, which would make the outcome depend on
+// which phrase happened to survive stripping. The veto instead runs on the
+// RAW text (title + description, unmodified) so its evidence can never be
+// deleted by an unrelated guard, and it has its own strip list
+// (`_HARM_EXCLUSIONS`) and its own fiction check — it never shares
+// `_FAMILY_EXCLUSIONS`, because the two lists answer different questions
+// ("is this kid programming?" vs. "does this text depict serious harm?") and
+// must be independently testable.
+//
+// The veto DOES override a structured, source-declared `is_family: true`
+// (library Ages fields, Ticketmaster's Family segment, the ~10 scrapers that
+// pass `is_family` directly) — see resolveFamilyFacet in normalize.js, which
+// applies this above the `sanitized.is_family ?? inferred.family` resolve.
+// A structured Ages/segment field is authoritative about WHO MAY ATTEND; the
+// veto answers a different question — may we advertise this under a family
+// badge with no warning — and "infants welcome" is a true statement about a
+// bereaved-parents remembrance event that is still the wrong thing to surface
+// that way. `is_family` is also bidirectional (it powers both the inclusive
+// Family intent and the "Hide kids' events" toggle), and structured fields are
+// not immune to the same failure mode: `parseIsFamily` in
+// scrape-akron-library.js matches a bare `bab(y|ies)` on the Ages+tags string,
+// so a "Baby" tag on a perinatal-loss remembrance program reproduces this
+// exact incident from the "authoritative" path. The human escape hatch is
+// `manual_overrides.is_family`, which this veto never touches or overrides.
+//
+// KNOWN, DELIBERATE GAP (out of scope here — see the design doc's open
+// question 4): this veto does not fix FAMILY_RE's bare `baby|babies` recall
+// problem. A bare title "Baby Doe" with an EMPTY description still flags
+// family, because the veto only fires on harm TEXT — a title alone with no
+// harm-bearing description gives the detector below nothing to match. Do not
+// "fix" this by editing FAMILY_RE here; it needs its own design (requiring
+// baby/babies to co-occur with programming words like "storytime"/"& me"/
+// "welcome") and its own tests.
+
+// (i) Fiction framings of crime. Murder-mystery dinners, Clue nights, whodunits
+//     and escape rooms are family GAME programming; their copy legitimately
+//     says "murder", "killed", "the suspect was arrested". When one frames the
+//     event, the generic Group B rules are skipped wholesale. Group A still
+//     applies — dinner theatre does not narrate infanticide.
+const _HARM_FICTION_FRAME = /\b(?:murder[- ]?myster(?:y|ies)|myster(?:y|ies)\s+(?:dinner|party|night|theat(?:re|er)|game|train)|whodunit|cluedo|escape rooms?|detective party|solve the (?:crime|case|mystery))\b/
+
+// (ii) Prevention / awareness / education framings, stripped in BOTH word
+//      orders: "Teen Suicide Prevention Night", "Youth Narcan Training",
+//      "Child Abuse Prevention Family Fair", "Trafficking Awareness for Parents",
+//      "Drowning Prevention for Kids". These are exactly the civic youth
+//      programming Akron Pulse wants in the Family lane.
+//
+// QA false-positive sweep (2026-08-03) found three legitimate-programming
+// texts still vetoed after this exclusion, from two independent defects:
+//
+//   (a) VOCABULARY GAP — abduction/kidnapping/"missing <child>" topics were
+//       absent from `_HARM_SOFT_TOPIC`, so "Preventing Child Abduction" and
+//       "Missing Children Awareness" got no framing-strip at all, unlike the
+//       structurally identical "preventing child abuse". Fixed by adding
+//       those terms below. This also gives A5's literal
+//       missing/murdered/slain/abducted/kidnapped + child pattern an
+//       awareness escape hatch it never had: once "missing"/"abduction"/
+//       "kidnap*" strip under a nearby prevention/awareness frame, the
+//       literal adjacency pattern has nothing left to match.
+//   (c) REGEX-ORDERING DEFECT — independent of vocabulary. The old
+//       `[^.!?]{0,60}?` bridge was free to leap PAST a nearer, correctly
+//       paired topic/framing occurrence to a farther one of the same kind.
+//       Concretely: "Child Abuse Awareness Walk ... raising awareness to
+//       help prevent child abuse" has TWO "abuse"s and TWO "awareness"-ish
+//       framing words. The framing-then-topic pass started at the first
+//       "awareness" (title) and lazily bridged all the way to the SECOND
+//       "abuse" near the end (still within 60 chars, still non-greedy-valid),
+//       skipping right over the title's OWN adjacent "abuse" and over the
+//       intervening "awareness"/"prevent" tokens the other pairs needed. That
+//       single over-wide match then consumed the very framing word ("aware-
+//       ness") the topic-then-framing pass needed to pair with the title's
+//       "abuse" — so it survived unstripped and re-matched `_HARM_CHILD`.
+//       Fixed with a tempered greedy token: the bridge may not cross ANOTHER
+//       framing or topic word en route, so each occurrence can only pair
+//       with its nearest, uninterrupted partner. Verified against the "Baby
+//       Doe" fixture and every existing must-veto case before landing (see
+//       test-family-safety-veto.js) — this narrows what a single exclusion
+//       match can span; it can only strip MORE precisely, never strip text
+//       it couldn't already reach.
+const _HARM_SOFT_TOPIC = '(?:suicide|self[- ]harm|overdose|opioids?|fentanyl|addiction|abuse|assault|violence|traffick\\w+|bullying|drowning|firearms?|gun|abduction|abducted|kidnapp(?:ed|ing)?|missing)'
+const _HARM_FRAMING    = '(?:prevention|preventing|prevent|awareness|education(?:al)?|training|workshop|hotline|helpline|resources?|support group|safety|screening|recognizing|warning signs|first aid|narcan|naloxone)'
+// Either word class, used as the tempered token's "don't cross this" boundary.
+const _HARM_EXCLUSION_BOUNDARY = `(?:${_HARM_FRAMING}|${_HARM_SOFT_TOPIC})`
+const _HARM_EXCLUSIONS = [
+  new RegExp(`\\b${_HARM_FRAMING}\\b(?:(?!\\b${_HARM_EXCLUSION_BOUNDARY}\\b)[^.!?]){0,60}\\b${_HARM_SOFT_TOPIC}\\b`, 'g'),
+  new RegExp(`\\b${_HARM_SOFT_TOPIC}\\b(?:(?!\\b${_HARM_EXCLUSION_BOUNDARY}\\b)[^.!?]){0,60}\\b${_HARM_FRAMING}\\b`, 'g'),
+]
+
+// Group A — harm to a child. Unconditional: a single match vetoes.
+const _HARM_CHILD = [
+  // A1 perinatal death. No family PROGRAMMING uses these words; bereavement
+  //    remembrance events do, and those are not family programming either.
+  /\b(?:stillborn|still ?births?|miscarriage|miscarried)\b/,
+  /\b(?:sudden infant death|sids)\b/,
+  // A2 "<child noun> death/mortality/homicide" as a topic.
+  /\b(?:infant|neonatal|child|childhood)\s+(?:deaths?|mortality|fatalit(?:y|ies)|homicide)\b/,
+  // A3 the only two bounded uses of the word "loss" in the whole lexicon.
+  /\b(?:pregnancy|infant)\s+loss\b/,
+  /\b(?:death|loss|killing|murder|disappearance|abduction)\s+of\s+(?:(?:a|an|the|her|his|their|your|our|my)\s+)?(?:unborn\s+|newborn\s+|young\s+|little\s+)?(?:child|children|bab(?:y|ies)|infants?|newborns?|toddlers?|son|daughter|minors?)\b/,
+  // A4 harm VERB + child OBJECT — the "Baby Doe" shape. Up to three
+  //    determiner/qualifier words between them ("murdered her two-year-old
+  //    daughter"). The object list is deliberately the same child vocabulary
+  //    FAMILY_RE keys on, so the veto has exactly the reach of the flag it
+  //    guards. NOTE the omissions: "beat" (→ "Beat the Kids at Chess Night")
+  //    and "left/leave" (→ "parents who leave their children in our care").
+  /\b(?:murder(?:ed|ing|s)?|kill(?:ed|ing|s)?|strangl(?:e|ed|es|ing)|suffocat(?:e|ed|es|ing)|drown(?:ed|ing|s)|abandon(?:ed|ing|s)?|abduct(?:ed|ing|s)?|kidnapp?(?:ed|ing|s)?|molest(?:ed|ing|s)?|traffick(?:ed|ing)|starv(?:ed|ing))\s+(?:(?:her|his|their|my|our|the|a|an|own|newborn|infant|young|little|\d+[-\s](?:year|month|week|day)[-\s]old)\s+){0,3}(?:bab(?:y|ies)|infants?|newborns?|toddlers?|child(?:ren)?|kids?|daughters?|sons?|girls?|boys?|students?)\b/,
+  // A5 named child-harm topics, both word orders.
+  /\b(?:child|childhood|infant|minor)\s+(?:abuse|neglect|endangerment|exploitation|abduction|traffick\w+|pornograph\w+)\b/,
+  /\b(?:abuse|neglect|endangerment|exploitation|molestation|traffick\w+)\s+of\s+(?:(?:a|an|the)\s+)?(?:child|children|minors?|infants?|bab(?:y|ies))\b/,
+  /\b(?:missing|murdered|slain|abducted|kidnapped)\s+(?:child|children|girl|boy|teen|bab(?:y|ies)|infant|toddler)\b/,
+]
+
+// Group B — generic serious harm. Vetoes ONLY together with a real-case cue,
+// and never under a fiction frame. Both halves are required so that no single
+// dramatic word can strip a family flag on its own.
+const _HARM_SERIOUS = /\b(?:murder(?:ed|s|ing)?|homicide|manslaughter|killed|slain|shot (?:and killed|dead)|stabb(?:ed|ing)|raped?|sexual assault|molestation|human traffick\w+|domestic violence|mass shooting|school shooting|massacre|lynch(?:ed|ing)|serial killer)\b/
+const _HARM_TRUE_CASE = /\b(?:arrest(?:ed|s)?|convict(?:ed|ion)|indict(?:ed|ment)|on trial|stood trial|sentenced to|life sentence|cold case|unsolved|true story|based on (?:a|the) true|real[- ]life case|wrongful(?:ly)?\s+convict\w+|exonerat\w+|autopsy|coroner|prosecut(?:ed|ion|or))\b/
+
+/**
+ * Serious-harm veto for the FAMILY facet. Returns null when clean, else
+ * { rule, terms }. Pure; scans title + description, case-insensitive.
+ *
+ * Implementation landmine: `_HARM_EXCLUSIONS` carries the `g` flag and is only
+ * ever used with `.replace()`. Never call `.test()` on a `g`-flagged regex —
+ * `lastIndex` is stateful and a second call on the same text returns false.
+ * The non-`g` regexes above are the only ones passed to `.test()`/`.match()`.
+ */
+export function familySafetyVeto(title = '', description = '') {
+  const raw = `${title || ''} ${description || ''}`.toLowerCase()
+  if (!raw.trim()) return null
+  let t = raw
+  for (const re of _HARM_EXCLUSIONS) t = t.replace(re, ' ')
+  for (const re of _HARM_CHILD) {
+    const m = t.match(re)
+    if (m) return { rule: 'child-harm', terms: [m[0].trim().slice(0, 60)] }
+  }
+  if (_HARM_FICTION_FRAME.test(raw)) return null
+  const harm = t.match(_HARM_SERIOUS)
+  if (!harm) return null
+  const cue = t.match(_HARM_TRUE_CASE)
+  if (!cue) return null
+  return { rule: 'serious-harm', terms: [harm[0].trim(), cue[0].trim()] }
+}
+
 // High-bar: the EVENT itself is a fundraiser/benefit/service event. Excludes the
 // bare word "nonprofit"/"non-profit", which fires on artist/org BIOS rather than
 // the event (e.g. a concert whose performer "supports artists through her
@@ -328,19 +498,33 @@ export function scoreCategories(title = '', description = '') {
 export function inferFacets(title = '', description = '') {
   const text = `${title || ''} ${description || ''}`.toLowerCase()
   const titleText = (title || '').toLowerCase()
+
+  // High-bar family words match anywhere; the noisier teen/tween/youth set is
+  // title-only (see FAMILY_TITLE_RE). Both run through _familySubject so the
+  // beneficiary/"youth"-service guards apply in either scope.
+  const positives = FAMILY_RE.test(_familySubject(text)) ||
+                     FAMILY_TITLE_RE.test(_familySubject(titleText))
+
+  // The veto is evaluated regardless of `positives` — cheap (one extra regex
+  // pass over already-lowercased text) and it lets normalize.js reuse this
+  // same result to log a source-declared conflict even when text inference
+  // never proposed family in the first place. It only *suppresses* the family
+  // flag when a positive signal actually fired.
+  const veto = familySafetyVeto(title, description)
+
   return {
-    // High-bar family words match anywhere; the noisier teen/tween/youth set is
-    // title-only (see FAMILY_TITLE_RE). Both run through _familySubject so the
-    // beneficiary/"youth"-service guards apply in either scope.
-    family: FAMILY_RE.test(_familySubject(text)) ||
-            FAMILY_TITLE_RE.test(_familySubject(titleText)),
+    family: positives && !veto,
+    // `suppressed` is true only when a family signal actually fired AND was
+    // struck down. `familyVeto != null` alone just means the text is
+    // harm-bearing (see the JSDoc at the top of this file).
+    familyVeto: veto ? { ...veto, suppressed: positives } : null,
     fundraiser: FUNDRAISER_RE.test(_fundraiserSubject(text)),
   }
 }
 
 export function inferCategories(title = '', description = '') {
   const scores = scoreCategories(title, description)
-  const { family, fundraiser } = inferFacets(title, description)
+  const { family, fundraiser, familyVeto } = inferFacets(title, description)
 
   const ranked = Object.keys(scores).sort((a, b) => {
     if (scores[b] !== scores[a]) return scores[b] - scores[a]
@@ -367,7 +551,7 @@ export function inferCategories(title = '', description = '') {
   categories = categories.filter((c) => CATEGORY_SLUGS.includes(c))
   if (categories.length === 0) categories = ['other']
 
-  return { categories, family, fundraiser }
+  return { categories, family, fundraiser, familyVeto }
 }
 
 /** Back-compat: the single highest-scoring content category. */

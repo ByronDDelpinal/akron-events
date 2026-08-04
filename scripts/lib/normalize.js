@@ -247,7 +247,7 @@ export function categoryFromEventbriteNames(categoryName, subcategoryName) {
 // classifier. Re-exported here so the many `import { inferCategory } from
 // './lib/normalize.js'` call sites across the scrapers keep working unchanged.
 // See scripts/lib/category-inference.js for the signal table and weights.
-export { inferCategory, inferCategories, scoreCategories } from './category-inference.js'
+export { inferCategory, inferCategories, scoreCategories, familySafetyVeto } from './category-inference.js'
 
 export function parseEventbritePrice(ticketClasses = [], isFree = false) {
   if (isFree) return { price_min: 0, price_max: 0 }
@@ -1475,6 +1475,37 @@ export function resolveEventCategories(source = {}, inferredCategories = ['other
   return categories
 }
 
+/**
+ * Resolve the final `is_family` boolean from a source's structured flag, text
+ * inference, and the family safety veto (`familySafetyVeto` in
+ * category-inference.js). Pure — exported for tests, extracted from
+ * `upsertEventSafe` the same way `resolveEventCategories` was.
+ *
+ * The veto sits ABOVE the existing `sourceFlag ?? inferredFamily` resolve and
+ * overrides a structured source signal too — a library Ages field or
+ * Ticketmaster's Family segment can be just as wrong as inferred text (see the
+ * "Baby Doe" incident and the design's §3a rationale: a structured field is
+ * authoritative about WHO MAY ATTEND, not about whether a harm-bearing event
+ * belongs under a family badge with no warning). The human escape hatch is
+ * `manual_overrides.is_family`, which this function never sees or touches —
+ * `_stripOverriddenFields` removes a locked `is_family` key from the payload
+ * entirely before it ever reaches this resolve, so a human decision always
+ * survives untouched.
+ *
+ * @param {boolean|undefined} sourceFlag — sanitized.is_family as passed by the
+ *   scraper (undefined when the source has no structured signal)
+ * @param {boolean} inferredFamily — inferFacets(...).family (already reflects
+ *   the veto for the text-only case: family = positives && !veto)
+ * @param {null|{rule: string, terms: string[], suppressed: boolean}} veto —
+ *   inferFacets(...).familyVeto
+ * @returns {boolean}
+ */
+export function resolveFamilyFacet(sourceFlag, inferredFamily, veto) {
+  let isFamily = sourceFlag ?? inferredFamily
+  if (veto && isFamily) isFamily = false
+  return isFamily
+}
+
 export async function upsertEventSafe(row) {
   // ── Data contract gate ──────────────────────────────────────────────────
   // Reject malformed rows before any write. Violations come back in the
@@ -1513,7 +1544,28 @@ export async function upsertEventSafe(row) {
 
   // Facet flags: honor explicit source flags, else inference. Legacy 'nonprofit'
   // hint implies fundraiser.
-  const isFamily = sanitized.is_family ?? inferred.family
+  //
+  // is_family additionally runs through the family safety veto
+  // (resolveFamilyFacet, category-inference.js's familySafetyVeto) — a hard,
+  // fail-safe guard against harm-bearing text (the "Baby Doe" incident) that
+  // overrides even a STRUCTURED source-declared is_family: true. Logged, never
+  // written to the row: see the two console.warn calls below. This is
+  // LOG-ONLY — it never sets needs_review and never touches manual_overrides.
+  const sourceFamily = sanitized.is_family
+  const isFamily = resolveFamilyFacet(sourceFamily, inferred.family, inferred.familyVeto)
+  if (inferred.familyVeto) {
+    const { rule, terms, suppressed } = inferred.familyVeto
+    const termList = terms.join(', ')
+    if (sourceFamily === true) {
+      // Louder: a curated, structured field (library Ages, Ticketmaster
+      // Family segment, a scraper's hardcoded is_family) disagreed with the
+      // veto. That is either a real save or a lexicon bug — exactly the
+      // signal worth a human's attention.
+      console.warn(`  🛡 family veto (source-declared) — "${sanitized.title}" [${rule}: ${termList}]`)
+    } else if (suppressed) {
+      console.warn(`  🛡 family veto (inferred) — "${sanitized.title}" [${rule}: ${termList}]`)
+    }
+  }
   let isFundraiser = sanitized.is_fundraiser ?? inferred.fundraiser
   if (sanitized.category === 'nonprofit') isFundraiser = true
 

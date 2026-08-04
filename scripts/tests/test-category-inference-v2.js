@@ -17,7 +17,10 @@ import assert from 'node:assert/strict'
 import { inferCategories } from '../lib/category-inference.js'
 
 // [title, description, expectedCategories[], { family, fundraiser }]
-const ORACLE = [
+// Exported so test-family-safety-veto.js can run the same corpus through the
+// family safety veto and assert it is a proven no-op today (§8E of the
+// design doc).
+export const ORACLE = [
   // single content category — the art split
   ['Akron Symphony: Beethoven 9', '', ['music'], {}],
   ['Players Guild presents Hamlet', "The Players Guild stages Shakespeare's Hamlet.", ['theater'], {}],
@@ -193,7 +196,10 @@ describe('inferCategories (v2 draft) — oracle', () => {
 describe('inferCategories (v2 draft) — contract', () => {
   it('returns ["other"] and no flags for empty input', () => {
     const got = inferCategories('', '')
-    assert.deepEqual(got, { categories: ['other'], family: false, fundraiser: false })
+    // The only deep-equality assertion on the full inference return shape in
+    // the repo — familyVeto must be included here or this test silently stops
+    // covering the field (see the family-facet-safety-veto design, §5).
+    assert.deepEqual(got, { categories: ['other'], family: false, fundraiser: false, familyVeto: null })
   })
 
   it('never emits more than 2 categories', () => {
