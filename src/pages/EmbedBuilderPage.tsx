@@ -103,25 +103,10 @@ function buildEmbedSrc(state: BuilderState): string {
   return `${window.location.origin}/embed${qs ? `?${qs}` : ''}`
 }
 
-function buildIframeSnippet(state: BuilderState): string {
-  const src = buildEmbedSrc(state)
-  const title = state.title.trim() || 'Upcoming Events'
-  return `<iframe
-  src="${src}"
-  data-akron-pulse-embed
-  title="${title}"
-  style="width:100%; border:0; height:900px"
-  loading="lazy"></iframe>
-
-<!-- Auto-resize (recommended) -->
-<script src="${window.location.origin}/akron-pulse-embed.js" async></script>`
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function EmbedBuilderPage() {
   const [state, setState] = useState<BuilderState>(DEFAULT_STATE)
-  const [copied, setCopied] = useState(false)
   const [previewKey, setPreviewKey] = useState(0)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
@@ -153,9 +138,8 @@ export default function EmbedBuilderPage() {
 
   const resetPreviewWidth = useCallback(() => setPreviewWidth(null), [])
 
-  // Live src — recomputed on every state change (drives the snippet textarea).
+  // Live src — recomputed on every state change (feeds the debounced preview).
   const embedSrc = useMemo(() => buildEmbedSrc(state), [state])
-  const snippet = useMemo(() => buildIframeSnippet(state), [state])
 
   // Debounced src — the iframe only reloads after the user pauses for 600 ms.
   // Without this, every keypress in the title field triggers a full iframe reload.
@@ -198,30 +182,6 @@ export default function EmbedBuilderPage() {
     }))
   }, [])
 
-  const handleCopy = useCallback(async () => {
-    // The partner conversion: capture the final config as event parameters.
-    // Fired on intent (the click) regardless of clipboard-API success.
-    trackEvent(EVENTS.EMBED_SNIPPET_COPIED, {
-      theme: state.theme,
-      target: state.target,
-      view: state.view,
-      density: state.density,
-      locked_category_count: state.categories.length,
-      price_locked: state.price !== '',
-      date_locked: state.date !== '',
-      family_only: state.family,
-    })
-    try {
-      await navigator.clipboard.writeText(snippet)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // Fallback: select the textarea
-      const ta = document.querySelector<HTMLTextAreaElement>('.builder-code-textarea')
-      ta?.select()
-    }
-  }, [snippet, state])
-
   const handleRefresh = useCallback(() => {
     setPreviewKey((k) => k + 1)
   }, [])
@@ -230,12 +190,12 @@ export default function EmbedBuilderPage() {
     <>
       <SEO
         title="Embed Builder | Akron Pulse"
-        description="Configure and preview a white-label Akron Pulse events calendar for your website. Copy the iframe snippet and drop it into any page."
+        description="Preview a self-updating Akron Pulse events calendar for your website. Scope it to your neighborhood or your kind of events, then reach out and we'll set it up for you."
       />
 
       <PageHero title="Embed Builder">
-        Configure a live Akron Pulse calendar for your website. Copy the snippet
-        below and drop it anywhere.
+        Configure and preview a live Akron Pulse calendar for your website.
+        When it looks right, reach out and we'll set it up with you.
       </PageHero>
 
       <div className="builder-layout">
@@ -460,7 +420,7 @@ export default function EmbedBuilderPage() {
 
         </aside>
 
-        {/* ── Right: preview + code ───────────────────────────────────── */}
+        {/* ── Right: preview ──────────────────────────────────────────── */}
         <div className="builder-preview-col">
 
           <div className="builder-preview-header">
@@ -509,22 +469,27 @@ export default function EmbedBuilderPage() {
             </div>
           </div>
 
-          <div className="builder-code-block">
-            <div className="builder-code-header">
-              <span className="builder-code-label">Copy this snippet</span>
-              <button type="button" className="builder-copy-btn" onClick={handleCopy}>
-                {copied ? '✓ Copied!' : 'Copy'}
-              </button>
-            </div>
-            <textarea
-              className="builder-code-textarea"
-              readOnly
-              value={snippet}
-              rows={8}
-              spellCheck={false}
-              onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-            />
-          </div>
+          <section className="builder-section builder-reach-out">
+            <h2 className="builder-section-title">Put Akron Pulse on your site</h2>
+            <p>
+              Want your neighborhood's events on your own website? We offer a
+              self-updating calendar embed for nonprofits and community
+              organizations. It can be scoped to just your neighborhood or your
+              kind of events. Once it's up, there's nothing to maintain: we
+              keep the events current so you don't have to.
+            </p>
+            <p>
+              We set each embed up personally to make sure it fits your site
+              and your community. Reach out to{' '}
+              <a
+                href="mailto:byron@akronpulse.com"
+                onClick={() => trackEvent(EVENTS.EMBED_CONTACT_CLICKED)}
+              >
+                byron@akronpulse.com
+              </a>{' '}
+              and we'll get you going, usually within a few days.
+            </p>
+          </section>
 
         </div>
       </div>

@@ -60,11 +60,11 @@ export default function OrganizersPage() {
       description: (
         <>
           A live Akron Pulse calendar embedded on your website: your colors,
-          your filters, only the events that fit your audience. One
-          copy-paste snippet, always up to date, free like everything else.
+          your filters, only the events that fit your audience. We set each
+          one up personally and it stays current on its own.
         </>
       ),
-      cta: <Link to="/embed-builder" className="organizers-card-btn">Build your embed →</Link>,
+      cta: <Link to="/embed-builder" className="organizers-card-btn">Preview your embed →</Link>,
     },
     {
       title: 'Get listed in the directory',

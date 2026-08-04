@@ -15,8 +15,6 @@
  * over this registry, so an unknown event name or a wrong/missing parameter
  * is a compile error, not a silent data-quality bug.
  */
-import type { EmbedView, EmbedDensity, EmbedTarget } from './embedConfig'
-
 /** Where a PWA-install affordance lives. */
 export type InstallPlacement = 'pill' | 'footer'
 
@@ -71,18 +69,6 @@ export type FeedbackPlacement = 'header' | 'mobile_menu' | 'admin_toolbar' | 'em
  */
 export type SearchContentType = 'events' | 'data_sources'
 
-/** Final embed configuration captured at the moment a partner copies the snippet. */
-export interface EmbedSnippetParams {
-  theme: string
-  target: EmbedTarget
-  view: EmbedView
-  density: EmbedDensity
-  locked_category_count: number
-  price_locked: boolean
-  date_locked: boolean
-  family_only: boolean
-}
-
 /**
  * Event-name constants. The string VALUES are what GA4 receives; the keys are
  * just ergonomic call-site references. Keep values in sync with EventParams.
@@ -99,7 +85,7 @@ export const EVENTS = {
   NEWSLETTER_SIGNUP:        'newsletter_signup',
   NEWSLETTER_CONFIRMED:     'newsletter_confirmed',
   EMBED_BUILDER_CUSTOMIZED: 'embed_builder_customized',
-  EMBED_SNIPPET_COPIED:     'embed_snippet_copied',
+  EMBED_CONTACT_CLICKED:    'embed_contact_clicked',
   SELECT_CONTENT:           'select_content',
   SHARE:                    'share',
   SEARCH:                   'search',
@@ -132,7 +118,7 @@ export interface EventParams {
   newsletter_signup:        { frequency: string; placement: string; lookahead_days?: number; intents?: string }
   newsletter_confirmed:     { frequency: string; lookahead_days?: number }
   embed_builder_customized: Record<string, never>
-  embed_snippet_copied:     EmbedSnippetParams
+  embed_contact_clicked:    Record<string, never>
   select_content:           { content_type: string; item_id: string }
   share:                    { method: string; content_type: string; item_id: string }
   search:                   { search_term: string; content_type: SearchContentType; result_count: number }
