@@ -57,6 +57,19 @@
  * rather than "route to review". Price is always MEC's "0" default → null,
  * never assumed free.
  *
+ * ── OUTAGE 2026-08-05: MEC calendar removed; source recommended PAUSED ────────
+ * bathrichfieldkiwanis.org has taken down its WordPress/MEC install and now
+ * serves a hand-built static "Site under maintenance" page. The
+ * admin-ajax.php mec_list_load_month endpoint 404s (this is the "MEC ajax error
+ * 404" the nightly run reported). The only events on the placeholder are a
+ * couple of hand-listed items (Community Day, a golf scramble) with no stable,
+ * re-scrapable structure — not worth a throwaway parser against a page that
+ * will change again when the club relaunches. Recommendation: pause the source
+ * in scripts/manifest.js (active:false) until the calendar returns. The MEC
+ * parser below is left intact so the scraper resumes cleanly if/when MEC is
+ * restored. Until paused, a 404 here is now treated as a non-fatal, clearly
+ * labelled maintenance outage rather than a hard failure (see fetchMonth/main).
+ *
  * Usage:   node scripts/scrape-bath-richfield-kiwanis.js
  * Env:     VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  */
@@ -271,6 +284,15 @@ async function fetchMonth(year, month) {
     },
     body: body.toString(),
   })
+  if (res.status === 404) {
+    const err = new Error(
+      'MEC calendar endpoint returned 404 — the WordPress/MEC calendar appears to have been ' +
+      'removed (bathrichfieldkiwanis.org is serving a static "site under maintenance" page). ' +
+      'Recommend pausing this source in scripts/manifest.js (active:false) until the calendar returns.',
+    )
+    err.code = 'MEC_CALENDAR_GONE'
+    throw err
+  }
   if (!res.ok) throw new Error(`MEC ajax error ${res.status}: ${(await res.text()).slice(0, 160)}`)
   const data = await res.json()
   return parseEvents(data.html || '')
@@ -383,6 +405,13 @@ async function main() {
     )
   } catch (err) {
     await logScraperError(SOURCE_KEY, err, start)
+    // A removed MEC calendar (site under maintenance) is an expected outage, not
+    // a code failure — log it clearly and exit 0 so the nightly run isn't hard-
+    // failed every night until the source is paused in the manifest.
+    if (err && err.code === 'MEC_CALENDAR_GONE') {
+      console.warn(`\n⚠  ${err.message}`)
+      return
+    }
     process.exit(1)
   }
 }

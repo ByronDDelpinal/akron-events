@@ -157,7 +157,7 @@ export const SCRAPERS = [
   { key: 'akron_promise',        script: 'scripts/scrape-akron-promise.js',           label: 'Akron Promise',                group: 'custom',         active: true, defaultCategory: 'fitness' },
   { key: 'runsignup',            script: 'scripts/scrape-runsignup.js',               label: 'RunSignup',                    group: 'custom',         active: true, defaultCategory: 'fitness' },
   { key: 'akron_dance_festival', script: 'scripts/scrape-akron-dance-festival.js',    label: 'Heinz Poll Dance Festival',    group: 'custom',         active: true, defaultCategory: 'theater' },
-  { key: 'gather_round_games',   script: 'scripts/scrape-gather-round-games.js',      label: 'Gather Round Games',           group: 'custom',         active: true, defaultCategory: 'games' },
+  { key: 'gather_round_games',   script: 'scripts/scrape-gather-round-games.js',      label: 'Gather Round Games',           group: 'wix',            active: true, defaultCategory: 'games' },
 
   // ── Census wave 2026-07-14 ─────────────────────────────────────────────
   { key: 'cvsr',                 script: 'scripts/scrape-cvsr.js',                    label: 'Cuyahoga Valley Scenic Railroad', group: 'custom',      active: true, defaultCategory: 'outdoors' },
@@ -186,13 +186,14 @@ export const SCRAPERS = [
   { key: 'akron_fossils',        script: 'scripts/scrape-akron-fossils.js',           label: 'Akron Fossils & Science Center', group: 'squarespace',  active: true, defaultCategory: 'learning' },
   { key: 'western_reserve_playhouse', script: 'scripts/scrape-western-reserve-playhouse.js', label: 'Western Reserve Playhouse', group: 'squarespace', active: true, defaultCategory: 'theater' },
   { key: 'tiki_underground',     script: 'scripts/scrape-tiki-underground.js',        label: 'Tiki Underground',             group: 'custom',         active: true, defaultCategory: 'music' },
-  { key: 'hudson_bandstand',     script: 'scripts/scrape-hudson-bandstand.js',        label: 'Hudson Bandstand',             group: 'wordpress',      active: true, defaultCategory: 'music' },
+  { key: 'hudson_bandstand',     script: 'scripts/scrape-hudson-bandstand.js',        label: 'Hudson Bandstand',             group: 'ics',            active: true, defaultCategory: 'music' },
   { key: 'learned_owl',          script: 'scripts/scrape-learned-owl.js',             label: 'The Learned Owl Book Shop',    group: 'custom',         active: true, defaultCategory: 'learning' },
   { key: 'rock_mill',            script: 'scripts/scrape-rock-mill.js',               label: 'Rock Mill Climbing',           group: 'custom',         active: true, defaultCategory: 'fitness' },
   { key: 'beaus_on_the_river',   script: 'scripts/scrape-beaus-on-the-river.js',      label: "Beau's on the River",          group: 'wordpress',      active: true, defaultCategory: 'music' },
   { key: 'raintree_golf',        script: 'scripts/scrape-raintree-golf.js',           label: 'Raintree Golf & Event Center', group: 'wordpress',      active: true, defaultCategory: 'sports' },
   { key: 'village_of_reminderville', script: 'scripts/scrape-village-of-reminderville.js', label: 'Village of Reminderville', group: 'wordpress',    active: true  },
-  { key: 'bath_richfield_kiwanis', script: 'scripts/scrape-bath-richfield-kiwanis.js', label: 'Bath Richfield Kiwanis',      group: 'wordpress',      active: true  },
+  // Paused 2026-08-05 — bathrichfieldkiwanis.org took down its WordPress/MEC calendar (site under maintenance; mec_list_load_month 404s). Revisit when the club relaunches.
+  { key: 'bath_richfield_kiwanis', script: 'scripts/scrape-bath-richfield-kiwanis.js', label: 'Bath Richfield Kiwanis',      group: 'wordpress',      active: false },
   { key: 'village_of_northfield', script: 'scripts/scrape-village-of-northfield.js',  label: 'Village of Northfield',        group: 'civicplus',      active: true  },
   { key: '750ml_wines',          script: 'scripts/scrape-750ml-wines.js',             label: '750ml Wines',                  group: 'wordpress',      active: true, defaultCategory: 'food' },
   { key: 'akron_power_squadron', script: 'scripts/scrape-akron-power-squadron.js',    label: 'Akron Sail & Power Squadron',  group: 'ics',            active: true  },

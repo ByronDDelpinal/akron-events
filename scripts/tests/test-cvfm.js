@@ -9,6 +9,9 @@
  */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
@@ -16,7 +19,10 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ||
 const {
   parseMonthDay, parseVenueLine, resolveSeasonYears, parseSeasons, seasonForDate,
 } = await import('../scrape-cvfm.js')
-const { htmlToText } = await import('../lib/normalize.js')
+const { htmlToText, easternToIso } = await import('../lib/normalize.js')
+const { nextWeeklyOccurrences, WEEKDAY } = await import('../lib/weekly-occurrences.js')
+
+const HERE = dirname(fileURLToPath(import.meta.url))
 
 // Footer text as htmlToText would render it (block elements → newlines).
 const FIXTURE = `About the market
@@ -156,5 +162,102 @@ describe('cvfm: seasonForDate', () => {
   })
   it('skips an off-season summer date', () => {
     assert.equal(seasonForDate(seasons, '2026-03-14'), null)
+  })
+})
+
+// ── Real-capture fixture ─────────────────────────────────────────────────────
+// scripts/tests/fixtures/cvfm-homepage-footer.md is a verbatim WebFetch capture
+// (2026-08-05) of the live global site footer. WebFetch renders the page to
+// markdown; the scraper reads the raw page HTML and flattens it with
+// htmlToText() to plain lines. capturedFooterToText() reproduces that same
+// plain-text shape from the capture (drop heading markers, unwrap [text](url)
+// links, <email> tags and *emphasis*, trim hard-break spaces) so the REAL
+// parseSeasons() runs on the real content shape it sees in production.
+
+function capturedFooterToText(md) {
+  return md
+    .slice(md.indexOf('## Stay Connected'))   // skip the fixture's doc header
+    .split('\n')
+    .map((line) => line
+      .replace(/^#{1,6}\s+/, '')                   // heading markers
+      .replace(/\*([^*]+)\*/g, '$1')               // *emphasis* → text
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')     // [text](url) → text
+      .replace(/<([^>\s]+@[^>\s]+)>/g, '$1')       // <email> → email
+      .replace(/\s+$/, ''))                        // hard-break trailing spaces
+    .join('\n')
+}
+
+const CAPTURE = readFileSync(join(HERE, 'fixtures', 'cvfm-homepage-footer.md'), 'utf8')
+const CAPTURE_TEXT = capturedFooterToText(CAPTURE)
+
+describe('cvfm: REAL parser over the captured live footer', () => {
+  const seasons = parseSeasons(CAPTURE_TEXT)
+
+  it('parses both season blocks from the live capture', () => {
+    assert.equal(seasons.length, 2)
+    assert.deepEqual(seasons.map((s) => s.label), ['Summer', 'Winter'])
+  })
+
+  it('summer: Howe Meadow in Peninsula, May 2 – Oct 31 2026', () => {
+    const s = seasons.find((x) => x.label === 'Summer')
+    assert.equal(s.startYmd, '2026-05-02')
+    assert.equal(s.endYmd, '2026-10-31')
+    assert.deepEqual(s.venue, {
+      name: 'Howe Meadow', address: '4040 Riverview Rd', city: 'Peninsula', state: 'OH', zip: '44264',
+    })
+    assert.equal(s.closedYmds.size, 0)
+  })
+
+  it('winter: Old Trail School in Akron, Nov 7 2026 – Apr 24 2027, 3 closures', () => {
+    const s = seasons.find((x) => x.label === 'Winter')
+    assert.equal(s.startYmd, '2026-11-07')
+    assert.equal(s.endYmd, '2027-04-24')
+    assert.deepEqual(s.venue, {
+      name: 'Old Trail School', address: '2315 Ira Rd', city: 'Akron', state: 'OH', zip: '44333',
+    })
+    assert.deepEqual([...s.closedYmds].sort(), ['2026-11-28', '2026-12-26', '2027-01-02'])
+  })
+})
+
+describe('cvfm: weekly-Saturday expansion over the captured seasons', () => {
+  const seasons = parseSeasons(CAPTURE_TEXT)
+  // Fixed "now" (Sat 2026-07-04, noon Eastern) so the rolling window is
+  // deterministic; 32 weeks reaches past the winter opener and its closures.
+  const now = new Date('2026-07-04T16:00:00Z')
+  const saturdays = nextWeeklyOccurrences(WEEKDAY.saturday, { count: 32, now })
+
+  it('generates Eastern-anchored Saturdays starting today', () => {
+    assert.equal(saturdays[0], '2026-07-04')                 // the fixed "today"
+    assert.ok(saturdays.every((d) => new Date(`${d}T12:00:00Z`).getUTCDay() === 6))
+  })
+
+  it('routes each in-season Saturday to its Summit County venue', () => {
+    const route = (d) => seasonForDate(seasons, d)?.venue.name ?? null
+    assert.equal(route('2026-07-18'), 'Howe Meadow')          // mid-summer
+    assert.equal(route('2026-10-31'), 'Howe Meadow')          // summer's last Saturday
+    assert.equal(route('2026-11-07'), 'Old Trail School')     // winter's first Saturday
+    assert.equal(route('2026-12-05'), 'Old Trail School')     // mid-winter
+    // Every one of those dates is actually in the generated window.
+    for (const d of ['2026-07-18', '2026-10-31', '2026-11-07', '2026-12-05', '2026-12-26']) {
+      assert.ok(saturdays.includes(d), `${d} in window`)
+    }
+  })
+
+  it('skips the winter holiday closure that lands on a Saturday', () => {
+    assert.ok(saturdays.includes('2026-12-26'))
+    assert.equal(seasonForDate(seasons, '2026-12-26'), null)  // CLOSED: Dec 26
+  })
+
+  it('publishes only the two known venues across the whole window', () => {
+    const venues = new Set(
+      saturdays.map((d) => seasonForDate(seasons, d)?.venue.name).filter(Boolean),
+    )
+    assert.deepEqual([...venues].sort(), ['Howe Meadow', 'Old Trail School'])
+  })
+
+  it('converts the 9am start to the correct America/New_York wall time (DST-aware)', () => {
+    // 9:00 ET → 13:00 UTC in summer (EDT, −4), 14:00 UTC in winter (EST, −5).
+    assert.equal(easternToIso('2026-07-18', '09:00'), '2026-07-18T13:00:00.000Z')
+    assert.equal(easternToIso('2026-12-05', '09:00'), '2026-12-05T14:00:00.000Z')
   })
 })

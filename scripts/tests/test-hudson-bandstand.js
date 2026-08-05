@@ -1,233 +1,145 @@
 /**
- * test-hudson-bandstand.js
+ * test-hudson-bandstand.js — pure parsers for the Hudson Bandstand scraper.
  *
- * Tests for the Hudson Bandstand scraper. The schedule is a hand-maintained
- * WordPress <ul> of "<Weekday>, <Month> <Day> | <Band> – <description>" <li>
- * lines with the year only in the section heading and one universal start time
- * stated in prose. Fixtures below are captured verbatim from the live page
- * (2026 season) and lock in:
- *   - season-year extraction from the "Hudson Bandstand YYYY Schedule" heading
- *   - the stated series start time ("All concerts begin at 6:30 p.m.")
- *   - band/description splitting on the first en-dash (incl. no-dash entries)
- *   - the "|" filter rejecting prose that merely mentions a weekday
- *   - "Sponsored by …" nested bullets never parsing as concerts
- *   - source_id stability and a valid Eastern ISO start
+ * The Hudson Bandstand summer concert series moved (2026-08) from a removed
+ * WordPress page to the Localist "Hudson Happenings" calendar. The scraper now
+ * consumes the whole-calendar iCalendar feed and selects the concert subset by
+ * venue (LOCATION + GEO). The fixture is a verbatim slice of that real feed
+ * (events.hudsonhappenings.org/calendar/1.ics): four Bandstand concerts plus
+ * three non-Bandstand events that must be filtered out.
  *
- * Run:
- *   node --test scripts/tests/test-hudson-bandstand.js
+ * Run:  node --test scripts/tests/test-hudson-bandstand.js
  */
-
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 
-process.env.VITE_SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://dummy.supabase.co'
+process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-import { htmlToText, easternToIso } from '../lib/normalize.js'
-import {
-  parseSeasonYear,
-  parseSeriesDefaultTime,
-  splitBandDescription,
-  parseSchedule,
-  buildRow,
-} from '../scrape-hudson-bandstand.js'
+const { parseIcs } = await import('../lib/ics.js')
+const { isBandstandConcert, buildRow, easternDateOf, cleanDescription } =
+  await import('../scrape-hudson-bandstand.js')
 
-// A representative slice of the live markup: the heading + intro prose (which
-// mentions weekdays but has no "|"), a dash entry with a curly apostrophe and
-// "&amp;", a no-dash entry, and a nested "Sponsored by" bullet.
-const FIXTURE_HTML = `
-<h2>Hudson Bandstand 2026 Schedule</h2>
-<h5><strong>All concerts begin at 6:30 p.m</strong>. and are located on the Hudson Gazebo Green in downtown Hudson, Ohio.</h5>
-<h5>The summer series kicks off with a special Monday Memorial Day concert on Monday, May 25th at 6:30 p.m., then continues throughout the summer on <strong>Sundays at 6:30 p.m.</strong></h5>
-<ul>
-<li><strong>Monday, May 25 |  Hudson High School Jazz I &amp; II &#8211; </strong>A Memorial Day tradition, our hometown youth perform favorite jazz standards.
-<ul>
-<li><em><strong>Sponsored by Hudson Community Foundation</strong></em></li>
-</ul>
-</li>
-<li><strong>Sunday, July 19  |  Blue Lunch &#8211; </strong>Performing blues, soul, New Orleans rhythm and jazz.
-<ul>
-<li><strong>Sponsored by: Bill and Betty Sepe</strong></li>
-</ul>
-</li>
-<li><strong>Sunday, August 9  |  80&#8217;s Vinyl Arcade  &#8211; </strong>Blend of 70&#8217;s, 80&#8217;s, 90&#8217;s music heard on TV.
-<ul>
-<li><em><strong>Sponsored by: Heritage of Hudson</strong></em></li>
-</ul>
-</li>
-<li><strong>Sunday, August 16  |  Western Reserve Community Band </strong>
-<ul>
-<li><em><strong>Sponsored by: The Tobin Family Fund</strong></em></li>
-</ul>
-</li>
-</ul>
-`
+const ICS = readFileSync(new URL('./fixtures/hudson-bandstand-calendar.ics', import.meta.url), 'utf8')
+const EVENTS = parseIcs(ICS)
 
-const TEXT = htmlToText(FIXTURE_HTML)
+/** Eastern wall-clock time ("6:30 PM") for an ISO instant. */
+function easternTime(iso) {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true,
+  }).format(new Date(iso))
+}
 
-// ════════════════════════════════════════════════════════════════════════════
-// parseSeasonYear
-// ════════════════════════════════════════════════════════════════════════════
+const bySummary = (summary) => EVENTS.find((e) => e.SUMMARY === summary)
 
-describe('Hudson Bandstand: parseSeasonYear', () => {
-  it('reads the year from the schedule heading', () => {
-    assert.equal(parseSeasonYear(TEXT), 2026)
-  })
-  it('returns null when no heading year is present', () => {
-    assert.equal(parseSeasonYear('Some other page with 2026 in it'), null)
+describe('Hudson Bandstand: fixture parses', () => {
+  it('reads the real feed slice into VEVENTs', () => {
+    assert.equal(EVENTS.length, 7)
   })
 })
 
-// ════════════════════════════════════════════════════════════════════════════
-// parseSeriesDefaultTime
-// ════════════════════════════════════════════════════════════════════════════
+describe('Hudson Bandstand: isBandstandConcert', () => {
+  it('keeps concerts at the bandstand gazebo (LOCATION + GEO both match)', () => {
+    const concerts = EVENTS.filter(isBandstandConcert).map((e) => e.SUMMARY).sort()
+    assert.deepEqual(concerts, [
+      "80's Vinyl Arcade",
+      'Clocktower',
+      'Freedom Brass Band',
+      'LaFlavour',
+    ])
+  })
 
-describe('Hudson Bandstand: parseSeriesDefaultTime', () => {
-  it('parses the stated universal start time', () => {
-    assert.equal(parseSeriesDefaultTime(TEXT), '6:30 pm')
+  it('excludes the art festival that shares the LOCATION but has a different GEO', () => {
+    assert.equal(isBandstandConcert(bySummary('Destination Hudson Art & Wine')), false)
   })
-  it('handles "p.m." with dots and no minutes', () => {
-    assert.equal(parseSeriesDefaultTime('All concerts begin at 7 p.m. sharp'), '7:00 pm')
+
+  it('excludes the ribbon cutting at "Main Green with Gazebo"', () => {
+    assert.equal(isBandstandConcert(bySummary("Hudson's Back to the Bandstand Ribbon Cutting")), false)
   })
-  it('returns null when the sentence is absent (never fabricates a time)', () => {
-    assert.equal(parseSeriesDefaultTime('No time stated here'), null)
+
+  it('excludes an unrelated town-hall meeting', () => {
+    assert.equal(isBandstandConcert(bySummary('Hudson Environmental Awareness Committee')), false)
   })
-  it('returns null when the meridiem is missing (fail loud, no midnight)', () => {
-    // Without am/pm the time is ambiguous; the caller must skip, not guess.
-    assert.equal(parseSeriesDefaultTime('All concerts begin at 6:30 this summer'), null)
-  })
-  it('handles a stated noon start (12 p.m. = 16:00 UTC in EDT, not midnight)', () => {
-    const t = parseSeriesDefaultTime('All concerts begin at 12 p.m. on the green')
-    assert.equal(t, '12:00 pm')
-    assert.equal(easternToIso('2026-07-19', t), '2026-07-19T16:00:00.000Z')
-  })
-  it('feeds cleanly into easternToIso (6:30 PM EDT in July = 22:30 UTC)', () => {
-    assert.equal(easternToIso('2026-07-19', parseSeriesDefaultTime(TEXT)), '2026-07-19T22:30:00.000Z')
+
+  it('is defensive against a missing GEO or LOCATION', () => {
+    assert.equal(isBandstandConcert({}), false)
+    assert.equal(isBandstandConcert({ LOCATION: 'Gazebo and Clocktower Greens' }), false)
   })
 })
 
-// ════════════════════════════════════════════════════════════════════════════
-// splitBandDescription
-// ════════════════════════════════════════════════════════════════════════════
-
-describe('Hudson Bandstand: splitBandDescription', () => {
-  it('splits on the first en-dash', () => {
-    assert.deepEqual(
-      splitBandDescription('Blue Lunch – Performing blues, soul, New Orleans rhythm and jazz.'),
-      { band: 'Blue Lunch', description: 'Performing blues, soul, New Orleans rhythm and jazz.' },
-    )
-  })
-  it('keeps a later en-dash inside the description', () => {
-    const r = splitBandDescription('Clocktower – Rock music from the 1960’s – 2000’s.')
-    assert.equal(r.band, 'Clocktower')
-    assert.ok(r.description.includes('2000'))
-  })
-  it('treats a no-dash entry as band-only', () => {
-    assert.deepEqual(
-      splitBandDescription('Western Reserve Community Band'),
-      { band: 'Western Reserve Community Band', description: '' },
-    )
-  })
-  it('preserves an ampersand-decoded band name', () => {
-    assert.equal(splitBandDescription('Hudson High School Jazz I & II – A tradition.').band,
-      'Hudson High School Jazz I & II')
-  })
-})
-
-// ════════════════════════════════════════════════════════════════════════════
-// parseSchedule — over an htmlToText render of the live markup
-// ════════════════════════════════════════════════════════════════════════════
-
-describe('Hudson Bandstand: parseSchedule', () => {
-  const records = parseSchedule(TEXT)
-
-  it('parses every concert and ignores prose + sponsor bullets', () => {
-    assert.equal(records.length, 4)
-    // The intro sentence mentions "Monday, May 25th" but has no "|".
-    assert.ok(!records.some((r) => /kicks off/i.test(r.band)))
-    // "Sponsored by …" bullets must never parse as concerts.
-    assert.ok(!records.some((r) => /sponsored/i.test(r.band)))
+describe('Hudson Bandstand: buildRow', () => {
+  it('titles, dates, and times a concert in America/New_York (6:30 p.m. ET)', () => {
+    const { row, startMs } = buildRow(bySummary('LaFlavour'))
+    assert.equal(row.title, 'Hudson Bandstand: LaFlavour')
+    // Feed encodes 6:30 p.m. EDT as 20260712T223000Z.
+    assert.equal(row.start_at, '2026-07-12T22:30:00.000Z')
+    assert.equal(row.end_at, '2026-07-12T23:30:00.000Z')
+    assert.equal(easternDateOf(row.start_at), '2026-07-12')
+    assert.equal(easternTime(row.start_at), '6:30 PM')
+    assert.equal(row.source_id, 'hudson-bandstand-2026-07-12')
+    assert.ok(Number.isFinite(startMs))
   })
 
-  it('maps month names to numbers and captures the day', () => {
-    const aug9 = records.find((r) => r.month === 8 && r.day === 9)
-    assert.ok(aug9)
-    assert.equal(aug9.band, "80's Vinyl Arcade")
+  it('asserts categories:[music] and never adds games from "Arcade"', () => {
+    const { row } = buildRow(bySummary("80's Vinyl Arcade"))
+    assert.deepEqual(row.categories, ['music'])
+    assert.equal(row.title, "Hudson Bandstand: 80's Vinyl Arcade")
+    assert.ok(!row.categories.includes('games'))
   })
 
-  it('decodes an ampersand band name and its description', () => {
-    const jazz = records.find((r) => r.month === 5 && r.day === 25)
-    assert.ok(jazz)
-    assert.equal(jazz.band, 'Hudson High School Jazz I & II')
-    assert.ok(/Memorial Day/.test(jazz.description))
+  it('scopes to the fixed Hudson Green / Summit County venue', () => {
+    const { row } = buildRow(bySummary('Clocktower'))
+    assert.match(row.description, /Hudson Green in downtown Hudson, Ohio/)
+    assert.ok(row.tags.includes('summit-county'))
+    assert.ok(row.tags.includes('hudson-ohio'))
   })
 
-  it('captures a no-dash entry with an empty description', () => {
-    const wr = records.find((r) => r.day === 16)
-    assert.ok(wr)
-    assert.equal(wr.band, 'Western Reserve Community Band')
-    assert.equal(wr.description, '')
+  it('sets the series as free and family-friendly and publishes directly', () => {
+    const { row } = buildRow(bySummary('Freedom Brass Band'))
+    assert.equal(row.price_min, 0)
+    assert.equal(row.price_max, 0)
+    assert.equal(row.is_family, true)
+    assert.equal(row.age_restriction, 'all_ages')
+    assert.equal(row.status, 'published')
+    assert.equal(row.source, 'hudson_bandstand')
   })
 
-  it('returns [] for empty input', () => {
-    assert.deepEqual(parseSchedule(''), [])
+  it('uses the Localist per-event URL as the ticket link', () => {
+    const { row } = buildRow(bySummary('LaFlavour'))
+    assert.equal(row.ticket_url, 'https://events.hudsonhappenings.org/event/laflavour')
   })
 
-  it('rejects a malformed month name and an out-of-range day', () => {
-    // Bad month word maps to no MONTHS entry; day 45 is out of 1–31 range.
-    assert.deepEqual(parseSchedule('• Sunday, Funday 12 | Some Band – x'), [])
-    assert.deepEqual(parseSchedule('• Sunday, August 45 | Some Band – x'), [])
+  it('folds the feed sponsor/description text into the prose', () => {
+    const { row } = buildRow(bySummary('LaFlavour'))
+    assert.match(row.description, /Sponsored by S\. J\. Hasbrouck Family/)
+    assert.match(row.description, /All concerts begin at 6:30 p\.m\./)
   })
 
-  it('keeps the band split on the FIRST dash when a rain-relocation and a second time appear in the description', () => {
-    // Verbatim shape of the live June 14 entry: the description carries a rain
-    // move ("Hudson Middle School") and a restated "6:30 PM". The band must
-    // still be everything before the first en-dash, and the whole relocation
-    // blob stays in the description (venue is always stored as the Green).
-    const line =
-      '• Sunday, June 14 | Western Reserve Big Band – A community favorite. ' +
-      'Due to weather forecast, concert will be at Hudson Middle School, 83 N. ' +
-      'Oviatt Street. Same time 6:30 PM'
-    const recs = parseSchedule(line)
-    assert.equal(recs.length, 1)
-    assert.equal(recs[0].band, 'Western Reserve Big Band')
-    assert.equal(recs[0].month, 6)
-    assert.equal(recs[0].day, 14)
-    assert.ok(/Hudson Middle School/.test(recs[0].description))
+  it('drops a cancelled/postponed concert', () => {
+    assert.equal(buildRow({ SUMMARY: 'Some Band (CANCELED)', DTSTART: { value: '20260712T223000Z' } }), null)
+    assert.equal(buildRow({
+      SUMMARY: 'Some Band',
+      DTSTART: { value: '20260712T223000Z' },
+      DESCRIPTION: 'This concert has been postponed.',
+    }), null)
+  })
+
+  it('skips an event with no parseable start', () => {
+    assert.equal(buildRow({ SUMMARY: 'No Date Band' }), null)
+    assert.equal(buildRow({}), null)
   })
 })
 
-// ════════════════════════════════════════════════════════════════════════════
-// End-to-end: parsed record → stable source_id + ISO start
-// ════════════════════════════════════════════════════════════════════════════
-
-describe('Hudson Bandstand: source_id + ISO build', () => {
-  it('produces a stable date-based source_id and valid ISO start', () => {
-    const records = parseSchedule(TEXT)
-    const rec = records.find((r) => r.month === 7 && r.day === 19)
-    const dateStr = `2026-07-${String(rec.day).padStart(2, '0')}`
-    assert.equal(dateStr, '2026-07-19')
-    const startAt = easternToIso(dateStr, parseSeriesDefaultTime(TEXT))
-    assert.ok(startAt.endsWith('Z'))
-    assert.ok(!Number.isNaN(new Date(startAt).getTime()))
-    assert.equal(`hudson-bandstand-${dateStr}`, 'hudson-bandstand-2026-07-19')
+describe('Hudson Bandstand: helpers', () => {
+  it('easternDateOf renders the Eastern calendar date', () => {
+    // 00:30 UTC on 2026-08-24 is still 2026-08-23 in Eastern.
+    assert.equal(easternDateOf('2026-08-24T00:30:00.000Z'), '2026-08-23')
+    assert.equal(easternDateOf(null), null)
   })
-})
 
-// ════════════════════════════════════════════════════════════════════════════
-// buildRow — cancelled/postponed guard
-// ════════════════════════════════════════════════════════════════════════════
-
-describe('Hudson Bandstand: cancelled/postponed guard', () => {
-  it('builds a normal concert row', () => {
-    const rec = { month: 7, day: 19, band: 'Blue Lunch', description: 'Performing blues.' }
-    const built = buildRow(rec, 2026, '6:30 pm')
-    assert.ok(built)
-    assert.equal(built.row.source_id, 'hudson-bandstand-2026-07-19')
-  })
-  it('drops a concert cancelled in the band slot or announced in the description', () => {
-    assert.equal(buildRow({ month: 7, day: 19, band: 'Blue Lunch (CANCELED)', description: '' }, 2026, '6:30 pm'), null)
-    assert.equal(buildRow({ month: 7, day: 19, band: 'Blue Lunch', description: 'This concert has been cancelled.' }, 2026, '6:30 pm'), null)
-    assert.equal(buildRow({ month: 7, day: 19, band: 'NEO Big Band', description: 'Postponed to a later date.' }, 2026, '6:30 pm'), null)
+  it('cleanDescription collapses folded whitespace to single spaces', () => {
+    assert.equal(cleanDescription('a\n\n  b   c'), 'a b c')
+    assert.equal(cleanDescription(''), '')
   })
 })

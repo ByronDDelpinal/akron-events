@@ -522,10 +522,10 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
   },
   {
     key:         'gather_round_games',
-    method:      'Puppeteer render',
-    methodDetail:'grgcollect.com Wix Bookings service pages — Puppeteer render + text parse of each service\'s recurring session schedule',
+    method:      'Wix Events JSON',
+    methodDetail:'grgcollect.com Wix Events /event-list — shared lib/wix-events.js reads the #wix-warmup-data blob, filtered to community-night titles',
     venue:       "Gather 'Round Games & Collectibles — 121 Ghent Rd, Fairlawn",
-    notes:       "Gather 'Round Games is a family-owned TCG/board-game store in Fairlawn (Pokémon, Magic, Lorcana, One Piece). Its brochure site (gatherround.net, Squarespace) has no events; events live on grgcollect.com, a Wix site using Wix BOOKINGS — each event is a recurring 'service' (/service-page/<slug>) with a session schedule, not the Wix Events app, so lib/wix-events.js doesn't apply and the widget hydrates client-side. We render service pages with Puppeteer and parse the human-readable session text (robust to hashed Wix classes). We ingest ONLY non-product-release events — the recurring community play nights (Trade Night, Friday Night Magic) — dropping set-launch events (prereleases, commander parties, set-specific booster drafts) by release-keyword on the title AND by dropping one-time (single-session) services. Category games; price from the listed fee (null when free, never assumed).",
+    notes:       "Gather 'Round Games is a family-owned TCG/board-game store in Fairlawn (Pokémon, Magic, Lorcana, One Piece). Its brochure site (gatherround.net, Squarespace) has no events; events live on grgcollect.com. As of 2026-08 that site migrated off Wix BOOKINGS (recurring service pages we rendered with Puppeteer) onto the Wix EVENTS app — an /event-list page of /event-details/<slug> events — so we read it with the shared lib/wix-events.js (#wix-warmup-data JSON, no Puppeteer). We publish ONLY the recurring community play nights (Trade Night, Friday Night Magic, League Play, Game Night); the set-launch product events (prereleases, drafts, commander parties, set debuts) are dropped. Wix Events carries no recurrence signal, so scope is an ALLOWLIST of community-night titles (isCommunityNight) rather than the old recurrence inference. Category games; price left null (RSVP events state no fee, never assumed).",
     status:      'active',
   },
   {
@@ -998,10 +998,10 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
   },
   {
     key:         'hudson_bandstand',
-    method:      'HTML scrape',
-    methodDetail:'WordPress static season page (Hudson Community Foundation) — htmlToText line-walk of the schedule list; season year from the page heading, the single stated "All concerts begin at 6:30 p.m." start parsed (never fabricated)',
+    method:      'ICS feed',
+    methodDetail:'Localist "Hudson Happenings" calendar (events.hudsonhappenings.org/calendar/1.ics) — RFC 5545 iCal parsed via lib/ics.js; concert subset isolated by LOCATION "Gazebo and Clocktower Greens" + exact GEO; real 6:30pm ET start taken from the feed, never fabricated',
     venue:       'Hudson Green — 1 Clinton St, Hudson (shared venue row with city_of_hudson)',
-    notes:       'Hudson Bandstand — the free, family-friendly Sunday-evening summer concert series on the Hudson Green, parsed from the Hudson Community Foundation\'s season schedule page. Price 0 recorded because the page explicitly says free; family flag from the page\'s own wording. Category asserted as music (band names defeat inference — "80\'s Vinyl Arcade" scored games). Venue name/address deliberately match city_of_hudson\'s so cross-source dedupe buckets the aggregator copies. Rain relocations (announced same-day on Facebook) are not tracked.',
+    notes:       'Hudson Bandstand — the free, family-friendly summer concert series on the Hudson Green. In 2026 Hudson Community Foundation removed its WordPress season page (myhcf.org/hudson-bandstand-2/ now 404s) and moved events to a Localist calendar (Hudson Happenings); we read its whole-calendar ICS and select the bandstand concerts by LOCATION + GEO (excludes the ribbon-cutting on the Main Green and the Art & Wine festival that share the LOCATION). Price 0 (feed says free); family flag from wording. Category asserted as music (band names defeat inference — "80\'s Vinyl Arcade" scored games). Venue name/address deliberately match city_of_hudson\'s so cross-source dedupe buckets the aggregator copies.',
     status:      'active',
   },
   {
@@ -1049,8 +1049,8 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     method:      'HTML scrape',
     methodDetail:'Modern Events Calendar (MEC) via admin-ajax mec_list_load_month — embedded schema.org JSON-LD per event; months iterated a fixed window (has_more_event lies) and deduped by event id; the JSON-LD "UTC" instant is really Eastern wall-clock, re-anchored via easternToIso',
     venue:       'Varied Bath/Richfield venues (feed carries no location; org-linked only)',
-    notes:       'Bath Richfield Kiwanis publishes its calendar through the Modern Events Calendar plugin; we read the month feed\'s embedded event data and surface only the club\'s public fundraisers and community events (pancake breakfasts, fish fries, Community Day, craft shows), filtering out internal meetings — which dominate the calendar, so a zero-row run is the allowlist working, not a failure. MEC\'s price field defaults to "0" and is treated as null. Title-named cities gate through classifySummitLocation; title with no city = village-local Summit and publishes (first-party club, not a regional aggregator).',
-    status:      'active',
+    notes:       'Bath Richfield Kiwanis publishes its calendar through the Modern Events Calendar plugin; we read the month feed\'s embedded event data and surface only the club\'s public fundraisers and community events (pancake breakfasts, fish fries, Community Day, craft shows), filtering out internal meetings. PAUSED 2026-08-05: bathrichfieldkiwanis.org took down its WordPress/MEC calendar and now serves a static "site under maintenance" page, so mec_list_load_month 404s. The parser is left intact and the 404 is non-fatal; revisit when the club relaunches its calendar.',
+    status:      'paused',
   },
   {
     key:         'village_of_northfield',
@@ -1595,7 +1595,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   akron_promise:       'html',
   runsignup:           'runsignup',
   akron_dance_festival:'curated',
-  gather_round_games:  'wix-bookings',
+  gather_round_games:  'wix',
   release_yoga:        'html',
 
   // EventON / custom WordPress
@@ -1635,7 +1635,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   akron_fossils:           'squarespace',
   western_reserve_playhouse: 'squarespace',
   tiki_underground:        'html',
-  hudson_bandstand:        'html',
+  hudson_bandstand:        'ics',
   learned_owl:             'html',
   rock_mill:               'html',
   beaus_on_the_river:      'api',

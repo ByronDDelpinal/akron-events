@@ -3,48 +3,50 @@
  *
  * Scrapes the Hudson Bandstand summer concert series — a free, family-friendly
  * live-music series (since 1977) on the Hudson Green in downtown Hudson, Ohio
- * (Summit County). Published on the Hudson Community Foundation's WordPress site.
+ * (Summit County).
  *
- * Platform: WordPress (Goodlayers "gdlr-core" page builder). No events plugin,
- * no JSON-LD, no iCal — the season schedule is a single hand-maintained static
- * page. The schedule lives inside one <ul> under the "Hudson Bandstand YYYY
- * Schedule" heading, each concert its own <li> shaped like:
- *     "<Weekday>, <Month> <Day> | <Band Name> – <description>"
- *     e.g. "Sunday, July 19 | Blue Lunch – Performing blues, soul, ... jazz."
- * A nested <ul><li>Sponsored by …</li></ul> follows each concert (ignored). A
- * few entries carry NO trailing dash/description (e.g. "Western Reserve
- * Community Band").
+ * SOURCE MIGRATION (2026-08): the series used to live on a single hand-built
+ * WordPress page at myhcf.org/hudson-bandstand-2/. The Hudson Community
+ * Foundation removed that page (real HTTP 404) and moved every Hudson event to
+ * a new community calendar, "Hudson Happenings", built on Localist Event
+ * Calendar Software at https://events.hudsonhappenings.org. Localist exposes a
+ * standard whole-calendar iCalendar feed at /calendar/1.ics (RFC 5545,
+ * icalendar-ruby, UTC "Z" DTSTART/DTEND), so we now consume that feed via the
+ * shared lib/ics.js primitives instead of parsing bespoke HTML.
  *
- * Strategy:
- *   1. Fetch the page and convert to line-based text via htmlToText (each <li>
- *      becomes its own "• …" line; stripHtml would flatten them into one blob).
- *   2. Parse the season year from the "Hudson Bandstand YYYY Schedule" heading
- *      (the per-entry dates carry month+day but no year), falling back to the
- *      current Eastern year.
- *   3. Parse the ONE universal start time the page states for the whole series
- *      ("All concerts begin at 6:30 p.m.") — a stated default, not a fabricated
- *      one. If that sentence can't be parsed we skip rather than invent a time.
- *   4. Walk the lines: a line matching "<Weekday>, <Month> <Day> | <rest>" is a
- *      concert; the pipe requirement is a strong filter (prose sentences that
- *      mention a weekday have no "|"). Band name is whatever precedes the first
- *      en/em-dash; the remainder is the description.
+ * Scope: the Hudson Happenings feed carries EVERY Hudson event (library
+ * programs, city meetings, farmers market, other greens' concert series, …).
+ * The Bandstand concerts are the subset staged at the town green's bandstand
+ * gazebo. They are identified by BOTH:
+ *   • LOCATION = "Gazebo and Clocktower Greens" (the historic town green), and
+ *   • GEO      = "41.240056;-81.440667"          (the bandstand gazebo point).
+ * Requiring both cleanly separates the concert series from the other events
+ * that share the green — e.g. "Destination Hudson Art & Wine" sits at the same
+ * LOCATION but a different GEO (art festival, excluded), and the one-off
+ * "Back to the Bandstand Ribbon Cutting" carries LOCATION "Main Green with
+ * Gazebo" and a different GEO (excluded). See isBandstandConcert().
+ *
+ * Time: every concert begins at 6:30 p.m. Eastern; the feed already encodes
+ * that as a real UTC DTSTART (e.g. 20260712T223000Z = 6:30 p.m. EDT), so we
+ * take the feed's time verbatim — no invented default (the stan_hywet lesson).
  *
  * Geography: single fixed venue — the Hudson Green in downtown Hudson (44236),
- * Summit County — so every event publishes directly (no classifySummitLocation).
- * Reuses the existing "Hudson Green" venue that scrape-city-of-hudson mints so
- * the two Hudson sources share one venue row (dedupe buckets by venue).
+ * Summit County — so every event publishes directly (no classifySummitLocation
+ * needed; the Summit County gate is satisfied by construction). Reuses the
+ * existing "Hudson Green" venue that scrape-city-of-hudson mints so the two
+ * Hudson sources share one venue row (ensureVenue matches by exact name;
+ * dedupe buckets by venue).
  *
- * Pricing: the page states the series is free ("Free Concerts on the Green",
- * "keep these concerts free") — so price is set to 0 explicitly, not assumed.
+ * Category: asserted explicitly as ['music'] (a `categories` array, not a
+ * `category` hint) so text inference can't add spurious tags from band names —
+ * e.g. "80's Vinyl Arcade" would otherwise trip the 'games' classifier on
+ * "Arcade". Every event in this source is unambiguously a live concert.
  *
- * Images: the page carries no per-concert photos (only a few generic series
- * banners), so image_url is left null. A curated static fallback can be added
- * for this source in lib/fallback-images.js if a series image is wanted.
+ * Pricing: the series is free — price is set to 0 explicitly, not assumed.
  *
- * Rain caveat: if rain is forecast a concert moves to Hudson Middle School (83
- * N. Oviatt St). We always store the Green as the venue; the per-day relocation
- * is announced same-day on the committee's Facebook and isn't in the schedule
- * markup for future dates, so we can't reliably reflect it here.
+ * source_id stays the date-keyed `hudson-bandstand-YYYY-MM-DD` (Eastern date of
+ * the concert) it always was, so the source migration UPDATES the existing
+ * published rows rather than duplicating them.
  *
  * Usage:
  *   node scripts/scrape-hudson-bandstand.js
@@ -59,7 +61,6 @@ import 'dotenv/config'
 import {
   logUpsertResult,
   logScraperError,
-  htmlToText,
   enrichWithImageDimensions,
   upsertEventSafe,
   linkEventVenue,
@@ -67,125 +68,120 @@ import {
   linkOrganizationVenue,
   ensureVenue,
   ensureOrganization,
-  easternToIso,
 } from './lib/normalize.js'
+import { fetchIcsFeed, parseIcs, icsDateToIso } from './lib/ics.js'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const SOURCE_KEY = 'hudson_bandstand'
-const SOURCE_URL = 'https://myhcf.org/hudson-bandstand-2/'
+// Whole-calendar Localist iCalendar feed (all Hudson Happenings events).
+const FEED_URL = 'https://events.hudsonhappenings.org/calendar/1.ics'
+// Public calendar the events live on — used as the organizer site + ticket URL
+// fallback when a VEVENT omits its own URL.
+const CALENDAR_URL = 'https://events.hudsonhappenings.org'
 const DAYS_AHEAD = 180
 
-const MONTHS = {
-  january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
-  july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
-}
+// The two-signal fingerprint of a Bandstand concert on the shared calendar.
+const BANDSTAND_LOCATION = 'Gazebo and Clocktower Greens'
+const BANDSTAND_GEO = '41.240056;-81.440667'
 
-const WEEKDAYS = 'sunday|monday|tuesday|wednesday|thursday|friday|saturday'
-
-// A cancelled/postponed concert names it in the band slot ("… | CANCELED").
-// Same title convention lib/civicplus.js uses — drop rather than publish.
+// A cancelled/postponed concert names it in the title/description — drop it
+// rather than publish. Same convention lib/civicplus.js uses.
 const CANCELLED_RE = /\bcancell?ed\b|\bpostponed\b/i
 
-// ── Pure parsers (exported for tests) ──────────────────────────────────────
+// ── Pure parsers (exported for tests) ───────────────────────────────────────
 
 /**
- * Extract the season year from the "Hudson Bandstand YYYY Schedule" heading.
- * Returns the 4-digit year as a Number, or null when the heading isn't present
- * so the caller can fall back to the current Eastern year.
+ * True when a parsed VEVENT is a Hudson Bandstand concert: it is staged at the
+ * town green's bandstand gazebo (LOCATION + GEO both match). Requiring both
+ * signals excludes the other events that share the green (art festival at a
+ * different GEO, ribbon cutting at a different LOCATION) without an ad-hoc
+ * title blocklist. If the calendar ever renames the venue or nudges the
+ * coordinates, this yields zero rows (a visible logged signal), never a
+ * silently mis-scoped ingest.
  */
-export function parseSeasonYear(text = '') {
-  const m = text.match(/Hudson Bandstand\s+(20\d{2})\s+Schedule/i)
-  return m ? parseInt(m[1], 10) : null
+export function isBandstandConcert(ev = {}) {
+  const location = (ev.LOCATION || '').trim()
+  const geo = (ev.GEO || '').trim()
+  return location === BANDSTAND_LOCATION && geo === BANDSTAND_GEO
 }
 
-/** America/New_York calendar year for now (fallback when the heading lacks one). */
-export function easternYear(date = new Date()) {
-  return parseInt(
-    new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric' }).format(date),
-    10,
-  )
-}
-
-/**
- * Parse the single universal start time the page states for the whole series
- * ("All concerts begin at 6:30 p.m.") into an easternToIso-friendly
- * "H:MM am|pm" string. Returns null when no such sentence is found — the caller
- * then skips rather than fabricating a time (the stan_hywet default-time lesson).
- */
-export function parseSeriesDefaultTime(text = '') {
-  const m = text.match(/concerts?\s+begin\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)/i)
-  if (!m) return null
-  const hour = parseInt(m[1], 10)
-  if (Number.isNaN(hour) || hour < 1 || hour > 12) return null
-  const minute = m[2] ?? '00'
-  const mer = /^p/i.test(m[3]) ? 'pm' : 'am'
-  return `${hour}:${minute} ${mer}`
+/** America/New_York calendar date ("YYYY-MM-DD") for an ISO instant. */
+export function easternDateOf(iso) {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  // en-CA renders ISO-order YYYY-MM-DD.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(d)
 }
 
 /**
- * Split a concert's "rest" text (everything after the "|") into
- * { band, description }. The band name precedes the first en/em-dash (or a
- * space-delimited hyphen); the remainder is the free-text description. When no
- * separator is present the whole string is the band and description is ''.
+ * Collapse an ICS DESCRIPTION (already \n-unescaped by parseIcs) into a single
+ * clean paragraph: runs of whitespace/newlines become one space. ICS text
+ * carries no HTML, so no stripHtml is needed.
  */
-export function splitBandDescription(rest = '') {
-  const trimmed = rest.trim()
-  const m = trimmed.match(/^(.*?)\s*[–—]\s*(.*)$/) || trimmed.match(/^(.*?)\s+-\s+(.*)$/)
-  if (m) {
-    return { band: m[1].trim().replace(/[|]+$/, '').trim(), description: m[2].trim() }
-  }
-  return { band: trimmed.replace(/[|]+$/, '').trim(), description: '' }
+export function cleanDescription(text = '') {
+  return String(text).replace(/\s+/g, ' ').trim()
 }
 
 /**
- * Parse the htmlToText render into raw concert records:
- *   { month (1-12), monthName, day, band, description, rawLine }
- * A line shaped "<Weekday>, <Month> <Day> | <band> [– <description>]" is a
- * concert. The "|" requirement filters out prose sentences that merely mention
- * a weekday (e.g. "The summer series kicks off … on Monday, May 25th …"), and
- * the nested "Sponsored by …" bullets never match (no leading weekday).
+ * Build an event row from a parsed Bandstand VEVENT, or null to skip
+ * (cancelled, or an unparseable start). Pure — no DB, no clock-dependent
+ * horizon filtering (that lives in processEvents), so tests can assert on it
+ * directly against the fixture regardless of the wall clock.
  */
-export function parseSchedule(text = '') {
-  const records = []
-  const lineRe = new RegExp(
-    `^(?:${WEEKDAYS}),?\\s+([A-Za-z]+)\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\s*\\|\\s*(.+)$`,
-    'i',
-  )
+export function buildRow(ev = {}) {
+  const band = (ev.SUMMARY || '').trim()
+  if (!band) return null
 
-  for (const rawLine of text.split('\n')) {
-    // Drop a leading list bullet ("• ") that htmlToText prepends to <li> items.
-    const line = rawLine.replace(/^[•\s]+/, '').trim()
-    if (!line) continue
+  // Skip a cancelled/postponed concert rather than publishing it.
+  const rawDesc = ev.DESCRIPTION || ''
+  if (CANCELLED_RE.test(band) || CANCELLED_RE.test(rawDesc)) return null
 
-    const m = line.match(lineRe)
-    if (!m) continue
+  const startAt = ev.DTSTART ? icsDateToIso(ev.DTSTART.value, ev.DTSTART.params) : null
+  if (!startAt) return null
+  const endAt = ev.DTEND ? icsDateToIso(ev.DTEND.value, ev.DTEND.params) : null
 
-    const month = MONTHS[m[1].toLowerCase()]
-    if (!month) continue
-    const day = parseInt(m[2], 10)
-    if (day < 1 || day > 31) continue
+  const dateStr = easternDateOf(startAt)
+  if (!dateStr) return null
 
-    const { band, description } = splitBandDescription(m[3])
-    if (!band) continue
+  const descParts = [
+    `${band} performs live at the Hudson Bandstand free summer concert ` +
+    `series on the Hudson Green in downtown Hudson, Ohio.`,
+  ]
+  const feedDesc = cleanDescription(rawDesc)
+  if (feedDesc) descParts.push(feedDesc)
 
-    records.push({ month, monthName: m[1], day, band, description, rawLine: line })
-  }
-
-  return records
-}
-
-// ── HTTP ────────────────────────────────────────────────────────────────────
-
-async function fetchHtml(url) {
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; AkronEventsBot/1.0; +https://akronpulse.com)',
-      Accept: 'text/html,application/xhtml+xml',
+  return {
+    row: {
+      title: `Hudson Bandstand: ${band}`,
+      description: descParts.join(' '),
+      start_at: startAt,
+      end_at: endAt,
+      // Assert the category explicitly (a `categories` array, not a `category`
+      // hint) so inference can't add e.g. 'games' from "80's Vinyl Arcade".
+      categories: ['music'],
+      tags: ['live-music', 'concert', 'hudson-ohio', 'summit-county', 'free'],
+      // Series is explicitly free — set 0, don't assume.
+      price_min: 0,
+      price_max: 0,
+      is_family: true,
+      age_restriction: 'all_ages',
+      // No per-concert photos on the feed; leave null rather than probe a
+      // generic banner once per event on every run.
+      image_url: null,
+      // The Localist per-event page, falling back to the calendar home.
+      ticket_url: (ev.URL || '').trim() || CALENDAR_URL,
+      source: SOURCE_KEY,
+      source_id: `hudson-bandstand-${dateStr}`,
+      status: 'published',
+      featured: false,
     },
-  })
-  if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`)
-  return res.text()
+    startMs: new Date(startAt).getTime(),
+  }
 }
 
 // ── Venue / Organizer ───────────────────────────────────────────────────────
@@ -210,7 +206,7 @@ async function ensureBandstandVenue() {
 
 async function ensureBandstandOrganizer() {
   return ensureOrganization('Hudson Bandstand', {
-    website: SOURCE_URL,
+    website: CALENDAR_URL,
     description:
       'All-volunteer committee that has presented the free Hudson Bandstand ' +
       'summer concert series on the Hudson Green since 1977, supported by ' +
@@ -220,67 +216,21 @@ async function ensureBandstandOrganizer() {
 
 // ── Process ─────────────────────────────────────────────────────────────────
 
-export function buildRow(record, year, defaultTime) {
-  // Skip a cancelled/postponed concert rather than publishing it.
-  if (CANCELLED_RE.test(record.band) || CANCELLED_RE.test(record.description)) return null
-
-  const dateStr = `${year}-${String(record.month).padStart(2, '0')}-${String(record.day).padStart(2, '0')}`
-
-  // The page states one universal start time for the whole series. If we
-  // couldn't parse it, skip rather than fabricate a time.
-  if (!defaultTime) return null
-  const startAt = easternToIso(dateStr, defaultTime)
-  if (!startAt) return null
-
-  const descParts = [
-    `${record.band} performs live at the Hudson Bandstand free summer concert ` +
-    `series on the Hudson Green in downtown Hudson, Ohio.`,
-  ]
-  if (record.description) descParts.push(record.description)
-
-  return {
-    row: {
-      title: `Hudson Bandstand: ${record.band}`,
-      description: descParts.join(' '),
-      start_at: startAt,
-      end_at: null,
-      // Assert the category explicitly (not a `category` hint) so text inference
-      // can't add spurious tags from band names — e.g. "80's Vinyl Arcade"
-      // otherwise trips the 'games' classifier on "Arcade". Every event in this
-      // source is unambiguously a live concert.
-      categories: ['music'],
-      tags: ['live-music', 'concert', 'hudson-ohio', 'summit-county', 'free'],
-      // Page explicitly states the series is free — set 0, don't assume.
-      price_min: 0,
-      price_max: 0,
-      // Page describes "family-friendly concerts" — flag the facet.
-      is_family: true,
-      age_restriction: 'all_ages',
-      // The page has no per-concert photos (only 3 generic series banners), so
-      // we leave image_url null rather than probing one slow remote banner once
-      // per event on every run. A curated static image can be registered for
-      // this source in lib/fallback-images.js if desired.
-      image_url: null,
-      ticket_url: SOURCE_URL,
-      source: SOURCE_KEY,
-      source_id: `hudson-bandstand-${dateStr}`,
-      status: 'published',
-      featured: false,
-    },
-    startMs: new Date(startAt).getTime(),
-  }
-}
-
-async function processEvents(records, year, defaultTime, venueId, organizerId) {
+async function processEvents(events, venueId, organizerId) {
   const now = Date.now()
   const horizon = now + DAYS_AHEAD * 86400_000
   let inserted = 0
   let skipped = 0
   const seenIds = new Set()
 
-  for (const record of records) {
+  for (const ev of events) {
     try {
-      const built = buildRow(record, year, defaultTime)
+      if (!isBandstandConcert(ev)) {
+        skipped++
+        continue
+      }
+
+      const built = buildRow(ev)
       if (!built) {
         skipped++
         continue
@@ -295,7 +245,7 @@ async function processEvents(records, year, defaultTime, venueId, organizerId) {
 
       // One concert per date in practice; guard against a duplicate date anyway.
       if (seenIds.has(row.source_id)) {
-        const slug = record.band.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+        const slug = (ev.SUMMARY || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
         row.source_id = `${row.source_id}-${slug}`
       }
       seenIds.add(row.source_id)
@@ -312,7 +262,7 @@ async function processEvents(records, year, defaultTime, venueId, organizerId) {
         inserted++
       }
     } catch (err) {
-      console.warn(`  ⚠ Error processing "${record.rawLine}":`, err.message)
+      console.warn(`  ⚠ Error processing "${ev.SUMMARY}":`, err.message)
       skipped++
     }
   }
@@ -335,28 +285,21 @@ async function main() {
       await linkOrganizationVenue(organizerId, venueId)
     }
 
-    console.log(`\n🔍  Fetching ${SOURCE_URL}…`)
-    const html = await fetchHtml(SOURCE_URL)
-    const text = htmlToText(html)
+    console.log(`\n🔍  Fetching ${FEED_URL}…`)
+    const icsText = await fetchIcsFeed(FEED_URL)
+    const allEvents = parseIcs(icsText)
+    const concerts = allEvents.filter(isBandstandConcert)
+    console.log(`  Parsed ${allEvents.length} VEVENTs; ${concerts.length} are Bandstand concerts`)
 
-    const year = parseSeasonYear(text) ?? easternYear()
-    const defaultTime = parseSeriesDefaultTime(text)
-    if (!defaultTime) {
-      console.warn('  ⚠ Could not parse the series start time from the page — every entry will skip. Inspect the "All concerts begin at …" sentence.')
+    if (concerts.length === 0) {
+      console.warn('  ⚠ No Bandstand concerts matched. If unexpected, the calendar may have renamed the "Gazebo and Clocktower Greens" venue or moved its coordinates — inspect the feed and update BANDSTAND_LOCATION/BANDSTAND_GEO.')
     }
 
-    const records = parseSchedule(text)
-    console.log(`  Parsed ${records.length} concert entries (season ${year}, start ${defaultTime ?? 'UNKNOWN'})`)
-
-    if (records.length === 0) {
-      console.warn('  ⚠ No concert entries parsed. If unexpected, inspect the page — the schedule markup may have changed.')
-    }
-
-    console.log(`\n📥  Processing ${records.length} entries…`)
-    const { inserted, skipped } = await processEvents(records, year, defaultTime, venueId, organizerId)
+    console.log(`\n📥  Processing ${concerts.length} concerts…`)
+    const { inserted, skipped } = await processEvents(concerts, venueId, organizerId)
 
     await logUpsertResult(SOURCE_KEY, inserted, 0, skipped, {
-      eventsFound: records.length,
+      eventsFound: concerts.length,
       durationMs: Date.now() - start,
     })
     console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s`)

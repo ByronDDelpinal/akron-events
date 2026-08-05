@@ -11,12 +11,23 @@
  * The market name references the Cuyahoga *Valley* (the national park), not
  * Cuyahoga County.
  *
- * Platform: WordPress (cvfm.org). The market publishes NO per-date event
- * listings — only a standing schedule stated as prose in the homepage footer:
+ * Platform: WordPress (cvfm.org, rebuilt 2025 on a Qode theme + WPEngine). The
+ * market publishes NO per-date event listings — only a standing schedule stated
+ * as prose in the GLOBAL site footer ("Stay Connected"), which renders on every
+ * page (homepage, /summer-market/, /winter-market/, …):
  *   "SUMMER MARKET  May 2 - October 31, 2026   Howe Meadow 4040 Riverview Rd. …"
  *   "WINTER MARKET  November 7 - April 24, 2027   CLOSED: Nov 28, Dec 26, Jan 2
  *      Old Trail School 2315 Ira Rd. Akron, OH 44333"
  *   "HOURS  Every Saturday  9am - 12pm"
+ * The footer is the richest structured source (full date ranges with printed
+ * end-year, both venues with street + ZIP, and the winter holiday closures), so
+ * we keep parsing it. What changed in the 2025 rebuild: the apex host
+ * (https://cvfm.org/) began returning an empty/challenge body to non-browser
+ * clients — that empty page is why the nightly run logged "No market seasons
+ * parsed." The www host and the market subpages still serve the full footer. So
+ * fetchSeasons() now walks a list of candidate URLs (www first, then the market
+ * subpages) and uses the first page whose footer yields a season, instead of
+ * betting the whole run on one apex fetch.
  * We parse those two season blocks live (so next year's dates/venues follow on
  * re-scrape) and expand each into the upcoming weekly Saturday occurrences via
  * lib/weekly-occurrences.js (Eastern-anchored calendar math, immune to the
@@ -45,6 +56,17 @@ const BASE_URL   = 'https://cvfm.org'
 const USER_AGENT = 'Mozilla/5.0 (compatible; AkronPulse-bot/1.0; +https://akronpulse.com)'
 const WEEKS_AHEAD = 14           // rolling window; twice-daily re-scrape extends it
 const ORG_NAME    = 'Cuyahoga Valley Farmers Market'
+
+// The global "Stay Connected" footer (with the season prose) renders on every
+// page, so any of these will do — we take the first that actually parses. www is
+// first because the apex host now returns an empty body to non-browser clients;
+// the market subpages are further fallbacks if the homepage template shifts.
+export const FETCH_CANDIDATES = Object.freeze([
+  'https://www.cvfm.org/',
+  'https://cvfm.org/',
+  'https://www.cvfm.org/summer-market/',
+  'https://www.cvfm.org/winter-market/',
+])
 
 // ── Date parsing ─────────────────────────────────────────────────────────────
 
@@ -195,6 +217,36 @@ async function fetchPage(url) {
   return res.text()
 }
 
+/**
+ * Fetch the season schedule from the first candidate page that yields it.
+ *
+ * The season prose lives in the global footer, so every candidate carries the
+ * same two blocks — we just need one page that returns a real body (the apex now
+ * serves an empty/challenge page to bots) AND parses. Returns
+ * { seasons, imageUrl } from the winning page. A candidate that fails to fetch
+ * or yields zero seasons is logged and skipped so a single bad host or a
+ * template tweak on one page can't sink the run. Returns { seasons: [] } only if
+ * every candidate came up empty.
+ */
+export async function fetchSeasons(candidates = FETCH_CANDIDATES, fetchFn = fetchPage) {
+  for (const url of candidates) {
+    let html
+    try {
+      html = await fetchFn(url)
+    } catch (err) {
+      console.warn(`  ⚠ ${url} — fetch failed: ${err.message}`)
+      continue
+    }
+    const seasons = parseSeasons(htmlToText(html))
+    if (seasons.length) {
+      console.log(`  ✓ Parsed ${seasons.length} season(s) from ${url}`)
+      return { seasons, imageUrl: getMeta(html, 'og:image') }
+    }
+    console.warn(`  ⚠ ${url} — no season blocks found in this page`)
+  }
+  return { seasons: [], imageUrl: null }
+}
+
 /** Read a <meta property|name="…" content="…"> value (og:image et al.). */
 export function getMeta(html, key) {
   const tag = String(html || '').match(
@@ -217,9 +269,7 @@ async function main() {
   console.log('🥕  Starting Cuyahoga Valley Farmers Market ingestion…')
   const start = Date.now()
   try {
-    const html = await fetchPage(`${BASE_URL}/`)
-    const imageUrl = getMeta(html, 'og:image')
-    const seasons = parseSeasons(htmlToText(html))
+    const { seasons, imageUrl } = await fetchSeasons()
     console.log(`  Parsed ${seasons.length} season(s): ${seasons.map((s) => `${s.label}→${s.venue.name}`).join(', ')}`)
     if (!seasons.length) throw new Error('No market seasons parsed from cvfm.org — page format may have changed')
 

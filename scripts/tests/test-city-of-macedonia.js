@@ -1,16 +1,22 @@
 /**
  * test-city-of-macedonia.js
  *
- * Pins the source-specific behavior of the Macedonia (macrec.com) Vision
- * calendar-grid scraper against a fixture captured from the live site:
- *   • parseCalendarMonth — pulls date/time/title/id from real grid cells,
- *     including a two-event day and query-string hrefs.
- *   • parseAriaDate / monthsToFetch — date parsing + ET-anchored month window.
- *   • isPublicMacedoniaEvent — drops Mayor's Court, board/commission meetings,
- *     office closures, and cancelled rows; keeps public programming.
+ * Pins the source-specific behavior of the Macedonia (macrec.com) govAccess
+ * calendar-grid scraper against a fixture captured from the live August 2026
+ * grid (2026-08-05) as the RAW <td> HTML the production `res.text()` receives —
+ * NOT WebFetch's markdown reduction, which strips the calendar_eventtime /
+ * calendar_eventlink hooks the parser depends on:
+ *   • parseCalendarMonth — pulls day/time/title/id from each
+ *     td.calendar_day > div.calendar_item > span.calendar_eventtime +
+ *     a.calendar_eventlink[href=…/Event/{id}/{n}]. The day comes from the cell's
+ *     leading number; month & year are supplied by the caller (the page it
+ *     fetched), so dating no longer depends on the link's ?curm/&cury query.
+ *   • isPublicMacedoniaEvent — drops Mayor's Court, Planning Commission, and
+ *     Board of Zoning Appeals rows; keeps public programming (Touch-a-Truck,
+ *     Food Truck Thursdays).
  *   • buildEventRow — correct ET timestamps (no accidental midnights for timed
- *     events), date-only + needs_review fallback for the timeless WinterFest,
- *     stable source_id, and reconstructed detail URL.
+ *     events), stable source_id, and reconstructed detail URL.
+ *   • monthsToFetch — ET-anchored month window.
  *   • mapCategory / resolveVenue — the concert→music override, food/festival
  *     inference, and "at Longwood Manor" venue extraction.
  *
@@ -27,31 +33,18 @@ process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         ||
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
 const {
-  SOURCE_KEY, parseCalendarMonth, parseAriaDate, monthsToFetch,
+  SOURCE_KEY, parseCalendarMonth, monthsToFetch,
   isPublicMacedoniaEvent, buildEventRow, mapCategory, resolveVenue,
 } = await import('../scrape-city-of-macedonia.js')
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const FIXTURE = readFileSync(join(__dirname, 'fixtures/city-of-macedonia-calendar.html'), 'utf8')
-const RECS = parseCalendarMonth(FIXTURE)
+const RECS = parseCalendarMonth(FIXTURE, { month: 8, year: 2026 })
 const byId = Object.fromEntries(RECS.map(r => [r.eventId, r]))
 
 describe('city_of_macedonia: source key', () => {
   it('is city_of_macedonia', () => {
     assert.equal(SOURCE_KEY, 'city_of_macedonia')
-  })
-})
-
-describe('city_of_macedonia: parseAriaDate', () => {
-  it('parses a weekday-prefixed long date', () => {
-    assert.equal(parseAriaDate('Friday, July 3, 2026'), '2026-07-03')
-    assert.equal(parseAriaDate('Saturday, September 26, 2026'), '2026-09-26')
-    assert.equal(parseAriaDate('Wednesday, December 4, 2026'), '2026-12-04')
-  })
-  it('returns null for junk', () => {
-    assert.equal(parseAriaDate(''), null)
-    assert.equal(parseAriaDate('no date here'), null)
-    assert.equal(parseAriaDate('Bogusmonth 3, 2026'), null)
   })
 })
 
@@ -70,82 +63,94 @@ describe('city_of_macedonia: monthsToFetch', () => {
   })
 })
 
-describe('city_of_macedonia: parseCalendarMonth', () => {
+describe('city_of_macedonia: parseCalendarMonth (real raw August 2026 grid)', () => {
   it('extracts every calendar item, including two-event days', () => {
-    // 11 items in the fixture across 10 populated day cells.
-    assert.equal(RECS.length, 11)
-    // July 16 has both Mayor's Court and the Symphonic Band concert.
-    const jul16 = RECS.filter(r => r.date === '2026-07-16').map(r => r.title).sort()
-    assert.deepEqual(jul16, ['Mayor\'s Court', 'University Heights Symphonic Band at Longwood Manor'])
+    // 8 event links across the month: four Mayor's Court sessions, a Planning
+    // Commission and a BZA meeting, plus Touch-a-Truck and Food Truck Thursdays.
+    assert.equal(RECS.length, 8)
+    // Aug 6 carries both a Mayor's Court session and Touch-a-Truck.
+    const aug6 = RECS.filter(r => r.date === '2026-08-06').map(r => r.title).sort()
+    assert.deepEqual(aug6, ['Mayor\'s Court', 'Touch-a-Truck'])
+    // Aug 27 carries Mayor's Court and Food Truck Thursdays.
+    const aug27 = RECS.filter(r => r.date === '2026-08-27').map(r => r.title).sort()
+    assert.deepEqual(aug27, ['Food Truck Thursdays', 'Mayor\'s Court'])
   })
 
-  it('decodes entities, reads the time, and rebuilds a clean detail URL', () => {
-    const concert = byId['4026']
-    assert.equal(concert.title, 'University Heights Symphonic Band at Longwood Manor')
-    assert.equal(concert.timeText, '7:00 PM')
-    assert.equal(concert.date, '2026-07-16')
-    assert.equal(concert.detailUrl, 'https://www.macrec.com/Home/Components/Calendar/Event/4026/74')
+  it('reads the time, reconstructs a clean detail URL, and dates from the fetched month/year', () => {
+    const ttt = byId['3924'] // Touch-a-Truck
+    assert.equal(ttt.title, 'Touch-a-Truck')
+    assert.equal(ttt.timeText, '5:30 PM')
+    assert.equal(ttt.date, '2026-08-06')
+    assert.equal(ttt.detailUrl, 'https://www.macrec.com/Home/Components/Calendar/Event/3924/74')
+
+    const ftt = byId['3914'] // Food Truck Thursdays
+    assert.equal(ftt.title, 'Food Truck Thursdays')
+    assert.equal(ftt.timeText, '5:00 PM')
+    assert.equal(ftt.date, '2026-08-27')
   })
 
-  it('captures timeless (all-day) rows with an empty timeText', () => {
-    assert.equal(byId['3932'].title, 'WinterFest')
-    assert.equal(byId['3932'].timeText, '')
-    assert.equal(byId['3884'].timeText, '') // office-closure row
+  it('captures the interleaved civic meetings too (filtering happens later)', () => {
+    assert.equal(byId['3842'].title, 'Planning Commission Meeting')
+    assert.equal(byId['3864'].title, 'Board of Zoning Appeals (BZA) Meeting')
+    // Every Mayor's Court session is present pre-filter.
+    const courts = RECS.filter(r => r.title === 'Mayor\'s Court')
+    assert.equal(courts.length, 4)
+  })
+
+  it('returns [] for empty input or a missing month/year', () => {
+    assert.deepEqual(parseCalendarMonth('', { month: 8, year: 2026 }), [])
+    assert.deepEqual(parseCalendarMonth('<td class="calendar_day">6</td>', { month: 8, year: 2026 }), [])
+    assert.deepEqual(parseCalendarMonth(FIXTURE), []) // no month/year → nothing datable
   })
 })
 
 describe('city_of_macedonia: isPublicMacedoniaEvent filter', () => {
-  it('drops government / court / closure / cancelled rows', () => {
+  it('drops government / court / commission / board rows from the real grid', () => {
     for (const s of [
       'Mayor\'s Court',
-      'CANCELLED - Mayor\'s Court',
       'Planning Commission Meeting',
       'Board of Zoning Appeals (BZA) Meeting',
-      'City of Macedonia Offices Closed for Independence Day',
     ]) assert.equal(isPublicMacedoniaEvent(s), false, `should drop: ${s}`)
   })
 
-  it('keeps public rec / community programming', () => {
+  it('keeps the public rec / community programming from the real grid', () => {
     for (const s of [
-      'University Heights Symphonic Band at Longwood Manor',
-      'Car Cruise',
       'Touch-a-Truck',
       'Food Truck Thursdays',
-      'FallFest',
-      'WinterFest',
-      'Haunted Manor',
     ]) assert.equal(isPublicMacedoniaEvent(s), true, `should keep: ${s}`)
   })
 
   it('drops a Mayor\'s Court row even when HTML-entity-encoded', () => {
     assert.equal(isPublicMacedoniaEvent('Mayor&#39;s Court'), false)
   })
+
+  it('over the whole parsed month, keeps only the two public events', () => {
+    const kept = RECS.filter(r => isPublicMacedoniaEvent(r.title)).map(r => r.title).sort()
+    assert.deepEqual(kept, ['Food Truck Thursdays', 'Touch-a-Truck'])
+  })
 })
 
 describe('city_of_macedonia: buildEventRow', () => {
   it('builds a correct ET timestamp for a timed evening event (no midnight)', () => {
-    const row = buildEventRow(byId['4026'])
-    // 7:00 PM ET on 2026-07-16 (EDT, UTC-4) → 23:00Z.
-    assert.equal(row.start_at, '2026-07-16T23:00:00.000Z')
-    assert.equal(row.source_id, '4026')
+    const row = buildEventRow(byId['3924']) // Touch-a-Truck, 5:30 PM
+    // 5:30 PM ET on 2026-08-06 (EDT, UTC-4) → 21:30Z.
+    assert.equal(row.start_at, '2026-08-06T21:30:00.000Z')
+    assert.equal(row.source_id, '3924')
     assert.equal(row.status, 'published')
     assert.equal(row.needs_review, undefined) // has a real time → not flagged
     assert.equal(row.price_min, null)
     assert.equal(row.price_max, null)
-    assert.equal(row.ticket_url, 'https://www.macrec.com/Home/Components/Calendar/Event/4026/74')
+    assert.equal(row.ticket_url, 'https://www.macrec.com/Home/Components/Calendar/Event/3924/74')
   })
 
-  it('falls back to date-only (midnight ET) + needs_review for a timeless event', () => {
-    const row = buildEventRow(byId['3932']) // WinterFest, no grid time
-    // Date-only: midnight ET on 2026-12-04 (EST, UTC-5) → 05:00Z. NOT a
-    // synthesized clock time — the time is genuinely unknown.
-    assert.equal(row.start_at, '2026-12-04T05:00:00.000Z')
-    assert.equal(row.needs_review, true)
-    assert.equal(row.source_id, '3932')
+  it('builds a correct ET timestamp for Food Truck Thursdays', () => {
+    const row = buildEventRow(byId['3914']) // 5:00 PM
+    assert.equal(row.start_at, '2026-08-27T21:00:00.000Z')
+    assert.equal(row.source_id, '3914')
   })
 
   it('keeps source_id stable and equal to the numeric event id', () => {
-    assert.equal(buildEventRow(byId['3922']).source_id, '3922') // Car Cruise
+    assert.equal(buildEventRow(byId['3842']).source_id, '3842') // Planning Commission
   })
 })
 
@@ -168,7 +173,7 @@ describe('city_of_macedonia: resolveVenue', () => {
     assert.equal(v.details.city, 'Macedonia')
   })
   it('falls back to Longwood Park when no known venue is named', () => {
-    assert.equal(resolveVenue('Car Cruise').name, 'Longwood Park')
+    assert.equal(resolveVenue('Touch-a-Truck').name, 'Longwood Park')
     // An unknown "at ..." target also falls back rather than minting junk.
     assert.equal(resolveVenue('Yoga at the Pavilion').name, 'Longwood Park')
   })

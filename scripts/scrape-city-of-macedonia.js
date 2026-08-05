@@ -15,14 +15,21 @@
  *     ONE surface that serves clean HTML to a scripted client is the month
  *     calendar grid, and only when sent a full set of browser request headers
  *     (User-Agent + Accept + Accept-Language). We replicate those here.
- *   • The calendar is a Vision `viCalendar` server-rendered month grid at
- *     /parks/calendar/-curm-{M}/-cury-{Y}. Each day is a <td> whose aria-label
- *     carries the full human date ("Scheduled events, Friday, July 3, 2026")
- *     and whose body holds one <div class="calendar_item"> per event, each with
- *     a <span class="calendar_eventtime"> (e.g. "7:00 PM", empty for all-day)
- *     and an <a class="calendar_eventlink" href="/Home/Components/Calendar/
- *     Event/{id}/{n}"> whose text is the title. We parse date/time/title/id
- *     straight from the grid — no detail-page fetch is possible or needed.
+ *   • The calendar is a Granicus govAccess server-rendered month grid at
+ *     /parks/calendar/-curm-{M}/-cury-{Y}. Each day is a
+ *     <td class="calendar_day"> that leads with the day-of-month number, and
+ *     every event renders as <div class="calendar_item"> with an optional
+ *     <span class="calendar_eventtime">7:00 PM</span> and an
+ *     <a class="calendar_eventlink" href="…/Home/Components/Calendar/Event/{id}/{n}?curm={M}&cury={Y}">Title</a>.
+ *     parseCalendarMonth keys on the RAW-HTML <a href> Event route (query-
+ *     independent) + the calendar_eventtime span, and dates each row from the
+ *     cell's day number plus the month/year the caller fetched — NOT from the
+ *     link's curm/cury query, so a query tweak can't break dating. (A 2026-08
+ *     "0 public events after filter" run was a diagnosis red herring: WebFetch's
+ *     markdown reduction strips the class hooks and made the markup look changed
+ *     when it had not; the parser and the meetings filter were both fine. The
+ *     test fixture is therefore the RAW <td> HTML production receives, not a
+ *     markdown capture.) No detail-page fetch is possible (Akamai-blocked) or needed.
  *   • Navigating past the last populated month silently returns the CURRENT
  *     month grid again (e.g. -curm-1/-cury-2027 renders July 2026). We fetch a
  *     fixed forward window and dedupe by the numeric event id, so those stale
@@ -159,28 +166,6 @@ const ORG_INFO = {
 
 // ── Date helpers ─────────────────────────────────────────────────────────────
 
-const MONTH_NAMES = [
-  'january', 'february', 'march', 'april', 'may', 'june',
-  'july', 'august', 'september', 'october', 'november', 'december',
-]
-
-/**
- * Parse the aria-label date text into an ISO YYYY-MM-DD date.
- *   "Friday, July 3, 2026" → "2026-07-03"
- * Returns null when the text isn't a recognizable "<Month> <Day>, <Year>".
- */
-export function parseAriaDate(text) {
-  if (!text) return null
-  const m = String(text).match(/([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})/)
-  if (!m) return null
-  const monthIdx = MONTH_NAMES.indexOf(m[1].toLowerCase())
-  if (monthIdx === -1) return null
-  const day  = Number(m[2])
-  const year = Number(m[3])
-  if (!day || !year || day > 31) return null
-  return `${year}-${String(monthIdx + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-}
-
 /**
  * The list of {month, year} pairs to crawl, anchored to the CURRENT month in
  * America/New_York (never the process-local timezone) so an evening-ET run
@@ -271,34 +256,53 @@ export function mapTags(title) {
 
 // ── Grid parsing ──────────────────────────────────────────────────────────────
 
-const CELL_RE =
-  /aria-label="Scheduled events,\s*([^"]+)"[\s\S]*?>([\s\S]*?)<\/td>/g
-const ITEM_RE =
-  /<span class="calendar_eventtime">([^<]*)<\/span>\s*<a class="calendar_eventlink"\s+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g
+// One event inside a day cell. The govAccess grid renders each day as a
+// <td class="calendar_day …"> whose first text is the day-of-month, followed by
+// one <div class="calendar_item"> per event: an optional
+// <span class="calendar_eventtime">7:00 PM</span> then an
+// <a class="calendar_eventlink" href="…/Home/Components/Calendar/Event/{id}/{n}?…">Title</a>.
+// We key on the STABLE detail route in the raw-HTML href (query-independent) and
+// take month/year from the fetched page (passed in), NOT from the link's
+// ?curm/&cury — so a future tweak to the link query can't break dating, and we
+// parse the real <a href> bytes rather than any text/Markdown reduction of them.
+// Groups: 1 time (opt), 2 href, 3 event id, 4 sub id (n), 5 title.
+const EVENT_RE =
+  /(?:<span[^>]*calendar_eventtime[^>]*>([^<]*)<\/span>\s*)?<a[^>]*href="([^"]*\/Home\/Components\/Calendar\/Event\/(\d+)\/(\d+)[^"]*)"[^>]*>([\s\S]*?)<\/a>/gi
 
 /**
- * Parse one month-grid HTML page into raw event records:
+ * Parse one month-grid page (raw <td> HTML from the govAccess calendar) into raw
+ * event records:
  *   { eventId, detailUrl, title, timeText, date }  (date = YYYY-MM-DD)
- * Pure — no network, no filtering. Skips items whose href isn't a numeric
- * calendar-event link.
+ * Pure — no network, no filtering. The day-of-month comes from each <td> cell's
+ * leading number; the month & year are supplied by the caller (the page it
+ * fetched via -curm-/-cury-), so dating no longer depends on the link query or
+ * on the removed aria-label day labels.
  */
-export function parseCalendarMonth(html) {
+export function parseCalendarMonth(html, { month, year } = {}) {
   const out = []
-  if (!html) return out
-  for (const cell of html.matchAll(CELL_RE)) {
-    const date = parseAriaDate(cell[1])
-    if (!date) continue
-    const inner = cell[2]
-    for (const it of inner.matchAll(ITEM_RE)) {
-      const timeText = it[1].replace(/&nbsp;/gi, ' ').trim()
-      const href     = decodeEntities(it[2].trim())
-      const title    = stripHtml(decodeEntities(it[3])).trim()
+  if (!html || !month || !year) return out
+  const mm = String(month).padStart(2, '0')
+  // Each day is a <td>; split on the cell boundary and read each cell's own day.
+  for (const cell of String(html).split(/<td\b/i).slice(1)) {
+    // Drop the <td …> opening tag's attributes, then the day-of-month is the
+    // first 1–2 digit number in the tag-stripped cell content.
+    const gt = cell.indexOf('>')
+    const inner = gt === -1 ? cell : cell.slice(gt + 1)
+    const dayM = stripHtml(inner).replace(/\s+/g, ' ').trim().match(/\d{1,2}/)
+    if (!dayM) continue
+    const day = Number(dayM[0])
+    if (!day || day > 31) continue
+    const date = `${year}-${mm}-${String(day).padStart(2, '0')}`
+
+    for (const m of cell.matchAll(EVENT_RE)) {
+      const title = stripHtml(decodeEntities(m[5])).replace(/\s+/g, ' ').trim()
       if (!title) continue
-      const idm = href.match(/\/Home\/Components\/Calendar\/Event\/(\d+)\/(\d+)/i)
-      if (!idm) continue
-      const eventId = idm[1]
-      const detailUrl = `${ORIGIN}/Home/Components/Calendar/Event/${idm[1]}/${idm[2]}`
-      out.push({ eventId, detailUrl, title, timeText, date })
+      const timeText = m[1] ? stripHtml(decodeEntities(m[1])).replace(/\s+/g, ' ').trim() : ''
+      out.push({
+        eventId:   m[3],
+        detailUrl: `${ORIGIN}/Home/Components/Calendar/Event/${m[3]}/${m[4]}`,
+        title, timeText, date,
+      })
     }
   }
   return out
@@ -354,7 +358,12 @@ async function fetchMonth(month, year, { timeoutMs = 20_000, retries = 2 } = {})
       clearTimeout(tid)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const html = await res.text()
-      if (!/calendar_day/.test(html)) throw new Error('no calendar grid in response')
+      // Sanity-check we got a calendar page, not an error/challenge shell. Key
+      // on the stable detail route + month-nav marker (both present in the raw
+      // govAccess HTML).
+      if (!/\/Home\/Components\/Calendar\/Event\/|-curm-/.test(html)) {
+        throw new Error('no calendar grid in response')
+      }
       return html
     } catch (err) {
       clearTimeout(tid)
@@ -379,7 +388,7 @@ async function main() {
     for (const { month, year } of months) {
       try {
         const html = await fetchMonth(month, year)
-        const recs = parseCalendarMonth(html)
+        const recs = parseCalendarMonth(html, { month, year })
         parsedTotal += recs.length
         for (const rec of recs) {
           if (!byId.has(rec.eventId)) byId.set(rec.eventId, rec)

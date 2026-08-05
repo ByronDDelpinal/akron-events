@@ -1,0 +1,123 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:icalendar-ruby
+CALSCALE:GREGORIAN
+X-WR-CALNAME:Hudson Happenings Calendar
+X-WR-TIMEZONE:Eastern Time (US & Canada)
+BEGIN:VEVENT
+DTSTAMP:20260805T100754Z
+UID:tag:localist.com\,2008:EventInstance_52869300846094
+DTSTART:20260705T223000Z
+DTEND:20260705T233000Z
+DESCRIPTION:Performing traditional big band jazz. Sponsored by Burton D. Mo
+ rgan Foundation
+GEO:41.240056;-81.440667
+LOCATION:Gazebo and Clocktower Greens
+SUMMARY:Freedom Brass Band
+URL;VALUE=URI:https://events.hudsonhappenings.org/event/freedom-brass-band
+CATEGORIES:Concerts & Performances
+CATEGORIES:Community Events
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20260805T100754Z
+UID:tag:localist.com\,2008:EventInstance_52931243577393
+DTSTART:20260706T213000Z
+DTEND:20260706T223000Z
+DESCRIPTION:Join us for ribbon cutting celebrating the newly refurbished Hu
+ dson Bandstand in honor of our America250 celebrations. The event will fea
+ ture a live performance by Ascent Music!\n\n*Please note\, the majority of
+  renovations will be complete by July 6. However\, the ADA lift will be in
+ stalled at a later date due to manufacturing/delivery time constraints.
+GEO:41.241088;-81.439436
+LOCATION:Main Green with Gazebo
+SUMMARY:Hudson's Back to the Bandstand Ribbon Cutting
+URL;VALUE=URI:https://events.hudsonhappenings.org/event/hudsons-back-to-the
+ -bandstand-ribbon-cutting
+CATEGORIES:Concerts & Performances
+CATEGORIES:Community Events
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20260805T100754Z
+UID:tag:localist.com\,2008:EventInstance_53116028671864
+DTSTART:20260706T233000Z
+DTEND:20260707T003000Z
+DESCRIPTION:The Environmental Awareness Committee (EAC) serves to advise Ci
+ ty Council on environmental issues such as solid waste policy\, recycling\
+ , sustainable development\, and environmental technologies. The EAC also e
+ nhances the awareness\, understanding\, commitment\, and active involvemen
+ t of local citizens in promoting wise stewardship of the city's natural re
+ sources\, now and in the future\, through education and volunteerism.\n\nT
+ he committee has seven members who serve four-year terms for up to three t
+ erms.
+GEO:43.235913;-77.059855
+LOCATION:Hudson Town Hall
+SUMMARY:Hudson Environmental Awareness Committee
+URL;VALUE=URI:https://events.hudsonhappenings.org/event/hudson-environmenta
+ l-awareness-committee
+CATEGORIES:Meetings & Programs
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20260805T100754Z
+UID:tag:localist.com\,2008:EventInstance_52869300877847
+DTSTART:20260712T223000Z
+DTEND:20260712T233000Z
+DESCRIPTION:High energy music and antics! Come prepared to dance. Sponsored
+  by S. J. Hasbrouck Family.\n\n \n\nAll concerts begin at 6:30 p.m. and ar
+ e located on the Hudson Gazebo Green in downtown Hudson\, Ohio.
+GEO:41.240056;-81.440667
+LOCATION:Gazebo and Clocktower Greens
+SUMMARY:LaFlavour
+URL;VALUE=URI:https://events.hudsonhappenings.org/event/laflavour
+CATEGORIES:Concerts & Performances
+CATEGORIES:Community Events
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20260805T100754Z
+UID:tag:localist.com\,2008:EventInstance_52744243311366
+DTSTART:20260725T190000Z
+DTEND:20260726T010000Z
+DESCRIPTION:Join us for a vibrant outdoor celebration of art\, creativity\,
+  and community in downtown Hudson! We’ll feature 40 artists from Hudson
+ and the surrounding area in a curated open-air experience filled with orig
+ inal work.\n\nEnjoy a lively atmosphere with wine\, food\, and live music
+ as you explore diverse art and connect directly with the artists behind it
+ .  \n\nLive music throughout the day.  Tina Bergmann and Bryan Thomas (dul
+ cimer & upright bass) will play at the Gazebo from 3 to 5.  Chris Coles Gl
+ eam (jazz standards and originals) will play the Gazebo from 7 to 9.
+GEO:41.239969;-81.440444
+LOCATION:Gazebo and Clocktower Greens
+SUMMARY:Destination Hudson Art & Wine
+URL;VALUE=URI:https://events.hudsonhappenings.org/event/destination-hudson-
+ art-wine
+CATEGORIES:Arts
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20260805T100754Z
+UID:tag:localist.com\,2008:EventInstance_52869301028411
+DTSTART:20260809T223000Z
+DTEND:20260809T233000Z
+DESCRIPTION:Blend of 70’s\, 80’s\, 90’s music heard on TV. Sponsored
+ by Heritage of Hudson.\n\n \n\nAll concerts begin at 6:30 p.m. and are loc
+ ated on the Hudson Gazebo Green in downtown Hudson\, Ohio.
+GEO:41.240056;-81.440667
+LOCATION:Gazebo and Clocktower Greens
+SUMMARY:80's Vinyl Arcade
+URL;VALUE=URI:https://events.hudsonhappenings.org/event/80s-vinyl-arcade
+CATEGORIES:Concerts & Performances
+CATEGORIES:Community Events
+END:VEVENT
+BEGIN:VEVENT
+DTSTAMP:20260805T100754Z
+UID:tag:localist.com\,2008:EventInstance_52869301085773
+DTSTART:20260823T223000Z
+DTEND:20260823T233000Z
+DESCRIPTION:High energy and homegrown from Hudson! Rock music from the 1960
+ ’s – 2000’s.
+GEO:41.240056;-81.440667
+LOCATION:Gazebo and Clocktower Greens
+SUMMARY:Clocktower
+URL;VALUE=URI:https://events.hudsonhappenings.org/event/clocktower
+CATEGORIES:Concerts & Performances
+CATEGORIES:Community Events
+END:VEVENT
+END:VCALENDAR
