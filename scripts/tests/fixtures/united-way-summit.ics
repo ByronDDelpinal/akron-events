@@ -1,0 +1,34 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//United Way of Summit &amp; Medina - ECPv6.17.1//NONSGML v1.0//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:United Way of Summit &amp; Medina
+X-ORIGINAL-URL:https://www.uwsummitmedina.org
+X-WR-CALDESC:Events for United Way of Summit &amp; Medina
+REFRESH-INTERVAL;VALUE=DURATION:PT1H
+X-Robots-Tag:noindex
+X-PUBLISHED-TTL:PT1H
+BEGIN:VTIMEZONE
+TZID:UTC
+BEGIN:STANDARD
+TZOFFSETFROM:+0000
+TZOFFSETTO:+0000
+TZNAME:UTC
+DTSTART:20250101T000000
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+DTSTART;VALUE=DATE:20260918
+DTEND;VALUE=DATE:20260919
+DTSTAMP:20260217T180549Z
+CREATED:20241122T171409Z
+LAST-MODIFIED:20260217T180549Z
+UID:4843-1789689600-1789775999@www.uwsummitmedina.org
+SUMMARY:Bold Glow
+DESCRIPTION:Join us on the course and be part of something brighter! New this year – day golf and night golf spots available. \nBold Glow is a one-of-a-kind night golf experience with some of our community’s brightest minds and shining leaders in attendance. Bold Glow supports United Way’s work in education\, financial stability\, and health in our community. \nFood Truck Park Tickets – $65 \n			\n				Secure your spot!
+URL:https://www.uwsummitmedina.org/calendars/https-ignite-stratuslive-com-uwsummitmedina-get-involved-event-bg2025/
+LOCATION:J. E. Good Park Golf Course\, 530 Nome Ave.\, Akron\, 44320
+ATTACH;FMTTYPE=image/png:https://www.uwsummitmedina.org/wp-content/uploads/2024/11/2026_Website-Graphics_Events_VAR12-scaled.png
+END:VEVENT
+END:VCALENDAR

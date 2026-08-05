@@ -10,7 +10,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 import {
   parseIcs, icsDateToIso, normaliseIcsEvent, expandRecurrence, parseRrule,
   applyNeedsReviewHook, icsDateOnlyToNoonIso, withDateOnlyTimeNote,
-  DATE_ONLY_TIME_NOTE, MAX_DESCRIPTION,
+  DATE_ONLY_TIME_NOTE, MAX_DESCRIPTION, isBotChallenge,
 } from '../lib/ics.js'
 // Imported through civicplus.js on purpose: the predicate moved to ics.js and
 // civicplus.js re-exports it, so this also asserts the re-export still works
@@ -27,6 +27,23 @@ import {
   IMAGE_FEED,
   NOT_ICS,
 } from './fixtures/ics-feeds.js'
+
+describe('isBotChallenge (allowEmpty guard)', () => {
+  it('flags WAF/challenge/error interstitials', () => {
+    for (const b of [
+      '<html><head><title>Just a moment...</title></head></html>',
+      'Please enable JavaScript and cookies to continue',
+      '<h1>Access Denied</h1>', 'Attention Required! | Cloudflare',
+      '<title>403 Forbidden</title>', 'Error 404 Not Found',
+    ]) assert.equal(isBotChallenge(b), true, b.slice(0, 30))
+  })
+  it('does NOT flag a benign empty-calendar page or a real ICS body', () => {
+    assert.equal(isBotChallenge('<div class="tribe-events">There are no upcoming events.</div>'), false)
+    assert.equal(isBotChallenge('BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR'), false)
+    assert.equal(isBotChallenge(''), false)
+    assert.equal(isBotChallenge(null), false)
+  })
+})
 
 describe('ICS: parseIcs basic extraction', () => {
   it('returns [] for non-ICS content', () => {

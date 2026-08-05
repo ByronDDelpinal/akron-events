@@ -1,0 +1,178 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Peg&#039;s - ECPv6.17.1//NONSGML v1.0//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Peg&#039;s
+X-ORIGINAL-URL:https://pegs.org
+X-WR-CALDESC:Events for Peg&#039;s
+REFRESH-INTERVAL;VALUE=DURATION:PT1H
+X-Robots-Tag:noindex
+X-PUBLISHED-TTL:PT1H
+BEGIN:VTIMEZONE
+TZID:America/New_York
+BEGIN:DAYLIGHT
+TZOFFSETFROM:-0500
+TZOFFSETTO:-0400
+TZNAME:EDT
+DTSTART:20250309T070000
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:-0400
+TZOFFSETTO:-0500
+TZNAME:EST
+DTSTART:20251102T060000
+END:STANDARD
+BEGIN:DAYLIGHT
+TZOFFSETFROM:-0500
+TZOFFSETTO:-0400
+TZNAME:EDT
+DTSTART:20260308T070000
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:-0400
+TZOFFSETTO:-0500
+TZNAME:EST
+DTSTART:20261101T060000
+END:STANDARD
+BEGIN:DAYLIGHT
+TZOFFSETFROM:-0500
+TZOFFSETTO:-0400
+TZNAME:EDT
+DTSTART:20270314T070000
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:-0400
+TZOFFSETTO:-0500
+TZNAME:EST
+DTSTART:20271107T060000
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+DTSTART;TZID=America/New_York:20260516T000000
+DTEND;TZID=America/New_York:20260905T235959
+DTSTAMP:20260723T154301Z
+CREATED:20260420T145633Z
+LAST-MODIFIED:20260723T154301Z
+UID:2517-1778889600-1788652799@pegs.org
+SUMMARY:Eighty-Six Reasons for Asylum Admission: A Domestic Beginning
+DESCRIPTION:On View Now Through September 5Gallery Hours:  Friday & Saturday\, 11 – 4 pm at the Baldwin Buss Merino House \n\n\n\n \n\n\n\nEighty-Six Reasons for Asylum Admission: A Domestic Beginning\, an exhibit by Ohio porcelain artist Kimberly Chapman\, explores why women were institutionalized in asylums from the mid-nineteenth century through the 1970s. The exhibit confronts the gendered and unequal treatment of these spaces. Constructed in 1825—just decades before the rise of organized feminism—the Baldwin Buss Merino House stands at the threshold of a period when women’s autonomy was tightly controlled\, conditions that could later justify institutionalization. \n\n\n\n \n\n\n\n\n\n\n\n\n \n\n\n\nKimberly Chapman is a sculptor based in Cleveland\, Ohio. Her porcelain-based practice focuses on themes of female endurance and institutional violence\, frequently drawing from historical research to examine systems that have silenced and subjugated women. She received her BFA in Ceramics from the Cleveland Institute of Art in 2017\, following a career in corporate and collegiate marketing. She also holds a MA and BA in Communication from Cleveland State University. Since graduating\, Chapman has exhibited widely in solo and group exhibitions across the US\, including: the National Museum of Psychology\, Akron\, OH; Erie Museum of Art\, Erie\, PA; the Baber Room Gallery\, Central Michigan University\, Mount Pleasant\, MI; and the Anderson Gallery\, University at Buffalo\, Buffalo\, NY. She is a trustee at the Ohio Arts Group\, an affiliate of the National Museum of Women in the Arts.
+URL:https://pegs.org/event/eighty-six-reasons-for-asylum-admission-a-domestic-beginning/
+LOCATION:Baldwin Buss Merino House\, 53 First Street\, Hudson\, Ohio\, 44236
+CATEGORIES:Exhibit
+ATTACH;FMTTYPE=image/png:https://pegs.org/wp-content/uploads/2026/04/Untitled-design-9-scaled.png
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/New_York:20260516T000000
+DTEND;TZID=America/New_York:20260905T235959
+DTSTAMP:20260723T154801Z
+CREATED:20260513T130702Z
+LAST-MODIFIED:20260723T154801Z
+UID:2529-1778889600-1788652799@pegs.org
+SUMMARY:25 Years of Impact
+DESCRIPTION:On View Now Through September 5Gallery Hours:  Monday – Wednesday 11 – 4 pmThursday – Saturday 11 – 7 pmClosed Sunday & Holidays \n\n\n\n25 Years of Impact traces the evolution of a vision first imagined by Peg Morgan and carried forward by those who believe in the power of giving to change lives. Through stories\, images\, and artifacts from the Foundation’s history\, the exhibit highlights landmark initiatives\, partnerships\, and the people whose work has expanded access to care\, deepened cultural engagement\, and inspired hope. Visitors are invited to reflect on the enduring impact of philanthropy and to imagine what the next 25 years might hold for a community shaped by generosity and purpose.
+URL:https://pegs.org/event/25-years-of-impact/
+LOCATION:Peg’s Gallery | Multi-Purpose Room\, 53 First Street\, Hudson\, Ohio\, 44236
+CATEGORIES:Exhibit
+ATTACH;FMTTYPE=image/jpeg:https://pegs.org/wp-content/uploads/2026/04/ExhibitHero-25Years-3-2.jpeg
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/New_York:20260806T173000
+DTEND;TZID=America/New_York:20260806T190000
+DTSTAMP:20260625T184126Z
+CREATED:20260622T172308Z
+LAST-MODIFIED:20260625T184126Z
+UID:2704-1786037400-1786042800@pegs.org
+SUMMARY:Exploring the Inner Critic with an Art Therapist
+DESCRIPTION:Join licensed psychotherapist and clinical art therapist Summer Myers for an experiential workshop exploring the voice of the inner critic through art-making and reflective discussion. \n\n\n\nThis session offers a grounded\, accessible introduction to how self-criticism operates\, and how we might begin to relate to it with more curiosity and compassion.  \n\n\n\nParticipants will engage in real-time art-making exercises designed to support reflection on self-criticism and self-compassion. No art experience is required\, and there is no emphasis on skill or outcome. This is a process-focused space where participants are invited to engage at their own comfort level. Gentle group discussion will be offered\, with full autonomy over what\, if anything\, is shared.  \n\n\n\nThe workshop also introduces foundational concepts from art therapy and parts work (including Internal Family Systems–informed ideas)\, offering a basic framework for understanding inner dialogue and the “parts” of ourselves that show up in moments of judgment or pressure.  \n\n\n\nWe hope participants leave with a new perspective on the inner critic\, a basic introduction to art therapy and parts work (IFS-informed)\, and an experience of using art-making as reflection rather than outcome. Artwork created in session is optional to keep or leave behind.  \n\n\n\nParticipants are welcome to bring magazines\, photographs\, or other collage elements to incorporate into their work. \n\n\n\n\n\n\n\n\nSummer Myers is a licensed psychotherapist\, clinical art therapist\, and educator whose work centers on perfectionism\, awe\, wonder\, and creativity. She’s never encountered an art medium she doesn’t like or a human she hasn’t learned from. Summer is the founder of Already Good: The Anti-Perfectionism Project\, and she practices therapy across California\, Utah\, and Ohio\, with an office in Hudson. She lives with her family and two chaotic dogs.
+URL:https://pegs.org/event/exploring-the-inner-critic-with-an-art-therapist/
+ATTACH;FMTTYPE=image/png:https://pegs.org/wp-content/uploads/2026/06/Pegs-Gallery-Event-FB-cover-photo-2.png
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/New_York:20260811T190000
+DTEND;TZID=America/New_York:20260811T203000
+DTSTAMP:20260622T194826Z
+CREATED:20260622T194824Z
+LAST-MODIFIED:20260622T194826Z
+UID:2717-1786474800-1786480200@pegs.org
+SUMMARY:NAMI Family Support Group
+DESCRIPTION:On the 2nd Tuesday of each month\, Peg’s Gallery hosts a free NAMI Family Support Group for relatives\, partners\, and friends of individuals living with mental illness. \n\n\n\nThis peer-led group offers understanding\, practical support\, and connection in a confidential\, judgment-free space.No registration required. No pressure to share. \n\n\n\nEnter through the main gallery entrance and meet in the back multi-purpose room.
+URL:https://pegs.org/event/nami-family-support-group-4/
+LOCATION:Peg’s Gallery | Multi-Purpose Room\, 53 First Street\, Hudson\, Ohio\, 44236
+ATTACH;FMTTYPE=image/png:https://pegs.org/wp-content/uploads/2026/05/Untitled-design-7.png
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/New_York:20260814T000000
+DTEND;TZID=America/New_York:20260814T235959
+DTSTAMP:20260804T130331Z
+CREATED:20260804T130329Z
+LAST-MODIFIED:20260804T130331Z
+UID:3109-1786665600-1786751999@pegs.org
+SUMMARY:Campus Closed
+DESCRIPTION:Peg’s campus will be closed on Friday\, August 14\, as our staff celebrates Peg’s 25th anniversary with a special staff outing. We will resume normal operations on Saturday\, August 15.
+URL:https://pegs.org/event/campus-closed-2/
+ATTACH;FMTTYPE=image/png:https://pegs.org/wp-content/uploads/2026/08/Heading.png
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/New_York:20260815T130000
+DTEND;TZID=America/New_York:20260815T143000
+DTSTAMP:20260727T182258Z
+CREATED:20260724T132042Z
+LAST-MODIFIED:20260727T182258Z
+UID:2979-1786798800-1786804200@pegs.org
+SUMMARY:Making Meaning\, Shaping Legacy: The Evolution of a Sculpture
+DESCRIPTION:Join artist Adriana Caso for a gallery conversation and hands-on art-making experience inspired by the evolution of one of her sculptures. \n\n\n\nAs part of the 25 Years of Impact\, Caso will guide participants through the development of the sculpture\, sharing its history\, early ideas\, drawings\, models\, and creative decisions that continue to shape the work. Following the gallery discussion\, participants will be invited to explore their own ideas by creating a drawing or small sculpture\, reflecting on how art evolves and how each person’s creative voice can help carry stories and legacies forward. \n\n\n\nThis event is free and open to the public.  Free parking is available on city streets and lots throughout the walkable downtown neighborhood of Hudson\, Ohio.  \n\n\n\n \n\n\n\n\n\n\n\n \n\n\n\n \n\n\n\n\n\n\n\n\n\n\n\nAdriana Caso earned her BFA in Painting from the Cleveland Institute of Art and completed a dual master’s program in Painting and Sculpture at Rosary College in Florence\, Italy. An experienced public artist\, she is the founder and director of Door 2 Art Studio. \n\n\n\nAdriana creates art rooted in love\, kindness\, and community. She believes beauty can address difficult issues\, awaken joy\, and bring people together. Her work often includes unexpected\, participatory elements that invite curiosity\, spark delight\, and create connection through visual storytelling. \n\n\n\nThrough her studio practice\, public art\, and work at Door 2\, Adriana champions beauty as timeless\, hopeful\, and able to cross barriers of culture\, language\, race\, and generation. Door 2 carries that vision forward by honoring individual creative voices and nurturing a community of artists and makers.
+URL:https://pegs.org/event/making-meaning-shaping-legacy-the-evolution-of-a-sculpture/
+LOCATION:Peg’s Gallery | Multi-Purpose Room\, 53 First Street\, Hudson\, Ohio\, 44236
+ATTACH;FMTTYPE=image/jpeg:https://pegs.org/wp-content/uploads/2026/07/755949438_122275765478156563_5657616854547977380_n.jpg
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/New_York:20260820T173000
+DTEND;TZID=America/New_York:20260820T190000
+DTSTAMP:20260728T203304Z
+CREATED:20260715T133503Z
+LAST-MODIFIED:20260728T203304Z
+UID:2837-1787247000-1787252400@pegs.org
+SUMMARY:Looking Back\, Thinking Forward: Women and Mental Health
+DESCRIPTION:Due to the incredible response and level of interest in this panel\, registration is now required. This will help us ensure we can accommodate everyone and provide the best possible experience for all attendees. Please select an option below: \n\n\n\n\n\n  \n        RSVP for Webinar\n  \n\n\n\n\n\n\n  \n        RSVP for In-Person\n  \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nJoin Peg’s in person or online for a community conversation inspired by art\, history\, and lived experience as we explore how our understanding of mental illness—particularly among women—has evolved over time and what these histories can teach us about mental health today.  \n\n\n\nInspired by Kimberly Chapman’s exhibit\, Eighty-Six Reasons for Asylum Admission: A Domestic Beginning\, this community conversation brings together perspectives from art\, psychiatry\, and historical research to explore how cultural beliefs and institutional practices have shaped mental health care—and how those histories continue to influence us today.  \n\n\n\nAt Peg’s\, we believe art can spark meaningful conversations that deepen understanding\, challenge assumptions\, and strengthen our communities. This exhibit serves as the catalyst for an open dialogue that invites participants to listen\, reflect\, and engage with diverse perspectives on mental health\, history\, and healing.  \n\n\n\nGuests are encouraged to visit the exhibit at the Baldwin Buss Merino House before the program to experience Chapman’s powerful work firsthand. The gallery will offer special hours from 11:00 am to 5:00 pm on the day of the event\, providing an opportunity to reflect on the artwork before joining the conversation.  \n\n\n\nPanelists Kimberly Chapman\, MA\, BFA\, Jennifer Bazar\, Ph.D.\, and Douglas Smith\, M.D.\, DLFAPA will share perspectives that encourage thoughtful dialogue about women’s mental health\, dignity\, recovery\, advocacy\, research\, and community care. The conversation will be moderated by Jonas Thom\, MA\, PCC\, creating space to honor diverse viewpoints and prioritize listening as much as speaking.  \n\n\n\nGrounded in history while connected to today’s mental health challenges\, this event invites attendees to be part of the conversation. Together\, we’ll explore the intersections of mental health\, gender\, storytelling\, and social change\, while considering how listening to one another and learning from the past can inspire greater understanding\, compassion\, and continued dialogue within our community.  \n\n\n\n\n\n\n\n\nFree and open to the public \n\n\n\nAttend in person or online \n\n\n\nLive webinar streaming (Eastern Time) \n\n\n\nExhibit open at the Baldwin Buss Merino House from 11:00 am – 5:00 pm \n\n\n\nFree parking available on city streets and public lots throughout downtown Hudson\, Ohio\n\n\n\n\n\n\n\n\nFeatured Speakers: \n\n\n\n      \n            \n                            \n                          \n                \n              \n            \n            \n                              \n                  Kimberly Chapman\, MA\, BFA\n                \n              \n              \n                          \n          \n                            \n                          \n                \n              \n            \n            \n                              \n                  Jennifer Bazar\, Ph.D.\n                \n              \n              \n                          \n          \n                            \n                          \n                \n              \n            \n            \n                              \n                  Doug Smith\, M.D.\, DLFAPA \n                \n              \n              \n                          \n          \n                            \n                          \n                \n              \n            \n            \n                              \n                  Jonas Thom\, MA\, PCC \n                \n              \n              \n                          \n          \n              \n    \n\n          \n        \n          \n            \n              Close\n              \n  \n\n            \n          \n\n          \n            \n              \n                Print
+URL:https://pegs.org/event/looking-back-thinking-forward-women-and-mental-health/
+LOCATION:Peg’s Gallery | Multi-Purpose Room\, 53 First Street\, Hudson\, Ohio\, 44236
+ATTACH;FMTTYPE=image/png:https://pegs.org/wp-content/uploads/2026/07/Aug-20-Panel_Pegs_FB-Event_V1.png
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/New_York:20260908T190000
+DTEND;TZID=America/New_York:20260908T203000
+DTSTAMP:20260727T144401Z
+CREATED:20260727T144358Z
+LAST-MODIFIED:20260727T144401Z
+UID:3012-1788894000-1788899400@pegs.org
+SUMMARY:NAMI Family Support Group
+DESCRIPTION:On the 2nd Tuesday of each month\, Peg’s Gallery hosts a free NAMI Family Support Group for relatives\, partners\, and friends of individuals living with mental illness. \n\n\n\nThis peer-led group offers understanding\, practical support\, and connection in a confidential\, judgment-free space.No registration required. No pressure to share. \n\n\n\nEnter through the main gallery entrance and meet in the back multi-purpose room.
+URL:https://pegs.org/event/nami-family-support-group-5/
+ATTACH;FMTTYPE=image/png:https://pegs.org/wp-content/uploads/2026/05/Untitled-design-7.png
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/New_York:20261013T190000
+DTEND;TZID=America/New_York:20261013T203000
+DTSTAMP:20260728T174846Z
+CREATED:20260728T174843Z
+LAST-MODIFIED:20260728T174846Z
+UID:3055-1791918000-1791923400@pegs.org
+SUMMARY:NAMI Family Support Group
+DESCRIPTION:On the 2nd Tuesday of each month\, Peg’s Gallery hosts a free NAMI Family Support Group for relatives\, partners\, and friends of individuals living with mental illness. \n\n\n\nThis peer-led group offers understanding\, practical support\, and connection in a confidential\, judgment-free space.No registration required. No pressure to share. \n\n\n\nEnter through the main gallery entrance and meet in the back multi-purpose room.
+URL:https://pegs.org/event/nami-family-support-group-6/
+ATTACH;FMTTYPE=image/png:https://pegs.org/wp-content/uploads/2026/05/Untitled-design-7.png
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/New_York:20261105T173000
+DTEND;TZID=America/New_York:20261105T190000
+DTSTAMP:20260804T161356Z
+CREATED:20260728T174644Z
+LAST-MODIFIED:20260804T161356Z
+UID:3021-1793899800-1793905200@pegs.org
+SUMMARY:Whitney Stained Glass Studio | Presentation of Color and Skill
+DESCRIPTION:Discover the history\, artistry\, and craftsmanship behind one of stained glass’s most celebrated traditions. \n\n\n\nJoin us for a special presentation exploring the restoration of the Tiffany Transfiguration Window and the remarkable legacy of American stained glass. Led by the General Operations Director of Whitney Stained Glass Studio\, this program will take guests behind the scenes of the restoration process while exploring the history of stained glass in our region\, the influence of Tiffany and LaFarge\, and the artistry of Tiffany Studios designer Frederick Wilson.  \n\n\n\nThrough an engaging visual presentation featuring photographs from the restoration process\, guests will gain insight into the craftsmanship\, techniques\, and dedication required to preserve these extraordinary works of art. With more than four decades of experience preserving and creating stained\, leaded\, and art glass\, Whitney Stained Glass Studio brings a unique perspective on the historical significance and artistry behind this timeless medium.  \n\n\n\nGuests will leave with a deeper understanding of the restoration process and the craftsmanship\, history\, and artistic vision that make stained glass such an enduring art form.  \n\n\n\nThis event is free and open to the public.  Free parking is available on city streets and lots throughout the walkable downtown neighborhood of Hudson\, Ohio.
+URL:https://pegs.org/event/whitney-stained-glass-studio-presentation-of-color-and-skill/
+ATTACH;FMTTYPE=image/png:https://pegs.org/wp-content/uploads/2026/07/Pegs-Gallery-Event-FB-cover-photo-Whitney-Stained-Glass-Studeio.png
+END:VEVENT
+END:VCALENDAR

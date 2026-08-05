@@ -781,10 +781,25 @@ export function normaliseIcsEvent(ev, config = {}) {
 const DEFAULT_USER_AGENT = 'Mozilla/5.0 (compatible; AkronPulse-bot/1.0; +https://akronpulse.com)'
 
 /**
+ * True when a response body looks like a bot-challenge / access-denied / WAF
+ * interstitial rather than real (or benignly empty) content. Used so an
+ * `allowEmpty` fetch doesn't silently swallow a genuine block as "no events".
+ */
+export function isBotChallenge(body) {
+  return /just a moment|checking your browser|captcha|access denied|attention required|cf-error|enable javascript and cookies|cloudflare|forbidden|error 40[0-9]/i
+    .test(String(body || ''))
+}
+
+/**
  * Fetch an ICS feed URL. Throws on HTTP error or obviously wrong content.
+ *
+ * `allowEmpty`: some calendars (e.g. WordPress Tribe) serve an HTML "no upcoming
+ * events" page instead of an empty .ics when the calendar has no events. When a
+ * caller opts in AND the body is not a bot-challenge/error page, return '' so
+ * downstream treats it as an empty feed (0 VEVENTs) rather than a hard failure.
  */
 export async function fetchIcsFeed(url, opts = {}) {
-  const { userAgent = DEFAULT_USER_AGENT, timeoutMs = 20_000 } = opts
+  const { userAgent = DEFAULT_USER_AGENT, timeoutMs = 20_000, allowEmpty = false } = opts
 
   const controller = new AbortController()
   const tid = setTimeout(() => controller.abort(), timeoutMs)
@@ -801,6 +816,7 @@ export async function fetchIcsFeed(url, opts = {}) {
 
     const body = await res.text()
     if (!body.includes('BEGIN:VCALENDAR')) {
+      if (allowEmpty && !isBotChallenge(body)) return '' // benign empty calendar → 0 VEVENTs
       throw new Error(
         `Feed at ${url} did not return iCalendar content (no BEGIN:VCALENDAR marker). ` +
         `The URL may serve HTML instead of .ics — verify in a browser and update the scraper config.`
@@ -955,7 +971,7 @@ export async function runIcsScraper(config) {
 
       // Fetch + parse
       console.log(`\n🔍  Fetching ICS feed: ${feedUrl}`)
-      icsText = await fetchIcsFeed(feedUrl)
+      icsText = await fetchIcsFeed(feedUrl, { allowEmpty: config.allowEmptyFeed })
     }
     const rawEvents = parseIcs(icsText)
     console.log(`  Parsed ${rawEvents.length} VEVENT blocks`)
