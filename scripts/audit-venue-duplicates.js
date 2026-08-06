@@ -16,6 +16,16 @@
  * emitted SQL for the "clear" merges, and surfaces the "ambiguous" groups for
  * review. Run standalone:  cat venues.json | node scripts/audit-venue-duplicates.js
  *
+ * RUNNER CONTRACT (both requirements are load-bearing):
+ *   • Each input venue row MUST include `is_alias` (true when the venue already
+ *     has a venue_aliases row pointing away from it) — e.g. select an EXISTS
+ *     against venue_aliases when pulling rows. Omitting it silently disables the
+ *     never-crown-an-aliased-row rule in pickCanonical.
+ *   • Apply each merge group's emitted SQL in ONE transaction. Statement order
+ *     within a group is deliberate (inbound alias re-point BEFORE alias inserts,
+ *     per the 050 chain-guard trigger); a mid-group failure without a
+ *     transaction would leave event links re-pointed but the merge unrecorded.
+ *
  * Classification:
  *   • clear     — every other row in the group is the SAME venue as the canonical
  *                 (name equal, one name contains the other, one is a bare
@@ -23,12 +33,15 @@
  *   • ambiguous — same address but a genuinely different venue name (two
  *                 businesses sharing a building). Flagged, never auto-merged.
  *
- * Canonical pick: most upcoming events, then most total events, then has-coords.
- * The canonical keeps its id; dupes' event links are re-pointed to it and the
- * dupe rows deleted; missing coords / neighborhood_slug are copied from a dupe.
+ * Canonical pick: most upcoming events, then most total events, then has-coords
+ * (rows that are already venue_aliases entries are never crowned canonical).
+ * The canonical keeps its id; dupes' event links are re-pointed to it, each dupe
+ * is recorded in venue_aliases (so ensureVenue resolves the old row to the
+ * canonical forever) and UNLISTED — never deleted, so nothing dangling breaks;
+ * missing coords / neighborhood_slug are copied from a dupe.
  */
 
-import { normalizeStreetAddress, looksLikeStreetAddress, decodeEntities } from './lib/normalize.js'
+import { normalizeStreetAddress, looksLikeStreetAddress, decodeEntities, easternTodayIso } from './lib/normalize.js'
 
 /**
  * CONSERVATIVE "same place" test for the AUTO-merge bucket. Only fires on cases
@@ -59,12 +72,17 @@ const events   = (v) => Number(v.events || 0)
 const hasCoords = (v) => v.lat != null && v.lng != null
 
 /**
- * Choose the canonical venue. A bare address-as-name row (junk) is never
+ * Choose the canonical venue. A venue that is already a venue_aliases row
+ * (v.is_alias, piped in with the venue rows by the runner) is never crowned
+ * canonical — the DB chain-guard trigger (migration 050) would reject any
+ * alias pointing at it. Next, a bare address-as-name row (junk) is never
  * preferred over a real name; then most upcoming, most events, has coords.
  */
 export function pickCanonical(group) {
+  const aliasPenalty = (v) => (v.is_alias ? 1 : 0)
   const addrPenalty = (v) => (looksLikeStreetAddress(v.name) ? 1 : 0)
   return [...group].sort((a, b) =>
+    (aliasPenalty(a) - aliasPenalty(b)) ||
     (addrPenalty(a) - addrPenalty(b)) ||
     (upcoming(b) - upcoming(a)) ||
     (events(b) - events(a)) ||
@@ -74,7 +92,21 @@ export function pickCanonical(group) {
 
 const SLUG_RE = /^[a-z0-9-]+$/
 
-/** Build the deterministic merge SQL for one clear group (ids are uuids/safe). */
+/** Escape a text value for a single-quoted SQL literal (names carry apostrophes). */
+const sqlText = (s) => String(s ?? '').replace(/'/g, "''")
+
+/**
+ * Build the deterministic merge SQL for one clear group (ids are uuids/safe).
+ * Alias-and-unlist, never delete: each dupe becomes a venue_aliases row
+ * pointing at the canonical and is set listed = false, so re-scrapes resolve
+ * onto the canonical (ensureVenue's alias hop) and nothing dangles.
+ *
+ * Statement order is load-bearing against the venue_aliases chain-guard
+ * trigger (migration 050): inbound aliases whose canonical is a dupe are
+ * re-pointed to the new canonical BEFORE the dupes themselves are inserted as
+ * aliases — otherwise the insert would alias away a venue that is still
+ * canonical for existing aliases and the trigger raises.
+ */
 function buildMergeSql(canonical, dupes, copyFields) {
   const ids = dupes.map((d) => `'${d.id}'`).join(', ')
   const stmts = []
@@ -87,7 +119,23 @@ function buildMergeSql(canonical, dupes, copyFields) {
   // Re-point dupe event links to the canonical, dropping links that would collide.
   stmts.push(`delete from event_venues e1 where e1.venue_id in (${ids}) and exists (select 1 from event_venues e2 where e2.event_id = e1.event_id and e2.venue_id = '${canonical.id}');`)
   stmts.push(`update event_venues set venue_id = '${canonical.id}' where venue_id in (${ids});`)
-  stmts.push(`delete from venues where id in (${ids});`)
+  // (1) Re-point inbound aliases FIRST (see trigger-order note above).
+  stmts.push(`update venue_aliases set canonical_venue_id = '${canonical.id}' where canonical_venue_id in (${ids});`)
+  // (2) Record each dupe as an alias of the canonical. The coalesce
+  // self-resolves through venue_aliases in case the canonical is itself an
+  // alias row (pickCanonical avoids that, but the SQL must never create a
+  // chain — the trigger would reject it).
+  const reason = `audit-venue-duplicates:${easternTodayIso()}`
+  for (const d of dupes) {
+    stmts.push(
+      `insert into venue_aliases (alias_venue_id, canonical_venue_id, alias_name, reason) ` +
+      `values ('${d.id}', coalesce((select canonical_venue_id from venue_aliases where alias_venue_id = '${canonical.id}'), '${canonical.id}'), '${sqlText(d.name)}', '${reason}') ` +
+      `on conflict (alias_venue_id) do update set canonical_venue_id = excluded.canonical_venue_id;`,
+    )
+  }
+  // (3) Unlist the dupes instead of deleting them — alias rows stay resolvable
+  // (and navigable from any straggler links) but leave the public venues index.
+  stmts.push(`update venues set listed = false where id in (${ids});`)
   return stmts.join('\n')
 }
 
@@ -108,7 +156,8 @@ function copyFieldsFor(canonical, dupes) {
 /**
  * Build the audit plan from venue rows. Returns { groupsFound, clear, ambiguous }.
  * Venue row shape: { id, name, address, city, neighborhood_slug, lat, lng,
- *                    events, upcoming }.
+ *                    events, upcoming, is_alias? } — is_alias marks rows that
+ *                    already exist in venue_aliases (never crowned canonical).
  */
 export function planVenueAudit(venues) {
   const byAddr = new Map()

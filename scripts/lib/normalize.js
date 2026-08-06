@@ -954,6 +954,89 @@ export function _resetVenueAddressIndex() {
   _venueAddressIndex = null
 }
 
+// venueNameKey(name) → venueId, built once per process from the venues table.
+let _venueNameIndex = null
+
+/**
+ * Build (once) and return a Map of every venue's normalized name key → id.
+ * Mirrors _getVenueAddressIndex: loaded lazily on first use so env-less test
+ * imports never touch the DB, and on a lookup error the index stays empty and
+ * cached so the name-key fallback fails safe (returns nothing → caller falls
+ * through, never dupes).
+ */
+async function _getVenueNameIndex() {
+  if (_venueNameIndex) return _venueNameIndex
+  _venueNameIndex = new Map()
+  // try/catch on top of the error-object check: this load runs on EVERY
+  // exact-name miss (unlike the address index, which only loads for
+  // address-shaped strings), so an unexpected client shape must degrade to an
+  // empty index, never throw out of ensureVenue.
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('venues')
+      .select('id, name')
+    if (error) {
+      console.warn(`  ⚠ Could not load venue name index: ${error.message}`)
+      return _venueNameIndex
+    }
+    for (const v of data ?? []) {
+      const key = venueNameKey(v.name)
+      // First writer wins — same posture as the address index: a name-key
+      // collision across two venues is a data-quality issue this index must
+      // not adjudicate.
+      if (key && !_venueNameIndex.has(key)) _venueNameIndex.set(key, v.id)
+    }
+  } catch (err) {
+    console.warn(`  ⚠ Could not load venue name index: ${err?.message ?? err}`)
+  }
+  return _venueNameIndex
+}
+
+/** Test-only: reset the cached name index between cases. */
+export function _resetVenueNameIndex() {
+  _venueNameIndex = null
+}
+
+/**
+ * Resolve a venue id through venue_aliases: if the id is an alias row, return
+ * its canonical venue id instead. Modeled on _resolveAliasCanonical for
+ * events: fail-open to the matched id on any error, verify the canonical
+ * still exists (a dead canonical means the alias is stale — keep the matched
+ * id), and follow at most 3 hops with a visited set so a bad chain can never
+ * loop. The DB-side chain-guard trigger (migration 050) makes chains
+ * impossible going forward; the hop limit is defense-in-depth.
+ */
+async function _resolveVenueAliasCanonical(venueId) {
+  if (!venueId) return venueId
+  try {
+    let current = venueId
+    const visited = new Set([current])
+    for (let hop = 0; hop < 3; hop++) {
+      const { data: alias } = await supabaseAdmin
+        .from('venue_aliases')
+        .select('canonical_venue_id')
+        .eq('alias_venue_id', current)
+        .maybeSingle()
+      if (!alias?.canonical_venue_id) return current
+      const next = alias.canonical_venue_id
+      if (visited.has(next)) return current
+      // The canonical must still be a live venue — otherwise keep the row we
+      // actually matched (fail-open, self-healing once the alias is cleaned).
+      const { data: canonical } = await supabaseAdmin
+        .from('venues')
+        .select('id')
+        .eq('id', next)
+        .maybeSingle()
+      if (!canonical?.id) return current
+      visited.add(next)
+      current = next
+    }
+    return current
+  } catch {
+    return venueId
+  }
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // SHARED VENUE LOOKUP / CREATION
 // ════════════════════════════════════════════════════════════════════════════
@@ -1084,6 +1167,30 @@ export function canonicalVenueName(name) {
   return VENUE_NAME_ALIASES.get(key) ?? name
 }
 
+/**
+ * Normalized lookup key for a venue name. Folds only the variations we have
+ * seen split one real venue across two rows (People's Park arrived with a
+ * curly apostrophe from Eventbrite while the DB row used a straight one, and
+ * ensureVenue's one-sided normalization meant the exact-name lookup missed):
+ *   • stripHtml first (tags, entities, smart quotes → ASCII, whitespace)
+ *   • ʼ (U+02BC modifier letter apostrophe) → straight apostrophe
+ *   • lowercase
+ *   • a single trailing period/comma stripped
+ *   • whitespace collapsed + trimmed
+ * Deliberately NOTHING more — no punctuation stripping, no "The" folding, no
+ * &-vs-and folding — so genuinely distinct punctuated names never collide
+ * (see orgNameKey's "Art's Core" vs "Arts Core" rationale). Pure + exported
+ * for tests.
+ */
+export function venueNameKey(name) {
+  return stripHtml(String(name ?? ''))
+    .replace(/ʼ/g, "'")
+    .toLowerCase()
+    .replace(/[.,]$/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export async function ensureVenue(name, details = {}, opts = {}) {
   if (!name) return null
   // Universal safeguard: a venue NAME must never contain HTML. Some feeds
@@ -1094,6 +1201,20 @@ export async function ensureVenue(name, details = {}, opts = {}) {
   // but it guarantees no `<p>…</p>` ever reaches the venues table.
   let trimmed = stripHtml(String(name))
   if (!trimmed) return null
+
+  // Comma-joined "Venue Name, 123 Street St, City[, …]" location strings (Tribe
+  // ICS, Eventbrite full-location, prose "Location:" lines) carry the address
+  // INSIDE the name. Split them so the lookup runs on the bare venue name and
+  // the address/city feed the guards and fallbacks below — the scraper's own
+  // details win when present, the split only fills gaps.
+  const split = splitCommaLocation(trimmed)
+  if (split) {
+    trimmed = split.name
+    details = { ...details }
+    if (!details.address && split.address) details.address = split.address
+    if (!details.city && split.city) details.city = split.city
+  }
+
   // Fold known name variants onto the canonical venue before any lookup, so a
   // second row is never minted for a place we already have (see VENUE_NAME_ALIASES).
   trimmed = canonicalVenueName(trimmed)
@@ -1104,7 +1225,10 @@ export async function ensureVenue(name, details = {}, opts = {}) {
     details = { ...details, website: sanitizeWebsite(details.website) }
   }
 
-  if (_venueNameCache.has(trimmed)) return _venueNameCache.get(trimmed)
+  // Cache keys on the normalized name key so curly-vs-straight-apostrophe
+  // spellings of one venue share a single cache entry (and a single row).
+  const cacheKey = venueNameKey(trimmed)
+  if (_venueNameCache.has(cacheKey)) return _venueNameCache.get(cacheKey)
 
   // Guard: never mint a venue whose NAME is a bare street address. These come
   // from feeds that expose location as free text (e.g. Better Kenmore's "943
@@ -1117,8 +1241,9 @@ export async function ensureVenue(name, details = {}, opts = {}) {
   if (looksLikeStreetAddress(trimmed)) {
     const byAddress = await resolveVenueByAddress(trimmed)
     if (byAddress) {
-      _venueNameCache.set(trimmed, byAddress)
-      return byAddress
+      const resolved = await _resolveVenueAliasCanonical(byAddress)
+      _venueNameCache.set(cacheKey, resolved)
+      return resolved
     }
     // opts.allowAddressName lets a caller mint a venue from a bare street
     // address when there's genuinely no formal venue name (e.g. a race start
@@ -1131,7 +1256,7 @@ export async function ensureVenue(name, details = {}, opts = {}) {
         `  ⚠ Refusing to create address-named venue "${trimmed}" — no existing venue has this address. ` +
         `Event left venue-less; add a named venue with this address to capture it.`,
       )
-      _venueNameCache.set(trimmed, null)
+      _venueNameCache.set(cacheKey, null)
       return null
     }
   }
@@ -1160,7 +1285,7 @@ export async function ensureVenue(name, details = {}, opts = {}) {
 
   if (lookupError) {
     console.warn(`  ⚠ Venue lookup failed for "${trimmed}":`, lookupError.message)
-    _venueNameCache.set(trimmed, null)
+    _venueNameCache.set(cacheKey, null)
     return null
   }
   const existing = existingRows?.[0] ?? null
@@ -1199,8 +1324,25 @@ export async function ensureVenue(name, details = {}, opts = {}) {
     if (Object.keys(updates).length) {
       await supabaseAdmin.from('venues').update(updates).eq('id', existing.id)
     }
-    _venueNameCache.set(trimmed, existing.id)
-    return existing.id
+    // Resolve through venue_aliases before caching/returning: if the matched
+    // row was merged away, hand back its canonical so events never re-attach
+    // to an unlisted alias row.
+    const resolved = await _resolveVenueAliasCanonical(existing.id)
+    _venueNameCache.set(cacheKey, resolved)
+    return resolved
+  }
+
+  // Exact-name miss: try the normalized name-key index. This catches spelling
+  // variants the exact .eq('name') lookup can't — most concretely the
+  // curly-vs-straight-apostrophe split ("People's Park" from Eventbrite vs the
+  // DB's "People's Park") where one-sided normalization used to mint a
+  // duplicate row on every scrape. Fail-safe: the index loads empty on error.
+  const nameIndex = await _getVenueNameIndex()
+  const byNameKey = nameIndex.get(cacheKey)
+  if (byNameKey) {
+    const resolved = await _resolveVenueAliasCanonical(byNameKey)
+    _venueNameCache.set(cacheKey, resolved)
+    return resolved
   }
 
   // Before minting a new venue, check whether one already exists at this street
@@ -1213,8 +1355,9 @@ export async function ensureVenue(name, details = {}, opts = {}) {
   if (details.address) {
     const byAddress = await resolveVenueByAddress(details.address)
     if (byAddress) {
-      _venueNameCache.set(trimmed, byAddress)
-      return byAddress
+      const resolved = await _resolveVenueAliasCanonical(byAddress)
+      _venueNameCache.set(cacheKey, resolved)
+      return resolved
     }
   }
 
@@ -1229,7 +1372,7 @@ export async function ensureVenue(name, details = {}, opts = {}) {
       `  ⚠ Refusing to create junk-named venue "${trimmed}" — bare state / virtual marker / street fragment. ` +
       `Event left venue-less; pass opts.allowGenericName to override.`,
     )
-    _venueNameCache.set(trimmed, null)
+    _venueNameCache.set(cacheKey, null)
     return null
   }
 
@@ -1268,17 +1411,22 @@ export async function ensureVenue(name, details = {}, opts = {}) {
 
   if (error) {
     console.warn(`  ⚠ Could not create venue "${trimmed}":`, error.message)
-    _venueNameCache.set(trimmed, null)
+    _venueNameCache.set(cacheKey, null)
     return null
   }
 
   console.log(`  ✚ Created venue: ${trimmed}`)
-  _venueNameCache.set(trimmed, data.id)
+  _venueNameCache.set(cacheKey, data.id)
   // Keep the address index fresh within a run so a later program at the same
   // address dedupes onto this brand-new venue instead of minting another.
   if (row.address && _venueAddressIndex) {
     const key = normalizeStreetAddress(row.address)
     if (key && !_venueAddressIndex.has(key)) _venueAddressIndex.set(key, data.id)
+  }
+  // Same freshness rule for the name index: a later spelling variant of this
+  // brand-new venue must resolve to it, not mint another row.
+  if (_venueNameIndex && cacheKey && !_venueNameIndex.has(cacheKey)) {
+    _venueNameIndex.set(cacheKey, data.id)
   }
   return data.id
 }

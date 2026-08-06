@@ -31,12 +31,15 @@ const {
   parseTagsFromTribe,
   parseEventbritePrice,
   canonicalVenueName,
+  venueNameKey,
   isJunkVenueName,
   looksLikeStreetAddress,
   ensureVenue,
   orgNameKey,
   titleCaseIfShouting,
   absoluteUrl,
+  _resetVenueAddressIndex,
+  _resetVenueNameIndex,
 } = await import('../lib/normalize.js')
 
 describe('orgNameKey', () => {
@@ -135,6 +138,55 @@ describe('splitCommaLocation', () => {
 
   it('returns null when the first segment is itself an address', () => {
     assert.equal(splitCommaLocation('1000 Kenmore Blvd, 1000 Kenmore Blvd, Akron'), null)
+  })
+
+  it('splits the full Eventbrite location string (the People\'s Park incident)', () => {
+    const r = splitCommaLocation("People's Park, 760 Elma St, Akron, OH, 44310, United States")
+    assert.equal(r.name, "People's Park")
+    assert.equal(r.address, '760 Elma St')
+    assert.equal(r.city, 'Akron')
+  })
+
+  it('never splits digit-led legit names (conservative: falls back to no-split)', () => {
+    assert.equal(splitCommaLocation('7 17 Credit Union Park, 300 S Main St, Akron'), null)
+  })
+})
+
+describe('venueNameKey', () => {
+  it('folds curly and straight apostrophes to one key (People’s Park ≡ People\'s Park)', () => {
+    assert.equal(venueNameKey('People’s Park'), venueNameKey("People's Park"))
+    assert.equal(venueNameKey("People's Park"), "people's park")
+  })
+
+  it('folds U+02BC modifier letter apostrophe too', () => {
+    assert.equal(venueNameKey('Peopleʼs Park'), venueNameKey("People's Park"))
+  })
+
+  it('folds case, whitespace, and a single trailing period/comma', () => {
+    assert.equal(venueNameKey('  PEOPLE’S   PARK  '), "people's park")
+    assert.equal(venueNameKey('Weathervane Playhouse.'), venueNameKey('Weathervane Playhouse'))
+    assert.equal(venueNameKey('Weathervane Playhouse,'), venueNameKey('Weathervane Playhouse'))
+  })
+
+  it('strips HTML like ensureVenue does', () => {
+    assert.equal(venueNameKey('<p>People&#8217;s Park</p>'), "people's park")
+  })
+
+  it('keeps genuinely distinct punctuated names apart (no punctuation stripping)', () => {
+    assert.notEqual(venueNameKey("Art's Core"), venueNameKey('Arts Core'))
+    assert.notEqual(venueNameKey('First & Main Green'), venueNameKey('First and Main Green'))
+    assert.notEqual(venueNameKey('The Nightlight'), venueNameKey('Nightlight'))
+  })
+
+  it('interior periods survive — only ONE trailing period is stripped', () => {
+    assert.equal(venueNameKey('E.J. Thomas Hall'), 'e.j. thomas hall')
+    assert.equal(venueNameKey('Bounce & Co..'), 'bounce & co.')
+  })
+
+  it('empty / nullish input → empty string', () => {
+    assert.equal(venueNameKey(''), '')
+    assert.equal(venueNameKey(null), '')
+    assert.equal(venueNameKey(undefined), '')
   })
 })
 
@@ -1160,21 +1212,55 @@ describe('isJunkVenueName', () => {
   })
 })
 
-// Minimal venues-table mock for ensureVenue: name lookup resolves via
-// .limit(1) (thenable), insert via .insert().select('id').single().
-function makeVenuesMock({ existingRows = [], insertedId = 'v-new' } = {}) {
-  const calls = { insert: 0, insertRow: null }
-  function builder() {
+// Venues mock for ensureVenue: name lookup resolves via .limit(1), insert via
+// .insert().select('id').single(). Extended (venue-alias-hop work) to serve:
+//   • allVenues  — [{ id, name, address?, neighborhood_slug? }] backing the
+//                  exact-name lookup (filtered on .eq('name', …)), the
+//                  name-index load (select 'id, name' awaited as a thenable),
+//                  the address-index load, and the alias-canonical existence
+//                  check (select 'id' + maybeSingle).
+//   • aliases    — { alias_venue_id: canonical_venue_id } backing the
+//                  venue_aliases hop lookups.
+// When allVenues is omitted, `existingRows` backs the name lookup and the
+// thenable loads resolve empty — exactly the old mock's behavior.
+function makeVenuesMock({ existingRows = [], insertedId = 'v-new', allVenues = null, aliases = {} } = {}) {
+  const calls = { insert: 0, insertRow: null, aliasLookups: 0 }
+  function builder(table) {
+    const st = { table, cols: null, op: null, filters: {} }
     const chain = {
-      select() { return chain },
-      eq()     { return chain },
+      select(cols) { st.cols = cols; return chain },
+      eq(col, val) { st.filters[col] = val; return chain },
       not()    { return chain },
       order()  { return chain },
-      update() { return chain },
-      limit()  { return Promise.resolve({ data: existingRows, error: null }) },
+      update() { st.op = 'update'; return chain },
+      limit()  {
+        const rows = allVenues
+          ? allVenues
+              .filter((v) => v.name === st.filters.name)
+              .map((v) => ({ id: v.id, neighborhood_slug: v.neighborhood_slug ?? null }))
+          : existingRows
+        return Promise.resolve({ data: rows, error: null })
+      },
       insert(row) { calls.insert++; calls.insertRow = row; return chain },
       single() { return Promise.resolve({ data: { id: insertedId }, error: null }) },
-      then(onF, onR) { return Promise.resolve({ data: [], error: null }).then(onF, onR) },
+      maybeSingle() {
+        if (st.table === 'venue_aliases') {
+          calls.aliasLookups++
+          const canonical = aliases[st.filters.alias_venue_id]
+          return Promise.resolve({ data: canonical ? { canonical_venue_id: canonical } : null, error: null })
+        }
+        if (st.table === 'venues' && st.cols === 'id') {
+          const alive = (allVenues ?? []).some((v) => v.id === st.filters.id)
+          return Promise.resolve({ data: alive ? { id: st.filters.id } : null, error: null })
+        }
+        return Promise.resolve({ data: null, error: null })
+      },
+      // Awaiting the chain directly serves the index loads (venues id,name /
+      // id,address) and the fire-and-forget detail updates.
+      then(onF, onR) {
+        const data = st.table === 'venues' && st.op !== 'update' ? (allVenues ?? []) : []
+        return Promise.resolve({ data, error: null }).then(onF, onR)
+      },
     }
     return chain
   }
@@ -1222,6 +1308,155 @@ describe('ensureVenue — junk-name mint gate', () => {
       assert.equal(id, 'v-ohio')
       assert.equal(calls.insert, 1)
       assert.equal(calls.insertRow.name, 'Ohio')
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// ensureVenue — comma-split, name-key fallback, venue_aliases hop
+// (People's Park incident: Eventbrite's full location string + a
+// curly-vs-straight apostrophe mismatch minted a duplicate venue per scrape.)
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('ensureVenue — split + name-key + alias-hop resolution', () => {
+  // The per-process name cache has no reset hook, so every test uses venue
+  // names whose venueNameKey is unique across this file. The lazily cached
+  // name/address indexes DO have reset hooks — reset both per test.
+  function fresh(config) {
+    _resetVenueNameIndex()
+    _resetVenueAddressIndex()
+    const { client, calls } = makeVenuesMock(config)
+    __setClientForTests(client)
+    return calls
+  }
+
+  it('(1) full Eventbrite location string resolves to the existing canonical venue, no insert', async () => {
+    const calls = fresh({
+      allVenues: [{ id: 'v-pp', name: "People's Park", address: '760 Elma St' }],
+    })
+    try {
+      const id = await ensureVenue("People's Park, 760 Elma St, Akron, OH, 44310, United States")
+      assert.equal(id, 'v-pp')
+      assert.equal(calls.insert, 0)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('(2) curly-apostrophe input resolves onto the straight-apostrophe DB row', async () => {
+    const calls = fresh({
+      allVenues: [{ id: 'v-bb', name: "Byron's Bistro" }],
+    })
+    try {
+      const id = await ensureVenue('Byron’s Bistro')
+      assert.equal(id, 'v-bb')
+      assert.equal(calls.insert, 0)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('(3) REGRESSION: DB row curly, input straight — name-key index catches what exact-match cannot', async () => {
+    // One-sided normalization: stripHtml folds the INPUT's curly quote but the
+    // DB row still carries one, so the exact .eq('name') lookup misses forever
+    // and used to mint a duplicate on every scrape.
+    const calls = fresh({
+      allVenues: [{ id: 'v-on', name: 'O’Neil’s House' }],
+    })
+    try {
+      const id = await ensureVenue("O'Neil's House")
+      assert.equal(id, 'v-on')
+      assert.equal(calls.insert, 0)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('(4a) resolved venue that is an alias returns its canonical instead', async () => {
+    const calls = fresh({
+      allVenues: [
+        { id: 'v-old-hall', name: 'Old Hall' },
+        { id: 'v-new-hall', name: 'New Hall' },
+      ],
+      aliases: { 'v-old-hall': 'v-new-hall' },
+    })
+    try {
+      const id = await ensureVenue('Old Hall')
+      assert.equal(id, 'v-new-hall')
+      assert.ok(calls.aliasLookups >= 1)
+      assert.equal(calls.insert, 0)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('(4b) alias whose canonical was deleted fails open to the matched id', async () => {
+    const calls = fresh({
+      allVenues: [{ id: 'v-ghost', name: 'Ghost Hall' }],
+      aliases: { 'v-ghost': 'v-vanished' }, // canonical not in venues
+    })
+    try {
+      const id = await ensureVenue('Ghost Hall')
+      assert.equal(id, 'v-ghost')
+      assert.equal(calls.insert, 0)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('(5a) bare address name + opts.allowAddressName mints an unlisted venue', async () => {
+    const calls = fresh({ allVenues: [], insertedId: 'v-race-start' })
+    try {
+      const id = await ensureVenue('901 Rando Ave', {}, { allowAddressName: true, listed: false })
+      assert.equal(id, 'v-race-start')
+      assert.equal(calls.insert, 1)
+      assert.equal(calls.insertRow.name, '901 Rando Ave')
+      assert.equal(calls.insertRow.listed, false)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('(5b) bare address name WITHOUT the flag still refuses to mint', async () => {
+    const calls = fresh({ allVenues: [] })
+    try {
+      const id = await ensureVenue('902 Rando Ave')
+      assert.equal(id, null)
+      assert.equal(calls.insert, 0)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('(6) digit-led legit names like "Lock 3" resolve exactly, never split or address-routed', async () => {
+    const calls = fresh({
+      allVenues: [{ id: 'v-lock3', name: 'Lock 3' }],
+    })
+    try {
+      const id = await ensureVenue('Lock 3')
+      assert.equal(id, 'v-lock3')
+      assert.equal(calls.insert, 0)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('(7) alias hop applies to address-fallback resolutions too', async () => {
+    const calls = fresh({
+      allVenues: [
+        { id: 'v-addr-alias', name: 'Elma Street Pavilion', address: '760 Elma St' },
+        { id: 'v-addr-canon', name: 'Elma Street Park' },
+      ],
+      aliases: { 'v-addr-alias': 'v-addr-canon' },
+    })
+    try {
+      // Name unknown to the DB; the scraper-supplied address matches the
+      // aliased row — the returned id must be its canonical.
+      const id = await ensureVenue('Neighbors of Elma Green', { address: '760 Elma St' })
+      assert.equal(id, 'v-addr-canon')
+      assert.equal(calls.insert, 0)
     } finally {
       __setClientForTests(null)
     }

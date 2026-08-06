@@ -41,6 +41,14 @@ describe('audit: pickCanonical', () => {
     ])
     assert.equal(chosen.id, 'real')
   })
+
+  it('never crowns a row that is already a venue_aliases entry (is_alias), whatever its stats', () => {
+    const chosen = pickCanonical([
+      { id: 'aliased', name: 'Big Hall', upcoming: 50, events: 60, lat: 1, lng: 1, is_alias: true },
+      { id: 'fresh', name: 'Big Hall Annex', upcoming: 0, events: 0, lat: null, lng: null },
+    ])
+    assert.equal(chosen.id, 'fresh')
+  })
 })
 
 describe('audit: planVenueAudit', () => {
@@ -72,7 +80,40 @@ describe('audit: planVenueAudit', () => {
     assert.equal(kb.copyFields.lat, 41.10783)
     assert.match(kb.sql, /update venues set lat = 41\.10783, lng = -81\.51039 where id = 'k1' and lat is null;/)
     assert.match(kb.sql, /update event_venues set venue_id = 'k1' where venue_id in \('k2'\);/)
-    assert.match(kb.sql, /delete from venues where id in \('k2'\);/)
+  })
+
+  it('KillBox merge SQL aliases-and-unlists: no venue delete, ever', () => {
+    const kb = plan.clear.find((c) => c.canonical.id === 'k1')
+    // The dupe row survives as an unlisted alias — deleting it would cascade
+    // venue_aliases away and let the next scrape resurrect the duplicate.
+    assert.doesNotMatch(kb.sql, /delete from venues/)
+    assert.match(kb.sql, /update venues set listed = false where id in \('k2'\);/)
+  })
+
+  it('KillBox alias insert self-resolves the canonical via coalesce and upserts on alias_venue_id', () => {
+    const kb = plan.clear.find((c) => c.canonical.id === 'k1')
+    assert.match(kb.sql, /insert into venue_aliases \(alias_venue_id, canonical_venue_id, alias_name, reason\)/)
+    assert.match(kb.sql, /values \('k2', coalesce\(\(select canonical_venue_id from venue_aliases where alias_venue_id = 'k1'\), 'k1'\), 'The KillBox', 'audit-venue-duplicates:\d{4}-\d{2}-\d{2}'\)/)
+    assert.match(kb.sql, /on conflict \(alias_venue_id\) do update set canonical_venue_id = excluded\.canonical_venue_id;/)
+  })
+
+  it('re-points inbound aliases BEFORE inserting the dupe aliases (chain-guard trigger order)', () => {
+    const kb = plan.clear.find((c) => c.canonical.id === 'k1')
+    const repoint = kb.sql.indexOf("update venue_aliases set canonical_venue_id = 'k1' where canonical_venue_id in ('k2');")
+    const insert = kb.sql.indexOf('insert into venue_aliases')
+    assert.ok(repoint !== -1, 'inbound re-point statement present')
+    assert.ok(insert !== -1, 'alias insert statement present')
+    assert.ok(repoint < insert, 're-point must precede the alias insert or the trigger raises')
+  })
+
+  it('escapes apostrophes in alias_name SQL literals', () => {
+    const p = planVenueAudit([
+      { id: 'a1', name: "Annabell's", address: '784 W Market St', lat: 1, lng: 1, events: 9, upcoming: 9 },
+      { id: 'a2', name: "Annabell's Bar", address: '784 W Market St', lat: null, lng: null, events: 0, upcoming: 0 },
+    ])
+    const merge = p.clear[0]
+    assert.ok(merge, 'clear merge present')
+    assert.match(merge.sql, /'Annabell''s(?: Bar)?'/)
   })
 
   it('Royal Palace: directional folding groups "East Tallmadge Avenue" with "E Tallmadge Ave"', () => {
