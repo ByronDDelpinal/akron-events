@@ -453,7 +453,10 @@ function buildSubject(sub: Subscriber, eventCount: number): string {
 
   switch (sub.lookahead_days) {
     case 1:
-      return `Tomorrow in ${loc}: ${eventCount} event${s} for you`
+      // 1-day lookahead = the window that starts now and runs 24h, i.e. the
+      // rest of today. Must match the "Today's events" headline (headlineLabel)
+      // and the window in select.ts — was wrongly "Tomorrow in ...".
+      return `Today in ${loc}: ${eventCount} event${s} for you`
     case 30:
       return `Your month in ${loc}: ${eventCount} event${s} for you`
     default:

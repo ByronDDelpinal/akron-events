@@ -38,8 +38,8 @@ export default function AboutPage() {
       <PageHero
         title={<>Never miss <span>a beat</span></>}
         media={{
-          videoSrc:  '/video/akron-pulse-about-cascade.mp4',
-          posterSrc: '/video/akron-pulse-about-cascade-poster.jpg',
+          videoSrc:  '/video/akron-pulse-about-widescreen.mp4',
+          posterSrc: '/video/akron-pulse-about-widescreen-poster.jpg',
         }}
       >
         Amazing concerts, exhibitions, games, gatherings, and experiences are
