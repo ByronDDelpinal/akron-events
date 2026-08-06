@@ -22,7 +22,7 @@ const FIXTURE = {
     { id: 'racial_ethnic_slurs', severity: 'high', terms: ['nigger', 'chink', 'paki'] },
     { id: 'racial_ethnic_contextual', severity: 'contextual', terms: ['negro', 'cracker'] },
     { id: 'anti_lgbtq_slurs', severity: 'high', terms: ['faggot', 'dyke'] },
-    { id: 'ableist_slurs', severity: 'high', terms: ['retard'] },
+    { id: 'ableist_slurs', severity: 'high', terms: ['retard', 'tards'] },
     { id: 'ableist_contextual', severity: 'contextual', terms: ['midget'] },
     { id: 'gendered_slurs', severity: 'high', terms: ['cunt'] },
     { id: 'sexually_explicit', severity: 'high', terms: ['porn', 'hardcore porn', 'xxx'] },
@@ -183,5 +183,27 @@ describe('Moderation: normalizeText', () => {
   it('handles null/undefined safely', () => {
     assert.equal(normalizeText(null), '')
     assert.equal(normalizeText(undefined), '')
+  })
+})
+
+// ── Regression: letter-spacing evasion must not create cross-word hits ────────
+// A spaced-out pattern anywhere (e.g. "R.S.V.P.") used to flip a whole-text gate
+// that condensed ALL separators, collapsing "Mustard Seed" into "musTARDSeed"
+// and matching the slur "tards". The evasion pass now condenses only the actual
+// spaced-out run, so ordinary multi-word phrases stay clean.
+describe('Moderation: letter-spacing evasion is scoped to real runs', () => {
+  it('does NOT flag "Mustard Seed" even when a spaced pattern trips the gate', () => {
+    assert.equal(flagged('Postcards for Decency and Democracy – Mustard Seed\nPlease R.S.V.P. to attend.'), false)
+    assert.equal(flagged('Concert at Mustard Seed Market. R.S.V.P. required.'), false)
+    assert.deepEqual(terms('Mustard Seed — a.b.c.d spacing'), [])
+  })
+
+  it('still catches a genuinely spaced-out slur', () => {
+    assert.deepEqual(terms('come to r e t a r d themed night'), ['retard'])
+    assert.deepEqual(terms('t.a.r.d.s here'), ['tards'])
+  })
+
+  it('does not flag the plain phrase with no spaced pattern at all', () => {
+    assert.deepEqual(terms('normal mustard seed community event'), [])
   })
 })

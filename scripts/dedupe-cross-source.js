@@ -146,6 +146,7 @@ export const SOURCE_PRIORITY = [
   'tangier',                 // first-party venue (Fairlawn — Tangier West etc.)
   'summit_county_fairgrounds', // first-party venue (Tallmadge)
   'workz',                   // first-party venue (The Workz — Cuyahoga Falls riverfront)
+  'downtown_cf',             // first-party — Downtown Cuyahoga Falls's own Front Street events
   'summit_humane',           // first-party (Humane Society) — Give Back events
   'summit_metro_parks',
   'torchbearers',

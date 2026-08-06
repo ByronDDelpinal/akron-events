@@ -155,6 +155,23 @@ async function processGroup(group, now, cutoffFuture) {
   return result
 }
 
+/**
+ * Summarize a run's counters for logging + health reporting.
+ *
+ * `gated` events (dropped by the Summit County polygon gate — the gate doing its
+ * job) are NOT failures and must NOT be folded into `events_skipped`. Lumping
+ * them together made a legitimately 100%-gated source (healthy) indistinguishable
+ * from a source erroring on every event (broken) in the scraper_health row. This
+ * keeps `healthSkipped` to REAL skips only; the gated count stays visible in the
+ * console line and is implied by the found→inserted gap. Exported for tests.
+ */
+export function summarizeRun({ found, inserted, gated, skipped }) {
+  return {
+    message: `${found} feed events → ${inserted} posted, ${gated} gated out (no Summit County location), ${skipped} skipped`,
+    healthSkipped: skipped,
+  }
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -173,8 +190,9 @@ async function main() {
       await new Promise((res) => setTimeout(res, 200))
     }
 
-    console.log(`\n  ${found} feed events → ${inserted} posted, ${gated} gated out (no Summit County location), ${skipped} skipped`)
-    await logUpsertResult(SOURCE_KEY, inserted, 0, skipped + gated, {
+    const { message, healthSkipped } = summarizeRun({ found, inserted, gated, skipped })
+    console.log(`\n  ${message}`)
+    await logUpsertResult(SOURCE_KEY, inserted, 0, healthSkipped, {
       eventsFound: found,
       durationMs:  Date.now() - start,
     })

@@ -1,0 +1,194 @@
+/**
+ * test-http.js — unit tests for lib/http.js fetchWithRetry.
+ *
+ * The live fetch, sleep, and RNG are injected so the retry/UA/timeout logic is
+ * exercised deterministically with no network and no real delays.
+ *
+ * Run:
+ *   node --test scripts/tests/test-http.js
+ */
+
+import { describe, it } from 'node:test'
+import assert from 'node:assert/strict'
+
+import {
+  fetchWithRetry,
+  randomUserAgent,
+  backoffDelay,
+  BROWSER_USER_AGENTS,
+  RETRYABLE_STATUS,
+  proxyDispatcherFromEnv,
+} from '../lib/http.js'
+
+// A minimal Response-like stub with a working clone()/text().
+function resp(status, body = '') {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    clone() { return resp(status, body) },
+    async text() { return body },
+  }
+}
+const noSleep = async () => {}
+
+// ── randomUserAgent ──────────────────────────────────────────────────────────
+
+describe('randomUserAgent', () => {
+  it('always returns a realistic browser UA (never a bot UA)', () => {
+    for (let i = 0; i < 20; i++) {
+      const ua = randomUserAgent()
+      assert.ok(BROWSER_USER_AGENTS.includes(ua))
+      assert.doesNotMatch(ua, /bot/i)
+      assert.match(ua, /Mozilla\/5\.0/)
+    }
+  })
+  it('honors an injected rng to pick deterministically', () => {
+    assert.equal(randomUserAgent(() => 0), BROWSER_USER_AGENTS[0])
+    assert.equal(randomUserAgent(() => 0.999), BROWSER_USER_AGENTS[BROWSER_USER_AGENTS.length - 1])
+  })
+})
+
+// ── backoffDelay ─────────────────────────────────────────────────────────────
+
+describe('backoffDelay', () => {
+  it('grows exponentially and caps at maxDelayMs (no jitter with rng=1)', () => {
+    const o = { baseDelayMs: 500, maxDelayMs: 8000, rng: () => 1 }
+    assert.equal(backoffDelay(0, o), 500)
+    assert.equal(backoffDelay(1, o), 1000)
+    assert.equal(backoffDelay(2, o), 2000)
+    assert.equal(backoffDelay(10, o), 8000) // capped
+  })
+  it('applies ±50% jitter (rng=0 → half the base)', () => {
+    assert.equal(backoffDelay(0, { baseDelayMs: 500, maxDelayMs: 8000, rng: () => 0 }), 250)
+  })
+})
+
+// ── fetchWithRetry: happy path + header shaping ──────────────────────────────
+
+describe('fetchWithRetry — headers', () => {
+  it('sends a browser UA and default Accept headers, and returns on 200', async () => {
+    let seen
+    const fetchImpl = async (_url, init) => { seen = init; return resp(200, 'ok') }
+    const res = await fetchWithRetry('https://x.test', { fetchImpl, sleep: noSleep })
+    assert.equal(res.status, 200)
+    assert.match(seen.headers['User-Agent'], /Mozilla\/5\.0/)
+    assert.doesNotMatch(seen.headers['User-Agent'], /bot/i)
+    assert.ok(seen.headers['Accept'])
+    assert.equal(seen.headers['Accept-Language'], 'en-US,en;q=0.9')
+  })
+
+  it('lets the caller override headers (e.g. Accept: application/json)', async () => {
+    let seen
+    const fetchImpl = async (_url, init) => { seen = init; return resp(200) }
+    await fetchWithRetry('https://x.test', {
+      fetchImpl, sleep: noSleep, headers: { Accept: 'application/json' },
+    })
+    assert.equal(seen.headers['Accept'], 'application/json')
+  })
+
+  it('pins a User-Agent when provided', async () => {
+    let seen
+    const fetchImpl = async (_url, init) => { seen = init; return resp(200) }
+    await fetchWithRetry('https://x.test', { fetchImpl, sleep: noSleep, userAgent: 'Pinned/1.0' })
+    assert.equal(seen.headers['User-Agent'], 'Pinned/1.0')
+  })
+})
+
+// ── fetchWithRetry: retry behavior ───────────────────────────────────────────
+
+describe('fetchWithRetry — retries', () => {
+  it('retries a retryable status then succeeds, counting attempts', async () => {
+    let calls = 0
+    const fetchImpl = async () => { calls++; return calls < 3 ? resp(503) : resp(200, 'yay') }
+    const retried = []
+    const res = await fetchWithRetry('https://x.test', {
+      fetchImpl, sleep: noSleep, baseDelayMs: 0, onRetry: (i) => retried.push(i.reason),
+    })
+    assert.equal(res.status, 200)
+    assert.equal(calls, 3)
+    assert.deepEqual(retried, ['status', 'status'])
+  })
+
+  it('retries a transient network error then succeeds', async () => {
+    let calls = 0
+    const fetchImpl = async () => {
+      calls++
+      if (calls < 2) throw new TypeError('fetch failed')
+      return resp(200)
+    }
+    const res = await fetchWithRetry('https://x.test', { fetchImpl, sleep: noSleep, baseDelayMs: 0 })
+    assert.equal(res.status, 200)
+    assert.equal(calls, 2)
+  })
+
+  it('gives up after `retries` network errors and rethrows the last', async () => {
+    let calls = 0
+    const fetchImpl = async () => { calls++; throw new TypeError('fetch failed') }
+    await assert.rejects(
+      fetchWithRetry('https://x.test', { fetchImpl, sleep: noSleep, retries: 2, baseDelayMs: 0 }),
+      /fetch failed/,
+    )
+    assert.equal(calls, 3) // initial + 2 retries
+  })
+
+  it('does NOT retry a non-retryable status (e.g. 404) — returns immediately', async () => {
+    let calls = 0
+    const fetchImpl = async () => { calls++; return resp(404) }
+    const res = await fetchWithRetry('https://x.test', { fetchImpl, sleep: noSleep })
+    assert.equal(res.status, 404)
+    assert.equal(calls, 1)
+  })
+
+  it('treats 403 as retryable (soft datacenter block)', async () => {
+    assert.ok(RETRYABLE_STATUS.has(403))
+    let calls = 0
+    const fetchImpl = async () => { calls++; return calls < 2 ? resp(403) : resp(200) }
+    const res = await fetchWithRetry('https://x.test', { fetchImpl, sleep: noSleep, baseDelayMs: 0 })
+    assert.equal(res.status, 200)
+    assert.equal(calls, 2)
+  })
+
+  it('returns the final non-ok response after exhausting status retries', async () => {
+    let calls = 0
+    const fetchImpl = async () => { calls++; return resp(503) }
+    const res = await fetchWithRetry('https://x.test', { fetchImpl, sleep: noSleep, retries: 2, baseDelayMs: 0 })
+    assert.equal(res.status, 503)
+    assert.equal(calls, 3)
+  })
+})
+
+// ── fetchWithRetry: bot-challenge body detection ─────────────────────────────
+
+describe('fetchWithRetry — treatBotChallengeAsRetryable', () => {
+  it('retries a 200 whose body is a Cloudflare challenge, then returns real content', async () => {
+    let calls = 0
+    const fetchImpl = async () => {
+      calls++
+      return calls < 2 ? resp(200, '<title>Just a moment...</title>') : resp(200, '<html>real events</html>')
+    }
+    const res = await fetchWithRetry('https://x.test', {
+      fetchImpl, sleep: noSleep, baseDelayMs: 0, treatBotChallengeAsRetryable: true,
+    })
+    const body = await res.text()
+    assert.match(body, /real events/)
+    assert.equal(calls, 2)
+  })
+
+  it('does not peek the body when the flag is off', async () => {
+    let cloned = 0
+    const challenge = { ok: true, status: 200, clone() { cloned++; return this }, async text() { return 'Just a moment' } }
+    const fetchImpl = async () => challenge
+    const res = await fetchWithRetry('https://x.test', { fetchImpl, sleep: noSleep })
+    assert.equal(res.status, 200)
+    assert.equal(cloned, 0)
+  })
+})
+
+// ── proxyDispatcherFromEnv ───────────────────────────────────────────────────
+
+describe('proxyDispatcherFromEnv', () => {
+  it('returns null when no proxy url is set', async () => {
+    assert.equal(await proxyDispatcherFromEnv(undefined), null)
+    assert.equal(await proxyDispatcherFromEnv(''), null)
+  })
+})

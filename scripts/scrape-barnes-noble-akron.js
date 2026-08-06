@@ -51,6 +51,7 @@ import {
   linkEventOrganization,
   linkOrganizationVenue,
 } from './lib/normalize.js'
+import { fetchWithRetry } from './lib/http.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────
 export const SOURCE = 'barnes_noble_akron'
@@ -191,7 +192,9 @@ export function mapEvent(raw) {
 async function fetchEvents() {
   const url = `${EVENTS_API}?lat=${STORE_LAT}&lng=${STORE_LNG}&size=${PAGE_SIZE}`
   console.log(`\n🔍  Fetching Barnes & Noble events near store #${STORE_ID}…`)
-  const res = await fetch(url, { headers: { accept: 'application/json' } })
+  // fetchWithRetry supplies a realistic browser User-Agent (this API 503'd from
+  // GitHub Actions with no UA at all) plus retry/backoff on transient blocks.
+  const res = await fetchWithRetry(url, { headers: { Accept: 'application/json' } })
   if (!res.ok) throw new Error(`B&N events API error ${res.status}: ${await res.text()}`)
   const data = await res.json()
   const content = Array.isArray(data.content) ? data.content : []

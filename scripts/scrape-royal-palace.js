@@ -32,6 +32,7 @@ import {
   parseCostFromTribe, parseTagsFromTribe,
   easternTodayIso,
 } from './lib/normalize.js'
+import { fetchWithRetry } from './lib/http.js'
 
 export const SOURCE_KEY = 'royal_palace'
 const BASE_URL   = 'https://royalpalaceakron.com/wp-json/tribe/events/v1/events'
@@ -93,9 +94,11 @@ async function fetchAllPages() {
     url.searchParams.set('end_date',   endDate)
     url.searchParams.set('status',     'publish')
 
-    const res = await fetch(url.toString(), {
-      headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; AkronPulse-bot/1.0; +https://akronpulse.com)' },
+    const res = await fetchWithRetry(url.toString(), {
+      headers: { Accept: 'application/json' },
       redirect: 'follow',
+      // A window with no events legitimately 400s (handled below) — don't retry it.
+      retryStatuses: new Set([408, 425, 429, 500, 502, 503, 504]),
     })
     // Tribe returns 400 with a "no results" code when the window is empty —
     // treat that as zero events rather than an error.

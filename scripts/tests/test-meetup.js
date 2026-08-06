@@ -13,7 +13,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-const { parseEventGeo, parseVenue, KNOWN_GROUPS } = await import('../scrape-meetup.js')
+const { parseEventGeo, parseVenue, KNOWN_GROUPS, summarizeRun } = await import('../scrape-meetup.js')
 const { parseIcs } = await import('../lib/ics.js')
 const { isSummitCountyLocation } = await import('../lib/summit-county.js')
 
@@ -117,5 +117,21 @@ describe('KNOWN_GROUPS', () => {
   it('slugs are unique', () => {
     const slugs = KNOWN_GROUPS.map((g) => g.slug)
     assert.equal(new Set(slugs).size, slugs.length)
+  })
+})
+
+// ── summarizeRun: gated events must not masquerade as skipped ─────────────────
+
+describe('summarizeRun', () => {
+  it('keeps gated out of healthSkipped (a fully-gated source reports 0 skipped)', () => {
+    const { healthSkipped, message } = summarizeRun({ found: 40, inserted: 0, gated: 40, skipped: 0 })
+    assert.equal(healthSkipped, 0)              // healthy filtering, not a failure
+    assert.match(message, /40 gated out/)
+    assert.match(message, /0 skipped/)
+  })
+
+  it('reports only real skips in healthSkipped', () => {
+    const { healthSkipped } = summarizeRun({ found: 50, inserted: 30, gated: 15, skipped: 5 })
+    assert.equal(healthSkipped, 5)              // NOT 5 + 15
   })
 })

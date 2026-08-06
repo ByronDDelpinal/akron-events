@@ -529,6 +529,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'bath_business_assoc',
+    method:      'Wix Events JSON',
+    methodDetail:'bathbusinessassociation.com Wix Events /event-list — shared lib/wix-events.js reads the #wix-warmup-data blob, filtered to public (non members-only / non-meeting) titles',
+    venue:       'Bath Township / Akron 44333 — per-event (Crown Point Ecology Center, member businesses, etc.)',
+    notes:       "The Bath Business Association is a business/civic association in Bath Township (Akron 44333, Summit County). Its Wix Events calendar mixes internal association business — members-only guest speakers, the monthly business/general meeting, the members-only picnic — with genuine PUBLIC community events (garage-sale weekend map, Wye Road bridge lighting, the Bath America 250 road rally, an open house / scholarship announcement, a township employee-appreciation brunch). We read /event-list via lib/wix-events.js and publish ONLY the public events: isPublicEvent shape-matches out anything titled members-only or a business/general/board/committee meeting, rather than a hardcoded denylist. Each event carries its own location; the city is parsed from the formatted address and routed through classifySummitLocation defensively (all 44333, but never trust source geo). Organizer 'Bath Business Association'; price null; category inferred per event.",
+    status:      'active',
+  },
+  {
     key:         'dilly_ds',
     method:      'HTML scrape',
     methodDetail:'dillyds.com GoDaddy static single-page site — raw-source tag-split of the trivia schedule statement + themed-night blocks, weekly occurrences generated via lib/weekly-occurrences.js',
@@ -582,6 +590,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     methodDetail:'WordPress + The Events Calendar (Tribe) iCal export (/events/list/?ical=1) via lib/ics.js runIcsScraper',
     venue:       'Lions Park / village-wide (default: Village of Mogadore) — Mogadore, OH',
     notes:       'Village of Mogadore runs WordPress + The Events Calendar. Because Mogadore straddles the Summit/Portage county line, every event is gated through classifySummitLocation — city-less rows default to Mogadore (first-party village calendar) and a Portage-side city (Kent, Ravenna) classifies out and is dropped. Council/zoning/commission meetings are dropped by a governance filter. The Tribe LOCATION is split into a clean venue name + address (a bare "OH" location falls back to the default venue). Note: the live upcoming-list export is periodically empty, so a 0-event run is expected until the village posts new events.',
+    status:      'active',
+  },
+  {
+    key:         'village_of_peninsula',
+    method:      'HTML scrape',
+    methodDetail:'villageofpeninsula-oh.gov/events/ — Modern Events Calendar (MEC) WordPress plugin, server-rendered. Each .mec-topsec card carries the title, a day+month label, and start/end times; the year comes from the <h5>Month YYYY</h5> heading above each month\'s cards.',
+    venue:       'Village-wide (default: Village of Peninsula, 1582 Main Street) — Peninsula, OH 44264',
+    notes:       'Village of Peninsula (Summit County) runs Modern Events Calendar. The list cards are present in a plain fetch() (no JavaScript), and the year is joined from the month heading. Planning Commission / Council / zoning meetings and public hearings are dropped by a governance filter; the list carries no per-event location, so every event pins to a village-wide Peninsula venue and routes through the strict Summit gate defensively. Low but reliable volume — a 0–2 event run is normal for a small village calendar.',
     status:      'active',
   },
   {
@@ -874,6 +890,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     methodDetail:'thetangier.com/events (Webflow) — the "Upcoming Events" section parsed via htmlToText for title/date/venue/price, with the per-event Etix ticket link and banner image pulled from the raw HTML by pattern and zipped in document order',
     venue:       'Tangier West, 3150 W Market St, Fairlawn (also Our Lady of the Cedars, The Bank at East End, etc. — all Fairlawn/Akron)',
     notes:       "Tangier — a 65-year-old Akron-area restaurant/banquet/entertainment institution now anchored at Tangier West in Fairlawn (Summit County), so events publish directly with no geo gate. Its Webflow /events page lists marquee dinner-and-show events (variety performers, themed parties, NYE) as a flat img→title→date→'HELD AT <space>: <address>'→description→prices→ticket-buttons sequence. Two parse gotchas handled: (1) every card repeats a BOILERPLATE 'Purchase Tickets' button (Etix id 51986841); we drop it and keep each event's real etix.com/ticket/p/<id> link (the stable id is the source_id); (2) start times appear only in prose, so we extract a doors time when explicitly stated ('Doors open at 6:30PM') and otherwise publish date-only rather than fabricate one. Per-event venue parsed from the HELD-AT block (falls back to Tangier's main Fairlawn address); prices min/max across ticket tiers; ticketing via Etix; category music.",
+    status:      'active',
+  },
+  {
+    key:         'downtown_cf',
+    method:      'HTML scrape',
+    methodDetail:'downtowncf.com/events (Drupal 10) — the /events list only server-renders anchors to /events/<slug> (the .item/.date/.time card markup is JS-injected on the list), so the crawl ENUMERATES slugs from the list, then fetches each detail page, whose <div class="item"><h2>/<div class="date">/<div class="time"> header IS clean server HTML. Description from <meta name="description">; optional GPS-LOCATION address from the body.',
+    venue:       'Downtown Cuyahoga Falls — Front Street plaza/amphitheater/pavilion, Cuyahoga Falls (Summit County)',
+    notes:       "Downtown Cuyahoga Falls's own event program (Oktoberfest, Nightmare on Front Street, Downtown Trick or Treat, …) along Front Street. Reworked + re-enabled 2026-08-05: the list parser enumerates /events/<slug> anchors (dropping the community-calendar pointer) and each field is read from the server-rendered detail page. No year is printed, so it's inferred (roll forward when past); a range ('Sept 18-20') is multi-day; 'Varies'/absent time uses SANCTIONED-DEFAULT-TIME + needs_review rather than fabricating a clock time. Validated against real captured detail-page fixtures (nightmare/oktoberfest/trick-or-treat) and a live run.",
     status:      'active',
   },
   {
@@ -1575,6 +1599,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   united_way_summit:   'ics',
   pegs_foundation:     'ics',
   village_of_mogadore: 'ics',
+  village_of_peninsula: 'html',
   habitat_summit:      'html',
   ohio_festivals:      'html',
   summit_county_fairgrounds: 'html',
@@ -1631,6 +1656,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   runsignup:           'runsignup',
   akron_dance_festival:'curated',
   gather_round_games:  'wix',
+  bath_business_assoc: 'wix',
   release_yoga:        'html',
 
   // EventON / custom WordPress
@@ -1653,6 +1679,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   the_grove:               'html',
   cvfm:                    'html',
   tangier:                 'html',
+  downtown_cf:             'html',
   barnes_noble_akron:      'api',
   city_of_twinsburg:       'civicplus',
   lake_campground:         'html',

@@ -31,6 +31,7 @@ import {
   parseTagsFromTribe,
   easternTodayIso,
 } from './lib/normalize.js'
+import { fetchWithRetry } from './lib/http.js'
 
 const BASE_URL   = 'https://indivisibleakron.org/wp-json/tribe/events/v1/events'
 const PER_PAGE   = 50
@@ -125,8 +126,8 @@ async function fetchAllPages() {
     url.searchParams.set('end_date',   endDate)
     url.searchParams.set('status',     'publish')
 
-    const res = await fetch(url.toString(), {
-      headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; AkronPulse-bot/1.0; +https://akronpulse.com)' },
+    const res = await fetchWithRetry(url.toString(), {
+      headers: { Accept: 'application/json' },
       redirect: 'follow',
     })
     if (!res.ok) throw new Error(`Indivisible Akron API error ${res.status}: ${(await res.text()).slice(0, 200)}`)

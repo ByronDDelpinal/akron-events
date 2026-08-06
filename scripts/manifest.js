@@ -94,6 +94,7 @@ export const SCRAPERS = [
   { key: 'united_way_summit',    script: 'scripts/scrape-united-way-summit.js',       label: 'United Way of Summit & Medina', group: 'ics',           active: true  },
   { key: 'pegs_foundation',      script: 'scripts/scrape-pegs-foundation.js',         label: "Peg's Foundation",             group: 'ics',            active: true  },
   { key: 'village_of_mogadore',  script: 'scripts/scrape-village-of-mogadore.js',     label: 'Village of Mogadore',          group: 'ics',            active: true  },
+  { key: 'village_of_peninsula', script: 'scripts/scrape-village-of-peninsula.js',    label: 'Village of Peninsula',         group: 'html',           active: true  },
   { key: 'habitat_summit',       script: 'scripts/scrape-habitat-summit.js',          label: 'Habitat for Humanity Summit',  group: 'html',           active: true, defaultCategory: 'civic' },
   { key: 'ohio_festivals',       script: 'scripts/scrape-ohio-festivals.js',          label: 'Ohio Festivals',               group: 'html',           active: true, defaultCategory: 'festival' },
   { key: 'summit_county_fairgrounds', script: 'scripts/scrape-summit-county-fairgrounds.js', label: 'Summit County Fairgrounds', group: 'html',      active: true  },
@@ -101,6 +102,7 @@ export const SCRAPERS = [
   { key: 'akron_roller_derby',   script: 'scripts/scrape-akron-roller-derby.js',      label: 'Akron Roller Derby',           group: 'html',           active: true, defaultCategory: 'sports' },
   { key: 'cvfm',                 script: 'scripts/scrape-cvfm.js',                    label: 'Cuyahoga Valley Farmers Market', group: 'html',         active: true, defaultCategory: 'food' },
   { key: 'tangier',              script: 'scripts/scrape-tangier.js',                 label: 'Tangier',                      group: 'html',           active: true, defaultCategory: 'music' },
+  { key: 'downtown_cf',          script: 'scripts/scrape-downtown-cf.js',             label: 'Downtown Cuyahoga Falls',      group: 'html',           active: true, defaultCategory: 'festival' },
   { key: 'magic_city_drivein',   script: 'scripts/scrape-magic-city-drivein.js',      label: 'Magic City Drive-In',          group: 'html',           active: true, defaultCategory: 'film' },
   { key: 'dilly_ds',             script: 'scripts/scrape-dilly-ds.js',                label: "Dilly D's Sports Grill",       group: 'html',           active: true, defaultCategory: 'games' },
   { key: 'old_stone_jail',       script: 'scripts/scrape-old-stone-jail.js',          label: 'Old Stone Jail',               group: 'html',           active: true, defaultCategory: 'games' },
@@ -161,6 +163,7 @@ export const SCRAPERS = [
   { key: 'runsignup',            script: 'scripts/scrape-runsignup.js',               label: 'RunSignup',                    group: 'custom',         active: true, defaultCategory: 'fitness' },
   { key: 'akron_dance_festival', script: 'scripts/scrape-akron-dance-festival.js',    label: 'Heinz Poll Dance Festival',    group: 'custom',         active: true, defaultCategory: 'theater' },
   { key: 'gather_round_games',   script: 'scripts/scrape-gather-round-games.js',      label: 'Gather Round Games',           group: 'wix',            active: true, defaultCategory: 'games' },
+  { key: 'bath_business_assoc',  script: 'scripts/scrape-bath-business-assoc.js',      label: 'Bath Business Association',     group: 'wix',            active: true  },
 
   // ── Census wave 2026-07-14 ─────────────────────────────────────────────
   { key: 'cvsr',                 script: 'scripts/scrape-cvsr.js',                    label: 'Cuyahoga Valley Scenic Railroad', group: 'custom',      active: true, defaultCategory: 'outdoors' },

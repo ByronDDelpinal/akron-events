@@ -37,6 +37,7 @@ import {
   ensureVenue,
   ensureOrganization,
 } from './lib/normalize.js'
+import { fetchWithRetry } from './lib/http.js'
 
 const AJAX_URL   = 'https://jillysmusicroom.com/wp-admin/admin-ajax.php'
 const REST_BASE  = 'https://jillysmusicroom.com/wp-json/wp/v2/ajde_events'
@@ -137,12 +138,9 @@ async function fetchEventonEvents() {
 
   console.log(`\n🔍  Fetching Jilly's events via EventON AJAX…`)
 
-  const res = await fetch(AJAX_URL, {
+  const res = await fetchWithRetry(AJAX_URL, {
     method:  'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent':   'Mozilla/5.0 (compatible; The330-bot/1.0)',
-    },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: params.toString(),
   })
 
@@ -169,9 +167,7 @@ async function fetchEventonEvents() {
 
 async function fetchRestBatch(ids) {
   const url = `${REST_BASE}?include=${ids.join(',')}&per_page=${ids.length}&_embed=true`
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; The330-bot/1.0)' },
-  })
+  const res = await fetchWithRetry(url, { headers: { Accept: 'application/json' } })
   if (!res.ok) throw new Error(`WP REST API error ${res.status}: ${await res.text()}`)
   return res.json()
 }

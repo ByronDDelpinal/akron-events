@@ -67,6 +67,7 @@ import {
   easternToIso,
 } from './lib/normalize.js'
 import { classifySummitLocation } from './lib/summit-county.js'
+import { fetchWithRetry } from './lib/http.js'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -478,11 +479,8 @@ async function fetchAllPosts() {
     url.searchParams.set('_embed', 'true')
     url.searchParams.set('_fields', 'id,date,link,title,content,_links,_embedded')
 
-    const res = await fetch(url.toString(), {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'Mozilla/5.0 (compatible; AkronPulseBot/1.0)',
-      },
+    const res = await fetchWithRetry(url.toString(), {
+      headers: { Accept: 'application/json' },
     })
     if (!res.ok) {
       const body = await res.text()

@@ -40,8 +40,11 @@ const SEVERITY_RANK = { contextual: 1, high: 2, extreme: 3 }
 const LEET = { '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '@': 'a', '$': 's', '!': 'i' }
 const LEET_RE = /[013457@$!]/g
 
-// Detects "spaced-out" letters used to dodge word matching: f.a.g, n i g g e r.
-const LETTER_SPACING_RE = /(?:[a-z0-9][\s._*-]){2,}[a-z0-9]/
+// Runs of "spaced-out" letters used to dodge word matching: f.a.g, n i g g e r.
+// Global so scanText can extract each run and condense ONLY that run — never the
+// whole text. Condensing everything collapses innocent multi-word phrases into
+// slur substrings ("Mustard Seed" → "musTARDSeed" → matches "tards").
+const LETTER_SPACING_RUN_RE = /(?:[a-z0-9][\s._*-]){2,}[a-z0-9]/g
 
 let _config = null
 
@@ -173,9 +176,13 @@ export function scanText(text) {
     }
   }
 
-  // Letter-spacing evasion: only when the text actually looks spaced-out.
-  if (LETTER_SPACING_RE.test(base)) {
-    const condensed = normalizeText(text, { deLeet: true }).replace(/[^a-z0-9]/g, '')
+  // Letter-spacing evasion: catch slurs written with separators between letters
+  // ("n i g g e r", "f.a.g"). Only the spaced-out RUN itself is condensed and
+  // scanned — never the whole text — so an ordinary multi-word phrase like
+  // "Mustard Seed" can't collapse into a slur substring ("musTARDSeed" → "tards").
+  const deLeeted = normalizeText(text, { deLeet: true })
+  for (const run of deLeeted.match(LETTER_SPACING_RUN_RE) ?? []) {
+    const condensed = run.replace(/[^a-z0-9]/g, '')
     for (const t of cfg.evasionTerms) {
       if (condensed.includes(t.term) && !hits.has(t.term)) {
         hits.set(t.term, { term: t.term, category: t.category, severity: t.severity, evasion: true })
