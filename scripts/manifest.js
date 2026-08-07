@@ -120,6 +120,11 @@ export const SCRAPERS = [
   { key: 'northfield_park',      script: 'scripts/scrape-northfield-park.js',         label: 'Northfield Park Racino',       group: 'tribe',          active: true, defaultCategory: 'music' },
   { key: 'summit_humane',        script: 'scripts/scrape-summit-humane.js',           label: 'Humane Society of Summit County', group: 'tribe',        active: true  },
   { key: 'stewarts_caring_place', script: 'scripts/scrape-stewarts-caring-place.js',  label: "Stewart's Caring Place",       group: 'tribe',          active: true, defaultCategory: 'fitness' },
+  // No defaultCategory: the scraper's own conservative inference already
+  // falls back to 'other', and test-category-resolution forbids a no-op
+  // 'other' default in the manifest.
+  { key: 'stewarts_partner_events', script: 'scripts/scrape-stewarts-partner-events.js', label: "Stewart's Caring Place Partner Events", group: 'html', active: true },
+  { key: 'woven_words',          script: 'scripts/scrape-woven-words.js',             label: 'Woven Words Bookshop',         group: 'tribe',          active: true, defaultCategory: 'learning' },
   { key: 'main_street_barberton', script: 'scripts/scrape-main-street-barberton.js',  label: 'Main Street Barberton',        group: 'ics',            active: true  },
   { key: 'wine_mill',            script: 'scripts/scrape-wine-mill.js',               label: 'The Wine Mill',                group: 'tribe',          active: true, defaultCategory: 'music' },
   { key: 'portage_lakes_kiwanis', script: 'scripts/scrape-portage-lakes-kiwanis.js',  label: 'Portage Lakes Kiwanis',        group: 'tribe',          active: true  },

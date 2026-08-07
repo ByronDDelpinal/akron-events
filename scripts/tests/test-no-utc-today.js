@@ -143,6 +143,7 @@ const TRIBE_FILES = [
   'scrape-northfield-park.js',
   'scrape-royal-palace.js',
   'scrape-missing-falls.js',
+  'scrape-woven-words.js',
 ]
 
 // RunSignup's /rest/races `startDate` is a SERVER-SIDE floor: races starting

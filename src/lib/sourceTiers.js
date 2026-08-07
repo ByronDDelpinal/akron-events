@@ -52,6 +52,9 @@ export const TIER_3_SOURCES = new Set([
   'akron_life',
   'runsignup',
   'ohio_festivals',
+  // Republishes partner-hosted fundraisers (real hosts vary per event), so a
+  // venue's own copy of the same event must always outrank it.
+  'stewarts_partner_events',
 ])
 
 export function sourceTier(source) {
@@ -107,6 +110,7 @@ export const AGGREGATOR_PRIORITY = [
   'runsignup',
   'ohio_festivals',
   'downtown_akron',
+  'stewarts_partner_events', // hand-edited page with year-less prose dates
 ]
 
 /** Rank within Tier 3. Unlisted sources rank last (least trusted). */
@@ -154,6 +158,11 @@ export const AGGREGATOR_SELF_ORG = {
   runsignup:       'RunSignup',
   eventbrite:      'Eventbrite',
   ticketmaster:    'Ticketmaster',
+  // Stewart's Caring Place is the BENEFICIARY of its partner events, never the
+  // host, and the page's "Hosted by:" lines feed the organizer field directly.
+  // The Tier-1 stewarts_caring_place scraper is a different source key, so its
+  // legitimate self-attribution is untouched (isSelfCredit is pair-keyed).
+  stewarts_partner_events: "Stewart's Caring Place",
 }
 
 /**

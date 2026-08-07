@@ -152,6 +152,7 @@ export const SOURCE_PRIORITY = [
   'torchbearers',
   'uakron_calendar',
   'weathervane',
+  'woven_words',             // first-party venue (Woven Words Bookshop - Montrose)
 ]
 
 // Aggregators / re-syndicators — always rank BELOW any first-party source, in
