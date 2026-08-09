@@ -47,7 +47,7 @@ function toIcsExportEvent(item: DayPlanItem) {
  */
 export default function SharedPlanPage() {
   const { code = '' } = useParams()
-  const { activePlanCode } = useDayPlan()
+  const { activePlanCode, removeItem } = useDayPlan()
   const [plan, setPlan] = useState<DayPlan | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -103,14 +103,27 @@ export default function SharedPlanPage() {
     // Optimistic: drop it locally first, then reconcile with the server's
     // returned state. On error, the reload below restores the true state.
     setPlan((prev) => prev ? { ...prev, items: prev.items.filter((i) => i.event_id !== eventId) } : prev)
+
+    // Keep the LOCAL draft in step when this shared plan is the visitor's own
+    // (the header's "Plan · N" pill counts the draft, not the server plan).
+    // Without this the pill stays stuck at its old count after removing items
+    // here, which reads as a broken counter. Guarded on activePlanCode so a
+    // collaborator viewing someone else's link never has their own draft
+    // mutated by it.
+    const isOwnPlan = activePlanCode === code
+    if (isOwnPlan) removeItem(eventId, 'planner')
+
     try {
       const result = await removeEventFromPlan(code, eventId)
       if (result) setPlan(result)
-      trackEvent(EVENTS.PLAN_ITEM_REMOVED, { surface: 'planner' })
+      // removeItem() above already fires PLAN_ITEM_REMOVED, so only emit it
+      // here when we did NOT go through the draft -- otherwise every removal
+      // on your own plan double-counts.
+      if (!isOwnPlan) trackEvent(EVENTS.PLAN_ITEM_REMOVED, { surface: 'planner' })
     } catch {
       load({ silent: true })
     }
-  }, [code, load])
+  }, [code, load, activePlanCode, removeItem])
 
   const handleExportIcs = useCallback(() => {
     if (!plan) return
