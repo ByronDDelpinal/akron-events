@@ -5,7 +5,9 @@ import { useDayPlan } from '@/hooks/useDayPlan'
 import { readActivePlanCode } from '@/lib/dayPlanDraft'
 import { getDayPlan, createDayPlan } from '@/lib/dayPlanApi'
 import DayPlanBoard from '@/components/DayPlanBoard'
+import PlanTitleHeading from '@/components/PlanTitleHeading'
 import { type PlanRenderItem } from '@/components/DayPlanTimeline'
+import { groupPlanItemsByDay } from '@/lib/planMapPoints'
 import { buildVCalendar, downloadIcs, planIcsFilename } from '@/lib/ics.js'
 import { eventPath } from '@/lib/slug'
 import { trackEvent, EVENTS } from '@/lib/analytics'
@@ -13,6 +15,11 @@ import './DayPlan.shared.css'
 import './DayPlanPage.css'
 
 const SITE_ORIGIN = 'https://akronpulse.com'
+
+// A device whose plan code no longer resolves -- or whose connection is
+// slow/offline -- must never be stuck behind a blank redirect check
+// forever (P0-9). Falls through to the local draft after this long.
+const REDIRECT_CHECK_TIMEOUT_MS = 3000
 
 /**
  * /day — the local, network-free draft. A visitor can build and print a
@@ -28,11 +35,13 @@ const SITE_ORIGIN = 'https://akronpulse.com'
  */
 export default function DayPlanPage() {
   const navigate = useNavigate()
-  const { draft, removeItem, setActivePlanCode } = useDayPlan()
+  const { draft, removeItem, setTitle, setActivePlanCode, clearActivePlanCode } = useDayPlan()
   const [redirectChecked, setRedirectChecked] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [shareError, setShareError] = useState<string | null>(null)
   const planIdRef = useRef<string>(crypto.randomUUID())
+  const sharedTrackedRef = useRef(false)
+  const openedTrackedRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -41,15 +50,40 @@ export default function DayPlanPage() {
       setRedirectChecked(true)
       return
     }
+    const timeout = setTimeout(() => {
+      if (!cancelled) setRedirectChecked(true)
+    }, REDIRECT_CHECK_TIMEOUT_MS)
     getDayPlan(code)
       .then((plan) => {
         if (cancelled) return
-        if (plan) navigate(`/d/${code}`, { replace: true })
-        else setRedirectChecked(true)
+        clearTimeout(timeout)
+        if (plan) {
+          navigate(`/d/${code}`, { replace: true })
+        } else {
+          // The code is now KNOWN dead -- forget it so every future /day
+          // visit doesn't pay a wasted round trip forever (P1-17).
+          clearActivePlanCode()
+          setRedirectChecked(true)
+        }
       })
-      .catch(() => { if (!cancelled) setRedirectChecked(true) })
-    return () => { cancelled = true }
-  }, [navigate])
+      .catch(() => {
+        if (cancelled) return
+        clearTimeout(timeout)
+        setRedirectChecked(true)
+      })
+    return () => { cancelled = true; clearTimeout(timeout) }
+  }, [navigate, clearActivePlanCode])
+
+  // plan_opened, extended to /day (Ask 3): fires once, only on the paths
+  // that DON'T redirect away -- if a code resolves, this component unmounts
+  // for /d/<code> before redirectChecked ever flips true here, so the two
+  // views never double-count the same visit.
+  useEffect(() => {
+    if (!redirectChecked || openedTrackedRef.current) return
+    openedTrackedRef.current = true
+    trackEvent(EVENTS.PLAN_OPENED, { role: 'draft', item_count: draft.items.length })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [redirectChecked])
 
   const items: PlanRenderItem[] = draft.items.map((i) => ({
     key: i.event_id,
@@ -77,14 +111,25 @@ export default function DayPlanPage() {
         draft.title,
         draft.items.map((i) => i.event_id),
       )
-      trackEvent(EVENTS.PLAN_SHARED, { item_count: draft.items.length })
+      // Idempotency guard (P1-15): createDayPlan is idempotent on
+      // planIdRef.current, so a request that times out client-side and is
+      // retried returns the SAME code -- without this ref, that retry would
+      // fire plan_shared a second time for one real share.
+      if (!sharedTrackedRef.current) {
+        sharedTrackedRef.current = true
+        trackEvent(EVENTS.PLAN_SHARED, {
+          item_count: draft.items.length,
+          days_spanned: groupPlanItemsByDay(items).length,
+        })
+      }
       setActivePlanCode(code)
       navigate(`/d/${code}`)
     } catch {
-      setShareError("Something didn't work. Your plan is still saved on this device — try again in a moment.")
+      setShareError("Something didn't work. Your plan is still saved on this device. Try again in a moment.")
       setSharing(false)
+      trackEvent(EVENTS.PLAN_SHARE_FAILED)
     }
-  }, [draft, navigate, setActivePlanCode])
+  }, [draft, navigate, setActivePlanCode, items])
 
   const handleExportIcs = useCallback(() => {
     const events = draft.items.map((i) => ({
@@ -110,36 +155,42 @@ export default function DayPlanPage() {
     window.print()
   }, [draft.items.length])
 
-  if (!redirectChecked) return null
-
   return (
     <div className="day-plan-page">
       <SEO title="Your day plan" path="/day" noindex />
-      <h1 className="day-plan-heading">{draft.title || 'Your day plan'}</h1>
+      <PlanTitleHeading title={draft.title} fallback="Your day plan" onSave={setTitle} />
       <p className="day-plan-subhead">
         Built on this device. Nothing is saved online until you share it.
       </p>
 
-      <DayPlanBoard items={items} />
+      {redirectChecked ? (
+        <>
+          <DayPlanBoard
+            items={items}
+            emptyMessage='Nothing here yet. Add events with the "+ Plan" button on any event.'
+          />
 
-      {draft.items.length > 0 && (
-        <div className="day-plan-actions">
-          <button type="button" className="btn-nav-cta" onClick={handleShare} disabled={sharing}>
-            {sharing ? 'Sharing…' : 'Share this plan'}
-          </button>
-          <button type="button" className="btn-nav-cta btn-nav-cta-outline" onClick={handleExportIcs}>
-            Export .ics
-          </button>
-          <button type="button" className="btn-nav-cta btn-nav-cta-outline" onClick={handlePrint}>
-            Print
-          </button>
-        </div>
-      )}
-      {shareError && <p className="day-plan-error" role="alert">{shareError}</p>}
-      {draft.items.length === 0 && (
-        <p className="day-plan-subhead">
-          Add events to your plan from any event card — look for the plus button.
-        </p>
+          {draft.items.length > 0 && (
+            <div className="day-plan-actions">
+              <button type="button" className="btn-nav-cta" onClick={handleShare} disabled={sharing}>
+                {sharing ? 'Sharing…' : 'Share this plan'}
+              </button>
+              <button type="button" className="btn-nav-cta btn-nav-cta-outline" onClick={handleExportIcs}>
+                Export .ics
+              </button>
+              <button type="button" className="btn-nav-cta btn-nav-cta-outline" onClick={handlePrint}>
+                Print
+              </button>
+            </div>
+          )}
+          {shareError && <p className="day-plan-error" role="alert">{shareError}</p>}
+        </>
+      ) : (
+        // P0-9: the page shell above (heading, subhead) renders immediately;
+        // only the board/actions wait on the redirect check, and that check
+        // itself is capped at REDIRECT_CHECK_TIMEOUT_MS. A slow connection
+        // now shows this line instead of a blank white page.
+        <p className="day-plan-subhead" role="status">Checking for a saved plan…</p>
       )}
     </div>
   )

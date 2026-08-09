@@ -43,11 +43,23 @@
 --
 -- Self-contained: runs inside a transaction and ROLLS BACK so nothing
 -- persists. Run against a local `supabase start` DB or an isolated branch
--- that already has migration 052 applied:
+-- that already has migrations 052 AND 055 applied (§19 below asserts
+-- against 055's fix specifically -- run before 055 lands and §19a/§19c
+-- fail on purpose, which is the point: that failure is what would have
+-- caught P0-7 before it shipped):
 --
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/day_plan_rls.test.sql
 --
 -- A clean run prints "ALL DAY PLAN RLS TESTS PASSED". Any failure raises.
+--
+-- MANUAL PRE-MERGE STEP, not CI (day-plan-audit.md Decision 4): this suite
+-- needs a real Postgres with pgcrypto, pg_cron, and safeupdate available the
+-- way Supabase provides them, and several assertions here exist specifically
+-- to catch drift from those extensions' real behavior -- a CI container
+-- shimming them would pass while production breaks, which is worse than not
+-- running the file. Run this by hand, against a local `supabase start` DB or
+-- a disposable Supabase branch, before merging ANY PR that touches
+-- `supabase/migrations/day_plans*` or the day-plan RPCs. See CONTRIBUTING.md.
 -- ════════════════════════════════════════════════════════════════════════════
 
 begin;
@@ -621,6 +633,106 @@ begin
   assert v_plan->>'title' is null, 'a title matching a seeded extreme term must be nulled, not rejected';
 
   raise notice '  ✓ 18. moderation trigger nulls a seeded extreme title on create, keeps the plan and its items';
+end $$;
+
+-- ── 19. The `authenticated` role gets NOTHING anon doesn't already have ────
+-- day-plan-audit.md P0-7 / migration 055. 054 already proved (one table
+-- over) that the maintainer's own browser runs as `authenticated`, not
+-- `anon` -- so every anon-only assertion in this file was blind to a whole
+-- class of bug. This section repeats the load-bearing parts of §1, §2, §6
+-- and §18 under `role authenticated` instead of `role anon`:
+--   - direct table SELECT must still be refused (it was NOT, before 055 --
+--     the two "Authenticated can read ..." policies made this section fail
+--     until that migration applied);
+--   - the five SECURITY DEFINER RPCs must still be reachable (authenticated
+--     was already granted execute in 052 alongside anon -- this is the
+--     "did we accidentally revoke something" half of the regression net);
+--   - the moderation trigger must still null an extreme title for a
+--     signed-in caller (it did NOT, before 055 -- moderation_screen_day_plan
+--     gated on `= 'anon'` only, so an authenticated visitor's title bypassed
+--     screening entirely, the exact bug 054 already fixed for
+--     embed_request_force_intake_defaults).
+--
+-- Both `set local role authenticated` AND the matching
+-- `request.jwt.claims` GUC are required together -- see this file's header,
+-- trap 1. GUCs are transaction-scoped and survive `set local role`, so each
+-- `do $$ ... $$` block below re-asserts both before touching anything.
+do $$
+declare v_event uuid;
+begin
+  reset role;
+  v_event := _dp_test_make_event('Authenticated Direct Access Probe', now() + interval '3 days');
+  select set_config('request.jwt.claims', '{"role":"authenticated"}', true);
+  set local role authenticated;
+
+  begin
+    perform 1 from day_plans limit 1;
+    raise exception 'authenticated SELECT on day_plans should have been rejected (055 must drop the "Authenticated can read" policies)';
+  exception when insufficient_privilege then null;
+  end;
+
+  begin
+    perform 1 from day_plan_items limit 1;
+    raise exception 'authenticated SELECT on day_plan_items should have been rejected (055 must drop the "Authenticated can read" policies)';
+  exception when insufficient_privilege then null;
+  end;
+
+  raise notice '  ✓ 19a. no direct table SELECT for authenticated on either table (insufficient_privilege) -- P0-7b, guarded by migration 055';
+end $$;
+
+do $$
+declare
+  v_pid  uuid := gen_random_uuid();
+  v_ev1  uuid;
+  v_code text;
+  v_plan jsonb;
+begin
+  reset role;
+  v_ev1 := _dp_test_make_event('Authenticated RPC Probe', now() + interval '2 days');
+  select set_config('request.jwt.claims', '{"role":"authenticated"}', true);
+  set local role authenticated;
+
+  -- create_day_plan / get_day_plan / day_plan_add_event / day_plan_remove_event
+  -- / day_plan_set_title all stay executable for a signed-in visitor --
+  -- narrowing P0-7's SELECT hole must not also take away the ordinary RPC
+  -- surface every anon visitor already has.
+  v_code := create_day_plan(v_pid, 'Authenticated Plan', array[]::uuid[]);
+  assert v_code ~ '^[0-9a-hjkmnp-tv-z]{12}$', 'create_day_plan must still work for authenticated';
+
+  v_plan := day_plan_add_event(v_code, v_ev1);
+  assert jsonb_array_length(v_plan->'items') = 1, 'day_plan_add_event must still work for authenticated';
+
+  v_plan := day_plan_set_title(v_code, 'Renamed');
+  assert v_plan->>'title' = 'Renamed', 'day_plan_set_title must still work for authenticated';
+
+  v_plan := day_plan_remove_event(v_code, v_ev1);
+  assert jsonb_array_length(v_plan->'items') = 0, 'day_plan_remove_event must still work for authenticated';
+
+  v_plan := get_day_plan(v_code);
+  assert v_plan is not null, 'get_day_plan must still work for authenticated';
+
+  raise notice '  ✓ 19b. all five SECURITY DEFINER RPCs remain executable for authenticated';
+end $$;
+
+do $$
+declare
+  v_pid  uuid := gen_random_uuid();
+  v_code text;
+  v_plan jsonb;
+  v_term text := 'dptestauthextremeterm' || substr(gen_random_uuid()::text, 1, 8);
+begin
+  reset role;
+  insert into moderation_terms (term, kind, severity) values (v_term, 'phrase', 'extreme');
+  select set_config('request.jwt.claims', '{"role":"authenticated"}', true);
+  set local role authenticated;
+
+  v_code := create_day_plan(v_pid, v_term, array[]::uuid[]);
+  v_plan := get_day_plan(v_code);
+  assert v_plan is not null, 'the plan must survive moderation screening for authenticated too';
+  assert v_plan->>'title' is null,
+    'a title matching a seeded extreme term must be nulled for authenticated, not just anon (P0-7c, guarded by migration 055)';
+
+  raise notice '  ✓ 19c. moderation trigger nulls a seeded extreme title for authenticated, not only anon';
 end $$;
 
 reset role;

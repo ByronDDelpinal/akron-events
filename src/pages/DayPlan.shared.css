@@ -27,6 +27,40 @@
   max-width: 760px;
 }
 
+/* PlanTitleHeading (P1-1): a click-to-edit control living inside the <h1>
+ * above, styled to read as the heading itself until interacted with. */
+.day-plan-heading-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  cursor: text;
+  border-radius: var(--radius-xs);
+}
+.day-plan-heading-btn:hover,
+.day-plan-heading-btn:focus-visible {
+  color: var(--amber);
+}
+.day-plan-heading-input {
+  display: block;
+  width: 100%;
+  background: var(--bg-card);
+  border: var(--border-width-medium) solid var(--amber);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2xs) var(--space-sm);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+@media print {
+  .day-plan-heading-btn { cursor: default; }
+}
+
 .day-plan-subhead {
   color: var(--text-muted);
   margin-bottom: var(--space-xl);

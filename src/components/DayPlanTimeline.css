@@ -131,6 +131,32 @@ a.day-plan-item-title:hover { color: var(--amber); }
 }
 .day-plan-overlap-note { color: var(--text-secondary); }
 
+/* ── Small phones (P1-11) ────────────────────────────────────────────────
+ * At the desktop layout above, a 360px viewport is `8em` (~128px) of fixed
+ * time column + `var(--space-lg)` gap + body + a Remove button -- there was
+ * no responsive rule at all before this, so the row didn't fit. Below 600px:
+ * the time wraps onto its own full-width line above the title (it's already
+ * the first DOM child, so no reordering is needed, just letting it wrap),
+ * and Remove settles to the bottom-right of the row via align-self. The gap
+ * line's indent, which matched the desktop time column's width, drops to 0
+ * since there's no longer a column to align under. */
+@media (max-width: 599px) {
+  .day-plan-item {
+    flex-wrap: wrap;
+  }
+  .day-plan-item-time {
+    width: auto;
+    flex-basis: 100%;
+    font-size: var(--text-xs);
+  }
+  .day-plan-item-remove {
+    align-self: flex-end;
+  }
+  .day-plan-gap-line {
+    padding-left: 0;
+  }
+}
+
 /* ── Print stylesheet (D5) ──────────────────────────────────────────────
  * Print stylesheet + window.print() instead of a generated PDF -- every
  * browser's print dialog has "Save as PDF" already. Scoped tightly to the

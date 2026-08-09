@@ -61,6 +61,28 @@ Please make sure:
 - Commit messages follow the existing convention: `feat:`, `fix:`, `chore:`,
   `docs:`, `refactor:`, `test:` (e.g. `feat: add kent stage scraper`).
 
+### PRs that touch `supabase/migrations/` or RLS policies
+
+CI has no database, so nothing in `.github/workflows/ci.yml` exercises a real
+Postgres. Any PR that changes a migration touching RLS policies, a
+SECURITY DEFINER function, or a moderation trigger needs a manual pre-merge
+run of the matching file(s) in `supabase/tests/` against a local
+`supabase start` database or a disposable Supabase branch:
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/day_plan_rls.test.sql
+```
+
+A clean run prints `ALL DAY PLAN RLS TESTS PASSED`; any failure raises and
+stops the script. This is a deliberate choice over a CI database container
+(day-plan-audit.md Decision 4): several of these tests exercise
+Supabase-specific extension behavior (`pgcrypto`, `pg_cron`,
+`safeupdate`) that a generic Postgres container would have to shim, and a
+shim that diverges from the real thing would let the suite pass while
+production breaks — worse than not automating it. Revisit this if the
+schema starts changing often enough that a human running the file by hand
+becomes the actual bottleneck.
+
 ---
 
 ## Adding a data source

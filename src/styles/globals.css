@@ -541,3 +541,21 @@ h6 { font-size: var(--text-h6); }
   margin: 0 auto;
   padding: 0 20px;
 }
+
+/* Screen-reader only — shared app-wide (day plan live region, loading
+   spinners, etc.). Duplicated intentionally in HomePage.css's .sr-only,
+   which predates this one; identical declarations, no conflict. This copy
+   lives in globals.css (loaded for every route from App.tsx) so components
+   mounted outside any page bundle -- like DayPlanProvider's live region,
+   mounted at the app root -- can rely on it without a page-specific import. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

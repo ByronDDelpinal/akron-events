@@ -123,6 +123,15 @@
 }
 .nav-plan-pill:hover { color: var(--white); background: var(--overlay-light-05); }
 
+/* Mobile bar variant (day-plan-audit.md, Ask 2): hidden above 1280px --
+ * the desktop `.nav-cta-group` pill above is the one that shows there.
+ * `.header-mobile-actions` wraps this pill with the hamburger; `display:
+ * contents` keeps it invisible to desktop layout (the hamburger's flex
+ * position is unchanged) and becomes a real flex row only under the
+ * 1279px breakpoint below. */
+.nav-plan-pill--bar { display: none; }
+.header-mobile-actions { display: contents; }
+
 /* ── MY NEIGHBORHOOD (installed app only) ── */
 /* Desktop nav variant: a pinned link that reads the saved hub. */
 .nav-myhood {
@@ -330,8 +339,24 @@
 @media (max-width: 1279px) {
   .nav-links { display: none; }
   .header-inner { padding: 0 var(--space-xl); position: relative; }
-  /* With nav-links and nav-cta-group both hidden, nothing is pulling the
-     hamburger to the right edge. margin-left: auto does that job. */
-  .btn-hamburger { display: flex; margin-left: auto; }
+  /* With nav-links and nav-cta-group both hidden, nothing is pulling
+     .header-mobile-actions (pill + hamburger) to the right edge. */
+  .btn-hamburger { display: flex; margin-left: 0; }
   .nav-cta-group { display: none; }
+
+  .header-mobile-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    margin-left: auto;
+  }
+  .nav-plan-pill--bar {
+    display: inline-flex;
+    align-items: center;
+    /* 36px, matching the hamburger's own touch target -- 44px would fight
+       a 64px header. */
+    min-height: 36px;
+    padding: var(--space-2xs) var(--space-md);
+    font-size: var(--text-xs);
+  }
 }

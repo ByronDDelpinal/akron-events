@@ -1,5 +1,22 @@
-/* AddToPlanButton — icon-only round button (cards) or icon+label pill
- * (featured card, EventPage). Toggle state: outline plus -> filled check. */
+/* AddToPlanButton — a pill "chip" (cards) or a full-width labelled button
+ * (EventPage's `inline` variant). Toggle state: outline plus -> filled check.
+ * See day-plan-audit.md's Ask 1 for the full variant model. */
+
+.add-to-plan-btn-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+/* The `inline` variant is EventPage-only, stacked full-width in the CTA
+ * column below "+ Add to Google Calendar" / "+ Add to Apple / Outlook
+ * Calendar" -- the wrapper must stretch the same way those buttons do, or
+ * the button inside it (which is itself `width: 100%`) has nothing to be
+ * 100% of. */
+.add-to-plan-btn-wrap--inline {
+  display: flex;
+  width: 100%;
+}
 
 .add-to-plan-btn {
   display: inline-flex;
@@ -13,20 +30,49 @@
   transition: all var(--transition-medium);
 }
 
-.add-to-plan-btn--icon {
-  width: 28px;
+/* Pill: glyph + short label ("+ Plan" / check "In plan"). Height stays 28px
+ * -- the round icon-only button's old height -- so the comfortable card
+ * footer's vertical rhythm is untouched. --text-xxs matches
+ * .card-efficient-price (EventCard.css) so the chip sits at the same
+ * optical weight as the rest of the efficient card's end row. */
+.add-to-plan-btn--chip {
   height: 28px;
-  border-radius: 50%;
-  padding: 0;
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-pill);
+  gap: var(--space-2xs);
+  font-family: var(--font-display);
+  font-size: var(--text-xxs);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
   flex-shrink: 0;
 }
 
-/* Inline variant: used in EventPage's action stack, directly beneath the two
- * `.btn-ticket-secondary` calendar buttons. It MUST match that class's box
- * exactly (full width, same radius / padding / type / border / rhythm) or it
- * reads as a broken third button -- narrower, tighter-cornered and heavier
- * than the two above it, which is exactly how it shipped on 2026-08-09.
- * Keep these values in step with `.btn-ticket-secondary` in EventPage.css. */
+/* Below 420px the efficient card's end row (badges + price + this chip) is
+ * too tight for a labelled pill -- drop the label and go back to a round
+ * icon-only circle. Scoped to `.card-efficient-end` only: the comfortable
+ * card keeps its label at every width, because that's the density mode
+ * most visitors are in and the one being judged. */
+@media (max-width: 419px) {
+  .card-efficient-end .add-to-plan-btn--chip {
+    width: 28px;
+    padding: 0;
+    border-radius: 50%;
+  }
+  .card-efficient-end .add-to-plan-btn--chip .add-to-plan-btn-label {
+    display: none;
+  }
+}
+
+/* Inline variant: used ONLY in EventPage's action stack, directly beneath
+ * the two `.btn-ticket-secondary` calendar buttons. It MUST match that
+ * class's box exactly (full width, same radius / padding / type / border /
+ * rhythm) or it reads as a broken third button -- narrower, tighter-cornered
+ * and heavier than the two above it, which is exactly how it shipped on
+ * 2026-08-09. Keep these values in step with `.btn-ticket-secondary` in
+ * EventPage.css. Do NOT reuse this variant anywhere a button sits inside a
+ * row alongside another control -- that's what `chip` is for; `inline`'s
+ * width:100% has no row to share. */
 .add-to-plan-btn--inline {
   display: flex;
   width: 100%;
@@ -56,4 +102,34 @@
 .add-to-plan-btn.in-plan:hover {
   background: var(--amber);
   color: var(--chip-active-txt);
+}
+
+/* Transient "plan is full" message (P0-5), shown next to the chip for a few
+ * seconds after a rejected click. A tooltip-style popover for the chip
+ * variant (space-constrained card rows); a plain block of text under the
+ * button for the inline variant (EventPage has the vertical room). */
+.add-to-plan-cap-msg {
+  position: absolute;
+  top: calc(100% + var(--space-2xs));
+  right: 0;
+  z-index: 5;
+  max-width: 220px;
+  background: var(--bg-card);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2xs) var(--space-sm);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  white-space: normal;
+  box-shadow: var(--shadow-hover);
+}
+.add-to-plan-btn-wrap--inline .add-to-plan-cap-msg {
+  position: static;
+  display: block;
+  max-width: none;
+  margin-top: var(--space-xs);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
 }

@@ -1,9 +1,14 @@
-import { useCallback, type KeyboardEvent, type MouseEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { useEmbed } from '@/hooks/useEmbed'
 import { useDayPlan } from '@/hooks/useDayPlan'
 import type { PlanSurface } from '@/lib/analyticsEvents'
 import type { SnapshotSource } from '@/lib/dayPlanDraft'
 import './AddToPlanButton.css'
+
+// How long the "plan is full" message stays visible next to the button
+// after a rejected click (P0-5). Long enough to read, short enough not to
+// linger as stale chrome on a card the visitor has moved on from.
+const CAP_MESSAGE_MS = 4000
 
 function PlusIcon() {
   return (
@@ -30,17 +35,25 @@ interface AddToPlanButtonProps {
   event: AddToPlanEvent
   /** Which mount this is — rides on plan_item_added/removed for funnel readability (§6.8). */
   surface: PlanSurface
-  /** 'icon' — round icon-only button (comfortable card footer, efficient card).
-   *  'inline' — icon + label (featured card, EventPage CTA stack, planner). */
-  variant?: 'icon' | 'inline'
+  /** 'chip' — pill with a glyph + short label ("+ Plan" / "In plan"). Used by
+   *  the comfortable card footer, the efficient card end, and the featured
+   *  card (day-plan-audit.md, Ask 1 -- "icon" was renamed once nothing here
+   *  is icon-only any more; below 420px `.card-efficient-end` alone falls
+   *  back to an icon-only circle via CSS, the label just hides).
+   *  'inline' — full-width button matching EventPage's `.btn-ticket-secondary`
+   *  calendar CTAs. EventPage ONLY -- the planner has its own dedicated
+   *  Remove button and never renders this component at all. */
+  variant?: 'chip' | 'inline'
   className?: string
 }
 
 /**
  * The day-planner add/remove control (D8). Placements per the design:
- *   - Comfortable card: icon-only, in .card-footer next to "View Details →".
- *   - Featured card: inline, next to "View Details →".
- *   - Efficient card: icon-only, first child of .card-efficient-end.
+ *   - Comfortable card footer: chip, next to "View Details →".
+ *   - Featured card: chip, next to "View Details →" (was `inline` -- that
+ *     variant's full-width/margin-top styling, added for EventPage, silently
+ *     broke this row's vertical centering; see AddToPlanButton.css).
+ *   - Efficient card: chip, first child of .card-efficient-end.
  *   - EventPage: inline, in the CTA stack next to Add to Calendar.
  *
  * `EventCard` renders the whole card as `role="button"` with onClick
@@ -53,15 +66,35 @@ interface AddToPlanButtonProps {
  * Not rendered inside the embed (decision 8): the embed is white-label, and
  * a partner's iframe must not grow an Akron Pulse feature the partner never
  * asked for.
+ *
+ * The 30-item cap (P0-5) is never a disabled button -- a disabled control
+ * with no explanation is the same silent no-op the feature used to ship
+ * with. It stays clickable; a click that hits the cap shows a transient
+ * message here AND announces through the shared live region
+ * (useDayPlan's `announce`, P1-9).
  */
-export default function AddToPlanButton({ event, surface, variant = 'icon', className = '' }: AddToPlanButtonProps) {
+export default function AddToPlanButton({ event, surface, variant = 'chip', className = '' }: AddToPlanButtonProps) {
   const embed = useEmbed()
-  const { isInPlan, addItem, removeItem } = useDayPlan()
+  const { isInPlan, addItem, removeItem, isFull } = useDayPlan()
   const inPlan = isInPlan(event.id)
+  const [capHit, setCapHit] = useState(false)
+  const capTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (capTimerRef.current) clearTimeout(capTimerRef.current)
+  }, [])
 
   const toggle = useCallback(() => {
-    if (inPlan) removeItem(event.id, surface)
-    else addItem(event, surface)
+    if (inPlan) {
+      removeItem(event.id, surface)
+      return
+    }
+    const added = addItem(event, surface)
+    if (!added) {
+      setCapHit(true)
+      if (capTimerRef.current) clearTimeout(capTimerRef.current)
+      capTimerRef.current = setTimeout(() => setCapHit(false), CAP_MESSAGE_MS)
+    }
   }, [inPlan, event, surface, addItem, removeItem])
 
   const handleClick = useCallback(
@@ -91,20 +124,32 @@ export default function AddToPlanButton({ event, surface, variant = 'icon', clas
 
   const label = inPlan
     ? `Remove "${event.title}" from your day plan`
-    : `Add "${event.title}" to your day plan`
+    : isFull
+      ? 'Your day plan is full at 30 events'
+      : `Add "${event.title}" to your day plan`
 
   return (
-    <button
-      type="button"
-      className={`add-to-plan-btn add-to-plan-btn--${variant}${inPlan ? ' in-plan' : ''} ${className}`.trim()}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
-      aria-pressed={inPlan}
-      aria-label={label}
-      title={variant === 'icon' ? label : undefined}
-    >
-      {inPlan ? <CheckIcon /> : <PlusIcon />}
-      {variant === 'inline' && <span>{inPlan ? 'In your day plan' : 'Add to day plan'}</span>}
-    </button>
+    <span className={`add-to-plan-btn-wrap add-to-plan-btn-wrap--${variant}`}>
+      <button
+        type="button"
+        className={`add-to-plan-btn add-to-plan-btn--${variant}${inPlan ? ' in-plan' : ''} ${className}`.trim()}
+        onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        aria-pressed={inPlan}
+        aria-label={label}
+        title={variant === 'chip' ? label : undefined}
+      >
+        {inPlan ? <CheckIcon /> : <PlusIcon />}
+        {variant === 'chip' && (
+          <span className="add-to-plan-btn-label">{inPlan ? 'In plan' : 'Plan'}</span>
+        )}
+        {variant === 'inline' && <span>{inPlan ? 'In your day plan' : 'Add to day plan'}</span>}
+      </button>
+      {capHit && (
+        <span className="add-to-plan-cap-msg" role="status" aria-live="polite">
+          Your day plan is full. Remove an event to add another.
+        </span>
+      )}
+    </span>
   )
 }

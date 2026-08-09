@@ -186,6 +186,13 @@
  * margin-auto trick wins over justify-content for a lone child. */
 .card-footer .btn-details { margin-left: auto; }
 
+/* The chip grows from the old icon-only 28px to roughly 60px with its
+ * label. This footer's only other possible child is the optional age pill,
+ * and margin-left:auto on Details (above) absorbs the width difference on
+ * its own -- this just keeps the chip from touching Details when no age
+ * pill renders in between. */
+.card-footer .add-to-plan-btn--chip { margin-right: var(--space-sm); }
+
 /* Featured card — full-width row with a heavier accent and larger title.
  * Horizontal thumb layout was removed alongside thumbs; differentiation
  * now comes from grid span, the Featured badge, and a thicker accent. */

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, Suspense, lazy } fro
 import DayPlanTimeline, { type PlanRenderItem } from '@/components/DayPlanTimeline'
 import { numberPlanItems, toPlanMapPoints } from '@/lib/planMapPoints'
 import { prefersReducedMotion } from '@/lib/feedback'
+import { trackEvent, EVENTS } from '@/lib/analytics'
 import './DayPlanBoard.css'
 
 // React.lazy so a visitor who never opens the map (mobile, collapsed --
@@ -60,6 +61,9 @@ function useMatchMedia(query: string): boolean {
 
 export interface DayPlanBoardProps {
   items: PlanRenderItem[]
+  /** Passed straight through to DayPlanTimeline (both render branches
+   *  below) -- see that component's own prop doc (day-plan-audit.md P1-8). */
+  emptyMessage?: string
 }
 
 /**
@@ -76,7 +80,7 @@ export interface DayPlanBoardProps {
  * basemap with no pins reads as "we lost your stuff", which is worse than
  * no map.
  */
-export default function DayPlanBoard({ items }: DayPlanBoardProps) {
+export default function DayPlanBoard({ items, emptyMessage }: DayPlanBoardProps) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<boolean>(() => readMapCollapsed())
   const isMobile = useMatchMedia(MOBILE_QUERY)
@@ -112,6 +116,7 @@ export default function DayPlanBoard({ items }: DayPlanBoardProps) {
   // reader's position. On desktop the sticky map is already visible, so
   // selecting never scrolls the page.
   const handleSelectRow = useCallback((key: string) => {
+    trackEvent(EVENTS.PLAN_MAP_SELECTION, { from: 'list' })
     setSelectedKey(key)
     if (!isMobile) return
     if (collapsed) {
@@ -132,6 +137,7 @@ export default function DayPlanBoard({ items }: DayPlanBoardProps) {
     setCollapsed((prev) => {
       const next = !prev
       writeMapCollapsed(next)
+      trackEvent(EVENTS.PLAN_MAP_TOGGLED, { state: next ? 'collapsed' : 'expanded' })
       return next
     })
   }, [])
@@ -147,6 +153,7 @@ export default function DayPlanBoard({ items }: DayPlanBoardProps) {
         selectedKey={null}
         onSelectRow={() => {}}
         registerRow={registerRow}
+        emptyMessage={emptyMessage}
       />
     )
   }
@@ -165,6 +172,7 @@ export default function DayPlanBoard({ items }: DayPlanBoardProps) {
         selectedKey={selectedKey}
         onSelectRow={handleSelectRow}
         registerRow={registerRow}
+        emptyMessage={emptyMessage}
       />
       <div className="day-plan-board-map" ref={mapSectionRef}>
         <button

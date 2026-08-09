@@ -9,8 +9,26 @@
   max-width: 760px;
 }
 
+/* "Start a new plan" (Decision 1 of the day-plan audit) -- owner-only, a
+ * quiet text control rather than a CTA button, matching the weight of
+ * .day-plan-item-remove elsewhere in this feature. Not part of
+ * .day-plan-actions: it's a way OUT of this plan, not an action ON it. */
+.day-plan-start-new {
+  display: inline-block;
+  margin-top: var(--space-md);
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.day-plan-start-new:hover { color: var(--amber); }
+
 @media print {
-  .day-plan-print-note {
+  .day-plan-print-note,
+  .day-plan-start-new {
     display: none;
   }
 }

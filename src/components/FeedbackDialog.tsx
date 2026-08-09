@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase'
 import type { TablesInsert } from '@/lib/database.types'
 import { trackEvent, EVENTS } from '@/lib/analytics'
 import type { FeedbackPlacement } from '@/lib/analyticsEvents'
+import { redactPath } from '@/lib/planPathRedaction'
 import {
   MAX_LEN,
   COOLDOWN_MS,
@@ -234,7 +235,10 @@ export default function FeedbackDialog({
         // orb; changing it would need a migration, out of scope here.
         category: 'orb',
         body: trimmed,
-        page_path: typeof window === 'undefined' ? '' : window.location.pathname,
+        // redactPath (P1-13): feedback sent from /d/<code> would otherwise
+        // persist a live day-plan bearer credential into feedback_posts --
+        // same fix as trackPageView's, same reason.
+        page_path: typeof window === 'undefined' ? '' : redactPath(window.location.pathname),
         is_private: true,
       }
       const { error } = await supabase

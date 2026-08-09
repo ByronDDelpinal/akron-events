@@ -89,6 +89,20 @@ export type PlanSurface = 'card' | 'event_page' | 'planner'
 /** How a plan was exported. */
 export type PlanExportFormat = 'ics' | 'print'
 
+/** Who opened a plan view. 'draft' is /day itself (no code involved yet);
+ *  'owner'/'visitor' are /d/:code, split on whether THIS device holds the
+ *  code in akronpulse_day_plan_code. */
+export type PlanOpenedRole = 'owner' | 'visitor' | 'draft'
+
+/** Whether the mobile map panel was opened or closed. */
+export type PlanMapToggleState = 'expanded' | 'collapsed'
+
+/** Which control changed the map/list selection. */
+export type PlanMapSelectionSource = 'list' | 'marker' | 'popup'
+
+/** Which local mutation failed to reach the shared plan. */
+export type PlanSyncOp = 'add' | 'remove'
+
 /**
  * Event-name constants. The string VALUES are what GA4 receives; the keys are
  * just ergonomic call-site references. Keep values in sync with EventParams.
@@ -125,6 +139,13 @@ export const EVENTS = {
   PLAN_SHARED:        'plan_shared',
   PLAN_OPENED:        'plan_opened',
   PLAN_EXPORTED:      'plan_exported',
+  PLAN_CAP_REACHED:      'plan_cap_reached',
+  PLAN_DRAFT_RECONCILED: 'plan_draft_reconciled',
+  PLAN_SYNC_FAILED:      'plan_sync_failed',
+  PLAN_SHARE_FAILED:     'plan_share_failed',
+  PLAN_LINK_COPIED:      'plan_link_copied',
+  PLAN_MAP_TOGGLED:      'plan_map_toggled',
+  PLAN_MAP_SELECTION:    'plan_map_selection',
 } as const
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS]
@@ -164,13 +185,34 @@ export interface EventParams {
   feedback_opened:    { placement: FeedbackPlacement }
   feedback_submitted: { placement: FeedbackPlacement }
   feedback_dismissed: { placement: FeedbackPlacement }
-  // role: 'owner' = this device holds the code in akronpulse_day_plan_code.
-  // Answers the only question that matters about this feature — are shared
-  // links actually opened by OTHER people, or is this a private bookmarking
-  // tool with extra steps? Without it, plan_opened is unreadable.
-  plan_item_added:   { surface: PlanSurface; category: string }
-  plan_item_removed: { surface: PlanSurface }
-  plan_shared:        { item_count: number }
-  plan_opened:        { role: 'owner' | 'visitor'; item_count: number }
+  // plan_surface (NOT `surface` -- that name collides with the site-wide
+  // `surface` config-level default parameter registered by initAnalytics,
+  // and GA4 event-level params silently override config defaults, so a
+  // bare `surface` here was corrupting that dimension on every plan event.
+  // See analytics.ts's initAnalytics for the dimension it was colliding
+  // with. Renamed 2026-08-09 (day-plan-audit.md P0-4) -- do not revert.
+  plan_item_added:   { plan_surface: PlanSurface; category: string }
+  plan_item_removed: { plan_surface: PlanSurface }
+  // days_spanned: distinct Eastern days in the draft at share time
+  // (groupPlanItemsByDay(items).length) -- answers whether this is a
+  // same-day itinerary tool or a multi-day wishlist.
+  plan_shared:        { item_count: number; days_spanned: number }
+  // role: 'owner' = this device holds the code in akronpulse_day_plan_code;
+  // 'visitor' = someone else's /d/:code; 'draft' = /day itself, before any
+  // code exists. Answers the only question that matters about this feature —
+  // are shared links actually opened by OTHER people, or is this a private
+  // bookmarking tool with extra steps? Without it, plan_opened is unreadable.
+  plan_opened:        { role: PlanOpenedRole; item_count: number }
+  // format: 'print' fires on window.print() invocation -- print INTENT, not
+  // a completed print (the user may cancel the OS dialog).
   plan_exported:       { format: PlanExportFormat; item_count: number }
+  plan_cap_reached:      { plan_surface: PlanSurface }
+  plan_draft_reconciled: { removed: number; item_count: number }
+  plan_sync_failed:      { op: PlanSyncOp }
+  plan_share_failed:     Record<string, never>
+  // No identifier of any kind on purpose -- see SharedPlanPage.tsx's
+  // handleCopyLink. `role` mirrors plan_opened's split.
+  plan_link_copied:      { role: 'owner' | 'visitor' }
+  plan_map_toggled:      { state: PlanMapToggleState }
+  plan_map_selection:    { from: PlanMapSelectionSource }
 }

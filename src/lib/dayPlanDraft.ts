@@ -101,6 +101,24 @@ export function writeActivePlanCode(code: string): void {
 }
 
 /**
+ * Drop the remembered active plan code. Two callers (P1-17 / Decision 1 of
+ * the day-plan audit):
+ *   - DayPlanPage's redirect check, when get_day_plan resolves the code to
+ *     null -- the code is now KNOWN dead, so every future /day visit would
+ *     otherwise pay a wasted round trip forever, forever landing back on the
+ *     draft anyway.
+ *   - "Start a new plan" on /d/:code (owner only) -- the visitor is
+ *     deliberately leaving this plan behind; the old plan keeps working at
+ *     its own link for anyone still holding it, this device just stops
+ *     treating it as "mine".
+ */
+export function clearActivePlanCode(): void {
+  try {
+    localStorage.removeItem(ACTIVE_CODE_KEY)
+  } catch { /* ignore */ }
+}
+
+/**
  * Minimal event shape draft snapshotting depends on. `venue.lat`/`lng` are
  * already selected at every call site that constructs one of these --
  * useEvents.ts's list query, firstPageQuery.js's EVENT_LIST_COLUMNS join,

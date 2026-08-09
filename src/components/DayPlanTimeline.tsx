@@ -40,6 +40,10 @@ export interface DayPlanTimelineProps {
    *  selects it -- a Map<key, element>, not an array of refs, matching the
    *  infinite-scroll sentinel's callback-ref pattern elsewhere in the app. */
   registerRow: (key: string, el: HTMLElement | null) => void
+  /** Rendered instead of the list when `items` is empty. Each page supplies
+   *  its own copy (day-plan-audit.md P1-8) rather than layering a second,
+   *  page-level empty-state message on top of this one. */
+  emptyMessage?: string
 }
 
 /**
@@ -57,21 +61,20 @@ export interface DayPlanTimelineProps {
  * and PlanMap.tsx (rendered alongside it by DayPlanBoard) must never
  * disagree about what "#3" refers to.
  */
-export default function DayPlanTimeline({ items, numbers, selectedKey, onSelectRow, registerRow }: DayPlanTimelineProps) {
+export default function DayPlanTimeline({ items, numbers, selectedKey, onSelectRow, registerRow, emptyMessage = 'Nothing in this plan yet.' }: DayPlanTimelineProps) {
   const groups = useMemo(() => groupPlanItemsByDay(items), [items])
 
   const spansManyDays = groups.length > 3
 
   if (items.length === 0) {
-    return <p className="day-plan-empty">Nothing in this plan yet.</p>
+    return <p className="day-plan-empty">{emptyMessage}</p>
   }
 
   return (
     <div className="day-plan-timeline">
       {spansManyDays && (
         <p className="day-plan-span-note">
-          This plan spans {groups.length} days. It is a day planner, nothing more —
-          the timeline below still groups everything by day.
+          This plan covers {groups.length} days. It is grouped by day below.
         </p>
       )}
       {groups.map(([dateKey, dayItems]) => {
@@ -174,7 +177,7 @@ function PlanItemRow({ item, number, selected, onSelectRow, registerRow }: PlanI
         )}
         {item.rotStatus === 'moved' && item.oldStartAt && (
           <div className="day-plan-item-moved">
-            Moved — was <s>{formatEventDate(item.oldStartAt)}</s>, now {formatEventDate(item.startAt)}
+            Moved. Was <s>{formatEventDate(item.oldStartAt)}</s>, now {formatEventDate(item.startAt)}
           </div>
         )}
         {note && <div className={`day-plan-item-note day-plan-item-note--${item.rotStatus}`}>{note}</div>}

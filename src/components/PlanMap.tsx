@@ -30,11 +30,12 @@
  * accepted inconsistency between the two maps' scroll behavior (inline
  * panel vs. full-viewport view).
  */
-import { useState, useMemo, useCallback, useRef, useEffect, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useState, useMemo, useCallback, useRef, useEffect, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import MapGL, { Marker, Popup, NavigationControl, Source, Layer, type MapRef } from 'react-map-gl/maplibre'
 import { AKRON_CENTER, MAP_STYLE, DEFAULT_ZOOM } from '@/lib/mapConfig'
 import { boundsForPoints, roundCoordKey, type PlanMapPoint, type PlanMarkerGroup, type BBox } from '@/lib/planMapPoints'
 import { prefersReducedMotion } from '@/lib/feedback'
+import { trackEvent, EVENTS } from '@/lib/analytics'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import './MapPopup.css'
 import './PlanMap.css'
@@ -180,6 +181,16 @@ export default function PlanMap({ points, connector, selectedKey, onSelect, tota
     fitToPoints(true)
   }, [onSelect, fitToPoints])
 
+  // Shared by the Marker's own onClick (stem/padding clicks) and PlanPin's
+  // onClick (the button itself -- keyboard activation and most mouse
+  // clicks land here, see PlanPin below). Never double-fires: PlanPin's
+  // handler calls stopPropagation, so a button click never also reaches the
+  // Marker wrapper's listener.
+  const handleMarkerSelect = useCallback((key: string) => {
+    trackEvent(EVENTS.PLAN_MAP_SELECTION, { from: 'marker' })
+    onSelect(key)
+  }, [onSelect])
+
   const handleKeyDown = useCallback((e: ReactKeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Escape') onSelect(null)
   }, [onSelect])
@@ -246,7 +257,7 @@ export default function PlanMap({ points, connector, selectedKey, onSelect, tota
               anchor="bottom"
               onClick={(e: { originalEvent: MouseEvent }) => {
                 e.originalEvent.stopPropagation()
-                onSelect(displayPoint.key)
+                handleMarkerSelect(displayPoint.key)
               }}
             >
               <PlanPin
@@ -255,6 +266,7 @@ export default function PlanMap({ points, connector, selectedKey, onSelect, tota
                 selected={isSelected}
                 struck={displayPoint.struck}
                 label={`Stop ${displayPoint.number}: ${displayPoint.title}${displayPoint.venueName ? ` at ${displayPoint.venueName}` : ''}`}
+                onSelect={() => handleMarkerSelect(displayPoint.key)}
               />
             </Marker>
           )
@@ -298,15 +310,31 @@ interface PlanPinProps {
   selected: boolean
   struck: boolean
   label: string
+  /** P1-10: this button previously had NO onClick of its own -- selection
+   *  relied entirely on the Marker wrapper's click handler, which meant
+   *  whether Enter/Space on this focused, aria-pressed button actually
+   *  selected anything depended on MapLibre's marker element not stopping
+   *  propagation of a SYNTHETIC click React fires for keyboard activation.
+   *  That's not a contract to rely on, and a button advertising
+   *  aria-pressed with no working keyboard activation is worse than one
+   *  with no aria-pressed at all. The handler here calls stopPropagation so
+   *  a real mouse click never also re-fires the Marker's own handler. */
+  onSelect: () => void
 }
 
-function PlanPin({ number, count, selected, struck, label }: PlanPinProps) {
+function PlanPin({ number, count, selected, struck, label, onSelect }: PlanPinProps) {
+  const handleClick = useCallback((e: ReactMouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation()
+    onSelect()
+  }, [onSelect])
+
   return (
     <button
       type="button"
       className={`plan-pin${selected ? ' plan-pin--selected' : ''}${struck ? ' plan-pin--struck' : ''}`}
       aria-label={label}
       aria-pressed={selected}
+      onClick={handleClick}
     >
       <span className="plan-pin-dot">
         <span className="plan-pin-num">{number}</span>
@@ -350,7 +378,10 @@ function PlanPopup({ group, selectedKey, onSelect }: PlanPopupProps) {
             key={p.key}
             type="button"
             className={`plan-popup-event${p.key === selectedKey ? ' plan-popup-event--selected' : ''}${p.struck ? ' plan-popup-event--struck' : ''}`}
-            onClick={() => onSelect(p.key)}
+            onClick={() => {
+              trackEvent(EVENTS.PLAN_MAP_SELECTION, { from: 'popup' })
+              onSelect(p.key)
+            }}
           >
             <span className="plan-popup-event-number" aria-hidden="true">{p.number}</span>
             <span className="plan-popup-event-body">

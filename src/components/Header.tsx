@@ -117,14 +117,32 @@ export default function Header() {
           <Link to="/subscribe" className="btn-nav-cta">Subscribe</Link>
         </div>
 
-        <button
-          className={`btn-hamburger ${menuOpen ? 'open' : ''}`}
-          onClick={() => setMenuOpen((o) => !o)}
-          aria-label="Menu"
-          aria-expanded={menuOpen}
-        >
-          <span /><span /><span />
-        </button>
+        {/* Mobile plan entry point outside the hamburger (day-plan-audit.md,
+            Ask 2). `display: contents` above 1280px keeps the hamburger's
+            position in the desktop flex row byte-identical to before this
+            wrapper existed -- see Header.css. Renders nothing at count 0:
+            the pill is a RETURN affordance, not a discovery one (that's the
+            "+ Plan" chip's job on every card), so the header gains zero
+            permanent width for visitors who never touch the feature. */}
+        <div className="header-mobile-actions">
+          {planCount > 0 && (
+            <Link
+              to="/day"
+              className="nav-plan-pill nav-plan-pill--bar"
+              aria-label={`Your day plan, ${planCount} ${planCount === 1 ? 'event' : 'events'}`}
+            >
+              Plan · {planCount}
+            </Link>
+          )}
+          <button
+            className={`btn-hamburger ${menuOpen ? 'open' : ''}`}
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label="Menu"
+            aria-expanded={menuOpen}
+          >
+            <span /><span /><span />
+          </button>
+        </div>
       </div>
 
       {menuOpen && (

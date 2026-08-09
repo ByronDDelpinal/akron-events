@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { SEO } from '@/lib/seo'
 import { useDayPlan } from '@/hooks/useDayPlan'
-import { getDayPlan, removeEventFromPlan, type DayPlan, type DayPlanItem } from '@/lib/dayPlanApi'
+import { getDayPlan, removeEventFromPlan, setPlanTitle, type DayPlan, type DayPlanItem } from '@/lib/dayPlanApi'
 import DayPlanBoard from '@/components/DayPlanBoard'
+import PlanTitleHeading from '@/components/PlanTitleHeading'
 import { type PlanRenderItem } from '@/components/DayPlanTimeline'
 import { buildVCalendar, downloadIcs, planIcsFilename, REMOVED_ITEMS_NOTE } from '@/lib/ics.js'
 import { eventPath } from '@/lib/slug'
@@ -49,10 +50,16 @@ function toIcsExportEvent(item: DayPlanItem) {
  */
 export default function SharedPlanPage() {
   const { code = '' } = useParams()
-  const { activePlanCode, removeItem, reconcileDraft } = useDayPlan()
+  const navigate = useNavigate()
+  const { activePlanCode, removeItem, reconcileDraft, startNewPlan } = useDayPlan()
   const [plan, setPlan] = useState<DayPlan | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  // P0-8: a thrown error (network blip, offline phone, a Supabase hiccup) is
+  // NOT the same as the plan not existing -- the old code collapsed both
+  // into notFound, which told a visitor their saved plan had expired when it
+  // had not. loadError is the honest, retryable "we couldn't load it" state.
+  const [loadError, setLoadError] = useState(false)
   const lastRefreshRef = useRef(0)
   const openedTrackedRef = useRef(false)
 
@@ -63,13 +70,16 @@ export default function SharedPlanPage() {
       if (result) {
         setPlan(result)
         setNotFound(false)
+        setLoadError(false)
         // Heal any drift between the local draft (what the header's
         // "Plan · N" pill counts) and the server (what this page shows).
         // Needed because removals can happen off this device -- a
         // collaborator with the link -- and nothing else ever reconciles the
-        // two, so the pill would sit stale indefinitely.
+        // two, so the pill would sit stale indefinitely. Two-way as of
+        // P1-2: also RESTORES items the server still has that a failed sync
+        // dropped from the local draft.
         if (activePlanCode === code) {
-          reconcileDraft(result.items.map((i) => i.event_id))
+          reconcileDraft(result.items)
         }
         if (!openedTrackedRef.current) {
           openedTrackedRef.current = true
@@ -80,9 +90,10 @@ export default function SharedPlanPage() {
         }
       } else {
         setNotFound(true)
+        setLoadError(false)
       }
     } catch {
-      setNotFound(true)
+      setLoadError(true)
     } finally {
       setLoading(false)
       lastRefreshRef.current = Date.now()
@@ -109,6 +120,8 @@ export default function SharedPlanPage() {
     }
   }, [load])
 
+  const isOwner = activePlanCode === code
+
   const handleRemove = useCallback(async (eventId: string) => {
     // Optimistic: drop it locally first, then reconcile with the server's
     // returned state. On error, the reload below restores the true state.
@@ -119,9 +132,11 @@ export default function SharedPlanPage() {
     // Without this the pill stays stuck at its old count after removing items
     // here, which reads as a broken counter. Guarded on activePlanCode so a
     // collaborator viewing someone else's link never has their own draft
-    // mutated by it.
-    const isOwnPlan = activePlanCode === code
-    if (isOwnPlan) removeItem(eventId, 'planner')
+    // mutated by it. syncToServer: false (P0-6) -- THIS function makes the
+    // actual day_plan_remove_event call below; without the opt-out,
+    // removeItem() would make a SECOND one, halving the anti-abuse mutation
+    // budget and racing two responses against each other.
+    if (isOwner) removeItem(eventId, 'planner', { syncToServer: false })
 
     try {
       const result = await removeEventFromPlan(code, eventId)
@@ -129,33 +144,55 @@ export default function SharedPlanPage() {
       // removeItem() above already fires PLAN_ITEM_REMOVED, so only emit it
       // here when we did NOT go through the draft -- otherwise every removal
       // on your own plan double-counts.
-      if (!isOwnPlan) trackEvent(EVENTS.PLAN_ITEM_REMOVED, { surface: 'planner' })
+      if (!isOwner) trackEvent(EVENTS.PLAN_ITEM_REMOVED, { plan_surface: 'planner' })
     } catch {
       load({ silent: true })
     }
-  }, [code, load, activePlanCode, removeItem])
+  }, [code, load, isOwner, removeItem])
+
+  const handleSetTitle = useCallback(async (title: string | null) => {
+    try {
+      const result = await setPlanTitle(code, title)
+      if (result) setPlan(result)
+    } catch {
+      // Best effort -- a stale local title on failure self-corrects on the
+      // next focus/visibility refresh (load() above).
+    }
+  }, [code])
+
+  // visibleItems (P1-5): plan.items.length and the rendered list used to
+  // disagree, because merged_duplicate items are filtered before render but
+  // NOT before the action-bar item-count gate below -- a plan whose only
+  // live item was a merged_duplicate showed the action bar above an empty
+  // timeline. Computed once, used everywhere "how many items does this plan
+  // actually show" matters.
+  const visibleItems = useMemo(
+    () => (plan ? plan.items.filter((i) => i.rot_status !== 'merged_duplicate') : []),
+    [plan],
+  )
 
   const handleExportIcs = useCallback(() => {
     if (!plan) return
-    const events = plan.items
-      .filter((i) => i.rot_status !== 'merged_duplicate')
-      .map(toIcsExportEvent)
+    const events = visibleItems.map(toIcsExportEvent)
     const content = buildVCalendar(events, { name: plan.title ?? undefined })
     downloadIcs(planIcsFilename(plan.title ?? ''), content)
-    trackEvent(EVENTS.PLAN_EXPORTED, { format: 'ics', item_count: plan.item_count })
-  }, [plan])
+    // P1-16: item_count is the count of items ACTUALLY WRITTEN to the file
+    // -- buildVCalendar also drops 'gone' items, which plan.item_count (the
+    // server rollup) does not exclude.
+    const exportedCount = events.filter((e) => e.rot_status !== 'gone').length
+    trackEvent(EVENTS.PLAN_EXPORTED, { format: 'ics', item_count: exportedCount })
+  }, [plan, visibleItems])
 
   const handlePrint = useCallback(() => {
     if (!plan) return
-    trackEvent(EVENTS.PLAN_EXPORTED, { format: 'print', item_count: plan.item_count })
+    trackEvent(EVENTS.PLAN_EXPORTED, { format: 'print', item_count: visibleItems.length })
     window.print()
-  }, [plan])
+  }, [plan, visibleItems])
 
   // "Copy link" deliberately does NOT use EVENTS.SHARE / ShareButtons — that
   // event's contract carries item_id (the URL), which here would be the
-  // bearer code. plan_shared (fired once, at creation, in DayPlanPage) is
-  // the only analytics signal for this feature's sharing behavior; a plain
-  // copy-to-clipboard here fires nothing.
+  // bearer code. plan_link_copied carries no identifier of any kind (Ask 3)
+  // -- role only, matching plan_opened's split.
   const [copied, setCopied] = useState(false)
   const handleCopyLink = useCallback(async () => {
     const url = `${SITE_ORIGIN}/d/${code}`
@@ -171,9 +208,35 @@ export default function SharedPlanPage() {
     }
     setCopied(true)
     setTimeout(() => setCopied(false), 1800)
-  }, [code])
+    trackEvent(EVENTS.PLAN_LINK_COPIED, { role: isOwner ? 'owner' : 'visitor' })
+  }, [code, isOwner])
+
+  // Decision 1 of the day-plan audit: the one-way door at /day. Owner-only
+  // -- clears this device's remembered code AND its local draft, then
+  // returns to a blank /day. The plan at THIS link is untouched and keeps
+  // working for anyone who still has it; this device just stops treating it
+  // as "mine".
+  const handleStartNewPlan = useCallback(() => {
+    if (!window.confirm('Start a new plan? Your current plan stays at its link, and this device starts fresh.')) return
+    startNewPlan()
+    navigate('/day')
+  }, [startNewPlan, navigate])
 
   if (loading) return <div className="day-plan-page"><p>Loading your plan…</p></div>
+
+  if (loadError) {
+    return (
+      <div className="day-plan-page">
+        <SEO title="Couldn't load your plan" path={`/d/${code}`} noindex />
+        <h1 className="day-plan-heading">We couldn&apos;t load that plan</h1>
+        <p className="day-plan-subhead">
+          Something went wrong loading this plan. Your connection may be offline, or Akron Pulse
+          may be having a moment. Nothing about your plan has changed.
+        </p>
+        <button type="button" className="btn-nav-cta" onClick={() => load()}>Try again</button>
+      </div>
+    )
+  }
 
   if (notFound) {
     return (
@@ -190,48 +253,57 @@ export default function SharedPlanPage() {
 
   if (!plan) return null
 
-  const items: PlanRenderItem[] = plan.items
-    .filter((i) => i.rot_status !== 'merged_duplicate')
-    .map((i) => ({
-      key: i.event_id,
-      title: i.title ?? i.snap_title,
-      startAt: i.start_at ?? i.snap_start_at,
-      oldStartAt: i.rot_status === 'moved' ? i.snap_start_at : null,
-      endAt: i.end_at ?? i.snap_end_at,
-      venueName: i.venue?.name ?? i.snap_venue,
-      venueGeo: i.venue ? { lat: i.venue.lat, lng: i.venue.lng } : null,
-      venueAddress: i.venue?.address ?? null,
-      venueCity: i.venue?.city ?? null,
-      eventPath: i.rot_status === 'gone' ? null : eventPath({ id: i.resolved_event_id ?? i.event_id, title: i.title ?? i.snap_title, start_at: i.start_at ?? i.snap_start_at }),
-      rotStatus: i.rot_status,
-      onRemove: () => handleRemove(i.event_id),
-    }))
+  const items: PlanRenderItem[] = visibleItems.map((i) => ({
+    key: i.event_id,
+    title: i.title ?? i.snap_title,
+    startAt: i.start_at ?? i.snap_start_at,
+    oldStartAt: i.rot_status === 'moved' ? i.snap_start_at : null,
+    endAt: i.end_at ?? i.snap_end_at,
+    venueName: i.venue?.name ?? i.snap_venue,
+    venueGeo: i.venue ? { lat: i.venue.lat, lng: i.venue.lng } : null,
+    venueAddress: i.venue?.address ?? null,
+    venueCity: i.venue?.city ?? null,
+    eventPath: i.rot_status === 'gone' ? null : eventPath({ id: i.resolved_event_id ?? i.event_id, title: i.title ?? i.snap_title, start_at: i.start_at ?? i.snap_start_at }),
+    rotStatus: i.rot_status,
+    onRemove: () => handleRemove(i.event_id),
+  }))
 
   return (
     <div className="day-plan-page">
       <SEO title={plan.title ?? 'A shared day plan'} path={`/d/${code}`} noindex />
-      <h1 className="day-plan-heading">{plan.title || 'A shared day plan'}</h1>
+      <PlanTitleHeading title={plan.title} fallback="A shared day plan" onSave={handleSetTitle} />
       <p className="day-plan-subhead">
         Anyone with this link can view and add to this plan. {REMOVED_ITEMS_NOTE}
       </p>
 
-      <DayPlanBoard items={items} />
+      <DayPlanBoard items={items} emptyMessage="Nothing in this plan yet." />
 
-      {plan.items.length > 0 && (
-        <div className="day-plan-actions">
-          <button type="button" className="btn-nav-cta" onClick={handleCopyLink}>
-            {copied ? 'Link copied!' : 'Copy link'}
-          </button>
-          <button type="button" className="btn-nav-cta btn-nav-cta-outline" onClick={handleExportIcs}>
-            Export .ics
-          </button>
-          <button type="button" className="btn-nav-cta btn-nav-cta-outline" onClick={handlePrint}>
-            Print
-          </button>
-        </div>
+      <div className="day-plan-actions">
+        {/* Copy link is ALWAYS available (P1-4) -- gating it on item count
+            meant an owner who emptied their own plan lost the only way to
+            re-share it. Export/Print stay gated: there is nothing to
+            export or print when the plan is empty. */}
+        <button type="button" className="btn-nav-cta" onClick={handleCopyLink}>
+          {copied ? 'Link copied!' : 'Copy link'}
+        </button>
+        {visibleItems.length > 0 && (
+          <>
+            <button type="button" className="btn-nav-cta btn-nav-cta-outline" onClick={handleExportIcs}>
+              Export .ics
+            </button>
+            <button type="button" className="btn-nav-cta btn-nav-cta-outline" onClick={handlePrint}>
+              Print
+            </button>
+          </>
+        )}
+      </div>
+      {isOwner && (
+        <button type="button" className="day-plan-start-new" onClick={handleStartNewPlan}>
+          Start a new plan
+        </button>
       )}
       <p className="day-plan-print-note">
-        Your browser may print this page&apos;s URL in the footer — it contains this plan&apos;s link.
+        Your browser may print this page&apos;s URL in the footer. That URL is this plan&apos;s link.
       </p>
     </div>
   )
