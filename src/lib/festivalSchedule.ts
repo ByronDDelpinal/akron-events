@@ -194,3 +194,100 @@ export function upNextSlot(schedule: FestivalSchedule, nowMs: number): FestivalS
 export function happeningNowSlots(schedule: FestivalSchedule, nowMs: number): FestivalSlot[] {
   return schedule.slots.filter((slot) => slot.items.some((i) => isHappeningNow(i, nowMs)))
 }
+
+// ── Festival map pins (FestivalMap.tsx) ─────────────────────────────────────
+
+/** One marker on the festival hub map: a venue (porch or stage) with every
+ *  set it hosts collapsed into a count + time range. */
+export interface FestivalMapPin {
+  venueId: string
+  /** Display name, importer prefix already stripped (stripVenuePrefix). */
+  venueName: string | null
+  lat: number
+  lng: number
+  kind: FestivalColumnKind
+  /** Marker glyph: the porch number ('7') for porches, the stage key's
+   *  first letter uppercased ('M' for main) for stages. Collisions between
+   *  two stages sharing an initial are tolerated -- the pin color and the
+   *  popup name disambiguate. */
+  glyph: string
+  /** The column's display label ('Porch 7', 'Main Stage'). */
+  label: string
+  setCount: number
+  /** ISO instants of the venue's earliest and latest set starts, for the
+   *  popup's "N sets, 11:00 AM to 7:00 PM" subline. */
+  firstStartAt: string
+  lastStartAt: string
+}
+
+/** Strip a registry-declared importer prefix (Festival.venueNamePrefix,
+ *  e.g. 'PorchRokr ') off a venue name for display. Shared by
+ *  FestivalPage.tsx's venue lines and toFestivalMapPins below so the list
+ *  and the map can never disagree about a venue's display name. */
+export function stripVenuePrefix(name: string | null | undefined, prefix?: string): string | null {
+  if (!name) return null
+  if (prefix && name.startsWith(prefix)) return name.slice(prefix.length)
+  return name
+}
+
+function isFiniteCoord(v: number | null | undefined): v is number {
+  return typeof v === 'number' && Number.isFinite(v)
+}
+
+/**
+ * Derive map pins from a built schedule: one pin per venue id, counting
+ * sets and tracking the earliest/latest start. Rows whose first venue is
+ * missing or has null/non-finite coordinates are skipped silently (they
+ * still render in the schedule list; the map just can't place them).
+ * Iteration follows slot order, so first/lastStartAt fall out of the
+ * already-ascending slots; pins keep first-appearance order.
+ */
+export function toFestivalMapPins(
+  schedule: FestivalSchedule,
+  opts?: { venueNamePrefix?: string },
+): FestivalMapPin[] {
+  const byVenueId = new Map<string, FestivalMapPin>()
+  for (const slot of schedule.slots) {
+    for (const item of slot.items) {
+      const venue = firstVenue(item.event)
+      if (!venue || !isFiniteCoord(venue.lat) || !isFiniteCoord(venue.lng)) continue
+      const existing = byVenueId.get(venue.id)
+      if (existing) {
+        existing.setCount += 1
+        if (item.startMs < Date.parse(existing.firstStartAt)) existing.firstStartAt = item.event.start_at
+        if (item.startMs > Date.parse(existing.lastStartAt)) existing.lastStartAt = item.event.start_at
+        continue
+      }
+      byVenueId.set(venue.id, {
+        venueId: venue.id,
+        venueName: stripVenuePrefix(venue.name, opts?.venueNamePrefix),
+        lat: venue.lat,
+        lng: venue.lng,
+        kind: item.column.kind,
+        glyph: item.column.kind === 'porch'
+          ? String(item.column.porch)
+          : (item.column.stage ?? '?').charAt(0).toUpperCase(),
+        label: item.column.label,
+        setCount: 1,
+        firstStartAt: item.event.start_at,
+        lastStartAt: item.event.start_at,
+      })
+    }
+  }
+  return [...byVenueId.values()]
+}
+
+/** Venue ids hosting at least one planned set -- feeds FestivalMap's amber
+ *  'planned' ring. Callers pass the day-plan draft's event_id set; events
+ *  with no mappable venue simply contribute nothing. */
+export function plannedVenueIds(schedule: FestivalSchedule, plannedEventIds: Set<string>): Set<string> {
+  const ids = new Set<string>()
+  for (const slot of schedule.slots) {
+    for (const item of slot.items) {
+      if (!plannedEventIds.has(item.event.id)) continue
+      const venue = firstVenue(item.event)
+      if (venue) ids.add(venue.id)
+    }
+  }
+  return ids
+}

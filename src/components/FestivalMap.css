@@ -1,0 +1,90 @@
+/* FestivalMap.css
+ *
+ * The festival hub's venue map: glyph pins (numbered porches, lettered
+ * stages) and the popup's sets subline. Shell popup chrome (.map-popup,
+ * .map-popup-header, .map-popup-close, .map-popup-directions) comes from
+ * MapPopup.css, shared with MapView/PlanMap -- only FestivalMap's own bits
+ * live here. Pin anatomy mirrors PlanMap.css's .plan-pin (same sizes, same
+ * touch-target trick) under its own class names, since the two maps' pins
+ * diverge on kind coloring and the planned ring.
+ */
+
+.festival-map {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Glyph pin ───────────────────────────────────────────────────────── */
+.festival-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: var(--space-md);
+  margin: -11px; /* expand touch target to 44x44 without changing visual size */
+  filter: drop-shadow(0 2px 6px var(--overlay-dark-55));
+  transition: filter var(--transition-medium), transform var(--transition-medium);
+}
+.festival-pin:hover,
+.festival-pin:focus-visible {
+  filter: drop-shadow(0 3px 10px var(--amber-tint-50));
+  transform: scale(1.12);
+}
+.festival-pin:focus-visible { outline: none; }
+.festival-pin:focus-visible .festival-pin-dot { box-shadow: var(--shadow-focus); }
+
+.festival-pin-dot {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-round);
+  background: var(--amber);
+  border: var(--border-width-thicker) solid var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition-medium), border-color var(--transition-medium), box-shadow var(--transition-medium);
+}
+.festival-pin-glyph {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-tiny);
+  color: var(--white);
+  line-height: 1;
+}
+.festival-pin-stem {
+  width: 2px;
+  height: 8px;
+  background: var(--amber);
+  border-radius: 0 0 var(--radius-xxs) var(--radius-xxs);
+}
+
+/* Stages read as a different kind of place at a glance. */
+.festival-pin--stage .festival-pin-dot { background: var(--green-mid); }
+.festival-pin--stage .festival-pin-stem { background: var(--green-mid); }
+
+/* Selected: scale up (the popup opening is the real confirmation). */
+.festival-pin--selected { transform: scale(1.15); z-index: 2; }
+
+/* Amber 'planned' ring: this venue hosts at least one set in the visitor's
+ * day-plan draft. A ring only -- no numbering, no connectors; /day owns the
+ * route view. The white pin border keeps the ring legible even on the
+ * already-amber porch dots. */
+.festival-pin--planned .festival-pin-dot {
+  box-shadow: 0 0 0 3px var(--amber-tint-50), 0 0 0 4px var(--amber);
+}
+.festival-pin--planned:focus-visible .festival-pin-dot {
+  box-shadow: 0 0 0 3px var(--amber-tint-50), 0 0 0 4px var(--amber), var(--shadow-focus);
+}
+
+/* ── Popup body ──────────────────────────────────────────────────────── */
+.festival-map-popup-sets {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--overlay-light-70);
+  margin-top: var(--space-2xs);
+}

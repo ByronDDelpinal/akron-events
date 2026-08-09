@@ -35,6 +35,10 @@ export interface Festival {
   mapBounds: FestivalBBox
   landmarks: FestivalLandmark[]
   website?: string
+  /** Importer prefix stamped onto every minted venue name (e.g.
+   *  'PorchRokr '), stripped for display by festivalSchedule.ts's
+   *  stripVenuePrefix. Omit when the festival's venues carry clean names. */
+  venueNamePrefix?: string
 }
 
 export const FESTIVALS: Festival[] = [
@@ -50,6 +54,7 @@ export const FESTIVALS: Festival[] = [
     // purpose until then (no invented coordinates).
     landmarks: [],
     website: 'https://www.highlandsquareakron.org/',
+    venueNamePrefix: 'PorchRokr ',
   },
 ]
 

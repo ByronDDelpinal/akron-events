@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, Suspense, lazy } fro
 import DayPlanTimeline, { type PlanRenderItem } from '@/components/DayPlanTimeline'
 import { numberPlanItems, toPlanMapPoints } from '@/lib/planMapPoints'
 import { prefersReducedMotion } from '@/lib/feedback'
+import { useMatchMedia } from '@/hooks/useMatchMedia'
 import { trackEvent, EVENTS } from '@/lib/analytics'
 import './DayPlanBoard.css'
 
@@ -38,25 +39,6 @@ function writeMapCollapsed(collapsed: boolean): void {
   try {
     localStorage.setItem(MAP_COLLAPSED_KEY, collapsed ? '1' : '0')
   } catch { /* private mode / storage disabled -- the toggle just doesn't persist */ }
-}
-
-/** Guarded matchMedia read + subscription, matching HeroRotator.tsx's
- *  usePrefersReducedMotion -- same pattern, different query. */
-function useMatchMedia(query: string): boolean {
-  const [matches, setMatches] = useState(() => (
-    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-      ? window.matchMedia(query).matches
-      : false
-  ))
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
-    const mql = window.matchMedia(query)
-    const onChange = () => setMatches(mql.matches)
-    onChange()
-    mql.addEventListener('change', onChange)
-    return () => mql.removeEventListener('change', onChange)
-  }, [query])
-  return matches
 }
 
 export interface DayPlanBoardProps {

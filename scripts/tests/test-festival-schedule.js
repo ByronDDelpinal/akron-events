@@ -21,6 +21,9 @@ import {
   isHappeningNow,
   upNextSlot,
   happeningNowSlots,
+  stripVenuePrefix,
+  toFestivalMapPins,
+  plannedVenueIds,
 } from '../../src/lib/festivalSchedule.ts'
 import { DATA_PATH, buildPlan } from '../import-porchrokr.js'
 
@@ -189,5 +192,83 @@ describe('happening-now / up-next at Eastern edge instants', () => {
   it('an item with no end_at is never "happening now" (honesty over guessed durations)', () => {
     const item = { event: rows[1], column: { key: 'porch-2', kind: 'porch', porch: 2, label: 'Porch 2' }, startMs: AT_1100_ET, endMs: null }
     assert.ok(!isHappeningNow(item, AT_1100_ET + 1))
+  })
+})
+
+// ── Festival map pins (FestivalMap.tsx's pure derivation) ───────────────────
+
+const venue = (id, name, lat, lng) => [{ venues: { id, name, lat, lng } }]
+const pinRows = [
+  // Two sets on the same porch venue, hours apart -> ONE pin, setCount 2,
+  // first/lastStartAt spanning both.
+  { id: 'p7-early', title: 'A', start_at: '2026-08-15T15:00:00.000Z', end_at: '2026-08-15T15:30:00.000Z', tags: ['porch-7'], status: 'published', event_venues: venue('v-7', 'PorchRokr 123 Main St', 41.09, -81.52) },
+  { id: 'p7-late', title: 'B', start_at: '2026-08-15T23:00:00.000Z', end_at: '2026-08-15T23:30:00.000Z', tags: ['porch-7'], status: 'published', event_venues: venue('v-7', 'PorchRokr 123 Main St', 41.09, -81.52) },
+  { id: 'main-1', title: 'C', start_at: '2026-08-15T23:30:00.000Z', end_at: '2026-08-16T01:00:00.000Z', tags: ['stage-main'], status: 'published', event_venues: venue('v-main', 'PorchRokr Main Stage', 41.1, -81.53) },
+  // Null coords -> skipped silently (still a schedule row, never a pin).
+  { id: 'p9-nocoord', title: 'D', start_at: '2026-08-15T16:00:00.000Z', end_at: '2026-08-15T16:30:00.000Z', tags: ['porch-9'], status: 'published', event_venues: venue('v-9', 'PorchRokr 9 Elm St', null, null) },
+  // No venue link at all -> skipped silently too.
+  { id: 'p11-novenue', title: 'E', start_at: '2026-08-15T16:00:00.000Z', end_at: '2026-08-15T16:30:00.000Z', tags: ['porch-11'], status: 'published', event_venues: [] },
+]
+const pinSchedule = buildFestivalSchedule(pinRows)
+
+describe('toFestivalMapPins', () => {
+  const pins = toFestivalMapPins(pinSchedule, { venueNamePrefix: 'PorchRokr ' })
+  const byId = new Map(pins.map((p) => [p.venueId, p]))
+
+  it('groups by venue id and skips null-coord / venueless rows silently', () => {
+    assert.deepEqual([...byId.keys()].sort(), ['v-7', 'v-main'])
+  })
+
+  it('porch pin: numbered glyph, column label, setCount and start range', () => {
+    const p7 = byId.get('v-7')
+    assert.equal(p7.kind, 'porch')
+    assert.equal(p7.glyph, '7')
+    assert.equal(p7.label, 'Porch 7')
+    assert.equal(p7.setCount, 2)
+    assert.equal(p7.firstStartAt, '2026-08-15T15:00:00.000Z')
+    assert.equal(p7.lastStartAt, '2026-08-15T23:00:00.000Z')
+  })
+
+  it('stage pin: initial-letter glyph, kind stage', () => {
+    const main = byId.get('v-main')
+    assert.equal(main.kind, 'stage')
+    assert.equal(main.glyph, 'M')
+    assert.equal(main.label, 'Main Stage')
+    assert.equal(main.setCount, 1)
+  })
+
+  it('strips the registry venueNamePrefix; leaves names alone without it', () => {
+    assert.equal(byId.get('v-7').venueName, '123 Main St')
+    const raw = toFestivalMapPins(pinSchedule)
+    assert.equal(raw.find((p) => p.venueId === 'v-7').venueName, 'PorchRokr 123 Main St')
+  })
+
+  it('real importer fixture: one pin per venued row, all glyphs non-empty', () => {
+    const fixturePins = toFestivalMapPins(schedule, { venueNamePrefix: 'PorchRokr ' })
+    const venuedRows = rows.filter((r) => (r.event_venues ?? []).length > 0 && !isUmbrella(r))
+    assert.equal(fixturePins.reduce((n, p) => n + p.setCount, 0), venuedRows.length)
+    assert.ok(fixturePins.every((p) => p.glyph.length >= 1))
+  })
+})
+
+describe('stripVenuePrefix', () => {
+  it('strips only a leading prefix; null-safe', () => {
+    assert.equal(stripVenuePrefix('PorchRokr 12 Oak Ave', 'PorchRokr '), '12 Oak Ave')
+    assert.equal(stripVenuePrefix('Jilly\'s Music Room', 'PorchRokr '), 'Jilly\'s Music Room')
+    assert.equal(stripVenuePrefix('12 PorchRokr Ave', 'PorchRokr '), '12 PorchRokr Ave')
+    assert.equal(stripVenuePrefix('Anywhere'), 'Anywhere')
+    assert.equal(stripVenuePrefix(null, 'PorchRokr '), null)
+    assert.equal(stripVenuePrefix(undefined), null)
+  })
+})
+
+describe('plannedVenueIds (the map\'s amber planned ring)', () => {
+  it('maps planned event ids to their venue ids, venueless events contribute nothing', () => {
+    const ids = plannedVenueIds(pinSchedule, new Set(['p7-late', 'p9-nocoord', 'p11-novenue', 'not-in-schedule']))
+    assert.deepEqual([...ids].sort(), ['v-7', 'v-9'])
+  })
+
+  it('empty plan -> empty set', () => {
+    assert.deepEqual([...plannedVenueIds(pinSchedule, new Set())], [])
   })
 })

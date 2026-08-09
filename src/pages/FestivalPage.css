@@ -91,11 +91,133 @@
   transform: translateY(-1px);
 }
 
+/* ── Venue map: lazy-mounted (FestivalPage.tsx gates the MOUNT on
+ * useMatchMedia at >=900px, or on the mobile "Show map" tap; never
+ * display:none, so mobile fetches no maplibre chunk and no tiles until
+ * asked; this rule is layout, not the gate). ── */
+
+.festival-map-section {
+  height: 360px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.25));
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.festival-map-skeleton {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-nav);
+}
+
+/* ── Mobile "Show map" tap-to-load card: same slot as the map, same card
+ * treatment as .festival-header (border/radius/surface). The MOUNT gate
+ * lives in FestivalPage.tsx (isDesktop || mapRequested); this is only the
+ * card's look. ── */
+
+.festival-map-cta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.25));
+  border-radius: 12px;
+  background: var(--surface, transparent);
+  color: inherit;
+  font-family: var(--font-body);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-medium);
+}
+
+.festival-map-cta:hover,
+.festival-map-cta:focus-visible {
+  border-color: var(--amber);
+  outline: none;
+}
+
+.festival-map-cta-glyph { flex-shrink: 0; color: var(--amber); }
+.festival-map-cta-text { display: flex; flex-direction: column; gap: 2px; }
+.festival-map-cta-title { font-weight: 600; font-size: 0.95rem; }
+.festival-map-cta-hint { color: var(--text-muted); font-size: 0.85rem; }
+
+/* ── Slot-jump bar: sticky time chips under the 64px site header
+ * (Header.css; FilterBar.css makes the same 64px assumption). Chip anatomy
+ * follows FilterBar's pill language (--chip-bg/--chip-text/--radius-pill);
+ * the live chip wears .today-badge's "Happening now" colors. ── */
+
+.festival-jump-bar {
+  position: sticky;
+  top: calc(64px + env(safe-area-inset-top, 0px));
+  z-index: 90; /* FilterBar's sticky layer: above content, under the 100 header */
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: var(--space-sm) 0;
+  margin-bottom: var(--space-sm);
+  background: var(--bg-page);
+}
+.festival-jump-bar::-webkit-scrollbar { display: none; }
+
+.festival-jump-chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-xs) var(--space-md);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--chip-bg);
+  color: var(--chip-text);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 32px;
+  transition: color var(--transition-medium), background var(--transition-medium);
+}
+.festival-jump-chip:hover { color: var(--amber); }
+
+/* Same colors as .today-badge's "Happening now" treatment (HomePage.css). */
+.festival-jump-chip--live {
+  background: var(--amber);
+  color: var(--white);
+  font-weight: 700;
+}
+
+/* ── Floating "Your plan (N)" pill: bottom-right, festival page only.
+ * Rides on .festival-plan-cta-btn's amber pill look; safe-area aware so it
+ * clears iOS home indicators. ── */
+
+.festival-plan-float {
+  position: fixed;
+  right: calc(16px + env(safe-area-inset-right, 0px));
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 95; /* above content, under the 100 header/menu layer */
+  padding: 10px 18px;
+  font-size: 0.88rem;
+  box-shadow: 0 4px 16px var(--overlay-dark-55);
+}
+.festival-plan-float:hover,
+.festival-plan-float:focus-visible {
+  transform: translateY(-1px);
+}
+
 .festival-status-line { text-align: center; color: var(--text-muted); padding: 32px 0; }
 
 /* ── Slots: shared classes do the styling; only spacing + live outline ── */
 
-.festival-slot { padding: 26px 0 var(--space-md); }
+.festival-slot {
+  padding: 26px 0 var(--space-md);
+  /* Auto-scroll / jump-bar target: land the slot heading below the sticky
+   * site header (64px) plus the sticky jump bar (~48px) with breathing room. */
+  scroll-margin-top: calc(120px + env(safe-area-inset-top, 0px));
+}
 .festival-slot .date-heading { margin: 0 0 var(--space-md); }
 
 .festival-card--live {
