@@ -63,11 +63,31 @@ export type CategoryFilterAction = 'include' | 'exclude' | 'clear'
 export type FeedbackPlacement = 'header' | 'mobile_menu' | 'admin_toolbar' | 'empty_results' | 'event_page'
 
 /**
+ * Why an embed request attempt didn't reach the server. 'validation' covers
+ * every client-side field error (required field, malformed email/website);
+ * 'cooldown' is the 10-minute anti-spam window; 'insert' is a Supabase
+ * error on the `embed_requests` insert itself.
+ */
+export type EmbedRequestFailure = 'insert' | 'validation' | 'cooldown'
+
+/**
  * Which search box fired. `search_term` is a GA4 *recommended* param, so every
  * surface's searches roll into one report unless we discriminate — without this
  * the About page's data-source lookup would pollute event-search demand data.
  */
 export type SearchContentType = 'events' | 'data_sources'
+
+/**
+ * Where a day-planner add/remove control fired from. The add button is one
+ * shared component (AddToPlanButton) mounted on cards, the event detail
+ * page, and inside the planner itself — without this dimension the three
+ * funnels would be indistinguishable, the same reason FeedbackPlacement
+ * exists for the feedback dialog.
+ */
+export type PlanSurface = 'card' | 'event_page' | 'planner'
+
+/** How a plan was exported. */
+export type PlanExportFormat = 'ics' | 'print'
 
 /**
  * Event-name constants. The string VALUES are what GA4 receives; the keys are
@@ -86,6 +106,9 @@ export const EVENTS = {
   NEWSLETTER_CONFIRMED:     'newsletter_confirmed',
   EMBED_BUILDER_CUSTOMIZED: 'embed_builder_customized',
   EMBED_CONTACT_CLICKED:    'embed_contact_clicked',
+  EMBED_REQUEST_OPENED:     'embed_request_opened',
+  EMBED_REQUEST_SUBMITTED:  'embed_request_submitted',
+  EMBED_REQUEST_FAILED:     'embed_request_failed',
   SELECT_CONTENT:           'select_content',
   SHARE:                    'share',
   SEARCH:                   'search',
@@ -97,6 +120,11 @@ export const EVENTS = {
   FEEDBACK_OPENED:    'feedback_opened',
   FEEDBACK_SUBMITTED: 'feedback_submitted',
   FEEDBACK_DISMISSED: 'feedback_dismissed',
+  PLAN_ITEM_ADDED:    'plan_item_added',
+  PLAN_ITEM_REMOVED:  'plan_item_removed',
+  PLAN_SHARED:        'plan_shared',
+  PLAN_OPENED:        'plan_opened',
+  PLAN_EXPORTED:      'plan_exported',
 } as const
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS]
@@ -119,6 +147,12 @@ export interface EventParams {
   newsletter_confirmed:     { frequency: string; lookahead_days?: number }
   embed_builder_customized: Record<string, never>
   embed_contact_clicked:    Record<string, never>
+  // locked_filters: count of place/categories/price/date/family actually
+  // set at submit time — answers "do partners use the locks, and which
+  // ones" with one parameter instead of five event names.
+  embed_request_opened:    Record<string, never>
+  embed_request_submitted: { theme: string; locked_filters: number }
+  embed_request_failed:    { reason: EmbedRequestFailure }
   select_content:           { content_type: string; item_id: string }
   share:                    { method: string; content_type: string; item_id: string }
   search:                   { search_term: string; content_type: SearchContentType; result_count: number }
@@ -130,4 +164,13 @@ export interface EventParams {
   feedback_opened:    { placement: FeedbackPlacement }
   feedback_submitted: { placement: FeedbackPlacement }
   feedback_dismissed: { placement: FeedbackPlacement }
+  // role: 'owner' = this device holds the code in akronpulse_day_plan_code.
+  // Answers the only question that matters about this feature — are shared
+  // links actually opened by OTHER people, or is this a private bookmarking
+  // tool with extra steps? Without it, plan_opened is unreadable.
+  plan_item_added:   { surface: PlanSurface; category: string }
+  plan_item_removed: { surface: PlanSurface }
+  plan_shared:        { item_count: number }
+  plan_opened:        { role: 'owner' | 'visitor'; item_count: number }
+  plan_exported:       { format: PlanExportFormat; item_count: number }
 }

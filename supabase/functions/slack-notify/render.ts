@@ -13,6 +13,7 @@
  */
 
 import { escapeSlackText, INTENT_LABELS, CATEGORY_LABELS, AGE_LABEL } from '../_shared/slack.ts'
+import { normalizeConfig, describeConfig } from '../_shared/embedSnippet.ts'
 
 // ── Shapes ──────────────────────────────────────────────────────────────
 
@@ -408,9 +409,29 @@ export const TRUNCATION_MARKER = '\n…(truncated)'
  */
 export function capMessage(s: string): string {
   const chars = [...s]
-  return chars.length > MAX_MESSAGE_LEN
-    ? chars.slice(0, MAX_MESSAGE_LEN).join('') + TRUNCATION_MARKER
-    : s
+  if (chars.length <= MAX_MESSAGE_LEN) return s
+
+  let cut = chars.slice(0, MAX_MESSAGE_LEN).join('')
+
+  // A blind code-point cut can land INSIDE a ``` fenced block a caller
+  // assembled (renderEmbedRequest's snippet fence is the only one today,
+  // but this is a property of capMessage's contract, not a special case for
+  // that one caller) — dropping the closing delimiter and leaving the rest
+  // of the Slack message rendered as one giant, still-open code block, with
+  // the truncation marker itself swallowed inside it. An odd count of ```
+  // inside the cut prefix means exactly that: the fence that opened has no
+  // matching close within the text we kept. Back the cut up to right before
+  // that fence opened — dropping the whole (now-truncated-anyway) fenced
+  // section is simpler to reason about than trying to re-close it, and
+  // guarantees the output is always fence-balanced. Every other renderer in
+  // this file never emits a ``` at all, so `fenceCount` is always 0 (even)
+  // for them and this branch is a no-op.
+  const fenceCount = (cut.match(/```/g) ?? []).length
+  if (fenceCount % 2 === 1) {
+    cut = cut.slice(0, cut.lastIndexOf('```'))
+  }
+
+  return cut + TRUNCATION_MARKER
 }
 
 /**
@@ -522,4 +543,115 @@ export function renderSignup(sub: SignupSubscriber, resolved: ResolvedNames = EM
  */
 export function renderConfirmed(email: string): string {
   return capMessage(`${escapeSlackText(clampLabel(email))} has confirmed their subscription!`)
+}
+
+// ── Embed request ──────────────────────────────────────────────────────
+
+/**
+ * `embed_requests` row shape this renderer reads — a hardcoded column
+ * allowlist, same discipline as slack-notify/index.ts's `subscribers`
+ * select: never `select('*')`, never spread the row into a renderer.
+ * `website`/`note` are nullable — website is OPTIONAL (D3, maintainer
+ * ruling 2026-08-07), note has always been optional.
+ */
+export interface EmbedRequestRow {
+  id: string
+  name: string
+  email: string
+  organization: string
+  website: string | null
+  note: string | null
+  /** UNTRUSTED jsonb — the submitted BuilderState. Coerced via normalizeConfig, never trusted. */
+  config: unknown
+  created_at: string
+}
+
+/**
+ * New embed request from {organization}
+ *
+ * {name} · {email}
+ * Site: {website, or "Not provided"}
+ *
+ * What they configured:
+ * • Theme: Civic Teal
+ * ...
+ *
+ * Their note:
+ * > {note, blockquoted per line}         (omitted entirely when there is no note)
+ *
+ * URL: {bare embed URL}
+ *
+ * ```{iframe snippet}```
+ *
+ * Requested {created_at in America/New_York}
+ *
+ * `snippet` and `url` are PRE-BUILT by the caller (slack-notify/index.ts)
+ * from `normalizeConfig(row.config)` via `_shared/embedSnippet.ts`'s
+ * `buildIframeSnippet`/`buildEmbedUrl` — this function does not build them
+ * itself, it only escapes and assembles. It DOES call `normalizeConfig` +
+ * `describeConfig` itself for the "What they configured" bullets, since
+ * those are cheap, pure, and specific to this renderer's own bullet
+ * formatting (as opposed to the URL/snippet, which the caller needs BEFORE
+ * calling this function, to persist `embed_path` on the claim).
+ *
+ * Every free-text field (name, email, organization, website, note, and —
+ * inside describeConfig's "Heading" line — title) goes through
+ * escapeSlackText. The snippet itself ALSO goes through escapeSlackText
+ * before it goes inside the code fence: Slack's escaping contract applies
+ * to the whole message text, code fence or not — an unescaped `<iframe …>`
+ * risks being parsed as a link/mention construct. Backticks in `title` are
+ * already stripped by `normalizeConfig`, which is what makes the fence
+ * itself unbreakable regardless of input — this function additionally never
+ * emits a third fence delimiter anywhere in the message.
+ */
+// Strip literal backticks from every field that lands in this message —
+// not just the config-derived title (already stripped by normalizeConfig,
+// see _shared/embedSnippet.ts). A backtick surviving into ANY field here —
+// name, email, organization, website, note, or a hostile/malformed
+// `snippet` param — could produce a THIRD (or more) ``` sequence in the
+// assembled message, breaking the "exactly two fence delimiters" contract
+// (see this function's own docstring and render.test.ts's fence test).
+// Applied defensively at every free-text site in this renderer, not just
+// relied on upstream, because this function's `snippet`/`url` params are
+// opaque strings handed in by the caller — it must not assume its caller
+// always sanitized them perfectly.
+function stripBackticks(s: string): string {
+  return s.replace(/`/g, '')
+}
+
+export function renderEmbedRequest(row: EmbedRequestRow, snippet: string, url: string): string {
+  const name = escapeSlackText(clampLabel(stripBackticks(row.name)))
+  const email = escapeSlackText(clampLabel(stripBackticks(row.email)))
+  const organization = escapeSlackText(clampLabel(stripBackticks(row.organization)))
+  const website = row.website ? escapeSlackText(clampLabel(stripBackticks(row.website))) : 'Not provided'
+
+  const cfg = normalizeConfig(row.config)
+  const configBullets = describeConfig(cfg).map((line) => `• ${escapeSlackText(clampLabel(stripBackticks(line)))}`)
+
+  const lines: string[] = [
+    `New embed request from ${organization}`,
+    '',
+    `${name} · ${email}`,
+    `Site: ${website}`,
+    '',
+    'What they configured:',
+    ...configBullets,
+  ]
+
+  if (row.note) {
+    lines.push('', 'Their note:', blockquote(stripBackticks(row.note)))
+  }
+
+  lines.push(
+    '',
+    `URL: ${escapeSlackText(stripBackticks(url))}`,
+    '',
+    '```',
+    escapeSlackText(stripBackticks(snippet)),
+    '```',
+    '',
+    `Requested ${fmtDateTimeET(row.created_at)}`,
+  )
+
+  return capMessage(lines.join('\n'))
 }

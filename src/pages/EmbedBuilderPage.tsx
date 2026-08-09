@@ -6,24 +6,19 @@ import { THEMES } from '@/lib/themes'
 import { FILTERABLE_CATEGORIES } from '@/lib/categories.js'
 import { CITIES } from '@/lib/cities'
 import { NEIGHBORHOODS } from '@/lib/neighborhoods'
-import type { EmbedFeature, EmbedPrice, EmbedDate, EmbedView, EmbedDensity, EmbedTarget } from '@/lib/embedConfig'
+import type { EmbedFeature, EmbedPrice, EmbedDate, EmbedView, EmbedDensity } from '@/lib/embedConfig'
+import { buildEmbedSrc, type BuilderState } from '@/lib/embedParams'
+import EmbedRequestForm from '@/components/EmbedRequestForm'
 import './EmbedBuilderPage.css'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-interface BuilderState {
-  title: string
-  theme: string
-  place: string
-  categories: string[]
-  price: EmbedPrice | ''
-  date: EmbedDate | ''
-  family: boolean
-  features: Record<EmbedFeature, boolean>
-  view: EmbedView
-  density: EmbedDensity
-  target: EmbedTarget
-}
+//
+// BuilderState, buildEmbedParams, and buildEmbedSrc live in
+// src/lib/embedParams.ts now (see docs/embed-request-capture.md §6.1) — this
+// page imports them rather than defining its own copy, so the edge functions'
+// snippet generator (supabase/functions/_shared/embedSnippet.ts) can import
+// the same buildEmbedParams via the root `@/` Deno import map instead of
+// reimplementing it.
 
 // Minimum preview width — narrower than this the embed layout breaks down.
 const MIN_PREVIEW_WIDTH = 320
@@ -66,41 +61,6 @@ const DEFAULT_STATE: BuilderState = {
   view: 'list',
   density: 'comfortable',
   target: 'inline',
-}
-
-// ── Query-string builder ──────────────────────────────────────────────────────
-
-function buildEmbedParams(state: BuilderState): URLSearchParams {
-  const p = new URLSearchParams()
-  if (state.theme !== 'akron-pulse') p.set('theme', state.theme)
-  if (state.title.trim()) p.set('title', state.title.trim())
-  if (state.place) p.set('place', state.place)
-  if (state.categories.length) p.set('categories', state.categories.join(','))
-  if (state.price) p.set('price', state.price)
-  if (state.date) p.set('date', state.date)
-  if (state.family) p.set('family', '1')
-
-  // Features: omitting the param means "all on", so we only emit when at least
-  // one feature is off. When EVERY feature is off the allowlist is empty — we
-  // still must emit the param (as the `none` sentinel), otherwise an all-off
-  // config would serialize identically to an unconfigured one and parse back as
-  // all-on. parseEmbedConfig treats any present-but-empty allowlist as all-off.
-  const allOn = Object.values(state.features).every(Boolean)
-  if (!allOn) {
-    const enabled = ALL_FEATURES.filter((f) => state.features[f.key]).map((f) => f.key)
-    p.set('features', enabled.length ? enabled.join(',') : 'none')
-  }
-
-  if (state.view !== 'list') p.set('view', state.view)
-  if (state.density !== 'comfortable') p.set('density', state.density)
-  if (state.target !== 'inline') p.set('target', state.target)
-  return p
-}
-
-function buildEmbedSrc(state: BuilderState): string {
-  const params = buildEmbedParams(state)
-  const qs = params.toString()
-  return `${window.location.origin}/embed${qs ? `?${qs}` : ''}`
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -480,14 +440,20 @@ export default function EmbedBuilderPage() {
             </p>
             <p>
               We set each embed up personally to make sure it fits your site
-              and your community. Reach out to{' '}
+              and your community, usually within a few days.
+            </p>
+
+            <EmbedRequestForm config={state} />
+
+            <p>
+              Prefer email? Reach out to{' '}
               <a
                 href="mailto:byron@akronpulse.com"
                 onClick={() => trackEvent(EVENTS.EMBED_CONTACT_CLICKED)}
               >
                 byron@akronpulse.com
               </a>{' '}
-              and we'll get you going, usually within a few days.
+              directly.
             </p>
           </section>
 

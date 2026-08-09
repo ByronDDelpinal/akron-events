@@ -25,6 +25,8 @@ import SubscribePage     from '@/pages/SubscribePage'
 import PreferencesPage   from '@/pages/PreferencesPage'
 import UnsubscribePage   from '@/pages/UnsubscribePage'
 import EmbedBuilderPage  from '@/pages/EmbedBuilderPage'
+import DayPlanPage    from '@/pages/DayPlanPage'
+import SharedPlanPage from '@/pages/SharedPlanPage'
 
 // Admin pages
 import AdminLayout from '@/pages/admin/AdminLayout'
@@ -44,6 +46,7 @@ import AdminFeedbackPage from '@/pages/admin/feedback/AdminFeedbackPage'
 import { trackPageView } from '@/lib/analytics'
 import { historyEntryKey } from '@/lib/historyKey'
 import { ThemeProvider } from '@/hooks/useTheme'
+import { DayPlanProvider } from '@/hooks/useDayPlan'
 import { SEO, buildGraph, organizationSchema, webSiteSchema } from '@/lib/seo'
 
 import '@/styles/globals.css'
@@ -62,7 +65,15 @@ export default function App() {
   return (
     <BrowserRouter>
       <ThemeProvider>
-        <AppInner />
+        {/* Wraps BOTH the /embed route group and the full-site SiteChrome
+            group, above <Routes>, so the local day-plan draft is available
+            to every consumer (Header's pill, AddToPlanButton on cards/
+            EventPage, /day) via one unconditional hook call regardless of
+            surface. AddToPlanButton itself decides not to render inside the
+            embed (decision 8) -- this provider does not gate on that. */}
+        <DayPlanProvider>
+          <AppInner />
+        </DayPlanProvider>
       </ThemeProvider>
     </BrowserRouter>
   )
@@ -214,6 +225,13 @@ function AppInner() {
           <Route path="/subscribe/preferences"   element={<PreferencesPage />} />
           <Route path="/unsubscribe"             element={<UnsubscribePage />} />
           <Route path="/embed-builder"           element={<EmbedBuilderPage />} />
+          {/* Day planner. Both noindex via vercel.json's X-Robots-Tag header
+              (the code in /d/:code is a bearer credential -- see
+              src/lib/analytics.ts's redactPath) and excluded from
+              scripts/prerender.js + api/sitemap.xml.js -- see
+              scripts/tests/test-day-plan-guards.js. */}
+          <Route path="/day"                     element={<DayPlanPage />} />
+          <Route path="/d/:code"                 element={<SharedPlanPage />} />
 
           {/* Admin — nested routing with shared layout */}
           <Route path="/admin" element={<AdminLayout />}>

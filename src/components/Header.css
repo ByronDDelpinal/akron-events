@@ -114,6 +114,15 @@
   border-color: var(--amber-on-dark);
 }
 
+/* ── DAY PLAN PILL — rendered only when the local draft has items ── */
+.nav-plan-pill {
+  border: var(--border-width-thin) solid var(--overlay-light-12);
+  border-radius: var(--radius-pill);
+  color: var(--amber-on-dark);
+  font-weight: 600;
+}
+.nav-plan-pill:hover { color: var(--white); background: var(--overlay-light-05); }
+
 /* ── MY NEIGHBORHOOD (installed app only) ── */
 /* Desktop nav variant: a pinned link that reads the saved hub. */
 .nav-myhood {

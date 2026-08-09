@@ -6,12 +6,14 @@
 // path has run against realistic inputs, including both line-broken and
 // single-line variants where that distinction matters.
 
-import { assertEquals, assertStringIncludes } from 'jsr:@std/assert@1'
+import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1'
 import { escapeSlackText } from '../_shared/slack.ts'
+import { normalizeConfig, buildIframeSnippet, buildEmbedUrl } from '../_shared/embedSnippet.ts'
 import {
   renderFeedback,
   renderSignup,
   renderConfirmed,
+  renderEmbedRequest,
   describePreferences,
   frequencyNoun,
   lookaheadPhrase,
@@ -20,6 +22,7 @@ import {
   TRUNCATION_MARKER,
   type Preferences,
   type ResolvedNames,
+  type EmbedRequestRow,
 } from './render.ts'
 
 // ── 1. escapeSlackText neutralizes the @-everyone vector ─────────────────
@@ -1098,4 +1101,206 @@ Deno.test('SECURITY (blockquote): an emoji-heavy 1000-code-point body keeps all 
   const out = renderFeedback({ body, page_path: null, created_at: '2026-07-01T12:00:00Z' })
   assertEquals(hasLoneSurrogate(out), false)
   assertEquals(blockquoteCodePointLen(out), 1000)
+})
+
+// ── 15. renderEmbedRequest (docs/embed-request-capture.md §6.5) ──────────
+
+const SAMPLE_SNIPPET = '<iframe\n  src="https://akronpulse.com/embed"\n  data-akron-pulse-embed\n  title="Upcoming Events"\n  style="width:100%;border:0;height:900px"\n  loading="lazy"></iframe>'
+const SAMPLE_URL = 'https://akronpulse.com/embed'
+
+function baseEmbedRequestRow(overrides: Partial<EmbedRequestRow> = {}): EmbedRequestRow {
+  return {
+    id: '11111111-2222-4333-8444-555555555555',
+    name: 'Jordan Rivera',
+    email: 'jordan@example.com',
+    organization: 'Highland Square Neighbors',
+    website: 'https://highlandsquare.example.org',
+    note: 'Please make it teal.',
+    config: {},
+    created_at: '2026-08-07T12:00:00Z',
+    ...overrides,
+  }
+}
+
+Deno.test('renderEmbedRequest: happy path carries organization, contact, site, and timestamp', () => {
+  const out = renderEmbedRequest(baseEmbedRequestRow(), SAMPLE_SNIPPET, SAMPLE_URL)
+  assertStringIncludes(out, 'New embed request from Highland Square Neighbors')
+  assertStringIncludes(out, 'Jordan Rivera')
+  assertStringIncludes(out, 'jordan@example.com')
+  assertStringIncludes(out, 'Site: https://highlandsquare.example.org')
+  assertStringIncludes(out, 'Their note:')
+  assertStringIncludes(out, '> Please make it teal.')
+})
+
+Deno.test('renderEmbedRequest: website not provided renders "Not provided"', () => {
+  const out = renderEmbedRequest(baseEmbedRequestRow({ website: null }), SAMPLE_SNIPPET, SAMPLE_URL)
+  assertStringIncludes(out, 'Site: Not provided')
+})
+
+Deno.test('renderEmbedRequest: no note omits the "Their note:" section entirely', () => {
+  const out = renderEmbedRequest(baseEmbedRequestRow({ note: null }), SAMPLE_SNIPPET, SAMPLE_URL)
+  assertEquals(out.includes('Their note:'), false)
+})
+
+// Every field this renderer touches must neutralize the same four mrkdwn
+// injection constructs the top-of-file escapeSlackText test covers.
+const HOSTILE_CONSTRUCTS = ['<!channel>', '<!here>', '<@U123>', '<https://evil.example/|click here>']
+
+for (const hostile of HOSTILE_CONSTRUCTS) {
+  Deno.test(`REQUIRED: renderEmbedRequest neutralizes ${JSON.stringify(hostile)} in name`, () => {
+    const out = renderEmbedRequest(baseEmbedRequestRow({ name: `Evil ${hostile} Name` }), SAMPLE_SNIPPET, SAMPLE_URL)
+    assertEquals(out.includes(hostile), false)
+  })
+
+  Deno.test(`REQUIRED: renderEmbedRequest neutralizes ${JSON.stringify(hostile)} in email`, () => {
+    const out = renderEmbedRequest(baseEmbedRequestRow({ email: `evil${hostile}@example.com` }), SAMPLE_SNIPPET, SAMPLE_URL)
+    assertEquals(out.includes(hostile), false)
+  })
+
+  Deno.test(`REQUIRED: renderEmbedRequest neutralizes ${JSON.stringify(hostile)} in organization`, () => {
+    const out = renderEmbedRequest(baseEmbedRequestRow({ organization: `Org ${hostile} Name` }), SAMPLE_SNIPPET, SAMPLE_URL)
+    assertEquals(out.includes(hostile), false)
+  })
+
+  Deno.test(`REQUIRED: renderEmbedRequest neutralizes ${JSON.stringify(hostile)} in website`, () => {
+    const out = renderEmbedRequest(baseEmbedRequestRow({ website: `https://example.org/${hostile}` }), SAMPLE_SNIPPET, SAMPLE_URL)
+    assertEquals(out.includes(hostile), false)
+  })
+
+  Deno.test(`REQUIRED: renderEmbedRequest neutralizes ${JSON.stringify(hostile)} in note`, () => {
+    const out = renderEmbedRequest(baseEmbedRequestRow({ note: `Note with ${hostile} inside` }), SAMPLE_SNIPPET, SAMPLE_URL)
+    assertEquals(out.includes(hostile), false)
+  })
+
+  Deno.test(`REQUIRED: renderEmbedRequest neutralizes ${JSON.stringify(hostile)} in the config-derived title`, () => {
+    const out = renderEmbedRequest(baseEmbedRequestRow({ config: { title: `Heading ${hostile} Text` } }), SAMPLE_SNIPPET, SAMPLE_URL)
+    assertEquals(out.includes(hostile), false)
+  })
+}
+
+// ── capMessage-bounded (test requirement) ─────────────────────────────────
+
+Deno.test('REQUIRED: renderEmbedRequest output is capMessage-bounded with a 1000-char note and a 120-char title', () => {
+  const row = baseEmbedRequestRow({
+    note: 'n'.repeat(1000),
+    config: { title: 't'.repeat(120) },
+  })
+  const out = renderEmbedRequest(row, SAMPLE_SNIPPET, SAMPLE_URL)
+  assert([...out].length <= MAX_MESSAGE_LEN + TRUNCATION_MARKER.length)
+})
+
+// ── Code fence well-formed (test requirement) ─────────────────────────────
+
+function countTripleBacktickFences(s: string): number {
+  return (s.match(/```/g) ?? []).length
+}
+
+Deno.test('REQUIRED: renderEmbedRequest emits exactly two ``` fence delimiters on the happy path', () => {
+  const out = renderEmbedRequest(baseEmbedRequestRow(), SAMPLE_SNIPPET, SAMPLE_URL)
+  assertEquals(countTripleBacktickFences(out), 2)
+})
+
+Deno.test('REQUIRED: no field can introduce a third fence delimiter — name/email/organization/website/note/title/snippet/url all tried with a literal ``` payload', () => {
+  const payload = 'evil ``` fence ``` attempt'
+  const variants: Partial<EmbedRequestRow>[] = [
+    { name: payload },
+    { email: `${payload}@example.com` },
+    { organization: payload },
+    { website: `https://example.org/${payload}` },
+    { note: payload },
+    { config: { title: payload } },
+  ]
+  for (const overrides of variants) {
+    const out = renderEmbedRequest(baseEmbedRequestRow(overrides), SAMPLE_SNIPPET, SAMPLE_URL)
+    assertEquals(countTripleBacktickFences(out), 2, `fence count broke for overrides ${JSON.stringify(overrides)}`)
+  }
+
+  // The snippet and url params themselves — opaque strings handed in by
+  // the caller — are tried too, since this function must not assume its
+  // caller always sanitized them perfectly.
+  const outHostileSnippet = renderEmbedRequest(baseEmbedRequestRow(), `${SAMPLE_SNIPPET} ${payload}`, SAMPLE_URL)
+  assertEquals(countTripleBacktickFences(outHostileSnippet), 2)
+
+  const outHostileUrl = renderEmbedRequest(baseEmbedRequestRow(), SAMPLE_SNIPPET, `${SAMPLE_URL}?x=${payload}`)
+  assertEquals(countTripleBacktickFences(outHostileUrl), 2)
+})
+
+// ── QA REGRESSION (FINDING A): capMessage must never leave a ``` fence
+// unclosed ──────────────────────────────────────────────────────────────
+//
+// The unit tests above only ever fed renderEmbedRequest the fixed
+// SAMPLE_SNIPPET/SAMPLE_URL fixtures, which are far too short to ever push
+// the assembled message over MAX_MESSAGE_LEN — so they could never catch
+// capMessage's blind code-point cut landing INSIDE the fenced snippet block
+// and dropping the closing ``` delimiter. This block reproduces the defect
+// with the REAL buildIframeSnippet/buildEmbedUrl (per this project's
+// "validate against the real parse path" rule), using a plausible config a
+// real anon POST to the public embed_requests insert endpoint could submit:
+// a 120-code-point emoji title (each emoji percent-encodes to 12 chars in
+// the URLSearchParams-built embed URL) plus several locked categories,
+// place, price, and date. This exact config assembles to 3013 code points
+// pre-fix — 13 over MAX_MESSAGE_LEN — landing the naive cut mid-snippet and
+// producing fence count 1 (an unclosed code block) with the truncation
+// marker swallowed inside it.
+
+function buildOversizedEmbedRequestFixture() {
+  const emojiTitle = '\u{1F389}'.repeat(80)
+  const rawConfig = {
+    title: emojiTitle,
+    place: 'highland-square',
+    categories: ['music', 'theater', 'film', 'comedy'],
+    price: 'under25',
+    date: 'this_month',
+    family: true,
+  }
+  const cfg = normalizeConfig(rawConfig)
+  const origin = 'https://akronpulse.com'
+  const url = buildEmbedUrl(origin, cfg)
+  const snippet = buildIframeSnippet(origin, cfg)
+  const row = baseEmbedRequestRow({ config: rawConfig })
+  return { row, snippet, url }
+}
+
+Deno.test('REQUIRED REGRESSION (Finding A): an oversized real config (emoji title + locked facets) never leaves an unclosed ``` fence', () => {
+  const { row, snippet, url } = buildOversizedEmbedRequestFixture()
+  const out = renderEmbedRequest(row, snippet, url)
+  assert(countTripleBacktickFences(out) % 2 === 0, `fence count must be even (balanced), got ${countTripleBacktickFences(out)}`)
+})
+
+Deno.test('REQUIRED REGRESSION (Finding A): the oversized fixture is confirmed to actually overflow MAX_MESSAGE_LEN (capMessage truncation path is exercised, not a no-op)', () => {
+  const { row, snippet, url } = buildOversizedEmbedRequestFixture()
+  const out = renderEmbedRequest(row, snippet, url)
+  // capMessage only ever appends TRUNCATION_MARKER when its input exceeded
+  // MAX_MESSAGE_LEN. Its presence here proves this fixture's raw assembled
+  // message overflowed the cap for real — i.e. this isn't a fixture that
+  // happens to pass the fence-balanced assertion above without ever
+  // touching the truncation branch that caused Finding A.
+  assert(out.endsWith(TRUNCATION_MARKER), 'fixture must overflow MAX_MESSAGE_LEN to exercise the truncation path')
+})
+
+Deno.test('capMessage: a synthetic message with an unclosed fence at the cut point is backed up to before the fence (fence-balanced output)', () => {
+  // Deterministic, isolated reproduction of the same defect class, without
+  // depending on buildIframeSnippet/buildEmbedUrl's exact byte counts:
+  // exactly MAX_MESSAGE_LEN - 10 chars of head content, an opening fence,
+  // then enough fenced content to push well past the cap with no closing
+  // fence anywhere in the input at all.
+  const head = 'x'.repeat(MAX_MESSAGE_LEN - 10)
+  const s = `${head}\n\`\`\`\n${'y'.repeat(500)}`
+  const out = capMessage(s)
+  assertEquals(countTripleBacktickFences(out), 0, 'an unopened-and-never-closed fence must be dropped entirely, not left dangling open')
+  assert(out.endsWith(TRUNCATION_MARKER))
+  assert(!out.includes('```'))
+})
+
+Deno.test('capMessage: a message with a fully-closed fence entirely within the kept prefix is left untouched (no regression for the common case)', () => {
+  const s = `intro\n\`\`\`\nsnippet\n\`\`\`\noutro ${'z'.repeat(MAX_MESSAGE_LEN)}`
+  const out = capMessage(s)
+  assertEquals(countTripleBacktickFences(out), 2)
+  assertStringIncludes(out, '```\nsnippet\n```')
+})
+
+Deno.test('capMessage: renderers with no fence at all (fence count 0) are completely unaffected by the fence-aware branch', () => {
+  const s = 'x'.repeat(MAX_MESSAGE_LEN + 1)
+  const out = capMessage(s)
+  assertEquals(out, 'x'.repeat(MAX_MESSAGE_LEN) + TRUNCATION_MARKER)
 })

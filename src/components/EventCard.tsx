@@ -1,5 +1,6 @@
 import type { KeyboardEvent } from 'react'
 import { CategoryBadges } from './CategoryBadge'
+import AddToPlanButton from './AddToPlanButton'
 import { useEmbed } from '@/hooks/useEmbed'
 import { useEventNavigator } from '@/hooks/useEventNavigator'
 import type { EmbedConfig } from '@/lib/embedConfig'
@@ -151,8 +152,9 @@ function ComfortableCard({ event, featured, price, goTo, embed }: CardProps) {
         </div>
 
         {featured && (
-          <div style={{ marginTop: 16 }}>
+          <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
             <button className="btn-details">View Details →</button>
+            <AddToPlanButton event={event} surface="card" variant="inline" />
           </div>
         )}
       </div>
@@ -160,6 +162,7 @@ function ComfortableCard({ event, featured, price, goTo, embed }: CardProps) {
       {!featured && (
         <div className="card-footer">
           <AgeRestrictionPill value={event.age_restriction} />
+          <AddToPlanButton event={event} surface="card" variant="icon" />
           <button className="btn-details">View Details →</button>
         </div>
       )}
@@ -201,6 +204,7 @@ function EfficientCard({ event, featured, price, goTo, embed, gradient }: CardPr
           </div>
         </div>
         <div className="card-efficient-end">
+          <AddToPlanButton event={event} surface="card" variant="icon" />
           {showTags && <CategoryBadges event={event} />}
           {showPrice && (
             <span className={`card-efficient-price ${price.free ? 'free' : ''}`}>{price.label}</span>

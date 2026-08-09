@@ -25,6 +25,8 @@ import { sourceTierLabel } from '@/lib/sourceTiers.js'
 import { recordEventView } from '@/lib/engagement'
 import { trackEvent, EVENTS } from '@/lib/analytics'
 import type { SourceTier } from '@/lib/analyticsEvents'
+import { buildVCalendar, downloadIcs, eventIcsFilename } from '@/lib/ics.js'
+import AddToPlanButton from '@/components/AddToPlanButton'
 import {
   formatPrice,
   gradientForEvent,
@@ -56,30 +58,42 @@ function buildGoogleCalUrl(event: AppEvent): string {
   return `https://calendar.google.com/calendar/render?${params}`
 }
 
-function buildIcsContent(event: AppEvent): string {
-  const fmt  = (d: string) => new Date(d).toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z'
-  const loc  = event.venue ? `${event.venue.name}\\, ${event.venue.address ?? ''}\\, ${event.venue.city}` : ''
-  return [
-    'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Akron Pulse//AkronEvents//EN',
-    'BEGIN:VEVENT',
-    `UID:${event.id}@akronpulse.com`,
-    `DTSTART:${fmt(event.start_at)}`,
-    `DTEND:${event.end_at ? fmt(event.end_at) : fmt(event.start_at)}`,
-    `SUMMARY:${event.title}`,
-    `DESCRIPTION:${(event.description ?? '').replace(/\n/g,'\\n')}`,
-    `LOCATION:${loc}`,
-    `URL:${event.ticket_url ?? ''}`,
-    'END:VEVENT','END:VCALENDAR',
-  ].join('\r\n')
+/**
+ * Build the shared-ics-builder input for a single event. Shared with the day
+ * planner's export (src/lib/ics.js) so the same event added individually and
+ * later inside a plan converges on one UID instead of duplicating in the
+ * user's calendar (see ics.js's own header for the full rationale).
+ */
+function toIcsExportEvent(event: AppEvent) {
+  const venue = event.venue as LooseRow | null
+  return {
+    id: event.id,
+    title: event.title,
+    description: event.description ?? null,
+    start_at: event.start_at,
+    end_at: event.end_at ?? null,
+    updated_at: (event as unknown as { updated_at?: string }).updated_at ?? null,
+    venue: venue
+      ? {
+          name: venue.name ?? null,
+          address: venue.address ?? null,
+          city: venue.city ?? null,
+          state: venue.state ?? null,
+          zip: venue.zip ?? null,
+          lat: venue.lat ?? null,
+          lng: venue.lng ?? null,
+        }
+      : null,
+    ticket_url: event.ticket_url ?? null,
+    source_url: event.source_url ?? null,
+    category_slugs: (event as unknown as { category_slugs?: string[] }).category_slugs ?? null,
+    canonicalUrl: `https://akronpulse.com${eventPath(event)}`,
+  }
 }
 
-function downloadIcs(event: AppEvent): void {
-  const blob = new Blob([buildIcsContent(event)], { type: 'text/calendar' })
-  const a    = document.createElement('a')
-  a.href     = URL.createObjectURL(blob)
-  a.download = `${event.title.replace(/\s+/g,'-').toLowerCase()}.ics`
-  a.click()
-  URL.revokeObjectURL(a.href)
+function downloadEventIcs(event: AppEvent): void {
+  const content = buildVCalendar([toIcsExportEvent(event)])
+  downloadIcs(eventIcsFilename(event), content)
 }
 
 export default function EventPage() {
@@ -563,6 +577,7 @@ function firstAbsoluteUrl(...urls: Array<string | null | undefined>): string | n
  * "fix" the double render by hoisting these handlers without checking that.
  */
 function ActionButtons({ event, price }: { event: AppEvent; price: PriceDisplay }) {
+  const embed = useEmbed()
   // CTA chain: ticket_url (direct purchase) → source_url (source detail page).
   const primaryUrl   = firstAbsoluteUrl(event.ticket_url, event.source_url)
   const isTicketLink = !!event.ticket_url && primaryUrl === event.ticket_url
@@ -609,11 +624,12 @@ function ActionButtons({ event, price }: { event: AppEvent; price: PriceDisplay 
           // Enhanced Measurement cannot see it at all. Without this call the
           // Apple/Outlook half of calendar intent is simply invisible.
           trackEvent(EVENTS.ADD_TO_CALENDAR, { method: 'ics', category })
-          downloadIcs(event)
+          downloadEventIcs(event)
         }}
       >
         + Add to Apple / Outlook Calendar
       </button>
+      {!embed && <AddToPlanButton event={event} surface="event_page" variant="inline" />}
     </>
   )
 }

@@ -4,6 +4,7 @@ import { useTheme } from '@/hooks/useTheme'
 import { getThemeLogo } from '@/lib/themes'
 import { isStandalone } from '@/hooks/usePwaInstall'
 import { useNeighborhood } from '@/hooks/useNeighborhood'
+import { useDayPlan } from '@/hooks/useDayPlan'
 import FeedbackDialog from '@/components/FeedbackDialog'
 import './Header.css'
 
@@ -36,6 +37,15 @@ export default function Header() {
   // A saved hub whose label we can resolve renders "My Neighborhood: Name";
   // an orphaned slug (hub since removed) still navigates but shows generic.
   const hubName = hubSlug ? hubLabel : null
+
+  // "Plan · N" — the only new permanent chrome this feature adds, and it's
+  // conditional. Count is the LOCAL draft's live item count: the draft
+  // persists for 7 days after a share (dayPlanDraft.ts), so this stays
+  // accurate on the device that built the plan without a network round
+  // trip. /day resolves to the shared /d/<code> view on its own when this
+  // device holds an active plan code (§6.5 of the design).
+  const { draft } = useDayPlan()
+  const planCount = draft.items.length
 
   // Header goes solid when scrolled (on home) or always on other pages
   useEffect(() => {
@@ -99,6 +109,9 @@ export default function Header() {
         </nav>
 
         <div className="nav-cta-group">
+          {planCount > 0 && (
+            <Link to="/day" className="nav-link nav-plan-pill">Plan · {planCount}</Link>
+          )}
           <Link to="/submit" className="btn-nav-cta btn-nav-cta-outline">+ Submit Event</Link>
           <FeedbackDialog placement="header" triggerClassName="btn-nav-cta btn-nav-cta-outline" />
           <Link to="/subscribe" className="btn-nav-cta">Subscribe</Link>
@@ -156,6 +169,11 @@ export default function Header() {
                 </button>
               )}
             </div>
+          )}
+          {planCount > 0 && (
+            <button className={`mobile-nav-link ${isActive('/day') ? 'active' : ''}`} onClick={() => navTo('/day')}>
+              Plan · {planCount}
+            </button>
           )}
           <button className={`mobile-nav-link ${isActive('/about') ? 'active' : ''}`} onClick={() => navTo('/about')}>About</button>
           <button className={`mobile-nav-link ${isActive('/organizers') ? 'active' : ''}`} onClick={() => navTo('/organizers')}>Organizers &amp; Partners</button>

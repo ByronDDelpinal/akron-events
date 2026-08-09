@@ -34,9 +34,16 @@
  * stay hidden.
  */
 
-import { isValidTheme, DEFAULT_THEME } from '@/lib/themes'
-import { NEIGHBORHOOD_SLUGS, NEIGHBORHOOD_LABELS } from '@/lib/neighborhoods'
-import { getCityHub } from '@/lib/seo/categories'
+// Explicit `.ts`/`.js` extensions on these three imports (unlike most `@/`
+// imports elsewhere in this codebase) — this module is also imported from
+// Deno, via the root deno.json `@/` import map (docs/embed-request-capture.md
+// D1), and Deno requires an explicit extension on every local/aliased
+// import it resolves; Vite/tsc are fine with the extension either way
+// (`allowImportingTsExtensions` is on in tsconfig.json), so this is safe
+// for both runtimes rather than relying on Deno's unstable sloppy-imports.
+import { isValidTheme, DEFAULT_THEME } from '@/lib/themes.ts'
+import { NEIGHBORHOOD_SLUGS, NEIGHBORHOOD_LABELS } from '@/lib/neighborhoods.ts'
+import { getCityHub } from '@/lib/seo/categories.js'
 
 export const EMBED_FEATURES = ['filter', 'map', 'calendar', 'density', 'price', 'tags'] as const
 export type EmbedFeature = (typeof EMBED_FEATURES)[number]

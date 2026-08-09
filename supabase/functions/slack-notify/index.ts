@@ -60,13 +60,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { timingSafeEqual } from 'jsr:@std/crypto@1/timing-safe-equal'
 import { postMessage, type PostOpts } from '../_shared/slack.ts'
+import { normalizeConfig, buildEmbedUrl, buildIframeSnippet } from '../_shared/embedSnippet.ts'
 import {
   renderFeedback,
   renderSignup,
   renderConfirmed,
+  renderEmbedRequest,
   stringArray,
   type ResolvedNames,
   type Preferences,
+  type EmbedRequestRow,
 } from './render.ts'
 import { parseRequest, planFor, buildAgentPostText, buildAgentPostOpts, classifyCaller, normalizeSecret, type Req, type Plan, type Caller } from './request.ts'
 
@@ -74,6 +77,12 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 )
+
+// Server constant for the embed URL's origin — same pattern as
+// notify-feedback's BASE_URL. NEVER derived from a request header (a
+// Host-header-derived origin would let a caller rewrite the script src in
+// the posted message).
+const PUBLIC_SITE_URL = Deno.env.get('PUBLIC_SITE_URL') || 'https://akronpulse.com'
 
 // The shared secret the DB triggers send as X-Slack-Notify-Secret (set via
 // `supabase secrets set SLACK_NOTIFY_SECRET=...`, matching the Vault value
@@ -364,6 +373,43 @@ Deno.serve(async (req) => {
         }
 
         text = renderFeedback(fb)
+      } else if (parsed.event === 'embed_request') {
+        // HARD REQUIREMENT: hardcoded column allowlist, never select('*').
+        // Mirrors the subscribers re-read below — this is Tier 1 in kind,
+        // rendering from a server-side re-read of a real row, never from
+        // the POST body (the body only ever carries { request_id }).
+        const { data: reqRow, error: reqErr } = await supabase
+          .from('embed_requests')
+          .select('id, name, email, organization, website, note, config, embed_path, created_at')
+          .eq('id', parsed.id)
+          .maybeSingle()
+
+        if (reqErr || !reqRow) {
+          console.error('[slack-notify] embed_requests row not found', { id: parsed.id, reqErr })
+          await settle(rowId, 'failed', { error: 'row not found' })
+          return json({ ok: true, skipped: 'row not found' })
+        }
+
+        const cfg = normalizeConfig(reqRow.config)
+        // embed_path was already derived and persisted by notify-embed-request
+        // at claim time; recompute the URL/snippet here from the same
+        // normalizeConfig output rather than trusting the stored string
+        // verbatim in a Slack message — this re-derivation is deterministic
+        // and cheap, and keeps this function's output independent of
+        // whatever notify-embed-request happened to write.
+        const url = buildEmbedUrl(PUBLIC_SITE_URL, cfg)
+        const snippet = buildIframeSnippet(PUBLIC_SITE_URL, cfg)
+        const row: EmbedRequestRow = {
+          id: reqRow.id,
+          name: reqRow.name,
+          email: reqRow.email,
+          organization: reqRow.organization,
+          website: reqRow.website,
+          note: reqRow.note,
+          config: reqRow.config,
+          created_at: reqRow.created_at,
+        }
+        text = renderEmbedRequest(row, snippet, url)
       } else {
         // subscriber_signup | subscriber_confirmed — same re-read.
         //

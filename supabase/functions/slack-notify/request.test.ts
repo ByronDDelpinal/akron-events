@@ -45,6 +45,25 @@ Deno.test('parseRequest: subscriber_confirmed arm still parses', () => {
   assertEquals(parseRequest({ event: 'subscriber_confirmed', id: 'abc-123' }), { event: 'subscriber_confirmed', id: 'abc-123' })
 })
 
+// ── embed_request arm (docs/embed-request-capture.md §6.4) ───────────────
+
+Deno.test('parseRequest: embed_request arm parses', () => {
+  const id = '11111111-2222-4333-8444-555555555555'
+  assertEquals(parseRequest({ event: 'embed_request', id }), { event: 'embed_request', id })
+})
+
+Deno.test('parseRequest: embed_request rejects a missing id', () => {
+  assertEquals(parseRequest({ event: 'embed_request' }), null)
+})
+
+Deno.test('parseRequest: embed_request rejects a non-string id', () => {
+  assertEquals(parseRequest({ event: 'embed_request', id: 12345 }), null)
+})
+
+Deno.test('parseRequest: embed_request rejects an empty-string id', () => {
+  assertEquals(parseRequest({ event: 'embed_request', id: '' }), null)
+})
+
 Deno.test('parseRequest: garbage body returns null', () => {
   assertEquals(parseRequest(null), null)
   assertEquals(parseRequest('nope'), null)
@@ -212,10 +231,39 @@ Deno.test('agent-secret caller attempting subscriber_confirmed -> forbidden', ()
   assertEquals(result, { ok: false })
 })
 
-Deno.test('trigger caller using the three Tier 1 arms still succeeds', () => {
+Deno.test('agent-secret caller attempting embed_request -> forbidden', () => {
+  const result = planFor({ event: 'embed_request', id: 'x' }, 'agent')
+  assertEquals(result, { ok: false })
+})
+
+Deno.test('trigger caller using the four Tier 1 arms still succeeds', () => {
   assertEquals(planFor({ event: 'feedback', id: 1 }, 'trigger').ok, true)
   assertEquals(planFor({ event: 'subscriber_signup', id: 'x' }, 'trigger').ok, true)
   assertEquals(planFor({ event: 'subscriber_confirmed', id: 'x' }, 'trigger').ok, true)
+  assertEquals(planFor({ event: 'embed_request', id: 'x' }, 'trigger').ok, true)
+})
+
+// ── embed_request: dedupe key / kind / channel derivation ────────────────
+
+Deno.test('REQUIRED: planFor(embed_request, trigger) derives embed_request:{uuid}, kind embed_request, channel partner-embed-requests', () => {
+  const id = '11111111-2222-4333-8444-555555555555'
+  const req: Req = { event: 'embed_request', id }
+  const result = planFor(req, 'trigger')
+  assertEquals(result, {
+    ok: true,
+    plan: { dedupeKey: `embed_request:${id}`, kind: 'embed_request', channelKey: 'partner-embed-requests' },
+  })
+})
+
+Deno.test('REQUIRED: an agent_post run_key literally "embed_request:<uuid>" cannot pre-burn the real Tier 1 key', () => {
+  const id = '11111111-2222-4333-8444-555555555555'
+  const collidingReq: Req = { event: 'agent_post', kind: 'night_crew', run_key: `embed_request:${id}`, agent: 'qa', text: 'x' }
+  const result = planFor(collidingReq, 'agent')
+  assertEquals(result.ok, true)
+  if (result.ok) {
+    assertEquals(result.plan.dedupeKey, `night_crew:embed_request:${id}`)
+    assertEquals(result.plan.dedupeKey === `embed_request:${id}`, false)
+  }
 })
 
 // ── 6. Namespace regression (test requirement #4) ─────────────────────────

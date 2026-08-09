@@ -23,14 +23,18 @@ export const SLACK = {
 } as const
 
 // Tier 1 wires the first two channels; Tier 2 (agent-authored reports) adds
-// the next two. 'ask-the-developers' is Tier 3 and stays commented out below
-// (both here and in CHANNEL_ENV_VARS) — wiring it up for real is a one-line
-// uncomment in each place plus setting the matching env var.
+// the next two. 'partner-embed-requests' is a third Tier 1 arm (embed_request,
+// docs/embed-request-capture.md) added the same way — a logical key mapped
+// to an env var, never a hardcoded channel id. 'ask-the-developers' is Tier 3
+// and stays commented out below (both here and in CHANNEL_ENV_VARS) — wiring
+// it up for real is a one-line uncomment in each place plus setting the
+// matching env var.
 export type ChannelKey =
   | 'public-feedback'
   | 'public-new-email-subscribers'
   | 'daily-reports'
   | 'the-night-crew'
+  | 'partner-embed-requests'
   // | 'ask-the-developers'
 
 // Logical key -> env var name holding the real Slack channel id. Keeping
@@ -38,11 +42,21 @@ export type ChannelKey =
 // key) means the env var naming is free to not match the key spelling, and
 // a missing/renamed secret fails closed (resolveChannel returns null)
 // instead of posting to a wrong or malformed channel string.
+//
+// 'partner-embed-requests' -> SLACK_CHANNEL_PARTNER_EMBED_REQUESTS: the
+// maintainer created this channel (id C0BNANF2P7Z) 2026-08-07. Following
+// this file's existing pattern exactly (env var, never a hardcoded id in
+// code) — the operator sets the secret:
+//   supabase secrets set SLACK_CHANNEL_PARTNER_EMBED_REQUESTS=C0BNANF2P7Z
+// Until that secret is set, resolveChannel returns null and postMessage
+// fails closed with "no channel configured" (logged), same as any other
+// unset channel — it never falls back to posting the wrong place.
 const CHANNEL_ENV_VARS: Record<ChannelKey, string> = {
   'public-feedback': 'SLACK_CHANNEL_PUBLIC_FEEDBACK',
   'public-new-email-subscribers': 'SLACK_CHANNEL_NEW_EMAIL_SUBSCRIBERS',
   'daily-reports': 'SLACK_CHANNEL_DAILY_REPORTS',
   'the-night-crew': 'SLACK_CHANNEL_THE_NIGHT_CREW',
+  'partner-embed-requests': 'SLACK_CHANNEL_PARTNER_EMBED_REQUESTS',
   // 'ask-the-developers': 'SLACK_CHANNEL_ASK_THE_DEVELOPERS',
 }
 
@@ -118,6 +132,7 @@ console.log('[_shared/slack] cold start', {
   has_SLACK_CHANNEL_NEW_EMAIL_SUBSCRIBERS: !!Deno.env.get('SLACK_CHANNEL_NEW_EMAIL_SUBSCRIBERS'),
   has_SLACK_CHANNEL_DAILY_REPORTS: !!Deno.env.get('SLACK_CHANNEL_DAILY_REPORTS'),
   has_SLACK_CHANNEL_THE_NIGHT_CREW: !!Deno.env.get('SLACK_CHANNEL_THE_NIGHT_CREW'),
+  has_SLACK_CHANNEL_PARTNER_EMBED_REQUESTS: !!Deno.env.get('SLACK_CHANNEL_PARTNER_EMBED_REQUESTS'),
   has_SLACK_ICON_URL: !!Deno.env.get('SLACK_ICON_URL'),
   has_SLACK_AGENT_SECRET: !!Deno.env.get('SLACK_AGENT_SECRET'),
 })

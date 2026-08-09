@@ -93,6 +93,48 @@ export type Database = {
           },
         ]
       }
+      embed_requests: {
+        Row: {
+          config: Json
+          created_at: string
+          email: string
+          embed_path: string | null
+          id: string
+          name: string
+          note: string | null
+          notified_at: string | null
+          organization: string
+          status: string
+          website: string | null
+        }
+        Insert: {
+          config: Json
+          created_at?: string
+          email: string
+          embed_path?: string | null
+          id?: string
+          name: string
+          note?: string | null
+          notified_at?: string | null
+          organization: string
+          status?: string
+          website?: string | null
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          email?: string
+          embed_path?: string | null
+          id?: string
+          name?: string
+          note?: string | null
+          notified_at?: string | null
+          organization?: string
+          status?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
       event_aliases: {
         Row: {
           canonical_event_id: string | null

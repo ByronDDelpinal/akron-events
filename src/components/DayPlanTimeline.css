@@ -1,0 +1,120 @@
+.day-plan-empty {
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  padding: var(--space-xl) 0;
+}
+
+.day-plan-span-note {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.day-plan-day-group { margin-bottom: var(--space-2xl); }
+
+.day-plan-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-lg);
+  padding: var(--space-md) 0;
+  border-bottom: var(--border-width-thin) solid var(--border);
+}
+
+.day-plan-item-time {
+  flex-shrink: 0;
+  width: 8em;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--amber);
+}
+
+.day-plan-item-body { flex: 1; min-width: 0; }
+
+.day-plan-item-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+a.day-plan-item-title:hover { color: var(--amber); }
+
+.day-plan-item-venue {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.day-plan-item-moved {
+  font-size: var(--text-sm);
+  color: var(--amber);
+  margin-top: var(--space-xs);
+}
+
+.day-plan-item-note {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-top: var(--space-xs);
+}
+.day-plan-item-note--cancelled { color: var(--coral); }
+
+.day-plan-item--struck .day-plan-item-title,
+.day-plan-item--struck .day-plan-item-venue {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.day-plan-item-remove {
+  flex-shrink: 0;
+  background: transparent;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  padding: var(--space-xs) var(--space-sm);
+  cursor: pointer;
+}
+.day-plan-item-remove:hover { color: var(--amber); border-color: var(--amber); }
+
+/* Neutral gap/overlap line between consecutive items in the same day.
+ * Deliberately no color/icon on the overlap note — see dayPlanGap.ts's
+ * header for why this must never read as an error or a warning. */
+.day-plan-gap-line {
+  padding: var(--space-2xs) 0 var(--space-2xs) calc(8em + var(--space-lg));
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.day-plan-overlap-note { color: var(--text-secondary); }
+
+/* ── Print stylesheet (D5) ──────────────────────────────────────────────
+ * Print stylesheet + window.print() instead of a generated PDF -- every
+ * browser's print dialog has "Save as PDF" already. Scoped tightly to the
+ * itinerary content so it doesn't leak into unrelated pages that happen to
+ * share a class name. */
+@media print {
+  .day-plan-print-hide,
+  .site-header, .site-footer, .install-prompt,
+  .day-plan-actions, .day-plan-item-remove, .add-to-plan-btn {
+    display: none !important;
+  }
+
+  .day-plan-timeline {
+    color: #000;
+    background: #fff;
+  }
+
+  .day-plan-item { break-inside: avoid; border-bottom-color: #ccc; }
+
+  .day-plan-item-title, .day-plan-item-time { color: #000 !important; }
+
+  /* A printed page has no hyperlinks -- surface the ticket URL as visible
+   * text, scoped tightly to the itinerary so this doesn't append a URL
+   * after every unrelated nav link on the page. */
+  .day-plan-timeline a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.75em;
+    color: #555;
+  }
+
+  @page { margin: 0.6in; }
+}

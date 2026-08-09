@@ -32,6 +32,7 @@ export type Req =
   | { event: 'feedback'; id: number }
   | { event: 'subscriber_signup'; id: string }
   | { event: 'subscriber_confirmed'; id: string }
+  | { event: 'embed_request'; id: string }
   | {
       event: 'agent_post'
       kind: 'daily_report' | 'night_crew'
@@ -164,6 +165,13 @@ export function parseRequest(body: unknown): Req | null {
     }
     return null
   }
+  if (event === 'embed_request') {
+    const id = b.id
+    if (typeof id === 'string' && id) {
+      return { event: 'embed_request', id }
+    }
+    return null
+  }
   if (event === 'agent_post') {
     const kind = b.kind
     if (kind !== 'daily_report' && kind !== 'night_crew') return null
@@ -207,7 +215,7 @@ export function parseRequest(body: unknown): Req | null {
 
 export interface Plan {
   dedupeKey: string
-  kind: 'feedback' | 'subscriber_signup' | 'subscriber_confirmed' | 'daily_report' | 'night_crew'
+  kind: 'feedback' | 'subscriber_signup' | 'subscriber_confirmed' | 'embed_request' | 'daily_report' | 'night_crew'
   channelKey: ChannelKey
 }
 
@@ -277,7 +285,7 @@ export function classifyCaller(
   return null
 }
 
-const TIER1_EVENTS = new Set(['feedback', 'subscriber_signup', 'subscriber_confirmed'])
+const TIER1_EVENTS = new Set(['feedback', 'subscriber_signup', 'subscriber_confirmed', 'embed_request'])
 
 /**
  * Dedupe keys: feedback:{id}, subscriber_signup:{uuid}, subscriber_confirmed:{uuid},
@@ -334,6 +342,15 @@ export function planFor(req: Req, caller: Caller): { ok: true; plan: Plan } | { 
       return {
         ok: true,
         plan: { dedupeKey: `subscriber_confirmed:${req.id}`, kind: 'subscriber_confirmed', channelKey: 'public-new-email-subscribers' },
+      }
+    case 'embed_request':
+      // The uuid is already globally unique — no Eastern-date component
+      // belongs in this key (that rule is for the digest's idempotency_key,
+      // which is genuinely per-day; slack-notify dedupe keys have always
+      // been per-row-id: feedback:{id}, subscriber_signup:{uuid}, ...).
+      return {
+        ok: true,
+        plan: { dedupeKey: `embed_request:${req.id}`, kind: 'embed_request', channelKey: 'partner-embed-requests' },
       }
     case 'agent_post': {
       // Channel-allowlist invariant: an agent_post plan's channelKey can only

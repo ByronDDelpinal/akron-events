@@ -9,6 +9,12 @@ import ReactGA from 'react-ga4'
 import { EVENTS, type EventName, type EventParams } from './analyticsEvents'
 import { THEME_STORAGE_KEY, DEFAULT_THEME, isValidTheme } from './themes'
 import { getMyHubSlug } from './myHub'
+import { redactPath } from './planPathRedaction'
+
+// Re-exported so existing/future call sites that only need the pure
+// redaction function (e.g. its own unit test) don't have to know it now
+// lives in a separate zero-dependency module.
+export { redactPath }
 
 // Re-exported so call sites import the event registry and the tracker together.
 export { EVENTS }
@@ -115,7 +121,7 @@ export function initAnalytics(): void {
   // let one busy partner site running the Postcard theme masquerade as a
   // popular user choice. localStorage in a third-party iframe is partitioned
   // or blocked, so the hub read would be empty noise besides.
-  const gtagOptions: Record<string, string> =
+  const gtagOptions: Record<string, string | boolean> =
     surface === 'embed'
       ? { surface, embed_host: detectEmbedHost() }
       : {
@@ -123,6 +129,23 @@ export function initAnalytics(): void {
           theme: readInitialTheme(),
           neighborhood: getMyHubSlug() ?? NO_NEIGHBORHOOD,
         }
+  // send_page_view: false is NON-NEGOTIABLE — see this file's header and
+  // planPathRedaction.ts. react-ga4 spreads gtagOptions straight into the
+  // `gtag('config', MEASUREMENT_ID, {...})` call it issues here (see
+  // node_modules/react-ga4/src/ga4.ts `initialize`). Without this flag, GA4's
+  // default behavior on a bare `config` command is to auto-fire its OWN
+  // page_view using `window.location.href` as `page_location` — a call that
+  // does not go through trackPageView, so it bypasses redactPath entirely.
+  // On a cold open of a shared `/d/<code>` link (the primary real-world path
+  // for the day planner), `window.location.href` IS `/d/<code>` at the
+  // instant this runs (main.tsx calls initAnalytics() before React ever
+  // renders, so no in-app navigation has happened yet), which ships the
+  // plan's bearer credential to Google. The app already fires its own
+  // manual pageview via trackPageView on every route change, including the
+  // first one (App.tsx's effect on [location] runs on mount too), so
+  // disabling the automatic one loses no coverage — it only removes a
+  // duplicate (and unredacted) hit.
+  gtagOptions.send_page_view = false
   ReactGA.initialize(MEASUREMENT_ID, { gtagOptions })
 }
 
@@ -173,6 +196,7 @@ function contentGroup(path: string): string {
   if (p === '/about') return 'About'
   if (p === '/organizers') return 'Organizers'
   if (p === '/technical') return 'Technical'
+  if (p === '/day' || p.startsWith('/d/')) return 'Day Plan'
   return 'Other'
 }
 
@@ -183,10 +207,29 @@ function contentGroup(path: string): string {
  */
 export function trackPageView(path: string, title?: string): void {
   if (!enabled) return
+  // Redact a day-plan bearer code BEFORE it can reach GA4 — see redactPath's
+  // own docstring. This must stay the very first thing this function does;
+  // every other line below reads `safePath`, never the raw `path` argument.
+  const safePath = redactPath(path)
   // Set content_group first so it attaches to the page_view (and to custom
   // events fired on this page until the next route change re-sets it).
-  ReactGA.set({ content_group: contentGroup(path) })
-  ReactGA.send({ hitType: 'pageview', page: path, title })
+  ReactGA.set({ content_group: contentGroup(safePath) })
+  // `page` here only sets GA4's `page_path`. gtag.js separately
+  // AUTO-POPULATES `page_location` from `window.location.href` on every hit
+  // that doesn't explicitly override it (documented GA4 default enrichment,
+  // independent of send_page_view / initAnalytics above) — so passing only
+  // `page: safePath` is NOT enough. On `/d/<code>`, `window.location.href`
+  // already reflects the new URL by the time this runs (the browser updates
+  // it via pushState before React Router's effects fire), so an unredacted
+  // code would still ship as `page_location` even with `page_path` redacted.
+  // `location` is react-ga4's field name for the override (see
+  // node_modules/react-ga4/src/ga4.ts `_gaCommandSendPageview`, which maps
+  // an explicit `location` straight to `page_location`) — build it from the
+  // REDACTED path so both page dimensions agree and neither carries the code.
+  const safeLocation = typeof window !== 'undefined'
+    ? `${window.location.origin}${safePath}`
+    : safePath
+  ReactGA.send({ hitType: 'pageview', page: safePath, title, location: safeLocation })
 }
 
 /**
