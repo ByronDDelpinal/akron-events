@@ -80,11 +80,12 @@ export type SearchContentType = 'events' | 'data_sources'
 /**
  * Where a day-planner add/remove control fired from. The add button is one
  * shared component (AddToPlanButton) mounted on cards, the event detail
- * page, and inside the planner itself — without this dimension the three
- * funnels would be indistinguishable, the same reason FeedbackPlacement
- * exists for the feedback dialog.
+ * page, inside the planner itself, and on festival hub pages
+ * (src/pages/FestivalPage.tsx) — without this dimension the funnels would
+ * be indistinguishable, the same reason FeedbackPlacement exists for the
+ * feedback dialog.
  */
-export type PlanSurface = 'card' | 'event_page' | 'planner'
+export type PlanSurface = 'card' | 'event_page' | 'planner' | 'festival_hub'
 
 /** How a plan was exported. */
 export type PlanExportFormat = 'ics' | 'print'

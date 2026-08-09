@@ -140,6 +140,7 @@ export const SOURCE_PRIORITY = [
   'ohio_erie_canalway',      // first-party (Canalway Coalition towpath events)
   'ohio_shakespeare',
   'painting_twist',
+  'porchrokr',               // first-party festival importer (PorchRokr per-set events; sub-source of highland_square)
   'rubberducks',
   'stan_hywet',              // first-party venue calendar
   'summit_artspace',

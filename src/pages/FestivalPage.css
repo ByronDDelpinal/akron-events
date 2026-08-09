@@ -1,0 +1,66 @@
+/* FestivalPage — festival hub chrome only. The schedule itself renders on
+ * the site's shared compact view (EventCard viewMode="efficient" inside
+ * .cards-grid--efficient, slot headers on HomePage's .date-heading classes),
+ * so only the header card, status lines, and live outline live here. */
+
+.page-festival {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 16px 16px 64px;
+}
+
+.festival-notfound {
+  text-align: center;
+  padding: 100px 20px;
+  color: var(--text-muted);
+}
+
+.festival-notfound a { color: var(--amber); font-size: 0.88rem; }
+
+/* Hub cards: hide category tag pills — porch/genre identity is redundant here
+ * (every set is music) and the pills crowd the 161-card grid. Byron 2026-08-09. */
+.page-festival .card-efficient .event-tag { display: none; }
+
+/* ── Umbrella header card — the page's only image ── */
+
+.festival-header {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.25));
+  border-radius: 12px;
+  background: var(--surface, transparent);
+}
+
+.festival-poster {
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.festival-title { font-family: var(--font-display); font-size: 1.5rem; margin: 0 0 4px; }
+.festival-date { color: var(--text-muted); margin: 0 0 10px; font-size: 0.92rem; }
+.festival-logistics { font-size: 0.9rem; line-height: 1.5; margin: 0 0 10px; white-space: pre-line; }
+.festival-links { display: flex; gap: 16px; flex-wrap: wrap; margin: 0; font-size: 0.88rem; }
+.festival-links a { color: var(--amber); }
+
+.festival-status-line { text-align: center; color: var(--text-muted); padding: 32px 0; }
+
+/* ── Slots: shared classes do the styling; only spacing + live outline ── */
+
+.festival-slot { padding: 26px 0 var(--space-md); }
+.festival-slot .date-heading { margin: 0 0 var(--space-md); }
+
+.festival-card--live {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+@media (min-width: 720px) {
+  .festival-header { flex-direction: row; align-items: flex-start; }
+  .festival-poster { width: 280px; flex: 0 0 auto; }
+}

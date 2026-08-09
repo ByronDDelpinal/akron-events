@@ -47,6 +47,7 @@ const SUB_SOURCE_LABELS: Record<string, string> = {
   ejthomas_hall: 'E.J. Thomas Hall',
   uakron_myers_art: 'Myers School of Art',
   uakron_chp: 'Cummings Center',
+  porchrokr: 'PorchRokr Festival Sets',
 }
 
 /** key → display label for every known source (manifest first, then subs). */
@@ -1324,6 +1325,16 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     notes:       "The Highland Square Neighborhood Association runs essentially one marquee public event a year: PorchROKR, the porch-music-and-arts festival on the third Saturday of August. The site is Wix, which is normally client-rendered, but it server-side renders the festival date heading (\"AUGUST 15, 2026\") plus og:description and og:image into the initial HTML, so a plain fetch sees them. We extract that single dated festival (porch sets ~11 a.m.–7 p.m., headliner to ~9 p.m.) rather than a recurring list, so we hold the canonical PorchROKR date from HSNA rather than depending on Eventbrite. The Highland Square Film Festival lives on a separate page when active and isn't yet ingested.",
     status:      'active',
   },
+  {
+    key:         'porchrokr',
+    subOf:       'highland_square',
+    label:       'PorchRokr Festival Sets',
+    method:      'Curated import',
+    methodDetail:'Checked-in brochure data (scripts/data/porchrokr-2026.json) + scripts/import-porchrokr.js',
+    venue:       'Highland Square porches and stages: ~40 residential porches plus festival stages along the W Market St corridor',
+    notes:       "Per-set schedule for PorchRokr, HSNA's annual porch-music-and-arts festival. The lineup exists only as a printed/PDF brochure, so the schedule (~160 thirty-minute porch sets plus stage sets and the headliner) is transcribed into a checked-in data file and ingested by an idempotent importer rather than a scraper; there is nothing to re-scrape, and the importer re-run IS the re-scrape. Porch venues are minted unlisted and carry an advisory manual_overrides provenance stamp for the post-festival consolidation; porches 38/39 reuse the existing House Three Thirty venue. Rides on the highland_square umbrella event for festival-level logistics.",
+    status:      'active',
+  },
 
   // ── Aggregators ────────────────────────────────────────────────────────
   {
@@ -1673,6 +1684,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   akron_promise:       'html',
   runsignup:           'runsignup',
   akron_dance_festival:'curated',
+  porchrokr:           'curated',
   gather_round_games:  'wix',
   bath_business_assoc: 'wix',
   release_yoga:        'html',

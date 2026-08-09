@@ -27,6 +27,7 @@ import UnsubscribePage   from '@/pages/UnsubscribePage'
 import EmbedBuilderPage  from '@/pages/EmbedBuilderPage'
 import DayPlanPage    from '@/pages/DayPlanPage'
 import SharedPlanPage from '@/pages/SharedPlanPage'
+import FestivalPage   from '@/pages/FestivalPage'
 
 // Admin pages
 import AdminLayout from '@/pages/admin/AdminLayout'
@@ -232,6 +233,9 @@ function AppInner() {
               scripts/tests/test-day-plan-guards.js. */}
           <Route path="/day"                     element={<DayPlanPage />} />
           <Route path="/d/:code"                 element={<SharedPlanPage />} />
+          {/* Festival hubs — per-tag schedule pages driven by the static
+              registry in src/lib/festivals.ts (unknown slug → not found). */}
+          <Route path="/festival/:slug"          element={<FestivalPage />} />
 
           {/* Admin — nested routing with shared layout */}
           <Route path="/admin" element={<AdminLayout />}>

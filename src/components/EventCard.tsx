@@ -5,6 +5,7 @@ import { useEmbed } from '@/hooks/useEmbed'
 import { useEventNavigator } from '@/hooks/useEventNavigator'
 import type { EmbedConfig } from '@/lib/embedConfig'
 import type { AppEvent } from '@/hooks/useEvents'
+import type { PlanSurface } from '@/lib/analyticsEvents'
 import {
   formatPrice,
   formatEventDate,
@@ -37,11 +38,14 @@ interface EventCardProps {
   event: AppEvent
   featured?: boolean
   viewMode?: string
+  /** Which analytics surface this card's AddToPlanButton reports (§6.8).
+   *  Defaults to 'card'; the festival hub passes 'festival_hub'. */
+  planSurface?: PlanSurface
 }
 
 // ── COMFORTABLE MODE (default) ──────────────────────────────────────────────
 
-export default function EventCard({ event, featured = false, viewMode = 'comfortable' }: EventCardProps) {
+export default function EventCard({ event, featured = false, viewMode = 'comfortable', planSurface = 'card' }: EventCardProps) {
   const goTo     = useEventNavigator()
   const embed    = useEmbed()
   const price    = formatPrice(event.price_min, event.price_max)
@@ -56,6 +60,7 @@ export default function EventCard({ event, featured = false, viewMode = 'comfort
         goTo={goTo}
         embed={embed}
         gradient={gradient}
+        planSurface={planSurface}
       />
     )
   }
@@ -67,6 +72,7 @@ export default function EventCard({ event, featured = false, viewMode = 'comfort
       price={price}
       goTo={goTo}
       embed={embed}
+      planSurface={planSurface}
     />
   )
 }
@@ -77,9 +83,10 @@ interface CardProps {
   price: PriceDisplay
   goTo: GoTo
   embed: EmbedConfig | null
+  planSurface: PlanSurface
 }
 
-function ComfortableCard({ event, featured, price, goTo, embed }: CardProps) {
+function ComfortableCard({ event, featured, price, goTo, embed, planSurface }: CardProps) {
   const gradient  = gradientForEvent(event)
   // Image fallback chain: event → venue → organizer.
   const imageUrl  = imageUrlForEvent(event)
@@ -154,7 +161,7 @@ function ComfortableCard({ event, featured, price, goTo, embed }: CardProps) {
         {featured && (
           <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
             <button className="btn-details">View Details →</button>
-            <AddToPlanButton event={event} surface="card" variant="chip" />
+            <AddToPlanButton event={event} surface={planSurface} variant="chip" />
           </div>
         )}
       </div>
@@ -162,7 +169,7 @@ function ComfortableCard({ event, featured, price, goTo, embed }: CardProps) {
       {!featured && (
         <div className="card-footer">
           <AgeRestrictionPill value={event.age_restriction} />
-          <AddToPlanButton event={event} surface="card" variant="chip" />
+          <AddToPlanButton event={event} surface={planSurface} variant="chip" />
           <button className="btn-details">View Details →</button>
         </div>
       )}
@@ -172,7 +179,7 @@ function ComfortableCard({ event, featured, price, goTo, embed }: CardProps) {
 
 // ── EFFICIENT MODE ──────────────────────────────────────────────────────────
 
-function EfficientCard({ event, featured, price, goTo, embed, gradient }: CardProps & { gradient: string }) {
+function EfficientCard({ event, featured, price, goTo, embed, gradient, planSurface }: CardProps & { gradient: string }) {
   const showPrice = featureOn(embed, 'price')
   const showTags  = featureOn(embed, 'tags')
   return (
@@ -204,7 +211,7 @@ function EfficientCard({ event, featured, price, goTo, embed, gradient }: CardPr
           </div>
         </div>
         <div className="card-efficient-end">
-          <AddToPlanButton event={event} surface="card" variant="chip" />
+          <AddToPlanButton event={event} surface={planSurface} variant="chip" />
           {showTags && <CategoryBadges event={event} />}
           {showPrice && (
             <span className={`card-efficient-price ${price.free ? 'free' : ''}`}>{price.label}</span>

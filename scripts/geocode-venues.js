@@ -157,7 +157,7 @@ const paceNominatimRequest = createRateLimiter(RATE_LIMIT_MS)
  * and retries once; a second 429/403 throws NominatimBlockedError. Any other
  * non-2xx status throws a plain Error. Returns parsed JSON on success.
  */
-async function nominatimFetch(url, attempt = 1) {
+export async function nominatimFetch(url, attempt = 1) {
   await paceNominatimRequest()
   const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } })
   if (res.status === 429 || res.status === 403) {
@@ -246,7 +246,7 @@ function addressGateFailureReason(venue, result) {
  * lets Nominatim's own address parser (rather than ours) resolve ambiguity.
  * Returns the raw top result object, or null if Nominatim returned nothing.
  */
-async function geocodeAddress(v) {
+export async function geocodeAddress(v) {
   const params = new URLSearchParams({
     format: 'json',
     addressdetails: '1',
