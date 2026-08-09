@@ -1,0 +1,1520 @@
+{
+  "_comment": "PorchRokr 2026 festival data, transcribed from the official brochure (page 1 schedule + map, 400dpi) via outputs/porchrokr/porch-table.md and lineup-2026.json. Porches 32-37 carry Nominatim geocodes; every other porch and all stages carry map-derived coords (brochure-map-affine-fit anchored on porches 32/33/34/35), reviewed and approved by Byron on 2026-08-09. Where street is null the printed street text was unreadable or unconfirmed; the coords are authoritative there and houseNumber is kept for reference only. Consumed by scripts/import-porchrokr.js; see the 2026-08-09 PorchRokr ADR.",
+  "festival": {
+    "slug": "porchrokr-2026",
+    "name": "PorchRokr Music & Arts Festival",
+    "date": "2026-08-15",
+    "tag": "porchrokr-2026",
+    "umbrella": {
+      "source": "highland_square",
+      "source_id": "porchrokr-2026"
+    },
+    "website": "https://www.highlandsquareakron.org/",
+    "logistics": "Porch sets run 11:00 AM to 6:30 PM: odd-numbered porches at 11:00, 1:00, 3:00, and 5:00; even-numbered porches at 12:00, 2:00, 4:00, and 6:00 (30-minute sets). Headliner Rent for Cheryl closes the festival at 7:30 PM on the Main Stage. Fixed stages: the Main Stage, the Yellow Brick Road Stage on W. Exchange St, and the Beer Garden & Stage on the Augusta Ave edge of Will Christy Park. Will Christy Park also hosts the Kid Zone, karaoke, the silent auction, and the silent disco. Porches 38 and 39 are inside House Three Thirty (532 W. Market St). FREE Park & Ride shuttle from the APS lot at the corner of N. Main St & W. Market St."
+  },
+  "porches": [
+    {
+      "porch": 1,
+      "houseNumber": "88",
+      "street": null,
+      "confidence": "HIGH",
+      "lat": 41.095564,
+      "lng": -81.54406,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "routesTo": "main",
+      "notes": "Porch 1 IS the Main Stage; its acts route to the Main Stage venue and the headliner closes there. Printed house number 88 kept for reference; street unconfirmed. Coords map-derived, reviewed by Byron.",
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "A Band Named Ashes",
+          "genre": "Progressive Folk"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "DaLo and the Band",
+          "genre": "Pop/Soul"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "Dj Xay & Mr Rashaad",
+          "genre": "Hip Hop"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "The Sweet Spot",
+          "genre": "Indie, Rock, Pop"
+        }
+      ]
+    },
+    {
+      "porch": 2,
+      "houseNumber": "804",
+      "street": "Bloomfield Ave",
+      "confidence": "HIGH",
+      "lat": 41.094995,
+      "lng": -81.543655,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Sweet Ignition",
+          "genre": "Alt Rock"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "3 Starz",
+          "genre": "Rock"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "The Modernes",
+          "genre": "Americana, Y'allternative, Surf"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "B-Rando",
+          "genre": "Hip-Hop"
+        }
+      ]
+    },
+    {
+      "porch": 3,
+      "houseNumber": "814",
+      "street": "Bloomfield Ave",
+      "confidence": "HIGH",
+      "lat": 41.094849,
+      "lng": -81.543814,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "Britney Redpath",
+          "genre": "Indie folk"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "Eaten by Kittens",
+          "genre": "Rock & Roll (old school punk)"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "Comb Walker",
+          "genre": "Alt/Noise Rock"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "Breathe In Stereo",
+          "genre": "Indie Rock, Alt Rock, Post Emo"
+        }
+      ]
+    },
+    {
+      "porch": 4,
+      "houseNumber": "864",
+      "street": null,
+      "confidence": "HIGH",
+      "lat": 41.094525,
+      "lng": -81.545115,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "notes": "Cluster 4/5/9 where Elmore crosses the diagonal; printed street unconfirmed, cleared. Coords follow the brochure map (Byron reviewed).",
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Dashiel & Av",
+          "genre": "Jazz, Soul Pop, R&B, Hip Hop"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "Emigrants Wake",
+          "genre": "Irish Rock & American Folk"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "Brian Lisik",
+          "genre": "Rock"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "West Akron Fadeaway",
+          "genre": "Grateful Dead Covers"
+        }
+      ]
+    },
+    {
+      "porch": 5,
+      "houseNumber": "859",
+      "street": null,
+      "confidence": "HIGH",
+      "lat": 41.094663,
+      "lng": -81.545188,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "notes": "Same cluster as porch 4; printed street unconfirmed, cleared. Coords follow the brochure map (Byron reviewed).",
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "Cool Blue Planet!",
+          "genre": "Classic, Alt, & Original Rock"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "Flock Of Moons",
+          "genre": "Heavy Psych Rock"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "The Tenants",
+          "genre": "Twang Rock"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "Blind Boxing",
+          "genre": "Punk Emo"
+        }
+      ]
+    },
+    {
+      "porch": 6,
+      "houseNumber": "900",
+      "street": null,
+      "confidence": "HIGH",
+      "lat": 41.094701,
+      "lng": -81.546409,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "notes": "Mid-block on the unnamed diagonal between Jefferson and Elmore; street unknown. Coords follow the brochure map (Byron reviewed).",
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Morning Star Bluegrass Band",
+          "genre": "Bluegrass"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "F5",
+          "genre": "Classic Rock and Originals"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "One Fine day",
+          "genre": "Girl Groups 60's & beyond"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "By Light We Loom",
+          "genre": "Indie Rock/Pop"
+        }
+      ]
+    },
+    {
+      "porch": 7,
+      "houseNumber": "890",
+      "street": null,
+      "confidence": "HIGH",
+      "lat": 41.094697,
+      "lng": -81.546091,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "notes": "Same unnamed street as porch 6; street unknown. Coords follow the brochure map (Byron reviewed).",
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "Vayne",
+          "genre": "Rock"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "Grave Ridden",
+          "genre": "Metal"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "Lake District",
+          "genre": "Alt, Rock"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "Hand + Noise",
+          "genre": "Alt, Indie, Rock"
+        }
+      ]
+    },
+    {
+      "porch": 8,
+      "houseNumber": "875",
+      "street": null,
+      "confidence": "HIGH",
+      "lat": 41.095094,
+      "lng": -81.545712,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "notes": "Near the Elmore label, west side; printed street unconfirmed, cleared. Coords follow the brochure map (Byron reviewed).",
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Eleni Naomi",
+          "genre": "Soul Jazz"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "Joe Rangel",
+          "genre": "NeoSoul, Dreampop, Jazz"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "Judelynn",
+          "genre": "Indie Folk, Pop"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "Black Wolf & The Thief",
+          "genre": "Alt, Rock, R&B, Pop"
+        }
+      ]
+    },
+    {
+      "porch": 9,
+      "houseNumber": "862",
+      "street": null,
+      "confidence": "HIGH",
+      "lat": 41.09496,
+      "lng": -81.545299,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "notes": "Same cluster as porches 4/5; printed street unconfirmed, cleared. Coords follow the brochure map (Byron reviewed).",
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "Akron Derbytown Chorus",
+          "genre": "Barbershop/A Cappella"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "Rubber City Ukes",
+          "genre": "100 Years of Popular Music"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "Buffalo Ryders",
+          "genre": "Alternative, Riff-Rock"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "Massive Hotdog Recall",
+          "genre": "Trashcan Horn Rock"
+        }
+      ]
+    },
+    {
+      "porch": 10,
+      "houseNumber": "837",
+      "street": "Elmore Ave",
+      "confidence": "HIGH",
+      "lat": 41.095352,
+      "lng": -81.545005,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Lilac Heart",
+          "genre": "Hyperpop, Electronic"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "Samjhana Band",
+          "genre": "Rock, Fusion, Covers"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "Missingno",
+          "genre": "Alternative Hip-Hop"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "Blue Phase",
+          "genre": "Electronica"
+        }
+      ]
+    },
+    {
+      "porch": 11,
+      "houseNumber": "755",
+      "street": null,
+      "confidence": "HIGH",
+      "lat": 41.095965,
+      "lng": -81.544721,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "notes": "11/12 sit at the Ardmore Ave / S. Portage Path corner; printed street unconfirmed, cleared. Coords follow the brochure map (Byron reviewed).",
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "Zach Angeloni",
+          "genre": "Alt Rock/Folk Rock"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "Rachel Roberts",
+          "genre": "Singer-Songwriter"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "Jinari Kemet & The Black Jackets",
+          "genre": "Hip-Hop, Rock"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "Esther Fitz",
+          "genre": "Pop, Rock, Soul, Jazz"
+        }
+      ]
+    },
+    {
+      "porch": 12,
+      "houseNumber": "752",
+      "street": null,
+      "confidence": "HIGH",
+      "lat": 41.095906,
+      "lng": -81.544539,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "notes": "Same corner as porch 11; printed street unconfirmed, cleared. Coords follow the brochure map (Byron reviewed).",
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Adult Human Chicken",
+          "genre": "Pop-punk"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "Soleo",
+          "genre": "Middle Eastern Prog Rock"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "Smoke Face",
+          "genre": "Fusion Hip Hop & Funk"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "Red Rose Panic",
+          "genre": "Dynamic Hip-Hop"
+        }
+      ]
+    },
+    {
+      "porch": 13,
+      "houseNumber": "812",
+      "street": "Corson Ave",
+      "confidence": "HIGH",
+      "lat": 41.095356,
+      "lng": -81.545789,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "Wreck Like Me",
+          "genre": "Folk Rock"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "Don Darko",
+          "genre": "Rock Exp. Hip Hop, Indie"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "Haren & Thorla",
+          "genre": "Synth Rock"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "Skeleton Drive",
+          "genre": "Folk-Emo"
+        }
+      ]
+    },
+    {
+      "porch": 14,
+      "houseNumber": "948",
+      "street": null,
+      "confidence": "HIGH",
+      "lat": 41.095878,
+      "lng": -81.546295,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "notes": "Near the Jefferson/Corson junction; printed street unconfirmed, cleared. Coords follow the brochure map (Byron reviewed).",
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Wo Hop Maddness",
+          "genre": "Experimental Funk"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "SweetSour",
+          "genre": "Rock"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "Goodmorning Valentine",
+          "genre": "Rock"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "Death Mattress",
+          "genre": "Folk-punk"
+        }
+      ]
+    },
+    {
+      "porch": 15,
+      "houseNumber": "934",
+      "street": "Corson Ave",
+      "confidence": "HIGH",
+      "lat": 41.095923,
+      "lng": -81.545854,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "Freez-R-Burn",
+          "genre": "Classic Rock & Originals"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "The Twanglers",
+          "genre": "Americana"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "Zach Beaver Band",
+          "genre": "Pop Funk"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "Brave Arrows",
+          "genre": "Electronic Rock"
+        }
+      ]
+    },
+    {
+      "porch": 16,
+      "houseNumber": "1032",
+      "street": "W. Exchange St",
+      "confidence": "HIGH",
+      "lat": 41.095181,
+      "lng": -81.548719,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "notes": "Adjacent to Yellow Brick Road Stage.",
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Resolve",
+          "genre": "Jazz, Fusion, R&B"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "Marcus Smith & The Rapscallions",
+          "genre": "Hiphop/rock/funk"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "Easton Union",
+          "genre": "Soul-soaked Rock & Roll"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "Benny Lava & The Guavas",
+          "genre": "Soul, Doo-wop, & Pop"
+        }
+      ]
+    },
+    {
+      "porch": 17,
+      "houseNumber": "963",
+      "street": "Jefferson Ave",
+      "confidence": "HIGH",
+      "lat": 41.095877,
+      "lng": -81.546693,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "It's About Time",
+          "genre": "Rock/Pop/Folk/R&B"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "Anna Beau",
+          "genre": "Singer/songwriter, alt, folk, pop"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "Ahn",
+          "genre": "No Wave"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "Lucky Crayfish",
+          "genre": "Alternative Rock"
+        }
+      ]
+    },
+    {
+      "porch": 18,
+      "houseNumber": "41",
+      "street": null,
+      "confidence": "HIGH",
+      "lat": 41.096556,
+      "lng": -81.545949,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "notes": "North end near Teagle Park; printed street unconfirmed, cleared. Coords follow the brochure map (Byron reviewed).",
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Jupiter 2",
+          "genre": "Instrumental Surf"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "The Mickeys",
+          "genre": "Celtic Rock"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "The Drecking Crew",
+          "genre": "Rock"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "The Crones",
+          "genre": "80s Female Alt Pop"
+        }
+      ]
+    },
+    {
+      "porch": 19,
+      "houseNumber": "1033",
+      "street": "W. Exchange St",
+      "confidence": "HIGH",
+      "lat": 41.095302,
+      "lng": -81.548454,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "Blue Hour",
+          "genre": "Indie/Alternative Rock"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "Dearest Friend",
+          "genre": "Pop Punk/Punk Rock"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "Rockin' Rabbits",
+          "genre": "Rock"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "Shelby Olive",
+          "genre": "Indie Pop"
+        }
+      ]
+    },
+    {
+      "porch": 20,
+      "houseNumber": "83",
+      "street": null,
+      "confidence": "HIGH",
+      "lat": 41.096278,
+      "lng": -81.547372,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "notes": "Between Everett and Marvin; street unknown. Coords follow the brochure map (Byron reviewed).",
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Akronauts",
+          "genre": "Rock"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "The Delta Hand",
+          "genre": "Electric Blues"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "Dr Fang & The Bats",
+          "genre": "Garage Rock/Synth Punk"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "Kevin Ballard & The Detonators",
+          "genre": "Rock"
+        }
+      ]
+    },
+    {
+      "porch": 21,
+      "houseNumber": "52",
+      "street": null,
+      "confidence": "HIGH",
+      "lat": 41.096282,
+      "lng": -81.546461,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "notes": "Street between Everett and Corson, unnamed on map. Coords follow the brochure map (Byron reviewed).",
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "Upstream Drifters",
+          "genre": "Folk Rock"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "So Nectar",
+          "genre": "Alt, Emo, Post Hardcore"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "Dave Rich & His Enablers",
+          "genre": "Rock"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "Wake Magnolia",
+          "genre": "Alt Rock"
+        }
+      ]
+    },
+    {
+      "porch": 22,
+      "houseNumber": "73",
+      "street": null,
+      "confidence": "HIGH",
+      "lat": 41.096459,
+      "lng": -81.548027,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "notes": "Near Borton/Marvin; printed street unconfirmed, cleared. Coords follow the brochure map (Byron reviewed).",
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Lovely Weather",
+          "genre": "Shoegaze, Indie, Alternative"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "Counting Butterflies",
+          "genre": "Emotional Rock"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "Funeral Proposals",
+          "genre": "Rock"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "Time Cat",
+          "genre": "Rock"
+        }
+      ]
+    },
+    {
+      "porch": 23,
+      "houseNumber": "97",
+      "street": "Marvin Ave",
+      "confidence": "HIGH",
+      "lat": 41.096088,
+      "lng": -81.54774,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "Zoloft",
+          "genre": "Indie Rock"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "Supercop",
+          "genre": "Instrumental"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "Girl Cologne",
+          "genre": "Bubblegrunge"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "Betzler",
+          "genre": "Indie Rock"
+        }
+      ]
+    },
+    {
+      "porch": 24,
+      "houseNumber": "54",
+      "street": "Borton Ave",
+      "confidence": "HIGH",
+      "lat": 41.096585,
+      "lng": -81.548622,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "A.B.C.D.",
+          "genre": "Singer-Songwriter"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "Arms & Armour",
+          "genre": "Electronic, Sludge"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "Dennis Van Crash",
+          "genre": "Original Rock"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "Carolina",
+          "genre": "Singer/songwriter Indie Pop/Soul"
+        }
+      ]
+    },
+    {
+      "porch": 25,
+      "houseNumber": "45",
+      "street": "Everett Ave",
+      "confidence": "HIGH",
+      "lat": 41.096578,
+      "lng": -81.547373,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "Big Void",
+          "genre": "Synth Pop/Rock"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "Fast & Backwards",
+          "genre": "Silly Punk"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "Friendship Bracelet",
+          "genre": "Pop-Punk/Emo"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "The Cabin sound",
+          "genre": "Indie Rock"
+        }
+      ]
+    },
+    {
+      "porch": 26,
+      "houseNumber": null,
+      "street": null,
+      "confidence": "HIGH",
+      "lat": 41.096435,
+      "lng": -81.550622,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "routesTo": "beer-garden",
+      "notes": "No house number; porch 26 IS the Beer Garden & Stage on the Augusta Ave edge of Will Christy Park. Its acts route to the beer-garden stage.",
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Roxxymoron",
+          "genre": "Rock"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "Aka & Company",
+          "genre": "R&B Alternative"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "Cat Stanley",
+          "genre": "Alt Rock, Midwest Emo"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "Grumpy Plum",
+          "genre": "Pop-Rock"
+        }
+      ]
+    },
+    {
+      "porch": 27,
+      "houseNumber": "116",
+      "street": "South Rose Blvd",
+      "confidence": "HIGH",
+      "lat": 41.09673,
+      "lng": -81.550288,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "BAJA Thunder",
+          "genre": "Classic Rock"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "[Redacted]",
+          "genre": "Post Nu Metal"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "One Piece Puzzle",
+          "genre": "Rock"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "City of Invention",
+          "genre": "Roots Rock"
+        }
+      ]
+    },
+    {
+      "porch": 28,
+      "houseNumber": "96",
+      "street": "South Rose Blvd",
+      "confidence": "HIGH",
+      "lat": 41.096926,
+      "lng": -81.549818,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Bewarewolves",
+          "genre": "Hard Rock, Shoegaze"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "Late Light",
+          "genre": "Americana"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "Empty Coats",
+          "genre": "Indy Rock"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "Wolves For Walls",
+          "genre": "Soulgaze Rock RnB"
+        }
+      ]
+    },
+    {
+      "porch": 29,
+      "houseNumber": "76",
+      "street": "South Rose Blvd",
+      "confidence": "HIGH",
+      "lat": 41.096982,
+      "lng": -81.54938,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "Duer Court Rhythm Section",
+          "genre": "Jazz Funk Fusion"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "Soulshine",
+          "genre": "Blues/Rock"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "The Brown Brothers",
+          "genre": "Country Folkgrass and Roll"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "Dynamo Love",
+          "genre": "Alternative Funk Rock"
+        }
+      ]
+    },
+    {
+      "porch": 30,
+      "houseNumber": "958",
+      "street": "W. Market St",
+      "confidence": "HIGH",
+      "lat": 41.097385,
+      "lng": -81.547252,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "notes": "Map position confirms 958 W. Market St (duplicate printed number with porch 40 resolved in porch 30's favor). Coords map-derived, reviewed by Byron.",
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Braininavat",
+          "genre": "Screamo"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "Glass Bones",
+          "genre": "Alternative"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "I Hate It too",
+          "genre": "Alternative Rock"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "Ghost Slime",
+          "genre": "Slime Rock"
+        }
+      ]
+    },
+    {
+      "porch": 31,
+      "houseNumber": "968",
+      "street": "W. Market St",
+      "confidence": "HIGH",
+      "lat": 41.097358,
+      "lng": -81.547545,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "Alina Remains",
+          "genre": "Singer Songwriter"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "Ashley Gulla",
+          "genre": "Indie-Pop/Americana"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "Dany Elias",
+          "genre": "Rap, Pop, Rock"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "Ashley Brooke Toussant",
+          "genre": "Atmospheric Folk"
+        }
+      ]
+    },
+    {
+      "porch": 32,
+      "houseNumber": "807",
+      "street": "W. Market St",
+      "confidence": "HIGH",
+      "lat": 41.0965435,
+      "lng": -81.5432459,
+      "geocode": {
+        "display_name": "807, West Market Street, Highland Square, Akron, Summit County, Ohio, 44303, United States",
+        "osm_id": 780752298,
+        "at": "2026-08-09T12:17:46.810Z"
+      },
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Ed Amann",
+          "genre": "Oral Tradition Folk"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "Miss Dreadful",
+          "genre": "Folk"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "Wendy Darling",
+          "genre": "Folk, Soft Rock, Indie, Classic"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "Chanilla",
+          "genre": "Pop, Indie-Pop"
+        }
+      ]
+    },
+    {
+      "porch": 33,
+      "houseNumber": "867",
+      "street": "W. Market St",
+      "confidence": "HIGH",
+      "lat": 41.0972246,
+      "lng": -81.5448196,
+      "geocode": {
+        "display_name": "867, West Market Street, Highland Square, Akron, Summit County, Ohio, 44303, United States",
+        "osm_id": 1349712990,
+        "at": "2026-08-09T12:17:47.844Z"
+      },
+      "notes": "North side near Mustard Seed Market.",
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "Frog Books",
+          "genre": "Rock/Ambient/Country"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "All Who Wander",
+          "genre": "Indie Folk/Americana"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "Compass",
+          "genre": "Indie Pop Rock"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "Daniel Drouhard",
+          "genre": "Rock, Alternative"
+        }
+      ]
+    },
+    {
+      "porch": 34,
+      "houseNumber": "804",
+      "street": "W. Market St",
+      "confidence": "HIGH",
+      "lat": 41.0963955,
+      "lng": -81.5434262,
+      "geocode": {
+        "display_name": "Barmacy, 804, West Market Street, Highland Square, Akron, Summit County, Ohio, 44303, United States",
+        "osm_id": 10242866094,
+        "at": "2026-08-09T12:17:48.962Z"
+      },
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Amateur Saboteur",
+          "genre": "Punk Rock / Alternative"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "Librarians With Hickeys",
+          "genre": "Power Pop"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "Ataraxis",
+          "genre": "Alt Rock"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "Boyd & The Monkeys",
+          "genre": "Punk Pop/Emo Punk Rock"
+        }
+      ]
+    },
+    {
+      "porch": 35,
+      "houseNumber": "812",
+      "street": "W. Market St",
+      "confidence": "HIGH",
+      "lat": 41.0964777,
+      "lng": -81.54362,
+      "geocode": {
+        "display_name": "Southern Comfort Kitchen Ohio, 812, West Market Street, Highland Square, Akron, Summit County, Ohio, 44303, United States",
+        "osm_id": 10242866090,
+        "at": "2026-08-09T12:17:49.933Z"
+      },
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "1402",
+          "genre": "Indie rock"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "Shame Chamber",
+          "genre": "Post Hardcore"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "Damnagedkids",
+          "genre": "Hip Hop"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "Wednesday Demonstration",
+          "genre": "Punk Rock"
+        }
+      ]
+    },
+    {
+      "porch": 36,
+      "houseNumber": "783",
+      "street": "W. Market St",
+      "confidence": "HIGH",
+      "lat": 41.096524,
+      "lng": -81.543205,
+      "geocode": {
+        "display_name": "783, West Market Street, Highland Square, Akron, Summit County, Ohio, 44303, United States",
+        "osm_id": 780752298,
+        "at": "2026-08-09T12:17:51.211Z"
+      },
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Velocity Stax",
+          "genre": "Rockabilly"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "Bad Hooks",
+          "genre": "Alt, Blues, Rock"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "I'd Like To Go Home Now",
+          "genre": "Folk Rock, Indie"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "Van Arlo",
+          "genre": "Americana/Indie Rock"
+        }
+      ]
+    },
+    {
+      "porch": 37,
+      "houseNumber": "801",
+      "street": "W. Market St",
+      "confidence": "HIGH",
+      "lat": 41.0965287,
+      "lng": -81.543215,
+      "geocode": {
+        "display_name": "801, West Market Street, Highland Square, Akron, Summit County, Ohio, 44303, United States",
+        "osm_id": 780752298,
+        "at": "2026-08-09T12:17:52.262Z"
+      },
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "Da Land Brass Band",
+          "genre": "Brass Band, Jazz"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "Charity Shoal",
+          "genre": "Alternative Rock"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "Twin Atomic",
+          "genre": "Rock"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "12 O'clock Tribe",
+          "genre": "Reggae"
+        }
+      ]
+    },
+    {
+      "porch": 38,
+      "houseNumber": "532",
+      "street": "W. Market St",
+      "confidence": "HIGH",
+      "lat": null,
+      "lng": null,
+      "geocode": null,
+      "venueOverride": "House Three Thirty",
+      "room": "Cabaret",
+      "notes": "House Three Thirty, Cabaret room. Real listed venue; do not mint or stamp.",
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Empty Kodiak",
+          "genre": "Indie Rock"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "Matthew Alec & The Soul Electric",
+          "genre": "Jazz Fusion"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "Dreamstates",
+          "genre": "Maximalist Pop"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "1052theband",
+          "genre": "Rock, Blues"
+        }
+      ]
+    },
+    {
+      "porch": 39,
+      "houseNumber": "532",
+      "street": "W. Market St",
+      "confidence": "HIGH",
+      "lat": null,
+      "lng": null,
+      "geocode": null,
+      "venueOverride": "House Three Thirty",
+      "room": "Cafe",
+      "notes": "House Three Thirty, Cafe room. Real listed venue; do not mint or stamp.",
+      "acts": [
+        {
+          "slot": "11:00 AM",
+          "name": "PorchRokr Guitar Orchestra",
+          "genre": "Orchestral Rock"
+        },
+        {
+          "slot": "1:00 PM",
+          "name": "Steel Academy Steel Drum Band",
+          "genre": "Multi-Genres"
+        },
+        {
+          "slot": "3:00 PM",
+          "name": "Tyler Bohinc",
+          "genre": "Bluegrass"
+        },
+        {
+          "slot": "5:00 PM",
+          "name": "Pitch Blend Barbershop Quartet",
+          "genre": "Traditional, Doo Wop"
+        }
+      ]
+    },
+    {
+      "porch": 40,
+      "houseNumber": "958",
+      "street": null,
+      "confidence": "HIGH",
+      "lat": 41.096945,
+      "lng": -81.545555,
+      "geocode": {
+        "method": "brochure-map-affine-fit",
+        "anchors": "porches 32/33/34/35 (Nominatim)",
+        "reviewedBy": "byron",
+        "at": "2026-08-09T12:37:42.724Z"
+      },
+      "notes": "Printed address 958 is suspect (duplicates porch 30); house number kept for reference only, street cleared. Coords follow the brochure map (Byron reviewed).",
+      "acts": [
+        {
+          "slot": "12:00 PM",
+          "name": "Craig Rich",
+          "genre": "Alt. Psych-Rock, Dream Pop"
+        },
+        {
+          "slot": "2:00 PM",
+          "name": "Eighty-Sixed Kid",
+          "genre": "Alt Punk, Emo"
+        },
+        {
+          "slot": "4:00 PM",
+          "name": "Mick & Rick",
+          "genre": "Classic Rock, Soul & Blues"
+        },
+        {
+          "slot": "6:00 PM",
+          "name": "Perfect Sunday",
+          "genre": "Jam Band"
+        }
+      ]
+    }
+  ],
+  "stages": [
+    {
+      "key": "main",
+      "name": "Main Stage",
+      "lat": 41.095564,
+      "lng": -81.54406,
+      "acts": [
+        {
+          "slot": "7:30 PM",
+          "name": "Rent for Cheryl",
+          "genre": "rock",
+          "headliner": true
+        }
+      ]
+    },
+    {
+      "key": "yellow-brick-road",
+      "name": "Yellow Brick Road Stage",
+      "lat": 41.095237,
+      "lng": -81.548545,
+      "acts": []
+    },
+    {
+      "key": "beer-garden",
+      "name": "Beer Garden & Stage",
+      "lat": 41.096435,
+      "lng": -81.550622,
+      "acts": []
+    },
+    {
+      "key": "kid-zone",
+      "name": "Kid Zone",
+      "lat": 41.096143,
+      "lng": -81.55109,
+      "isFamily": true,
+      "acts": []
+    },
+    {
+      "key": "karaoke",
+      "name": "Karaoke (Will Christy Park)",
+      "lat": 41.095972,
+      "lng": -81.550898,
+      "acts": []
+    },
+    {
+      "key": "silent-disco",
+      "name": "Silent Disco",
+      "lat": 41.095125,
+      "lng": -81.548012,
+      "acts": []
+    }
+  ]
+}

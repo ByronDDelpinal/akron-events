@@ -22,6 +22,12 @@
  *     FRESH `at` values (the live pin trigger reverts un-re-stamped keys on
  *     every write; a re-stamp must accompany any changed pinned column).
  *     Skipped entirely when nothing changed.
+ *   • Category lock: every per-set row upserts with categories
+ *     ['music','festival'] (order matters — music primary) and is then
+ *     pinned via manual_overrides.categories + category_slugs
+ *     (by:'porchrokr-2026-import', stampEventCategoryLock below). The
+ *     umbrella's junction is verified festival-primary and pinned the same
+ *     way — its own idempotent update, never piggybacked on the enrichment.
  *
  * Hard gates (never write a bad row):
  *   • classifySummitLocation(coords) must be 'in' AND the coords must pass
@@ -187,7 +193,9 @@ function porchSetRow(festival, p, act) {
     description: `Genre: ${act.genre}. 30-minute porch set for PorchRokr 2026, the Highland Square porch music and arts festival. ${where} Free and open to all.`,
     start_at,
     end_at,
-    category:        'music',
+    // Explicit v2 list — resolveEventCategories passes it verbatim and
+    // syncEventCategories inserts in order, so 'music' stays primary.
+    categories:      ['music', 'festival'],
     tags:            [festival.tag, `porch-${p.porch}`, 'highland-square', 'free', 'outdoor'],
     price_min:       0,
     price_max:       null,
@@ -216,7 +224,9 @@ function stageSetRow(festival, stage, act) {
     description,
     start_at,
     end_at,
-    category:        'music',
+    // Explicit v2 list — resolveEventCategories passes it verbatim and
+    // syncEventCategories inserts in order, so 'music' stays primary.
+    categories:      ['music', 'festival'],
     tags:            [festival.tag, `stage-${stage.key}`, 'highland-square', 'free', 'outdoor'],
     price_min:       0,
     price_max:       null,
@@ -355,6 +365,30 @@ export function computeUmbrellaEnrichment(existing, festival, nowIso = new Date(
   return { updates, overrides }
 }
 
+// ── Category lock (pure) ─────────────────────────────────────────────────────
+
+/**
+ * Compute the manual_overrides object that pins categories + category_slugs
+ * on a PorchRokr event, or null when this importer already stamped it
+ * (categories?.by === STAMP_BY). Pure — exported for tests.
+ *
+ * Merge-not-clobber: every foreign key in the existing overrides survives
+ * untouched; only the two category keys are (re)stamped.
+ *
+ * FUTURE EDITS: the live pin trigger reverts any pinned key whose value
+ * changes without a re-stamp, so an intentional category change later must
+ * write the new junction/columns AND re-stamp BOTH pinned keys with a fresh
+ * `at` (a DIFFERENT value than the stored stamp) in the same statement.
+ */
+export function computeCategoryLockOverrides(existing, nowIso = new Date().toISOString()) {
+  const overrides = { ...(existing ?? {}) }
+  if (overrides.categories?.by === STAMP_BY) return null
+  const stamp = { at: nowIso, by: STAMP_BY }
+  overrides.categories = stamp
+  overrides.category_slugs = stamp
+  return overrides
+}
+
 // ── Reporting ────────────────────────────────────────────────────────────────
 
 function venueKindLabel(venue) {
@@ -378,7 +412,8 @@ function printPlan(data, plan) {
   console.log(`      via existing venue (House Three Thirty): ${byReadiness.override}`)
   console.log(`      via minted venue, coords present:        ${byReadiness.geocoded}`)
   console.log(`      via minted venue, coords pending:        ${byReadiness.pending}`)
-  console.log(`    excluded (FLAG porches): ${excludedActs} sets on ${excluded.length} porches\n`)
+  console.log(`    excluded (FLAG porches): ${excludedActs} sets on ${excluded.length} porches`)
+  console.log(`    categories: every row ['music','festival'] (music primary); pinned post-upsert via manual_overrides.categories/category_slugs (by '${STAMP_BY}')\n`)
 
   const venues = new Map()
   for (const { venue } of planned) {
@@ -411,6 +446,7 @@ function printUmbrellaPlan(data) {
   for (const line of data.festival.logistics.split('\n')) console.log(`        ${line}`)
   console.log(`      pins: manual_overrides.description/tags re-stamped {at: <now>, by: '${STAMP_BY}'}`)
   console.log('      (live diff + unchanged-skip decided against the DB row at --write)')
+  console.log('      category lock: verify junction is festival-primary, then pin categories+category_slugs (own idempotent update)')
 }
 
 // ── Geocode mode (network; JSON write-back only with --write) ────────────────
@@ -506,6 +542,29 @@ async function stampMintedVenue(supabaseAdmin, venueId, expectedName) {
   if (upErr) console.warn(`  ⚠ venue stamp failed for "${expectedName}": ${upErr.message}`)
 }
 
+/** Idempotent category-lock stamp, mirroring stampMintedVenue: read the
+ *  event's manual_overrides, skip when already stamped by us, else pin
+ *  categories + category_slugs (computeCategoryLockOverrides). NEVER touches
+ *  the category columns/junction themselves — it runs AFTER upsertEventSafe
+ *  returns, when the junction rows and the trigger-computed category_slugs
+ *  are already final, and the update writes manual_overrides ONLY. Locks
+ *  nothing else: no status key, no featured key — featured is human-only. */
+async function stampEventCategoryLock(supabaseAdmin, eventId) {
+  const { data: ev, error } = await supabaseAdmin
+    .from('events')
+    .select('id, manual_overrides')
+    .eq('id', eventId)
+    .maybeSingle()
+  if (error || !ev) { console.warn(`  ⚠ category-lock lookup failed for ${eventId}`); return }
+  const manual_overrides = computeCategoryLockOverrides(ev.manual_overrides)
+  if (!manual_overrides) return // already stamped by this importer
+  const { error: upErr } = await supabaseAdmin
+    .from('events')
+    .update({ manual_overrides })
+    .eq('id', eventId)
+  if (upErr) console.warn(`  ⚠ category-lock stamp failed for ${eventId}: ${upErr.message}`)
+}
+
 async function runWrite(data, plan) {
   // Lazy imports: dry runs must work with no env at all.
   const { supabaseAdmin } = await import('./lib/supabase-admin.js')
@@ -544,6 +603,26 @@ async function runWrite(data, plan) {
         .eq('id', umbrella.id)
       if (error) console.warn(`  ⚠ umbrella enrichment failed: ${error.message}`)
       else console.log(`  ✓ umbrella enriched + pinned (${Object.keys(enrichment.updates).join(', ')})`)
+    }
+
+    // Umbrella category lock — its OWN idempotent update, deliberately NOT
+    // piggybacked on computeUmbrellaEnrichment (which skips entirely when
+    // nothing changed, and this pin must land regardless). The scraper
+    // already makes the umbrella festival-primary; verify before pinning so
+    // the lock can never freeze a wrong junction. stampEventCategoryLock
+    // re-reads manual_overrides, so the enrichment pins above are preserved.
+    const { data: umbCats, error: umbCatErr } = await supabaseAdmin
+      .from('event_categories')
+      .select('category')
+      .eq('event_id', umbrella.id)
+    const umbList = (umbCats ?? []).map((c) => c.category)
+    if (umbCatErr) {
+      console.warn(`  ⚠ umbrella junction lookup failed: ${umbCatErr.message} (category lock skipped)`)
+    } else if (umbList[0] === 'festival') {
+      await stampEventCategoryLock(supabaseAdmin, umbrella.id)
+      console.log('  ✓ umbrella junction verified festival-primary; categories pinned')
+    } else {
+      console.warn(`  ⚠ umbrella junction is NOT festival-primary (${JSON.stringify(umbList)}) - NOT pinning; fix scrape:highland-square first`)
     }
   }
 
@@ -601,6 +680,11 @@ async function runWrite(data, plan) {
     const venueId = venueIds.get(venue.name)
     const { data: ev, error } = await upsertEventSafe(row)
     if (error) { console.warn(`  ⚠ upsert failed "${row.title}": ${error.message}`); skipped++; continue }
+    // AFTER upsertEventSafe returns: junction rows + trigger-computed
+    // category_slugs are final, so the pin freezes the intended state. The
+    // 32 pre-lock live rows converge on the same re-run — they're unstamped,
+    // so syncEventCategories rewrites their junction first, then this lands.
+    await stampEventCategoryLock(supabaseAdmin, ev.id)
     if (venueId) await setEventVenue(ev.id, venueId)
     if (organizerId) await linkEventOrganization(ev.id, organizerId)
     upserted++

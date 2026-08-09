@@ -5,7 +5,9 @@
  * the data-file contract (porches 1..40, all coords Byron-approved so 0 FLAG
  * exclusions, porch 1 → main stage + porch 26 → beer garden routing, 38/39
  * House Three Thirty override, street-less venue-name fallback), umbrella
- * re-stamp semantics, and sanitizer round-trips for awkward act names.
+ * re-stamp semantics, category-lock stamp semantics
+ * (computeCategoryLockOverrides), and sanitizer round-trips for awkward act
+ * names.
  *
  * Uses the REAL checked-in data file (scripts/data/porchrokr-2026.json) as
  * the fixture, per the ADR's test plan — no synthetic porch tables. No
@@ -21,6 +23,7 @@ import {
   validateDataFile,
   allFileSourceIds,
   computeUmbrellaEnrichment,
+  computeCategoryLockOverrides,
   slotKey,
   porchSourceId,
   stageSourceId,
@@ -263,6 +266,10 @@ describe('data-file contract (the real scripts/data/porchrokr-2026.json)', () =>
       assert.equal(row.source, 'porchrokr')
       assert.equal(row.status, 'published')
       assert.equal(row.featured, false)
+      // Explicit v2 list, ORDER MATTERS (music primary via insertion order);
+      // the legacy single-value category hint must be gone entirely.
+      assert.deepEqual(row.categories, ['music', 'festival'])
+      assert.ok(!('category' in row), `no legacy category field on ${row.source_id}`)
       assert.equal(row.price_min, 0)
       assert.equal(row.age_restriction, 'all_ages')
       assert.equal(row.image_url, null)
@@ -319,6 +326,49 @@ describe('umbrella enrichment — manual_overrides re-stamp semantics', () => {
     assert.equal(second.updates.description.split(LOGISTICS_MARKER).length, 2, 'logistics block never stacks')
     assert.deepEqual(second.overrides.description, { at: LATER, by: 'porchrokr-2026-import' })
     assert.deepEqual(second.overrides.tags, { at: NOW, by: 'porchrokr-2026-import' })
+  })
+})
+
+describe('category lock — computeCategoryLockOverrides stamp semantics', () => {
+  const NOW = '2026-08-09T12:00:00.000Z'
+  const OURS = { at: NOW, by: 'porchrokr-2026-import' }
+
+  it('fresh event: stamps exactly categories + category_slugs with {at, by}', () => {
+    assert.deepEqual(computeCategoryLockOverrides({}, NOW), {
+      categories: OURS,
+      category_slugs: OURS,
+    })
+  })
+
+  it('null / undefined manual_overrides are treated as empty', () => {
+    assert.deepEqual(computeCategoryLockOverrides(null, NOW), { categories: OURS, category_slugs: OURS })
+    assert.deepEqual(computeCategoryLockOverrides(undefined, NOW), { categories: OURS, category_slugs: OURS })
+  })
+
+  it('idempotent: returns null (no write) when already stamped by this importer', () => {
+    const first = computeCategoryLockOverrides({}, NOW)
+    assert.equal(computeCategoryLockOverrides(first, '2026-08-10T12:00:00.000Z'), null)
+  })
+
+  it('merge-not-clobber: foreign pins survive untouched alongside our stamp; input not mutated', () => {
+    const existing = {
+      image_url: { at: '2026-01-01T00:00:00.000Z' },
+      description: { at: '2026-03-03T00:00:00.000Z', by: 'byron' },
+    }
+    const o = computeCategoryLockOverrides(existing, NOW)
+    assert.deepEqual(o.image_url, existing.image_url)
+    assert.deepEqual(o.description, existing.description)
+    assert.deepEqual(o.categories, OURS)
+    assert.deepEqual(o.category_slugs, OURS)
+    assert.deepEqual(Object.keys(existing).sort(), ['description', 'image_url'], 'input untouched')
+  })
+
+  it('a FOREIGN categories stamp is re-stamped as ours (skip is keyed on by === STAMP_BY only)', () => {
+    const o = computeCategoryLockOverrides(
+      { categories: { at: '2026-01-01T00:00:00.000Z', by: 'someone-else' } }, NOW,
+    )
+    assert.deepEqual(o.categories, OURS)
+    assert.deepEqual(o.category_slugs, OURS)
   })
 })
 
