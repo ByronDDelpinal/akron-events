@@ -11,12 +11,16 @@ import {
   type DayPlanDraft,
   type SnapshotSource,
 } from '@/lib/dayPlanDraft'
+import { addEventToPlan, removeEventFromPlan } from '@/lib/dayPlanApi'
 import { trackEvent, EVENTS } from '@/lib/analytics'
 import type { PlanSurface } from '@/lib/analyticsEvents'
 
 /**
- * DayPlanContext — the LOCAL draft only (never touches the network; see
- * dayPlanDraft.ts's header). Mounted once at the top of App.tsx, above both
+ * DayPlanContext — the local draft, MIRRORED to the shared plan once one
+ * exists. (It was draft-only by design at first; that was wrong, because
+ * DayPlanPage redirects /day to /d/<code> as soon as a plan is shared, so a
+ * draft-only add became invisible and unrecoverable. See syncToSharedPlan.)
+ * Mounted once at the top of App.tsx, above both
  * the /embed route group and the full-site SiteChrome group, so every
  * consumer (Header's "Plan · N" pill, EventCard/EventPage's add-to-plan
  * button, DayPlanPage) reads the same in-memory + localStorage-backed state
@@ -48,16 +52,40 @@ export function DayPlanProvider({ children }: { children: ReactNode }) {
 
   const isInPlan = useCallback((eventId: string) => isItemInDraft(draft, eventId), [draft])
 
+  /**
+   * Once a plan has been shared, the local draft is NOT the source of truth
+   * any more -- /day redirects to /d/<code> (DayPlanPage), so the draft
+   * becomes invisible and anything added to it alone is effectively lost.
+   * That is exactly what happened on 2026-08-09: three events were added from
+   * event cards, the header pill counted them, and clicking through landed on
+   * a shared plan the server had never heard about them for.
+   *
+   * So every local mutation is mirrored to the shared plan when one exists.
+   * Fire-and-forget on purpose: the draft update is optimistic and instant,
+   * and a failed sync is corrected by reconcileDraft on the next plan load
+   * rather than blocking the click.
+   */
+  const syncToSharedPlan = useCallback(
+    (op: 'add' | 'remove', eventId: string) => {
+      const code = readActivePlanCode()
+      if (!code) return
+      const call = op === 'add' ? addEventToPlan(code, eventId) : removeEventFromPlan(code, eventId)
+      call.catch((err) => console.warn(`[day plan] ${op} did not reach the shared plan`, err))
+    },
+    [],
+  )
+
   const addItem = useCallback(
     (event: SnapshotSource & { category?: string | null }, surface: PlanSurface) => {
       const next = addItemToDraft(draft, event)
       if (!next) return false
       setDraft(next)
       writeDraft(next)
+      syncToSharedPlan('add', event.id)
       trackEvent(EVENTS.PLAN_ITEM_ADDED, { surface, category: event.category ?? 'other' })
       return true
     },
-    [draft],
+    [draft, syncToSharedPlan],
   )
 
   const removeItem = useCallback(
@@ -65,9 +93,10 @@ export function DayPlanProvider({ children }: { children: ReactNode }) {
       const next = removeItemFromDraft(draft, eventId)
       setDraft(next)
       writeDraft(next)
+      syncToSharedPlan('remove', eventId)
       trackEvent(EVENTS.PLAN_ITEM_REMOVED, { surface })
     },
-    [draft],
+    [draft, syncToSharedPlan],
   )
 
   const setTitle = useCallback(
