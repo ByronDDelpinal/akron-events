@@ -41,11 +41,15 @@ interface EventCardProps {
   /** Which analytics surface this card's AddToPlanButton reports (§6.8).
    *  Defaults to 'card'; the festival hub passes 'festival_hub'. */
   planSurface?: PlanSurface
+  /** Optional muted one-liner under the title. Rendered by the EFFICIENT
+   *  card only (the festival hub passes the set's genre); other view modes
+   *  ignore it. */
+  subtitle?: string
 }
 
 // ── COMFORTABLE MODE (default) ──────────────────────────────────────────────
 
-export default function EventCard({ event, featured = false, viewMode = 'comfortable', planSurface = 'card' }: EventCardProps) {
+export default function EventCard({ event, featured = false, viewMode = 'comfortable', planSurface = 'card', subtitle }: EventCardProps) {
   const goTo     = useEventNavigator()
   const embed    = useEmbed()
   const price    = formatPrice(event.price_min, event.price_max)
@@ -61,6 +65,7 @@ export default function EventCard({ event, featured = false, viewMode = 'comfort
         embed={embed}
         gradient={gradient}
         planSurface={planSurface}
+        subtitle={subtitle}
       />
     )
   }
@@ -179,7 +184,7 @@ function ComfortableCard({ event, featured, price, goTo, embed, planSurface }: C
 
 // ── EFFICIENT MODE ──────────────────────────────────────────────────────────
 
-function EfficientCard({ event, featured, price, goTo, embed, gradient, planSurface }: CardProps & { gradient: string }) {
+function EfficientCard({ event, featured, price, goTo, embed, gradient, planSurface, subtitle }: CardProps & { gradient: string; subtitle?: string }) {
   const showPrice = featureOn(embed, 'price')
   const showTags  = featureOn(embed, 'tags')
   return (
@@ -197,6 +202,7 @@ function EfficientCard({ event, featured, price, goTo, embed, gradient, planSurf
       <div className="card-efficient-inner">
         <div className="card-efficient-main">
           <div className="card-efficient-title">{event.title}</div>
+          {subtitle && <div className="card-efficient-subtitle">{subtitle}</div>}
           <div className="card-efficient-meta">
             <div className="card-efficient-meta-row">
               <CalIcon size={13} />

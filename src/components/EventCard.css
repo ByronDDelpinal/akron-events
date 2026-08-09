@@ -287,6 +287,19 @@
   overflow: hidden;
 }
 
+/* Optional one-line subtitle under the title (efficient mode only — the
+ * festival hub passes the set's genre). Muted, single line, ellipsized. */
+.card-efficient-subtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-xxs);
+  color: var(--text-muted);
+  margin-top: var(--space-2xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
 .card-efficient-meta {
   display: flex;
   flex-direction: column;

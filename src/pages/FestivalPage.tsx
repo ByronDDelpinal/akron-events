@@ -32,6 +32,7 @@ import {
 } from '@/lib/festivalSchedule'
 import { easternTodayIso } from '@/lib/dayPlanDate'
 import { useAsync } from '@/hooks/useAsync'
+import { useDayPlan } from '@/hooks/useDayPlan'
 import EventCard from '@/components/EventCard'
 import type { AppEvent } from '@/hooks/useEvents'
 import './HomePage.css'
@@ -46,6 +47,17 @@ function slotTimeLabel(iso: string): string {
 function actName(title: string): string {
   const i = title.indexOf(' - PorchRokr')
   return i === -1 ? title : title.slice(0, i)
+}
+
+/** The set's genre, extracted from the importer's "Genre: X." description
+ *  prefix (scripts/import-porchrokr.js writes it on every set row). Some
+ *  genres contain periods ("Rock Exp. Hip Hop"), so first try to match up to
+ *  the sentence the importer appends next ("30-minute" / "Headlining"), then
+ *  fall back to first-period. Rows without the prefix get no subtitle. */
+function genreFromDescription(description: string | null | undefined): string | undefined {
+  const d = description ?? ''
+  const m = /^Genre:\s*(.+?)\.\s+(?:30-minute|Headlining|[A-Z][a-z]+ set)/.exec(d) ?? /^Genre:\s*([^.]+)\./.exec(d)
+  return m ? m[1] : undefined
 }
 
 /** Venue line with the importer's "PorchRokr " prefix stripped for display. */
@@ -91,6 +103,7 @@ function toAppEvent(item: FestivalScheduleItem): AppEvent {
 export default function FestivalPage() {
   const { slug } = useParams()
   const festival = festivalBySlug(slug)
+  const { draft } = useDayPlan()
 
   const { data: rows, loading, error } = useAsync<FestivalEventRow[]>(
     async () => {
@@ -164,6 +177,23 @@ export default function FestivalPage() {
         </div>
       </header>
 
+      {/* ── Day-plan call-out — the hub's whole point is building a day.
+          Copy rule: no em dashes in user-facing strings. ── */}
+      <div className="festival-plan-cta">
+        {draft.items.length > 0 ? (
+          <>
+            <p className="festival-plan-cta-text">
+              You&apos;ve planned {draft.items.length} {draft.items.length === 1 ? 'stop' : 'stops'}
+            </p>
+            <Link to="/day" className="festival-plan-cta-btn">See your day</Link>
+          </>
+        ) : (
+          <p className="festival-plan-cta-text">
+            Tap + Plan on any set below to build your own PorchRokr schedule.
+          </p>
+        )}
+      </div>
+
       {loading && <p className="festival-status-line">Loading schedule…</p>}
       {error && <p className="festival-status-line">Could not load the schedule. Please try again.</p>}
       {!loading && !error && schedule.slots.length === 0 && (
@@ -189,7 +219,12 @@ export default function FestivalPage() {
                 const live = isFestivalDay && isHappeningNow(item, nowMs)
                 return (
                   <div key={item.event.id} className={live ? 'festival-card--live' : undefined}>
-                    <EventCard event={toAppEvent(item)} viewMode="efficient" planSurface="festival_hub" />
+                    <EventCard
+                      event={toAppEvent(item)}
+                      viewMode="efficient"
+                      planSurface="festival_hub"
+                      subtitle={genreFromDescription(item.event.description)}
+                    />
                   </div>
                 )
               })}

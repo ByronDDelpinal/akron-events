@@ -21,6 +21,11 @@
  * (every set is music) and the pills crowd the 161-card grid. Byron 2026-08-09. */
 .page-festival .card-efficient .event-tag { display: none; }
 
+/* Hub cards: hide the price pill too — every set is free, so 161 "Free"
+ * pills are pure noise in the grid (same reasoning as the .event-tag hide
+ * above). Byron 2026-08-09. */
+.page-festival .card-efficient-price { display: none; }
+
 /* ── Umbrella header card — the page's only image ── */
 
 .festival-header {
@@ -46,6 +51,45 @@
 .festival-logistics { font-size: 0.9rem; line-height: 1.5; margin: 0 0 10px; white-space: pre-line; }
 .festival-links { display: flex; gap: 16px; flex-wrap: wrap; margin: 0; font-size: 0.88rem; }
 .festival-links a { color: var(--amber); }
+
+/* ── Day-plan call-out — reuses .festival-header's card treatment ── */
+
+.festival-plan-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 16px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.25));
+  border-radius: 12px;
+  background: var(--surface, transparent);
+}
+
+.festival-plan-cta-text { margin: 0; font-size: 0.92rem; line-height: 1.5; }
+
+/* Amber pill visually matching NewsletterCTA.css's .newsletter-cta-btn. */
+.festival-plan-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--amber);
+  color: var(--white, #fff);
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 12px 22px;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: background var(--transition-medium), transform var(--transition-medium);
+}
+
+.festival-plan-cta-btn:hover,
+.festival-plan-cta-btn:focus-visible {
+  background: var(--amber-hover, var(--amber));
+  outline: none;
+  transform: translateY(-1px);
+}
 
 .festival-status-line { text-align: center; color: var(--text-muted); padding: 32px 0; }
 
