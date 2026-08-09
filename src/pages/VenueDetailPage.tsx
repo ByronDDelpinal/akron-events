@@ -12,6 +12,7 @@ import {
   itemListSchema,
 } from '@/lib/seo'
 import { eventPath } from '@/lib/slug'
+import { googleDirectionsUrl } from '@/lib/directions'
 import {
   formatPrice,
   formatEventDate,
@@ -51,9 +52,14 @@ export default function VenueDetailPage() {
   const venueOrg: Row | null = venue.organization ?? null
 
   // Shared directions URL — used by the link and the map modal's pin popup.
-  const directionsUrl = `https://maps.google.com/?q=${encodeURIComponent(
-    [venue.name, venue.address, venue.city, venue.state].filter(Boolean).join(' ')
-  )}`
+  // Coordinate-based when the venue has lat/lng; text-query fallback else.
+  const directionsUrl = googleDirectionsUrl({
+    name: venue.name,
+    address: venue.address,
+    city: venue.city,
+    lat: venue.lat,
+    lng: venue.lng,
+  })
 
   // ── SEO: Place schema + breadcrumb + list of upcoming events ────
   const seoTitle = `Venue: ${venue.name} | Upcoming Events in ${venue.city || 'Akron'}`

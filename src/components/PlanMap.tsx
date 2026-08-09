@@ -33,6 +33,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import MapGL, { Marker, Popup, NavigationControl, Source, Layer, type MapRef } from 'react-map-gl/maplibre'
 import { AKRON_CENTER, MAP_STYLE, DEFAULT_ZOOM } from '@/lib/mapConfig'
+import { googleDirectionsUrl } from '@/lib/directions'
 import { boundsForPoints, roundCoordKey, type PlanMapPoint, type PlanMarkerGroup, type BBox } from '@/lib/planMapPoints'
 import { prefersReducedMotion } from '@/lib/feedback'
 import { trackEvent, EVENTS } from '@/lib/analytics'
@@ -216,6 +217,10 @@ export default function PlanMap({ points, connector, selectedKey, onSelect, tota
         style={{ width: '100%', height: '100%' }}
         mapStyle={MAP_STYLE}
         cooperativeGestures
+        /* Compact (collapsible) attribution, NOT false: OpenFreeMap/OpenMapTiles/
+         * OSM attribution is a license requirement; compact keeps it legal
+         * without eating a fixed-height inline panel's corner. */
+        attributionControl={{ compact: true }}
         onClick={() => onSelect(null)}
       >
         <NavigationControl position="top-right" showCompass={false} />
@@ -355,8 +360,6 @@ interface PlanPopupProps {
 
 function PlanPopup({ group, selectedKey, onSelect }: PlanPopupProps) {
   const first = group.points[0]
-  const address = first.address
-  const city = first.city
 
   return (
     <div className="map-popup plan-popup">
@@ -393,18 +396,25 @@ function PlanPopup({ group, selectedKey, onSelect }: PlanPopupProps) {
         ))}
       </div>
 
-      {address && (
-        <a
-          className="map-popup-directions"
-          href={`https://maps.google.com/?q=${encodeURIComponent(`${first.venueName ?? ''} ${address} ${city ?? ''}`.trim())}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <DirectionsIcon />
-          Get directions
-        </a>
-      )}
+      {/* Every mapped point carries a finite lat/lng (isMapped gate in
+       * planMapPoints.ts), so the coordinate form always applies here and
+       * coord-only stops (no address snapshot) get the link too. */}
+      <a
+        className="map-popup-directions"
+        href={googleDirectionsUrl({
+          name: first.venueName,
+          address: first.address,
+          city: first.city,
+          lat: first.lat,
+          lng: first.lng,
+        })}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <DirectionsIcon />
+        Get directions
+      </a>
     </div>
   )
 }

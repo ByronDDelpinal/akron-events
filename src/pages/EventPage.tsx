@@ -20,6 +20,8 @@ import {
   eventDescription,
 } from '@/lib/seo'
 import { makeEventSlug, eventPath } from '@/lib/slug'
+import { googleDirectionsUrl } from '@/lib/directions'
+import { FESTIVALS } from '@/lib/festivals'
 import { getSourceLabel, shouldShowSourceCredit } from '@/lib/sources'
 import { sourceTierLabel } from '@/lib/sourceTiers.js'
 import { recordEventView } from '@/lib/engagement'
@@ -167,11 +169,24 @@ export default function EventPage() {
 
   const price = formatPrice(event.price_min, event.price_max)
 
+  // Coordinate-based when the venue has a lat/lng pair (minted festival
+  // venues have no Google-resolvable address); text-query fallback otherwise.
   const venueDirectionsUrl = event.venue
-    ? `https://maps.google.com/?q=${encodeURIComponent(
-        [event.venue.name, event.venue.address, event.venue.city]
-          .filter(Boolean).join(' ')
-      )}`
+    ? googleDirectionsUrl({
+        name: event.venue.name,
+        address: event.venue.address,
+        city: event.venue.city,
+        lat: event.venue.lat,
+        lng: event.venue.lng,
+      })
+    : null
+
+  // Festival umbrella → hub cross-link: only when this event IS an umbrella
+  // (tagged 'festival-umbrella') AND the static registry knows the festival
+  // (its tag appears in the event's tags). Omitted in the embed (white-label
+  // rule: no internal site navigation).
+  const festivalHub = !embed && (event.tags ?? []).includes('festival-umbrella')
+    ? FESTIVALS.find((f) => (event.tags ?? []).includes(f.tag)) ?? null
     : null
 
   // ── Image routing ──
@@ -273,6 +288,15 @@ export default function EventPage() {
                 Listed on {getSourceLabel(event.source)}
               </p>
             ) : null}
+
+            {/* Festival hub cross-link — the umbrella row is the SEO/share
+                landing surface; this hands visitors on to the set-by-set
+                schedule at /festival/:slug. */}
+            {festivalHub && (
+              <Link to={`/festival/${festivalHub.slug}`} className="btn-ticket-family">
+                See the full set-by-set schedule and plan your day
+              </Link>
+            )}
 
             {/* Share row */}
             <div className="event-detail-share">

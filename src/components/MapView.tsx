@@ -18,6 +18,7 @@ import { useEventNavigator } from '@/hooks/useEventNavigator'
 import { formatPrice } from '@/lib/eventFormatting'
 import { loadNeighborhoodGeo, type NeighborhoodGeo, type BBox } from '@/lib/neighborhoodGeo'
 import { AKRON_CENTER, MAP_STYLE, DEFAULT_ZOOM } from '@/lib/mapConfig'
+import { googleDirectionsUrl } from '@/lib/directions'
 import Modal from '@/components/Modal'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import './MapView.css'
@@ -380,7 +381,13 @@ function VenuePopup({ group, onClose, onEventClick }: VenuePopupProps) {
       {group.venue.address && (
         <a
           className="map-popup-directions"
-          href={`https://maps.google.com/?q=${encodeURIComponent(group.venue.name + ' ' + group.venue.address + ' ' + group.venue.city)}`}
+          href={googleDirectionsUrl({
+            name: group.venue.name,
+            address: group.venue.address,
+            city: group.venue.city,
+            lat: group.venue.lat,
+            lng: group.venue.lng,
+          })}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
