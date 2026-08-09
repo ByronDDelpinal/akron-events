@@ -680,3 +680,56 @@
   grid-column: 1 / -1;
   margin: var(--space-xs) 0;
 }
+
+/* Single-column festival banner between the hub strip and the results
+   grid — same container sizing as .home-hub-strip so it lines up. */
+/* Lives inside the mid-grid promo slot, stacked on top of the evergreen
+ * GridPromo. The slot's zero-margin rule is overridden just enough to give
+ * the pair breathing room. */
+.cards-grid-promo .grid-promo--festival {
+  margin: 0 0 var(--space-lg);
+}
+
+/* Festival banner texture: the About-page hero still behind a thin black
+ * gradient, so the white text/button stay readable on any theme. The still
+ * ships in /public/video and is already cached for anyone who visited
+ * /about. Byron 2026-08-09. */
+.grid-promo--festival .grid-promo-inner {
+  background:
+    linear-gradient(rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0.62)),
+    url('/video/akron-pulse-about-widescreen-poster.jpg') center / cover no-repeat;
+  color: var(--white, #fff);
+}
+.grid-promo--festival .grid-promo-text strong,
+.grid-promo--festival .grid-promo-text p {
+  color: var(--white, #fff);
+}
+
+/* Tighter on desktop: the default .grid-promo-col padding is sized for the
+ * three-column evergreen promo; the single-column banner reads better short. */
+@media (min-width: 640px) {
+  .grid-promo--festival .grid-promo-col {
+    flex-direction: row;
+    justify-content: space-between;
+    text-align: left;
+    gap: var(--space-lg);
+    padding: var(--space-md) var(--space-xl);
+  }
+  /* Icon + text hug the left edge as one unit; the button rides the right. */
+  .grid-promo--festival .grid-promo-icon {
+    margin-right: 0;
+  }
+  .grid-promo--festival .grid-promo-text {
+    flex: 1;
+  }
+  /* The base button carries margin-top for the stacked promo layout; in the
+   * banner's horizontal row it pushes the CTA off vertical center. */
+  .grid-promo--festival .grid-promo-btn {
+    margin-top: 0;
+    align-self: center;
+    flex-shrink: 0;
+  }
+  .grid-promo--festival .grid-promo-text p {
+    margin: 0;
+  }
+}

@@ -8,6 +8,8 @@ import type { AppEvent } from '@/hooks/useEvents'
 import { INTENTS, SEARCH_SUGGESTIONS } from '@/lib/intents'
 import { CITIES, REGIONS } from '@/lib/cities'
 import { NEIGHBORHOODS } from '@/lib/neighborhoods'
+import { resolveFestivalSlug, upcomingFestival, festivalDayLabel } from '@/lib/festivals'
+import { trackEvent, EVENTS } from '@/lib/analytics'
 import {
   SEO,
   homeTitle,
@@ -163,6 +165,14 @@ export default function HomePage() {
       navigate(`/events/${hubSlug}`)
       return
     }
+    // Festival shortcut: exact registry-derived matches only, tried after
+    // the hub resolver so a hub label can never be shadowed.
+    const festivalSlug = resolveFestivalSlug(searchInput)
+    if (festivalSlug) {
+      setSearchInput('')
+      navigate(`/festival/${festivalSlug}`)
+      return
+    }
     filters.setSearch(searchInput)
     // Collapse the suggestion tray, drop focus, then scroll down to the
     // results once the committed query has re-rendered the grid.
@@ -193,6 +203,12 @@ export default function HomePage() {
         }
       })
   }, [])
+
+  // ── Festival banner (pure registry date math, recomputed per render) ──
+  // Deliberately NOT memoized: crossing Eastern midnight into festival week
+  // must be able to change the answer on the next render, and the math is a
+  // handful of string comparisons over a tiny static registry.
+  const bannerFestival = upcomingFestival()
 
   // ── JSON-LD ItemList of the next ~12 upcoming events ──────────────────
   const homepageItemList = useMemo(() => {
@@ -355,12 +371,38 @@ export default function HomePage() {
       )}
 
       {/* ── BROWSING SURFACE (shared with the embed) ── */}
+      {/* Festival banner (single-column GridPromo variant) rides on top of
+          the mid-grid callout so the promo slot stays one interruption. */}
       <div ref={resultsRef}>
         <EventsBrowser
           filters={filters}
           view={view}            onView={setView}
           density={cardViewMode} onDensity={handleCardViewMode}
-          renderPromoMid={() => <GridPromo />}
+          renderPromoMid={() => (
+            <>
+              {bannerFestival && (
+                <div className="grid-promo grid-promo--festival">
+                  <div className="grid-promo-inner">
+                    <div className="grid-promo-col">
+                      <span className="grid-promo-icon">🎪</span>
+                      <div className="grid-promo-text">
+                        <strong>{bannerFestival.name} is {festivalDayLabel(bannerFestival.dateKey)}.</strong>
+                        <p>Browse the full schedule and plan your day.</p>
+                      </div>
+                      <Link
+                        to={`/festival/${bannerFestival.slug}`}
+                        className="grid-promo-btn"
+                        onClick={() => trackEvent(EVENTS.SELECT_CONTENT, { content_type: 'festival_banner', item_id: bannerFestival.slug })}
+                      >
+                        See the festival hub →
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <GridPromo />
+            </>
+          )}
           renderPromoEnd={() => <GridPromo />}
           onFirstPageLoad={handleFirstPageLoad}
           onItemsChange={handleItemsChange}
