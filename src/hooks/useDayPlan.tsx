@@ -35,6 +35,8 @@ interface DayPlanContextValue {
   addItem: (event: SnapshotSource & { category?: string | null }, surface: PlanSurface) => boolean
   removeItem: (eventId: string, surface: PlanSurface) => void
   setTitle: (title: string | null) => void
+  /** Drop draft items the server no longer has, so the header pill self-corrects. */
+  reconcileDraft: (serverEventIds: string[]) => void
   setActivePlanCode: (code: string) => void
 }
 
@@ -82,9 +84,35 @@ export function DayPlanProvider({ children }: { children: ReactNode }) {
     setActivePlanCodeState(code)
   }, [])
 
+  /**
+   * Replace the draft's items with the server's truth for the active plan.
+   *
+   * The header's "Plan · N" pill counts the LOCAL draft while /d/<code> reads
+   * the SERVER, so the two drift apart the moment anything changes the plan
+   * outside this device: a collaborator removing an event, or (before the
+   * draft-sync fix) your own removals on the shared page. The drift is
+   * one-directional and sticky -- the pill sat at 4 against an empty plan --
+   * and nothing healed it, because every other path only ever mutates one
+   * item at a time.
+   *
+   * Called on every successful shared-plan load when the plan is this
+   * device's own, so the pill self-corrects on visit rather than needing the
+   * draft to be cleared by hand.
+   */
+  const reconcileDraft = useCallback((serverEventIds: string[]) => {
+    setDraft((prev) => {
+      const keep = new Set(serverEventIds)
+      const items = prev.items.filter((i) => keep.has(i.event_id))
+      if (items.length === prev.items.length) return prev // already in step
+      const next = { ...prev, items }
+      writeDraft(next)
+      return next
+    })
+  }, [])
+
   const value = useMemo<DayPlanContextValue>(
-    () => ({ draft, activePlanCode, isInPlan, addItem, removeItem, setTitle, setActivePlanCode }),
-    [draft, activePlanCode, isInPlan, addItem, removeItem, setTitle, setActivePlanCode],
+    () => ({ draft, activePlanCode, isInPlan, addItem, removeItem, setTitle, setActivePlanCode, reconcileDraft }),
+    [draft, activePlanCode, isInPlan, addItem, removeItem, setTitle, setActivePlanCode, reconcileDraft],
   )
 
   return <DayPlanContext.Provider value={value}>{children}</DayPlanContext.Provider>

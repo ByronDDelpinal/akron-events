@@ -47,7 +47,7 @@ function toIcsExportEvent(item: DayPlanItem) {
  */
 export default function SharedPlanPage() {
   const { code = '' } = useParams()
-  const { activePlanCode, removeItem } = useDayPlan()
+  const { activePlanCode, removeItem, reconcileDraft } = useDayPlan()
   const [plan, setPlan] = useState<DayPlan | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -61,6 +61,14 @@ export default function SharedPlanPage() {
       if (result) {
         setPlan(result)
         setNotFound(false)
+        // Heal any drift between the local draft (what the header's
+        // "Plan · N" pill counts) and the server (what this page shows).
+        // Needed because removals can happen off this device -- a
+        // collaborator with the link -- and nothing else ever reconciles the
+        // two, so the pill would sit stale indefinitely.
+        if (activePlanCode === code) {
+          reconcileDraft(result.items.map((i) => i.event_id))
+        }
         if (!openedTrackedRef.current) {
           openedTrackedRef.current = true
           trackEvent(EVENTS.PLAN_OPENED, {
@@ -77,7 +85,7 @@ export default function SharedPlanPage() {
       setLoading(false)
       lastRefreshRef.current = Date.now()
     }
-  }, [code, activePlanCode])
+  }, [code, activePlanCode, reconcileDraft])
 
   useEffect(() => { load() }, [load])
 
