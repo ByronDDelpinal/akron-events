@@ -21,13 +21,25 @@
   flex-shrink: 0;
 }
 
+/* Inline variant: used in EventPage's action stack, directly beneath the two
+ * `.btn-ticket-secondary` calendar buttons. It MUST match that class's box
+ * exactly (full width, same radius / padding / type / border / rhythm) or it
+ * reads as a broken third button -- narrower, tighter-cornered and heavier
+ * than the two above it, which is exactly how it shipped on 2026-08-09.
+ * Keep these values in step with `.btn-ticket-secondary` in EventPage.css. */
 .add-to-plan-btn--inline {
-  border-radius: var(--radius-sm);
-  padding: var(--space-sm) var(--space-md);
+  display: flex;
+  width: 100%;
+  border-width: var(--border-width-medium);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  margin-top: var(--space-sm);
   font-family: var(--font-display);
-  font-size: var(--text-xs);
-  font-weight: 700;
+  font-size: var(--text-sm);
+  font-weight: 600;
   letter-spacing: 0.01em;
+  color: var(--text-muted);
+  background: transparent;
 }
 
 .add-to-plan-btn:hover {

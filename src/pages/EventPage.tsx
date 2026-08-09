@@ -47,7 +47,11 @@ function buildGoogleCalUrl(event: AppEvent): string {
   const end    = event.end_at
     ? new Date(event.end_at).toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z'
     : start
-  const loc    = event.venue ? `${event.venue.name}, ${event.venue.address ?? ''}, ${event.venue.city}, ${event.venue.state}` : ''
+  // Same orphaned-comma trap as the venue card: a null address must not leave
+  // "Venue Name, , Akron, OH" in the Google Calendar location field.
+  const loc    = event.venue
+    ? [event.venue.name, event.venue.address, event.venue.city, event.venue.state].filter(Boolean).join(', ')
+    : ''
   const params = new URLSearchParams({
     action: 'TEMPLATE',
     text:   event.title,
@@ -286,7 +290,7 @@ export default function EventPage() {
               {event.venue && (
                 <div className="mobile-venue-card">
                   <InfoRow icon={<PinIcon />} label="Venue"
-                    value={`${event.venue.name}\n${event.venue.address ?? ''}, ${event.venue.city}`}
+                    value={`${event.venue.name}\n${[event.venue.address, event.venue.city].filter(Boolean).join(', ')}`}
                     link={venueDirectionsUrl}
                     linkLabel="Get directions"
                     internalLink={embed ? null : `/venues/${event.venue.id}`}
@@ -335,7 +339,11 @@ export default function EventPage() {
               </div>
               {event.age_restriction !== 'not_specified' && (
                 <p className="info-card-age">
-                  {AGE_LABEL[event.age_restriction ?? ''] ?? ''} · Age restriction applies
+                  {AGE_LABEL[event.age_restriction ?? ''] ?? ''}
+                  {/* "All ages · Age restriction applies" is a contradiction,
+                      and all_ages is the most common value. Only say a
+                      restriction applies when one actually does. */}
+                  {event.age_restriction !== 'all_ages' && ' · Age restriction applies'}
                 </p>
               )}
               {event.age_restriction === 'not_specified' && (
@@ -351,7 +359,7 @@ export default function EventPage() {
               {event.venue && (
                 <>
                   <InfoRow icon={<PinIcon />} label="Venue"
-                    value={`${event.venue.name}\n${event.venue.address ?? ''}, ${event.venue.city}`}
+                    value={`${event.venue.name}\n${[event.venue.address, event.venue.city].filter(Boolean).join(', ')}`}
                     link={venueDirectionsUrl}
                     linkLabel="Get directions"
                     internalLink={embed ? null : `/venues/${event.venue.id}`}
@@ -581,8 +589,13 @@ function ActionButtons({ event, price }: { event: AppEvent; price: PriceDisplay 
   // CTA chain: ticket_url (direct purchase) → source_url (source detail page).
   const primaryUrl   = firstAbsoluteUrl(event.ticket_url, event.source_url)
   const isTicketLink = !!event.ticket_url && primaryUrl === event.ticket_url
+  // `price.label` is the sentinel 'See tickets' when we have no price data at
+  // all (eventFormatting.ts:44). Interpolating that produced the nonsense
+  // "Get Tickets · See tickets" on every price-less event, which is most of
+  // them. With no price to show, the CTA is just the CTA.
+  const hasPrice = price.label !== 'See tickets'
   const primaryLabel = isTicketLink
-    ? (price.free ? 'Register (Free)' : `Get Tickets · ${price.label}`)
+    ? (price.free ? 'Register (Free)' : hasPrice ? `Get Tickets · ${price.label}` : 'Get Tickets')
     : 'View Event Details →'
 
   const sourceTier = sourceTierLabel(event.source) as SourceTier
