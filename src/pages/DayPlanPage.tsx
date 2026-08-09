@@ -4,10 +4,12 @@ import { SEO } from '@/lib/seo'
 import { useDayPlan } from '@/hooks/useDayPlan'
 import { readActivePlanCode } from '@/lib/dayPlanDraft'
 import { getDayPlan, createDayPlan } from '@/lib/dayPlanApi'
-import DayPlanTimeline, { type PlanRenderItem } from '@/components/DayPlanTimeline'
+import DayPlanBoard from '@/components/DayPlanBoard'
+import { type PlanRenderItem } from '@/components/DayPlanTimeline'
 import { buildVCalendar, downloadIcs, planIcsFilename } from '@/lib/ics.js'
 import { eventPath } from '@/lib/slug'
 import { trackEvent, EVENTS } from '@/lib/analytics'
+import './DayPlan.shared.css'
 import './DayPlanPage.css'
 
 const SITE_ORIGIN = 'https://akronpulse.com'
@@ -55,7 +57,12 @@ export default function DayPlanPage() {
     startAt: i.snap_start_at,
     endAt: i.snap_end_at,
     venueName: i.snap_venue,
-    venueGeo: null, // the local draft snapshot doesn't carry venue coordinates
+    // Add-time coordinates (dayPlanDraft.ts §1.1). Drafts written before
+    // this shipped have neither field -- `?? null` degrades them to
+    // "unmapped" (planMapPoints.ts's isMapped) exactly like a real event
+    // with no venue coordinates, never a crash. Re-adding the event
+    // refreshes the snapshot in place (addItemToDraft) and self-heals it.
+    venueGeo: { lat: i.snap_venue_lat ?? null, lng: i.snap_venue_lng ?? null },
     eventPath: eventPath({ id: i.event_id, title: i.snap_title, start_at: i.snap_start_at }),
     onRemove: () => removeItem(i.event_id, 'planner'),
   }))
@@ -113,7 +120,7 @@ export default function DayPlanPage() {
         Built on this device. Nothing is saved online until you share it.
       </p>
 
-      <DayPlanTimeline items={items} />
+      <DayPlanBoard items={items} />
 
       {draft.items.length > 0 && (
         <div className="day-plan-actions">

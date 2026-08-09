@@ -3,10 +3,12 @@ import { useParams } from 'react-router-dom'
 import { SEO } from '@/lib/seo'
 import { useDayPlan } from '@/hooks/useDayPlan'
 import { getDayPlan, removeEventFromPlan, type DayPlan, type DayPlanItem } from '@/lib/dayPlanApi'
-import DayPlanTimeline, { type PlanRenderItem } from '@/components/DayPlanTimeline'
+import DayPlanBoard from '@/components/DayPlanBoard'
+import { type PlanRenderItem } from '@/components/DayPlanTimeline'
 import { buildVCalendar, downloadIcs, planIcsFilename, REMOVED_ITEMS_NOTE } from '@/lib/ics.js'
 import { eventPath } from '@/lib/slug'
 import { trackEvent, EVENTS } from '@/lib/analytics'
+import './DayPlan.shared.css'
 import './SharedPlanPage.css'
 
 const SITE_ORIGIN = 'https://akronpulse.com'
@@ -198,6 +200,8 @@ export default function SharedPlanPage() {
       endAt: i.end_at ?? i.snap_end_at,
       venueName: i.venue?.name ?? i.snap_venue,
       venueGeo: i.venue ? { lat: i.venue.lat, lng: i.venue.lng } : null,
+      venueAddress: i.venue?.address ?? null,
+      venueCity: i.venue?.city ?? null,
       eventPath: i.rot_status === 'gone' ? null : eventPath({ id: i.resolved_event_id ?? i.event_id, title: i.title ?? i.snap_title, start_at: i.start_at ?? i.snap_start_at }),
       rotStatus: i.rot_status,
       onRemove: () => handleRemove(i.event_id),
@@ -211,7 +215,7 @@ export default function SharedPlanPage() {
         Anyone with this link can view and add to this plan. {REMOVED_ITEMS_NOTE}
       </p>
 
-      <DayPlanTimeline items={items} />
+      <DayPlanBoard items={items} />
 
       {plan.items.length > 0 && (
         <div className="day-plan-actions">

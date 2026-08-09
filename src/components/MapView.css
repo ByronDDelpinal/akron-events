@@ -225,39 +225,11 @@
 .venue-pin.active .venue-pin-stem { background: var(--white); }
 
 /* ── Popup ───────────────────────────────────────────────────────────── */
+/* Shell rules (.map-popup, .map-popup-header, .map-popup-close,
+   .map-popup-directions, and the GL popup-content/tip overrides) live in
+   MapPopup.css now -- shared with PlanMap.tsx. Only this venue-popup's own
+   body content (header text, event list, price) stays here. */
 
-/* Override the GL popup chrome (MapLibre emits maplibregl-*; the mapboxgl-*
-   selectors are kept for safety should the renderer ever change back) */
-.map-popup-outer .maplibregl-popup-content,
-.map-popup-outer .mapboxgl-popup-content {
-  background: transparent !important;
-  padding: 0 !important;
-  border-radius: var(--radius-xl) !important;
-  box-shadow: 0 8px 32px var(--overlay-dark-55), 0 0 0 1px var(--overlay-light-05) !important;
-}
-.map-popup-outer .maplibregl-popup-tip,
-.map-popup-outer .mapboxgl-popup-tip { display: none !important; }
-
-.map-popup {
-  background: var(--bg-nav);
-  border: var(--border-width-thin) solid var(--overlay-light-12);
-  border-radius: var(--radius-xl);
-  width: 320px;
-  overflow: hidden;
-  font-family: var(--font-body);
-  position: relative;
-}
-
-/* ── Popup header ── */
-.map-popup-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-sm);
-  padding: var(--space-lg) var(--space-lg) var(--space-md);
-  background: var(--overlay-light-05);
-  border-bottom: var(--border-width-thin) solid var(--overlay-light-05);
-}
 .map-popup-header-text {
   display: flex;
   flex-direction: column;
@@ -277,29 +249,6 @@
   color: var(--overlay-light-50);
   letter-spacing: 0.01em;
 }
-.map-popup-close {
-  background: var(--overlay-light-05);
-  border: none;
-  color: var(--overlay-light-50);
-  cursor: pointer;
-  width: 28px;
-  height: 28px;
-  min-width: 44px;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  transition: background var(--transition-fast), color var(--transition-fast);
-  flex-shrink: 0;
-  margin: -8px -6px 0 0;
-  padding: 0;
-}
-.map-popup-close:hover {
-  background: var(--overlay-light-12);
-  color: var(--white);
-}
-
 /* ── Popup event list ── */
 .map-popup-events {
   display: flex;
@@ -392,29 +341,6 @@
 .map-popup-scroll-fade:last-child {
   bottom: 0;
   border-radius: 0 0 var(--radius-xl) var(--radius-xl);
-}
-
-/* ── Popup footer (directions) ── */
-.map-popup-directions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-md) var(--space-lg);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--amber);
-  text-decoration: none;
-  border-top: var(--border-width-thin) solid var(--overlay-light-05);
-  background: var(--overlay-light-05);
-  transition: background var(--transition-fast);
-  min-height: 44px;
-}
-.map-popup-directions:hover {
-  background: var(--overlay-light-05);
-}
-.map-popup-directions svg {
-  flex-shrink: 0;
-  opacity: 0.7;
 }
 
 /* ── Small venue map (EventPage sidebar / VenueDetailPage info card) ─── */

@@ -1,0 +1,46 @@
+/* DayPlan.shared.css
+ *
+ * Layout shared by both day-plan surfaces: /day (DayPlanPage.tsx) and
+ * /d/:code (SharedPlanPage.tsx). These rules were byte-identical across
+ * DayPlanPage.css and SharedPlanPage.css before the plan-map board landed
+ * (2026-08-08) -- consolidated here so the two pages cannot drift again.
+ * Page-specific rules (.day-plan-error, .day-plan-print-note) stay in their
+ * own page's CSS file; both pages import this file alongside their own.
+ *
+ * max-width widened from 760px to 1200px on the page shell to make room for
+ * DayPlanBoard's side-by-side map column (DayPlanBoard.css's 900px
+ * breakpoint), but pinned back to 760px on the heading/subhead/actions so
+ * body copy doesn't stretch into an unreadable measure -- a 1200px line
+ * length is fine for a grid, not for prose.
+ */
+
+.day-plan-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-2xl) var(--space-lg) var(--space-4xl);
+}
+
+.day-plan-heading {
+  font-family: var(--font-display);
+  font-size: var(--text-h2);
+  margin-bottom: var(--space-xs);
+  max-width: 760px;
+}
+
+.day-plan-subhead {
+  color: var(--text-muted);
+  margin-bottom: var(--space-xl);
+  max-width: 760px;
+}
+
+.day-plan-actions {
+  display: flex;
+  gap: var(--space-md);
+  margin-top: var(--space-xl);
+  flex-wrap: wrap;
+  max-width: 760px;
+}
+
+@media print {
+  .day-plan-subhead { display: none; }
+}

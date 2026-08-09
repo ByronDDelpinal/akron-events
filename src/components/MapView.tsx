@@ -17,14 +17,12 @@ import { format } from 'date-fns'
 import { useEventNavigator } from '@/hooks/useEventNavigator'
 import { formatPrice } from '@/lib/eventFormatting'
 import { loadNeighborhoodGeo, type NeighborhoodGeo, type BBox } from '@/lib/neighborhoodGeo'
+import { AKRON_CENTER, MAP_STYLE, DEFAULT_ZOOM } from '@/lib/mapConfig'
 import Modal from '@/components/Modal'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import './MapView.css'
+import './MapPopup.css'
 import { BackIcon } from '@/components/icons'
-
-const AKRON_CENTER = { longitude: -81.519, latitude: 41.081 }
-const MAP_STYLE    = 'https://tiles.openfreemap.org/styles/dark'
-const DEFAULT_ZOOM = 13
 
 const CATEGORY_EMOJI: Record<string, string> = {
   music:     '🎵',

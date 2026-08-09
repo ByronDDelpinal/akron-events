@@ -1,0 +1,89 @@
+/* DayPlanBoard.css
+ *
+ * Layout for the day-plan list + map pairing: side-by-side on desktop
+ * (decision 1 of the design -- NOT a List/Map toggle, the list is always
+ * fully present), stacked with the map on top on mobile.
+ *
+ * List is first in the DOM on purpose (tab order follows the list, which
+ * is the authoritative surface -- see DayPlanTimeline.tsx's header); on
+ * mobile `column-reverse` flips the VISUAL stack only, putting the map on
+ * top without touching focus order.
+ */
+
+.day-plan-board {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--space-xl);
+}
+
+.day-plan-board-map {
+  width: 100%;
+  height: 300px;
+}
+
+.day-plan-map-toggle {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: var(--space-sm);
+  background: transparent;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: var(--space-xs) var(--space-md);
+  min-height: 32px;
+  cursor: pointer;
+}
+.day-plan-map-toggle:hover { color: var(--amber); border-color: var(--amber); }
+
+.plan-map-skeleton {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-nav);
+  border-radius: var(--radius-md);
+}
+
+/* ── Desktop (>=900px): side by side, sticky map ────────────────────────
+ * Matches DESKTOP_QUERY in DayPlanTimeline.tsx/.css and MOBILE_QUERY in
+ * DayPlanBoard.tsx (899px/900px split) -- keep all three in step.
+ *
+ * Two children, two explicit columns, default grid-auto-flow: row places
+ * the first DOM child (the timeline) in column 1 and the second (the map)
+ * in column 2 automatically -- no explicit grid-column needed as long as
+ * the timeline stays first in the DOM. */
+@media (min-width: 900px) {
+  .day-plan-board {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 420px;
+    gap: var(--space-xl);
+    align-items: start;
+  }
+
+  .day-plan-board-map {
+    /* Sticky is what makes the side-by-side layout actually useful --
+     * without it, clicking item #9 of a 20-item plan scrolls the map
+     * off-screen and the feature silently stops working halfway down the
+     * list. 64px matches the site header height MapView.css also assumes. */
+    position: sticky;
+    top: calc(64px + var(--space-lg));
+    height: min(70vh, 620px);
+  }
+
+  /* The collapse toggle is mobile-only -- desktop always shows the sticky
+   * map, so there's nothing to collapse. */
+  .day-plan-map-toggle {
+    display: none;
+  }
+}
+
+/* ── Print ───────────────────────────────────────────────────────────── */
+@media print {
+  .day-plan-board {
+    display: block;
+  }
+  .day-plan-board-map,
+  .day-plan-map-toggle {
+    display: none !important;
+  }
+}

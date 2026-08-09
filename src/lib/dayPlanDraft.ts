@@ -32,6 +32,19 @@ export interface DraftItem {
   snap_start_at: string
   snap_end_at: string | null
   snap_venue: string | null
+  /**
+   * Add-time venue coordinates (2026-08-08, plan-map work). Optional on
+   * purpose: drafts written before this shipped have neither field, and
+   * must keep parsing -- see isValidDraft below, which only checks `v` and
+   * `items`, not these two keys. Every consumer that reads them (PlanMap
+   * via dayPlanDraft -> DayPlanPage.tsx -> planMapPoints.ts) treats a
+   * missing/null pair as "unmapped", the same degradation a real event
+   * with no venue coordinates gets. `v` stays 1 -- isValidDraft requires
+   * `d.v === 1`, so bumping to v2 would wipe every existing draft on every
+   * device the moment this ships, including plans built minutes earlier.
+   */
+  snap_venue_lat?: number | null
+  snap_venue_lng?: number | null
   added_at: string
 }
 
@@ -87,13 +100,20 @@ export function writeActivePlanCode(code: string): void {
   } catch { /* ignore */ }
 }
 
-/** Minimal event shape draft snapshotting depends on. */
+/**
+ * Minimal event shape draft snapshotting depends on. `venue.lat`/`lng` are
+ * already selected at every call site that constructs one of these --
+ * useEvents.ts's list query, firstPageQuery.js's EVENT_LIST_COLUMNS join,
+ * and useEvent()'s detail-page select all include `lat, lng` on the venue
+ * join today -- so reading them here needs no new query and nothing new to
+ * plumb through EventCard/EventPage.
+ */
 export interface SnapshotSource {
   id: string
   title: string
   start_at: string
   end_at?: string | null
-  venue?: { name?: string | null } | null
+  venue?: { name?: string | null; lat?: number | null; lng?: number | null } | null
 }
 
 export function snapshotItem(event: SnapshotSource, existingAddedAt?: string): DraftItem {
@@ -103,6 +123,8 @@ export function snapshotItem(event: SnapshotSource, existingAddedAt?: string): D
     snap_start_at: event.start_at,
     snap_end_at: event.end_at ?? null,
     snap_venue: event.venue?.name ?? null,
+    snap_venue_lat: event.venue?.lat ?? null,
+    snap_venue_lng: event.venue?.lng ?? null,
     added_at: existingAddedAt ?? new Date().toISOString(),
   }
 }

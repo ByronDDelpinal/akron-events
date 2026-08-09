@@ -1,0 +1,185 @@
+/* PlanMap.css
+ *
+ * The day-plan route map: numbered pins, the group popup body, and the
+ * "fit whole day" button. Shell popup chrome (.map-popup, .map-popup-header,
+ * .map-popup-close, .map-popup-directions) comes from MapPopup.css, shared
+ * with MapView.tsx -- only PlanMap's own popup body content lives here.
+ */
+
+.plan-map {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Numbered pin ────────────────────────────────────────────────────── */
+.plan-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: var(--space-md);
+  margin: -11px; /* expand touch target to 44x44 without changing visual size */
+  filter: drop-shadow(0 2px 6px var(--overlay-dark-55));
+  transition: filter var(--transition-medium), transform var(--transition-medium);
+}
+.plan-pin:hover,
+.plan-pin:focus-visible {
+  filter: drop-shadow(0 3px 10px var(--amber-tint-50));
+  transform: scale(1.12);
+}
+/* Real focus ring (not just the shared hover treatment above) -- these are
+ * actual <button>s, unlike MapView's VenuePin (a non-focusable div, a
+ * pre-existing a11y gap noted but not fixed there). Tab order walks the
+ * day chronologically, so this needs to be genuinely visible. */
+.plan-pin:focus-visible {
+  outline: none;
+}
+.plan-pin:focus-visible .plan-pin-dot {
+  box-shadow: var(--shadow-focus);
+}
+.plan-pin-dot {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-round);
+  background: var(--amber);
+  border: var(--border-width-thicker) solid var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition-medium), border-color var(--transition-medium);
+}
+.plan-pin-num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-tiny);
+  color: var(--white);
+  line-height: 1;
+}
+.plan-pin-stem {
+  width: 2px;
+  height: 8px;
+  background: var(--amber);
+  border-radius: 0 0 var(--radius-xxs) var(--radius-xxs);
+}
+
+/* Selected: scale up and invert the fill -- legible without relying on
+ * color alone (the popup opening is the real confirmation). */
+.plan-pin--selected {
+  transform: scale(1.15);
+  z-index: 2;
+}
+.plan-pin--selected .plan-pin-dot {
+  background: var(--bg-card);
+  border-color: var(--amber);
+}
+.plan-pin--selected .plan-pin-num { color: var(--amber); }
+.plan-pin--selected .plan-pin-stem { background: var(--white); }
+
+/* Cancelled -- muted but the number stays legible, matching the row's own
+ * struck-but-present treatment (never dropped, just quietly deprioritized). */
+.plan-pin--struck .plan-pin-dot {
+  background: var(--text-muted);
+  opacity: 0.75;
+}
+
+/* Count pip for a marker standing in for >1 stop at the same place (§4.3):
+ * the primary glyph stays the group's displayed stop number, this is a
+ * small superscript badge, not a second number competing for attention. */
+.plan-pin-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: var(--radius-round);
+  background: var(--amber);
+  color: var(--bg-card);
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+}
+
+/* ── "Fit whole day" button ─────────────────────────────────────────── */
+/* Reuses .map-recenter-btn's visual language (bottom-right pill) but as its
+ * own class -- different label, different trigger, deliberately not shared
+ * with MapView's own recenter button (§2.3 of the design). */
+.plan-map-fit {
+  position: absolute;
+  bottom: var(--space-md);
+  right: var(--space-md);
+  z-index: 10;
+}
+
+/* ── Popup body (list of stops at one place) ────────────────────────── */
+.plan-popup-events {
+  display: flex;
+  flex-direction: column;
+  max-height: 240px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--overlay-light-12) transparent;
+}
+.plan-popup-event {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  border-bottom: var(--border-width-thin) solid var(--overlay-light-05);
+  transition: background var(--transition-fast);
+  min-height: 44px;
+}
+.plan-popup-event:last-child { border-bottom: none; }
+.plan-popup-event:hover { background: var(--overlay-light-05); }
+.plan-popup-event--selected { background: var(--overlay-light-05); }
+
+.plan-popup-event-number {
+  flex-shrink: 0;
+  width: 20px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--amber);
+  text-align: center;
+}
+.plan-popup-event-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  flex: 1;
+  min-width: 0;
+}
+.plan-popup-event-title {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--overlay-light-90);
+  line-height: 1.35;
+}
+.plan-popup-event--struck .plan-popup-event-title {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+.plan-popup-event-time {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--overlay-light-70);
+}
+.plan-popup-event-note {
+  font-size: var(--text-xs);
+  color: var(--overlay-light-50);
+}
+
+@media (max-width: 600px) {
+  .map-popup.plan-popup { width: 290px; }
+}

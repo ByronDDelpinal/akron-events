@@ -31,6 +31,16 @@
 
 .day-plan-item-body { flex: 1; min-width: 0; }
 
+/* Plan-wide position (1..N, may skip numbers -- unmapped items still
+ * consume one; see planMapPoints.ts's numberPlanItems). Muted so it reads
+ * as a locator, not a headline -- the title carries the visual weight. */
+.day-plan-item-number {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
 .day-plan-item-title {
   font-family: var(--font-display);
   font-weight: 700;
@@ -38,6 +48,41 @@
   text-decoration: none;
 }
 a.day-plan-item-title:hover { color: var(--amber); }
+
+/* Row highlight when this item is the map's current selection (clicking a
+ * marker scrolls to and highlights its row -- see DayPlanBoard.tsx). Kept
+ * subtle: a border, not a filled background, so it doesn't compete with
+ * the struck/cancelled treatment below. */
+.day-plan-item--selected {
+  border-left: var(--border-width-thicker) solid var(--amber);
+  padding-left: var(--space-md);
+  margin-left: calc(-1 * var(--space-md) - var(--border-width-thicker));
+}
+
+/* "Show on map" -- the dedicated selection button (never the row itself;
+ * see DayPlanTimeline.tsx's PlanItemRow for why nesting a click handler
+ * on the row would be the same interactive-nesting trap AddToPlanButton.tsx
+ * documents fighting inside EventCard). Occupies the same slot a mapped
+ * row's location note would otherwise sit in. */
+.day-plan-item-locate {
+  display: inline-flex;
+  margin-top: var(--space-xs);
+  background: transparent;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: var(--space-xs) var(--space-sm);
+  cursor: pointer;
+  min-height: 32px;
+  align-items: center;
+}
+.day-plan-item-locate:hover,
+.day-plan-item-locate[aria-pressed="true"] {
+  color: var(--amber);
+  border-color: var(--amber);
+}
 
 .day-plan-item-venue {
   font-size: var(--text-sm);
@@ -94,7 +139,8 @@ a.day-plan-item-title:hover { color: var(--amber); }
 @media print {
   .day-plan-print-hide,
   .site-header, .site-footer, .install-prompt,
-  .day-plan-actions, .day-plan-item-remove, .add-to-plan-btn {
+  .day-plan-actions, .day-plan-item-remove, .add-to-plan-btn,
+  .day-plan-item-locate, .day-plan-board-map, .day-plan-map-toggle {
     display: none !important;
   }
 

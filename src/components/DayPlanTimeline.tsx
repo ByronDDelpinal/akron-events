@@ -1,27 +1,18 @@
-import { Fragment, useMemo } from 'react'
+import { Fragment, useCallback, useMemo, type MouseEvent as ReactMouseEvent } from 'react'
 import { Link } from 'react-router-dom'
 import DateHeading from '@/components/DateHeading'
-import { easternDateKey } from '@/lib/dayPlanDate'
 import { findOverlaps, gapMinutes, distanceMiles } from '@/lib/dayPlanGap'
 import { formatEventDate } from '@/lib/eventFormatting'
 import type { RotStatus } from '@/lib/dayPlanApi'
+import { groupPlanItemsByDay, isMapped, isStruck, type PlanRenderItem } from '@/lib/planMapPoints'
 import './DayPlanTimeline.css'
 
-export interface PlanRenderItem {
-  key: string
-  title: string
-  startAt: string
-  /** Present and different from startAt only for rot_status='moved'. */
-  oldStartAt?: string | null
-  endAt: string | null
-  venueName: string | null
-  venueGeo?: { lat: number | null; lng: number | null } | null
-  /** null when there's nothing left to link to (rot_status='gone'). */
-  eventPath: string | null
-  /** undefined = plain 'ok' (the local pre-share draft has no rot concept at all). */
-  rotStatus?: RotStatus
-  onRemove: () => void
-}
+// Re-exported so the existing `import DayPlanTimeline, { type PlanRenderItem }
+// from '@/components/DayPlanTimeline'` at DayPlanPage.tsx/SharedPlanPage.tsx
+// keeps working -- the type itself now lives in planMapPoints.ts (see that
+// file's header for why: it can't import a type FROM this component while
+// this component imports functions FROM it).
+export type { PlanRenderItem }
 
 const ROT_COPY: Partial<Record<RotStatus, string>> = {
   cancelled: 'Cancelled by the organizer',
@@ -29,8 +20,26 @@ const ROT_COPY: Partial<Record<RotStatus, string>> = {
   merged: 'This listing was merged with a duplicate',
 }
 
-function isStruck(status: RotStatus | undefined): boolean {
-  return status === 'cancelled' || status === 'gone'
+// Desktop-only mouse convenience (§3.3 of the design): clicking anywhere in
+// a mapped row other than the title link / Remove button also selects it.
+// Matches DESKTOP_BREAKPOINT in DayPlanBoard.css/DayPlanBoard.tsx.
+const DESKTOP_QUERY = '(min-width: 900px)'
+
+export interface DayPlanTimelineProps {
+  items: PlanRenderItem[]
+  /** From planMapPoints.ts's numberPlanItems(items), computed ONCE by
+   *  DayPlanBoard and shared with PlanMap -- see that module's header for
+   *  why this must never be recomputed independently here. */
+  numbers: Map<string, number>
+  selectedKey: string | null
+  /** Called with the item's key when its "Show on map" button (or, on
+   *  desktop, a click elsewhere in a mapped row) is pressed. Owned by
+   *  DayPlanBoard, which also decides whether to scroll the map into view. */
+  onSelectRow: (key: string) => void
+  /** Callback ref so DayPlanBoard can scroll a row into view when the map
+   *  selects it -- a Map<key, element>, not an array of refs, matching the
+   *  infinite-scroll sentinel's callback-ref pattern elsewhere in the app. */
+  registerRow: (key: string, el: HTMLElement | null) => void
 }
 
 /**
@@ -42,20 +51,14 @@ function isStruck(status: RotStatus | undefined): boolean {
  * before passing `items` in (get_day_plan never drops them from the API
  * response, so the caller is where that happens, matching "never filtered
  * out at the data layer, the frontend decides what to render").
+ *
+ * Grouping/ordering is imported from planMapPoints.ts rather than computed
+ * here, and numbering arrives as a prop from the same module -- this list
+ * and PlanMap.tsx (rendered alongside it by DayPlanBoard) must never
+ * disagree about what "#3" refers to.
  */
-export default function DayPlanTimeline({ items }: { items: PlanRenderItem[] }) {
-  const groups = useMemo(() => {
-    const byDay = new Map<string, PlanRenderItem[]>()
-    for (const item of items) {
-      const key = easternDateKey(item.startAt)
-      if (!byDay.has(key)) byDay.set(key, [])
-      byDay.get(key)!.push(item)
-    }
-    for (const list of byDay.values()) {
-      list.sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt))
-    }
-    return [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b))
-  }, [items])
+export default function DayPlanTimeline({ items, numbers, selectedKey, onSelectRow, registerRow }: DayPlanTimelineProps) {
+  const groups = useMemo(() => groupPlanItemsByDay(items), [items])
 
   const spansManyDays = groups.length > 3
 
@@ -93,7 +96,13 @@ export default function DayPlanTimeline({ items }: { items: PlanRenderItem[] }) 
                       {overlapsPrev && <span className="day-plan-overlap-note"> · These two overlap.</span>}
                     </div>
                   )}
-                  <PlanItemRow item={item} />
+                  <PlanItemRow
+                    item={item}
+                    number={numbers.get(item.key) ?? 0}
+                    selected={selectedKey === item.key}
+                    onSelectRow={onSelectRow}
+                    registerRow={registerRow}
+                  />
                 </Fragment>
               )
             })}
@@ -104,19 +113,65 @@ export default function DayPlanTimeline({ items }: { items: PlanRenderItem[] }) 
   )
 }
 
-function PlanItemRow({ item }: { item: PlanRenderItem }) {
+interface PlanItemRowProps {
+  item: PlanRenderItem
+  number: number
+  selected: boolean
+  onSelectRow: (key: string) => void
+  registerRow: (key: string, el: HTMLElement | null) => void
+}
+
+function PlanItemRow({ item, number, selected, onSelectRow, registerRow }: PlanItemRowProps) {
   const struck = isStruck(item.rotStatus)
+  const mapped = isMapped(item)
   const note = item.rotStatus ? ROT_COPY[item.rotStatus] : null
   const title = item.eventPath && !struck
     ? <Link to={item.eventPath} className="day-plan-item-title">{item.title}</Link>
     : <span className="day-plan-item-title">{item.title}</span>
 
+  const handleLocate = useCallback(() => onSelectRow(item.key), [onSelectRow, item.key])
+
+  // Desktop-only convenience: a click anywhere in a mapped row that isn't
+  // the title link or the Remove button also selects it. This is a mouse
+  // affordance layered on top of the real "Show on map" button, never a
+  // replacement -- the row itself carries no role/tabIndex/keyboard
+  // handling, so a keyboard or screen-reader user only ever sees the
+  // button. Off entirely on mobile, where the button is the ONLY
+  // selection affordance (§6.3 of the design).
+  const handleRowClick = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!mapped) return
+    const target = e.target as HTMLElement
+    if (target.closest('a, button')) return
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+    if (!window.matchMedia(DESKTOP_QUERY).matches) return
+    onSelectRow(item.key)
+  }, [mapped, onSelectRow, item.key])
+
   return (
-    <div className={`day-plan-item${struck ? ' day-plan-item--struck' : ''}`}>
+    <div
+      ref={(el) => registerRow(item.key, el)}
+      className={`day-plan-item${struck ? ' day-plan-item--struck' : ''}${selected ? ' day-plan-item--selected' : ''}`}
+      onClick={handleRowClick}
+    >
       <div className="day-plan-item-time">{formatEventDate(item.startAt)}</div>
       <div className="day-plan-item-body">
-        {title}
+        <span className="day-plan-item-number" aria-hidden="true">{number}.</span> {title}
         {item.venueName && <div className="day-plan-item-venue">{item.venueName}</div>}
+        {mapped ? (
+          <button
+            type="button"
+            className="day-plan-item-locate"
+            aria-pressed={selected}
+            aria-label={`Show "${item.title}" on the map`}
+            onClick={handleLocate}
+          >
+            Show on map
+          </button>
+        ) : (
+          <div className="day-plan-item-note">
+            {item.venueName ? 'Location not mapped' : 'No location listed'}
+          </div>
+        )}
         {item.rotStatus === 'moved' && item.oldStartAt && (
           <div className="day-plan-item-moved">
             Moved — was <s>{formatEventDate(item.oldStartAt)}</s>, now {formatEventDate(item.startAt)}

@@ -1,35 +1,15 @@
-.day-plan-page {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: var(--space-2xl) var(--space-lg) var(--space-4xl);
-}
-
-.day-plan-heading {
-  font-family: var(--font-display);
-  font-size: var(--text-h2);
-  margin-bottom: var(--space-xs);
-}
-
-.day-plan-subhead {
-  color: var(--text-muted);
-  margin-bottom: var(--space-xl);
-}
-
-.day-plan-actions {
-  display: flex;
-  gap: var(--space-md);
-  margin-top: var(--space-xl);
-  flex-wrap: wrap;
-}
+/* Shared .day-plan-page / .day-plan-heading / .day-plan-subhead /
+ * .day-plan-actions rules live in DayPlan.shared.css, imported alongside
+ * this file in SharedPlanPage.tsx. Only this page's own rule stays here. */
 
 .day-plan-print-note {
   color: var(--text-muted);
   font-size: var(--text-xs);
   margin-top: var(--space-2xl);
+  max-width: 760px;
 }
 
 @media print {
-  .day-plan-subhead,
   .day-plan-print-note {
     display: none;
   }
