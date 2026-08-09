@@ -494,7 +494,16 @@ begin
   ) on commit drop;
   -- Session-scoped temp table reused across calls in the same connection --
   -- clear any residue from a prior call before this one writes to it.
-  delete from _dp_resolved;
+  --
+  -- `where true` is LOAD-BEARING, not noise. Supabase preloads the
+  -- `safeupdate` extension for the PostgREST API role, which rejects any
+  -- UPDATE or DELETE without a WHERE clause with SQLSTATE 21000
+  -- ("DELETE requires a WHERE clause"). A bare `delete from _dp_resolved;`
+  -- therefore works in psql and via the service role, but fails for every
+  -- real anon request through the API -- which is exactly how this shipped
+  -- broken on 2026-08-09: every /d/<code> page rendered "We couldn't find
+  -- that plan" while the row sat healthy in the table. Do not remove it.
+  delete from _dp_resolved where true;
 
   for v_item in
     select * from day_plan_items where plan_id = v_plan.id and removed_at is null
