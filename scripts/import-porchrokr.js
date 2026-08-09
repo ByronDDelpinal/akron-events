@@ -114,6 +114,25 @@ export function slotInstants(date, slot, minutes = SET_MINUTES) {
 
 // ── Data file validation (pure) ──────────────────────────────────────────────
 
+// Researched artist links (act.link) — platform allowlist. The URL must be
+// http(s), contain no whitespace, and contain NO '&': sanitizeEventText runs
+// descriptions through htmlToText (entity decoding), and an ampersand-free
+// URL is what guarantees the plan-time round-trip stays byte-identical.
+export const LINK_PLATFORMS = ['spotify', 'bandcamp', 'soundcloud', 'youtube', 'facebook', 'instagram', 'website']
+
+function actLinkProblems(where, act) {
+  const problems = []
+  if (act?.link == null) return problems
+  const url = act.link.url
+  if (typeof url !== 'string' || !/^https?:\/\/\S+$/.test(url) || url.includes('&') || /\s/.test(url)) {
+    problems.push(`${where}: act "${act.name}" link url must be http(s) with no whitespace and no '&' (got ${JSON.stringify(url)})`)
+  }
+  if (!LINK_PLATFORMS.includes(act.link.platform)) {
+    problems.push(`${where}: act "${act.name}" link platform ${JSON.stringify(act.link.platform)} not in [${LINK_PLATFORMS.join(', ')}]`)
+  }
+  return problems
+}
+
 /** Returns an array of human-readable problems; empty = valid. */
 export function validateDataFile(data) {
   const problems = []
@@ -155,7 +174,11 @@ export function validateDataFile(data) {
       if (!wantSlots.includes(act.slot)) {
         problems.push(`porch ${p.porch} (${p.porch % 2 === 1 ? 'odd' : 'even'}): unexpected slot '${act.slot}' for "${act.name}"`)
       }
+      problems.push(...actLinkProblems(`porch ${p.porch}`, act))
     }
+  }
+  for (const s of data?.stages ?? []) {
+    for (const act of s.acts ?? []) problems.push(...actLinkProblems(`stage ${s.key}`, act))
   }
   if (porches.length && porches.find((p) => p.porch === 26)?.routesTo !== 'beer-garden') {
     problems.push("porch 26 must route to 'beer-garden' (it IS the Beer Garden & Stage)")
@@ -188,9 +211,13 @@ function porchSetRow(festival, p, act) {
       ? `Porch at ${p.houseNumber} ${p.street}.`
       : `See the festival map on the PorchRokr page for this porch's exact spot.`
   const { start_at, end_at } = slotInstants(festival.date, act.slot)
+  // Researched artist link — always the FINAL sentence, no trailing period
+  // (a period would glue itself onto the URL). Unlinked acts append nothing,
+  // so their descriptions stay byte-identical to the pre-link output.
+  const listen = act.link ? ` Listen: ${act.link.url}` : ''
   return {
     title,
-    description: `Genre: ${act.genre}. 30-minute porch set for PorchRokr 2026, the Highland Square porch music and arts festival. ${where} Free and open to all.`,
+    description: `Genre: ${act.genre}. 30-minute porch set for PorchRokr 2026, the Highland Square porch music and arts festival. ${where} Free and open to all.${listen}`,
     start_at,
     end_at,
     // Explicit v2 list — resolveEventCategories passes it verbatim and
@@ -216,9 +243,12 @@ function stageSetRow(festival, stage, act) {
   const title = headliner
     ? `${act.name} - PorchRokr Main Stage (Headliner)`
     : `${act.name} - PorchRokr ${stage.name}`
+  // Same convention as porchSetRow: link is the final sentence, no trailing
+  // period, and absent links change nothing.
+  const listen = act.link ? ` Listen: ${act.link.url}` : ''
   const description = headliner
-    ? `Genre: ${act.genre}. Headline set closing PorchRokr 2026, the Highland Square porch music and arts festival, on the Main Stage. Free and open to all.`
-    : `Genre: ${act.genre}. 30-minute set on the ${stage.name} for PorchRokr 2026, the Highland Square porch music and arts festival. Free and open to all.`
+    ? `Genre: ${act.genre}. Headline set closing PorchRokr 2026, the Highland Square porch music and arts festival, on the Main Stage. Free and open to all.${listen}`
+    : `Genre: ${act.genre}. 30-minute set on the ${stage.name} for PorchRokr 2026, the Highland Square porch music and arts festival. Free and open to all.${listen}`
   const row = {
     title,
     description,
@@ -740,6 +770,9 @@ async function main() {
     const clean = sanitizeEventText(row)
     if (clean.title !== row.title) {
       console.warn(`  ⚠ sanitizer would rewrite title: ${JSON.stringify(row.title)} → ${JSON.stringify(clean.title)}`)
+    }
+    if (clean.description !== row.description) {
+      console.warn(`  ⚠ sanitizer would rewrite description for ${row.source_id}: ${JSON.stringify(row.description)} → ${JSON.stringify(clean.description)}`)
     }
   }
 

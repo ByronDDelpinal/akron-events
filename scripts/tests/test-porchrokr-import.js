@@ -6,8 +6,9 @@
  * exclusions, porch 1 → main stage + porch 26 → beer garden routing, 38/39
  * House Three Thirty override, street-less venue-name fallback), umbrella
  * re-stamp semantics, category-lock stamp semantics
- * (computeCategoryLockOverrides), and sanitizer round-trips for awkward act
- * names.
+ * (computeCategoryLockOverrides), sanitizer round-trips for awkward act
+ * names, and the researched artist links (act.link → trailing "Listen: <url>"
+ * sentence + validateDataFile's url/platform gate).
  *
  * Uses the REAL checked-in data file (scripts/data/porchrokr-2026.json) as
  * the fixture, per the ADR's test plan — no synthetic porch tables. No
@@ -392,4 +393,93 @@ describe('sanitizer round-trips — real awkward act names survive ingest untouc
       assert.equal(clean.description, planned.row.description, 'description round-trips')
     })
   }
+})
+
+describe('researched artist links — act.link → "Listen: <url>" final sentence', () => {
+  // Act names are unique across the whole lineup (asserted elsewhere as 161
+  // unique planned rows), so a title-prefix lookup is unambiguous.
+  const allActs = [
+    ...data.porches.flatMap((p) => p.acts ?? []),
+    ...data.stages.flatMap((s) => s.acts ?? []),
+  ]
+  const linked = allActs.filter((a) => a.link)
+  const unlinked = allActs.filter((a) => !a.link)
+  const rowFor = (name) => plan.planned.find((x) => x.row.title.startsWith(`${name} - PorchRokr`))?.row
+
+  it('the fixture actually exercises links: 103 linked acts, on porches AND stages', () => {
+    assert.equal(linked.length, 103)
+    assert.ok(unlinked.length > 0, 'some acts stay unlinked')
+    assert.ok(data.stages.some((s) => (s.acts ?? []).some((a) => a.link)), 'a stage act is linked (headliner branch)')
+  })
+
+  it('every linked act\'s description ends with "Listen: <url>" — final sentence, no trailing period', () => {
+    for (const act of linked) {
+      const row = rowFor(act.name)
+      assert.ok(row, `planned row for linked act ${JSON.stringify(act.name)}`)
+      assert.ok(row.description.endsWith(` Listen: ${act.link.url}`), `${row.source_id}: ${row.description}`)
+      assert.ok(!row.description.endsWith('.'), `${row.source_id} must not gain a trailing period`)
+    }
+  })
+
+  it('the headliner (stage branch) carries its link too', () => {
+    const headliner = bySourceId.get('2026-stage-main-1930').row
+    assert.match(headliner.description, / Listen: https?:\/\/\S+$/)
+  })
+
+  it('unlinked acts\' descriptions are untouched: still end "Free and open to all.", never mention Listen:', () => {
+    for (const act of unlinked) {
+      const row = rowFor(act.name)
+      assert.ok(row, `planned row for unlinked act ${JSON.stringify(act.name)}`)
+      assert.ok(row.description.endsWith('Free and open to all.'), `${row.source_id}: ${row.description}`)
+      assert.ok(!row.description.includes('Listen:'), row.source_id)
+    }
+  })
+
+  it('linked descriptions round-trip through sanitizeEventText byte-identical (the no-& rule earns its keep)', () => {
+    for (const act of linked) {
+      const row = rowFor(act.name)
+      const clean = sanitizeEventText(row)
+      assert.equal(clean.description, row.description, `${row.source_id} description round-trips`)
+      assert.equal(clean.title, row.title, `${row.source_id} title round-trips`)
+    }
+  })
+
+  describe('validateDataFile link gate', () => {
+    const withBadLink = (link) => {
+      const mutated = structuredClone(data)
+      mutated.porches.find((p) => p.porch === 2).acts[0].link = link
+      return validateDataFile(mutated)
+    }
+
+    it('the real data file (103 links) validates cleanly', () => {
+      assert.deepEqual(validateDataFile(data), [])
+    })
+
+    it('rejects a scheme-less url', () => {
+      const problems = withBadLink({ url: 'open.spotify.com/artist/x', platform: 'spotify' })
+      assert.ok(problems.some((p) => p.includes('link url')), JSON.stringify(problems))
+    })
+
+    it("rejects a url containing '&' (would not survive sanitizeEventText's entity decoding)", () => {
+      const problems = withBadLink({ url: 'https://example.com/a?b=1&c=2', platform: 'website' })
+      assert.ok(problems.some((p) => p.includes('link url')), JSON.stringify(problems))
+    })
+
+    it('rejects a url containing whitespace', () => {
+      const problems = withBadLink({ url: 'https://example.com/a b', platform: 'website' })
+      assert.ok(problems.some((p) => p.includes('link url')), JSON.stringify(problems))
+    })
+
+    it('rejects a platform outside the allowlist', () => {
+      const problems = withBadLink({ url: 'https://myspace.com/band', platform: 'myspace' })
+      assert.ok(problems.some((p) => p.includes('link platform')), JSON.stringify(problems))
+    })
+
+    it('polices stage acts, not just porch acts', () => {
+      const mutated = structuredClone(data)
+      mutated.stages[0].acts[0].link = { url: 'https://example.com/ok', platform: 'geocities' }
+      const problems = validateDataFile(mutated)
+      assert.ok(problems.some((p) => p.startsWith('stage ') && p.includes('link platform')), JSON.stringify(problems))
+    })
+  })
 })

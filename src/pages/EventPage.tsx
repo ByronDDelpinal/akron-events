@@ -20,6 +20,7 @@ import {
   eventDescription,
 } from '@/lib/seo'
 import { makeEventSlug, eventPath } from '@/lib/slug'
+import { linkify } from '@/lib/linkify'
 import { googleDirectionsUrl } from '@/lib/directions'
 import { FESTIVALS } from '@/lib/festivals'
 import { getSourceLabel, shouldShowSourceCredit } from '@/lib/sources'
@@ -519,12 +520,12 @@ function EventDescription({ text }: { text: string }) {
           return (
             <ul key={i} className="event-detail-list">
               {lines.map((l, j) => (
-                <li key={j}>{l.trimStart().replace(/^•\s*/, '')}</li>
+                <li key={j}>{linkify(l.trimStart().replace(/^•\s*/, ''))}</li>
               ))}
             </ul>
           )
         }
-        return <p key={i}>{block}</p>
+        return <p key={i}>{linkify(block)}</p>
       })}
     </div>
   )

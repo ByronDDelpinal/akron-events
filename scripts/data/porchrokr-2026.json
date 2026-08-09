@@ -32,12 +32,24 @@
         {
           "slot": "11:00 AM",
           "name": "A Band Named Ashes",
-          "genre": "Progressive Folk"
+          "genre": "Progressive Folk",
+          "link": {
+            "url": "https://open.spotify.com/artist/0ZqrHoIEx3guVFhPimF2CT",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Akron prog-folk band, Rialto Theatre residency"
+          }
         },
         {
           "slot": "1:00 PM",
           "name": "DaLo and the Band",
-          "genre": "Pop/Soul"
+          "genre": "Pop/Soul",
+          "link": {
+            "url": "https://www.facebook.com/DaLoandTheBand/",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "Fox 8 Cleveland performance on page; no Spotify found"
+          }
         },
         {
           "slot": "3:00 PM",
@@ -47,7 +59,13 @@
         {
           "slot": "5:00 PM",
           "name": "The Sweet Spot",
-          "genre": "Indie, Rock, Pop"
+          "genre": "Indie, Rock, Pop",
+          "link": {
+            "url": "https://www.youtube.com/@thesweetspotband",
+            "platform": "youtube",
+            "at": "2026-08-09",
+            "note": "Channel bio: hailing from Akron, Ohio; singer matches Signal Akron writeup"
+          }
         }
       ]
     },
@@ -68,17 +86,35 @@
         {
           "slot": "12:00 PM",
           "name": "Sweet Ignition",
-          "genre": "Alt Rock"
+          "genre": "Alt Rock",
+          "link": {
+            "url": "https://www.instagram.com/sweetignitionoh/",
+            "platform": "instagram",
+            "at": "2026-08-09",
+            "note": "Handle ends OH, plays Musica Akron; Bandcamp same-name is an Illinois band"
+          }
         },
         {
           "slot": "2:00 PM",
           "name": "3 Starz",
-          "genre": "Rock"
+          "genre": "Rock",
+          "link": {
+            "url": "https://www.facebook.com/3STARZBAND/",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "Akron show announcements; matches 2026 lineup"
+          }
         },
         {
           "slot": "4:00 PM",
           "name": "The Modernes",
-          "genre": "Americana, Y'allternative, Surf"
+          "genre": "Americana, Y'allternative, Surf",
+          "link": {
+            "url": "https://themodernes.bandcamp.com",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Akron Americana/surf trio; IG lists Akron"
+          }
         },
         {
           "slot": "6:00 PM",
@@ -119,7 +155,13 @@
         {
           "slot": "5:00 PM",
           "name": "Breathe In Stereo",
-          "genre": "Indie Rock, Alt Rock, Post Emo"
+          "genre": "Indie Rock, Alt Rock, Post Emo",
+          "link": {
+            "url": "https://open.spotify.com/artist/0h9h9rx9paRQWVIlyWEx3R",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Cleveland trio, verified via Spotify bio member names"
+          }
         }
       ]
     },
@@ -141,22 +183,46 @@
         {
           "slot": "12:00 PM",
           "name": "Dashiel & Av",
-          "genre": "Jazz, Soul Pop, R&B, Hip Hop"
+          "genre": "Jazz, Soul Pop, R&B, Hip Hop",
+          "link": {
+            "url": "https://www.facebook.com/dashielrowland/",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "Akron native Dashiel Rowland; Akron Civic Theatre shows"
+          }
         },
         {
           "slot": "2:00 PM",
           "name": "Emigrants Wake",
-          "genre": "Irish Rock & American Folk"
+          "genre": "Irish Rock & American Folk",
+          "link": {
+            "url": "https://www.facebook.com/emigrantswake/",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "Self-described Akron OH Irish/Celtic rock band"
+          }
         },
         {
           "slot": "4:00 PM",
           "name": "Brian Lisik",
-          "genre": "Rock"
+          "genre": "Rock",
+          "link": {
+            "url": "https://open.spotify.com/artist/07voQITjXyjDFmf8KRvZdZ",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Akron rocker; Spotify bio cites The Bizarros"
+          }
         },
         {
           "slot": "6:00 PM",
           "name": "West Akron Fadeaway",
-          "genre": "Grateful Dead Covers"
+          "genre": "Grateful Dead Covers",
+          "link": {
+            "url": "https://www.facebook.com/profile.php?id=61560171219730",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "Westside Bowl bio links this page: Akron's Grateful Dead tribute"
+          }
         }
       ]
     },
@@ -183,17 +249,35 @@
         {
           "slot": "1:00 PM",
           "name": "Flock Of Moons",
-          "genre": "Heavy Psych Rock"
+          "genre": "Heavy Psych Rock",
+          "link": {
+            "url": "https://flockofmoons.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Bandcamp bio: space grunge from Akron OH"
+          }
         },
         {
           "slot": "3:00 PM",
           "name": "The Tenants",
-          "genre": "Twang Rock"
+          "genre": "Twang Rock",
+          "link": {
+            "url": "https://www.facebook.com/TheTenantsAkron",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "FB bio: rock/folk-rock/blues from Akron, Ohio"
+          }
         },
         {
           "slot": "5:00 PM",
           "name": "Blind Boxing",
-          "genre": "Punk Emo"
+          "genre": "Punk Emo",
+          "link": {
+            "url": "https://open.spotify.com/artist/13OzynVQh8rC3T2VHJynj3",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Spotify bio: NE Ohio emo-revival five-piece, cites PorchRokr"
+          }
         }
       ]
     },
@@ -230,7 +314,13 @@
         {
           "slot": "6:00 PM",
           "name": "By Light We Loom",
-          "genre": "Indie Rock/Pop"
+          "genre": "Indie Rock/Pop",
+          "link": {
+            "url": "https://open.spotify.com/artist/1PNTFIVBDOsgb3qFOkE1AJ",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Cleveland husband-wife indie-pop duo (ex-Bethesda)"
+          }
         }
       ]
     },
@@ -267,7 +357,13 @@
         {
           "slot": "5:00 PM",
           "name": "Hand + Noise",
-          "genre": "Alt, Indie, Rock"
+          "genre": "Alt, Indie, Rock",
+          "link": {
+            "url": "https://handplusnoise.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Official site links this Bandcamp; Akron gig history"
+          }
         }
       ]
     },
@@ -294,7 +390,13 @@
         {
           "slot": "2:00 PM",
           "name": "Joe Rangel",
-          "genre": "NeoSoul, Dreampop, Jazz"
+          "genre": "NeoSoul, Dreampop, Jazz",
+          "link": {
+            "url": "https://www.youtube.com/@joerangelguitar",
+            "platform": "youtube",
+            "at": "2026-08-09",
+            "note": "From his own contact info (Voyage Ohio); NE Ohio neo-soul guitarist"
+          }
         },
         {
           "slot": "4:00 PM",
@@ -304,7 +406,13 @@
         {
           "slot": "6:00 PM",
           "name": "Black Wolf & The Thief",
-          "genre": "Alt, Rock, R&B, Pop"
+          "genre": "Alt, Rock, R&B, Pop",
+          "link": {
+            "url": "https://open.spotify.com/artist/7FE5PhVQttfLNq7BzN0lB4",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "From official linktr.ee/BWTmusic; Warren OH trio"
+          }
         }
       ]
     },
@@ -326,22 +434,46 @@
         {
           "slot": "11:00 AM",
           "name": "Akron Derbytown Chorus",
-          "genre": "Barbershop/A Cappella"
+          "genre": "Barbershop/A Cappella",
+          "link": {
+            "url": "https://www.derbytownchorus.org/",
+            "platform": "website",
+            "at": "2026-08-09",
+            "note": "Official site, Akron Barbershop Harmony Society chapter"
+          }
         },
         {
           "slot": "1:00 PM",
           "name": "Rubber City Ukes",
-          "genre": "100 Years of Popular Music"
+          "genre": "100 Years of Popular Music",
+          "link": {
+            "url": "https://www.facebook.com/rubbercityukes/",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "FB titled Rubber City Ukes | Akron OH"
+          }
         },
         {
           "slot": "3:00 PM",
           "name": "Buffalo Ryders",
-          "genre": "Alternative, Riff-Rock"
+          "genre": "Alternative, Riff-Rock",
+          "link": {
+            "url": "https://thebuffaloryders.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Akron riff-rock trio, Ideastream coverage"
+          }
         },
         {
           "slot": "5:00 PM",
           "name": "Massive Hotdog Recall",
-          "genre": "Trashcan Horn Rock"
+          "genre": "Trashcan Horn Rock",
+          "link": {
+            "url": "https://open.spotify.com/artist/6j969kOhe1ubnTc8kCCHPm",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Kent/Akron trashcan trombone rock (Al Mothersbaugh); unique name"
+          }
         }
       ]
     },
@@ -367,12 +499,24 @@
         {
           "slot": "2:00 PM",
           "name": "Samjhana Band",
-          "genre": "Rock, Fusion, Covers"
+          "genre": "Rock, Fusion, Covers",
+          "link": {
+            "url": "https://www.facebook.com/61576624913740",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "Akron/Cuyahoga Falls Nepali fusion band, Signal Akron profile"
+          }
         },
         {
           "slot": "4:00 PM",
           "name": "Missingno",
-          "genre": "Alternative Hip-Hop"
+          "genre": "Alternative Hip-Hop",
+          "link": {
+            "url": "https://open.spotify.com/artist/05sTASai4TIrPSRQgfycx9",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "SummitLive365 Akron profile links his Spotify; releases match"
+          }
         },
         {
           "slot": "6:00 PM",
@@ -399,7 +543,13 @@
         {
           "slot": "11:00 AM",
           "name": "Zach Angeloni",
-          "genre": "Alt Rock/Folk Rock"
+          "genre": "Alt Rock/Folk Rock",
+          "link": {
+            "url": "https://open.spotify.com/artist/4j60qcdiKBLRAut5UyDStE",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "NE Ohio folk artist (Rialto Living Room); Bandsintown links Spotify"
+          }
         },
         {
           "slot": "1:00 PM",
@@ -409,12 +559,24 @@
         {
           "slot": "3:00 PM",
           "name": "Jinari Kemet & The Black Jackets",
-          "genre": "Hip-Hop, Rock"
+          "genre": "Hip-Hop, Rock",
+          "link": {
+            "url": "https://www.instagram.com/jinari_kemet",
+            "platform": "instagram",
+            "at": "2026-08-09",
+            "note": "From Panza Foundation profile; Cleveland multi-instrumentalist"
+          }
         },
         {
           "slot": "5:00 PM",
           "name": "Esther Fitz",
-          "genre": "Pop, Rock, Soul, Jazz"
+          "genre": "Pop, Rock, Soul, Jazz",
+          "link": {
+            "url": "https://open.spotify.com/artist/4dnoa9rKOCUcORSIqkq4j1",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Cleveland-born jazz/pop/soul vocalist, plays Jilly's Music Room"
+          }
         }
       ]
     },
@@ -436,22 +598,46 @@
         {
           "slot": "12:00 PM",
           "name": "Adult Human Chicken",
-          "genre": "Pop-punk"
+          "genre": "Pop-punk",
+          "link": {
+            "url": "https://adulthumanchicken.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "NE Ohio pop-punk, on 2026 lineup"
+          }
         },
         {
           "slot": "2:00 PM",
           "name": "Soleo",
-          "genre": "Middle Eastern Prog Rock"
+          "genre": "Middle Eastern Prog Rock",
+          "link": {
+            "url": "https://soleo.bandcamp.com",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "NE Ohio Middle Eastern prog trio, Ideastream profile"
+          }
         },
         {
           "slot": "4:00 PM",
           "name": "Smoke Face",
-          "genre": "Fusion Hip Hop & Funk"
+          "genre": "Fusion Hip Hop & Funk",
+          "link": {
+            "url": "https://smokefacerecordings.bandcamp.com",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Akron bassist/producer, Blu Jazz+ jam host, Red Rose Panic member"
+          }
         },
         {
           "slot": "6:00 PM",
           "name": "Red Rose Panic",
-          "genre": "Dynamic Hip-Hop"
+          "genre": "Dynamic Hip-Hop",
+          "link": {
+            "url": "https://open.spotify.com/artist/0b6JNDin396Vjm5SPlzCHj",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Akron hip-hop band since 2013; album Time Attack on page"
+          }
         }
       ]
     },
@@ -472,12 +658,24 @@
         {
           "slot": "11:00 AM",
           "name": "Wreck Like Me",
-          "genre": "Folk Rock"
+          "genre": "Folk Rock",
+          "link": {
+            "url": "https://open.spotify.com/artist/0vXTNsD6Ysy0oizkEL6opJ",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "MusicBrainz: NE Ohio singer-songwriter; plays Rialto Akron"
+          }
         },
         {
           "slot": "1:00 PM",
           "name": "Don Darko",
-          "genre": "Rock Exp. Hip Hop, Indie"
+          "genre": "Rock Exp. Hip Hop, Indie",
+          "link": {
+            "url": "https://open.spotify.com/artist/71LLRsl33SNBTQsLKTin1w",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "UnitedMasters bio: North Akron OH artist"
+          }
         },
         {
           "slot": "3:00 PM",
@@ -487,7 +685,13 @@
         {
           "slot": "5:00 PM",
           "name": "Skeleton Drive",
-          "genre": "Folk-Emo"
+          "genre": "Folk-Emo",
+          "link": {
+            "url": "https://skeletondrive.bandcamp.com",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Folk-emo project of Dillon Rae Oliver, Kent OH"
+          }
         }
       ]
     },
@@ -509,17 +713,35 @@
         {
           "slot": "12:00 PM",
           "name": "Wo Hop Maddness",
-          "genre": "Experimental Funk"
+          "genre": "Experimental Funk",
+          "link": {
+            "url": "https://www.facebook.com/wohopmadness",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "FB/IG: two brothers, experimental funk, Akron OH; PorchRokr 2024 alum"
+          }
         },
         {
           "slot": "2:00 PM",
           "name": "SweetSour",
-          "genre": "Rock"
+          "genre": "Rock",
+          "link": {
+            "url": "https://www.facebook.com/p/SweetSour-61558490932738/",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "FB titled SweetSour | Akron OH; played PorchRokr 2025"
+          }
         },
         {
           "slot": "4:00 PM",
           "name": "Goodmorning Valentine",
-          "genre": "Rock"
+          "genre": "Rock",
+          "link": {
+            "url": "https://goodmorningvalentine.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Joseph Beltram's Akron/Kent project (Six Parts Seven collab)"
+          }
         },
         {
           "slot": "6:00 PM",
@@ -545,12 +767,24 @@
         {
           "slot": "11:00 AM",
           "name": "Freez-R-Burn",
-          "genre": "Classic Rock & Originals"
+          "genre": "Classic Rock & Originals",
+          "link": {
+            "url": "https://www.facebook.com/freezrburnrocks/",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "Akron classic-rock band 30+ years, Akron Life feature"
+          }
         },
         {
           "slot": "1:00 PM",
           "name": "The Twanglers",
-          "genre": "Americana"
+          "genre": "Americana",
+          "link": {
+            "url": "https://www.facebook.com/thetwanglers",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "FB bio: Akron, Ohio band; PorchRokr 2025/2026"
+          }
         },
         {
           "slot": "3:00 PM",
@@ -560,7 +794,13 @@
         {
           "slot": "5:00 PM",
           "name": "Brave Arrows",
-          "genre": "Electronic Rock"
+          "genre": "Electronic Rock",
+          "link": {
+            "url": "https://open.spotify.com/artist/19S0ZeuRL6isJvOKa1PUyE",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Wadsworth OH; project of Michael Socrates (If These Trees Could Talk)"
+          }
         }
       ]
     },
@@ -587,7 +827,13 @@
         {
           "slot": "2:00 PM",
           "name": "Marcus Smith & The Rapscallions",
-          "genre": "Hiphop/rock/funk"
+          "genre": "Hiphop/rock/funk",
+          "link": {
+            "url": "https://open.spotify.com/artist/5iCbmgxP78g13YYxCiNSP8",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Cleveland rapper, Rock Hall artist-in-residence; socials match"
+          }
         },
         {
           "slot": "4:00 PM",
@@ -597,7 +843,13 @@
         {
           "slot": "6:00 PM",
           "name": "Benny Lava & The Guavas",
-          "genre": "Soul, Doo-wop, & Pop"
+          "genre": "Soul, Doo-wop, & Pop",
+          "link": {
+            "url": "https://benny-lava.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Akron soul/doo-wop band, Downtown@Dusk / House Three Thirty"
+          }
         }
       ]
     },
@@ -660,17 +912,35 @@
         {
           "slot": "2:00 PM",
           "name": "The Mickeys",
-          "genre": "Celtic Rock"
+          "genre": "Celtic Rock",
+          "link": {
+            "url": "https://www.facebook.com/p/The-Mickeys-Akron-Ohio-100065137195609/",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "FB titled The Mickeys, Akron Ohio; trad/rocking Irish"
+          }
         },
         {
           "slot": "4:00 PM",
           "name": "The Drecking Crew",
-          "genre": "Rock"
+          "genre": "Rock",
+          "link": {
+            "url": "https://www.facebook.com/people/The-Drecking-Crew/61572147844282/",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "FB bio lists Akron-scene veterans (Zero Defex, The Mickeys)"
+          }
         },
         {
           "slot": "6:00 PM",
           "name": "The Crones",
-          "genre": "80s Female Alt Pop"
+          "genre": "80s Female Alt Pop",
+          "link": {
+            "url": "https://www.facebook.com/people/The-Crones/100095412937063/",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "FB: The Crones | Akron OH, 80s female alt-pop tribute"
+          }
         }
       ]
     },
@@ -691,12 +961,24 @@
         {
           "slot": "11:00 AM",
           "name": "Blue Hour",
-          "genre": "Indie/Alternative Rock"
+          "genre": "Indie/Alternative Rock",
+          "link": {
+            "url": "https://www.facebook.com/bluehourtunes",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "Akron indie rock band; name too collision-prone for Spotify"
+          }
         },
         {
           "slot": "1:00 PM",
           "name": "Dearest Friend",
-          "genre": "Pop Punk/Punk Rock"
+          "genre": "Pop Punk/Punk Rock",
+          "link": {
+            "url": "https://www.facebook.com/p/Dearest-Friend-61563758105337/",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "Akron pop-punk, plays Musica; handles DearestFriendOH"
+          }
         },
         {
           "slot": "3:00 PM",
@@ -706,7 +988,13 @@
         {
           "slot": "5:00 PM",
           "name": "Shelby Olive",
-          "genre": "Indie Pop"
+          "genre": "Indie Pop",
+          "link": {
+            "url": "https://open.spotify.com/artist/4SEoy5bskydyn8tXd0SBFT",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "NE Ohio indie-pop singer, Cleveland Scene coverage"
+          }
         }
       ]
     },
@@ -728,22 +1016,46 @@
         {
           "slot": "12:00 PM",
           "name": "Akronauts",
-          "genre": "Rock"
+          "genre": "Rock",
+          "link": {
+            "url": "https://akronauts.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Akron rock band formed 2019; akronauts.com corroborates"
+          }
         },
         {
           "slot": "2:00 PM",
           "name": "The Delta Hand",
-          "genre": "Electric Blues"
+          "genre": "Electric Blues",
+          "link": {
+            "url": "https://www.facebook.com/61550656376672/",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "Akron blues circuit: Lock 4, Jilly's, Kent Blues Fest"
+          }
         },
         {
           "slot": "4:00 PM",
           "name": "Dr Fang & The Bats",
-          "genre": "Garage Rock/Synth Punk"
+          "genre": "Garage Rock/Synth Punk",
+          "link": {
+            "url": "https://www.instagram.com/dr_fang_and_the_bats/",
+            "platform": "instagram",
+            "at": "2026-08-09",
+            "note": "Credited in full-set video at Musica (Akron) 2025"
+          }
         },
         {
           "slot": "6:00 PM",
           "name": "Kevin Ballard & The Detonators",
-          "genre": "Rock"
+          "genre": "Rock",
+          "link": {
+            "url": "https://open.spotify.com/artist/0jrw9ZcZbl19Ast15BfDz5",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "From kevinballardmusic.com (Akron; lists PorchRokr 2024/2025)"
+          }
         }
       ]
     },
@@ -765,22 +1077,46 @@
         {
           "slot": "11:00 AM",
           "name": "Upstream Drifters",
-          "genre": "Folk Rock"
+          "genre": "Folk Rock",
+          "link": {
+            "url": "https://open.spotify.com/artist/27UTxNP8rZVzxGRsQxWgoh",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "NE Ohio folk duo (Ideastream); Bandsintown ties Spotify to their site"
+          }
         },
         {
           "slot": "1:00 PM",
           "name": "So Nectar",
-          "genre": "Alt, Emo, Post Hardcore"
+          "genre": "Alt, Emo, Post Hardcore",
+          "link": {
+            "url": "https://sonectar.bandcamp.com",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Alt/punk trio formed 2020 in Akron"
+          }
         },
         {
           "slot": "3:00 PM",
           "name": "Dave Rich & His Enablers",
-          "genre": "Rock"
+          "genre": "Rock",
+          "link": {
+            "url": "https://davidrich1.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Bandcamp bio: Akron songwriter (Houseguest); Ideastream profile"
+          }
         },
         {
           "slot": "5:00 PM",
           "name": "Wake Magnolia",
-          "genre": "Alt Rock"
+          "genre": "Alt Rock",
+          "link": {
+            "url": "https://open.spotify.com/artist/26TiBbtqGSkDPb1fwmidj9",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Akron alt-rock duo; Bandsintown ties Spotify to @wakemagnolia socials"
+          }
         }
       ]
     },
@@ -802,22 +1138,46 @@
         {
           "slot": "12:00 PM",
           "name": "Lovely Weather",
-          "genre": "Shoegaze, Indie, Alternative"
+          "genre": "Shoegaze, Indie, Alternative",
+          "link": {
+            "url": "https://lovelyweatherohio.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Subdomain lovelyweatherohio; Akron shoegaze, plays Musica"
+          }
         },
         {
           "slot": "2:00 PM",
           "name": "Counting Butterflies",
-          "genre": "Emotional Rock"
+          "genre": "Emotional Rock",
+          "link": {
+            "url": "https://countingbutterflies.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Akron indie band"
+          }
         },
         {
           "slot": "4:00 PM",
           "name": "Funeral Proposals",
-          "genre": "Rock"
+          "genre": "Rock",
+          "link": {
+            "url": "https://open.spotify.com/artist/3tPSdQdx0Nd31SRbYWYAO7",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Akron indie rock band formed 2013; Akron Music Awards"
+          }
         },
         {
           "slot": "6:00 PM",
           "name": "Time Cat",
-          "genre": "Rock"
+          "genre": "Rock",
+          "link": {
+            "url": "https://open.spotify.com/artist/1kxqbENoIMpXrT932Aqb68",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Well-documented Akron rock band (EarthQuaker session)"
+          }
         }
       ]
     },
@@ -838,17 +1198,35 @@
         {
           "slot": "11:00 AM",
           "name": "Zoloft",
-          "genre": "Indie Rock"
+          "genre": "Indie Rock",
+          "link": {
+            "url": "https://zoloftband.bandcamp.com",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Jefferson OH (NE Ohio) indie band; only Ohio band by this name"
+          }
         },
         {
           "slot": "1:00 PM",
           "name": "Supercop",
-          "genre": "Instrumental"
+          "genre": "Instrumental",
+          "link": {
+            "url": "https://www.facebook.com/supercopband/",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "Akron gig listings (Kenmore Blvd) tie name to Akron"
+          }
         },
         {
           "slot": "3:00 PM",
           "name": "Girl Cologne",
-          "genre": "Bubblegrunge"
+          "genre": "Bubblegrunge",
+          "link": {
+            "url": "https://open.spotify.com/artist/1jcxHWLTbQbg7mG50dJhvA",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Cleveland grunge-punk four-piece, PorchRokr 2025"
+          }
         },
         {
           "slot": "5:00 PM",
@@ -879,12 +1257,24 @@
         {
           "slot": "2:00 PM",
           "name": "Arms & Armour",
-          "genre": "Electronic, Sludge"
+          "genre": "Electronic, Sludge",
+          "link": {
+            "url": "https://armsarmour.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Akron electronic/sludge duo, on 2026 lineup"
+          }
         },
         {
           "slot": "4:00 PM",
           "name": "Dennis Van Crash",
-          "genre": "Original Rock"
+          "genre": "Original Rock",
+          "link": {
+            "url": "https://dennisvancrash.com/",
+            "platform": "website",
+            "at": "2026-08-09",
+            "note": "Solo site of Vanity Crash (Cleveland) frontman Dennis Yurich"
+          }
         },
         {
           "slot": "6:00 PM",
@@ -910,7 +1300,13 @@
         {
           "slot": "11:00 AM",
           "name": "Big Void",
-          "genre": "Synth Pop/Rock"
+          "genre": "Synth Pop/Rock",
+          "link": {
+            "url": "https://therealbigvoid.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Akron synth-pop/rock act"
+          }
         },
         {
           "slot": "1:00 PM",
@@ -925,7 +1321,13 @@
         {
           "slot": "5:00 PM",
           "name": "The Cabin sound",
-          "genre": "Indie Rock"
+          "genre": "Indie Rock",
+          "link": {
+            "url": "https://open.spotify.com/artist/6Mx6AgkozEo86aA94o0bV0",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Concert history shows PorchRokr 2025 + NE Ohio venues"
+          }
         }
       ]
     },
@@ -948,12 +1350,24 @@
         {
           "slot": "12:00 PM",
           "name": "Roxxymoron",
-          "genre": "Rock"
+          "genre": "Rock",
+          "link": {
+            "url": "https://www.facebook.com/Roxxymoron/",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "8-piece Akron cover band; @roxxymoronakron IG corroborates"
+          }
         },
         {
           "slot": "2:00 PM",
           "name": "Aka & Company",
-          "genre": "R&B Alternative"
+          "genre": "R&B Alternative",
+          "link": {
+            "url": "https://www.facebook.com/akaandcoband/",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "Lorain OH R&B/rap fusion band led by akaFayaven"
+          }
         },
         {
           "slot": "4:00 PM",
@@ -963,7 +1377,13 @@
         {
           "slot": "6:00 PM",
           "name": "Grumpy Plum",
-          "genre": "Pop-Rock"
+          "genre": "Pop-Rock",
+          "link": {
+            "url": "https://open.spotify.com/artist/6fRF1qBtX9fzQ1rf0nULKY",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "From official grumpyplumband.com; Bandcamp lists Cleveland OH"
+          }
         }
       ]
     },
@@ -989,7 +1409,13 @@
         {
           "slot": "1:00 PM",
           "name": "[Redacted]",
-          "genre": "Post Nu Metal"
+          "genre": "Post Nu Metal",
+          "link": {
+            "url": "https://www.youtube.com/channel/UCtLdqOzwMJp1LMBJ3jj63AA",
+            "platform": "youtube",
+            "at": "2026-08-09",
+            "note": "Akron post-nu-metal; identity proven via discography match (CDBaby channel)"
+          }
         },
         {
           "slot": "3:00 PM",
@@ -1020,7 +1446,13 @@
         {
           "slot": "12:00 PM",
           "name": "Bewarewolves",
-          "genre": "Hard Rock, Shoegaze"
+          "genre": "Hard Rock, Shoegaze",
+          "link": {
+            "url": "https://bewarewolves.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Akron/Kent post-punk, ACRN interview"
+          }
         },
         {
           "slot": "2:00 PM",
@@ -1030,7 +1462,13 @@
         {
           "slot": "4:00 PM",
           "name": "Empty Coats",
-          "genre": "Indy Rock"
+          "genre": "Indy Rock",
+          "link": {
+            "url": "https://emptycoats.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Akron indie/folk band"
+          }
         },
         {
           "slot": "6:00 PM",
@@ -1061,7 +1499,13 @@
         {
           "slot": "1:00 PM",
           "name": "Soulshine",
-          "genre": "Blues/Rock"
+          "genre": "Blues/Rock",
+          "link": {
+            "url": "https://www.reverbnation.com/soulshineakron",
+            "platform": "website",
+            "at": "2026-08-09",
+            "note": "ReverbNation: SOULSHINE, rock from Akron OH"
+          }
         },
         {
           "slot": "3:00 PM",
@@ -1093,12 +1537,24 @@
         {
           "slot": "12:00 PM",
           "name": "Braininavat",
-          "genre": "Screamo"
+          "genre": "Screamo",
+          "link": {
+            "url": "https://braininavat1.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Ohio screamo with ex-CityCop (Akron) members"
+          }
         },
         {
           "slot": "2:00 PM",
           "name": "Glass Bones",
-          "genre": "Alternative"
+          "genre": "Alternative",
+          "link": {
+            "url": "https://glassbonestheband.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Akron alternative (formerly CityCop); handle matches socials"
+          }
         },
         {
           "slot": "4:00 PM",
@@ -1108,7 +1564,13 @@
         {
           "slot": "6:00 PM",
           "name": "Ghost Slime",
-          "genre": "Slime Rock"
+          "genre": "Slime Rock",
+          "link": {
+            "url": "https://ghostslime.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Album recorded at It's A Kling Thing House (Akron); IG lists Akron"
+          }
         }
       ]
     },
@@ -1129,22 +1591,46 @@
         {
           "slot": "11:00 AM",
           "name": "Alina Remains",
-          "genre": "Singer Songwriter"
+          "genre": "Singer Songwriter",
+          "link": {
+            "url": "https://alinaremains.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "NE Ohio project of Katalina Lynch, Flowerpot Records"
+          }
         },
         {
           "slot": "1:00 PM",
           "name": "Ashley Gulla",
-          "genre": "Indie-Pop/Americana"
+          "genre": "Indie-Pop/Americana",
+          "link": {
+            "url": "https://www.facebook.com/ashleyonline/",
+            "platform": "facebook",
+            "at": "2026-08-09",
+            "note": "Cleveland folk/pop singer, Rialto Emerging Sounds 2026"
+          }
         },
         {
           "slot": "3:00 PM",
           "name": "Dany Elias",
-          "genre": "Rap, Pop, Rock"
+          "genre": "Rap, Pop, Rock",
+          "link": {
+            "url": "https://open.spotify.com/artist/3C4qRsaIcotSDMXMV6CIun",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Akron-born rapper/producer; SoundCloud elias-330 corroborates"
+          }
         },
         {
           "slot": "5:00 PM",
           "name": "Ashley Brooke Toussant",
-          "genre": "Atmospheric Folk"
+          "genre": "Atmospheric Folk",
+          "link": {
+            "url": "https://open.spotify.com/artist/1BlLhOiGvH2TnMqFW35N6q",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Canton/Kent folk singer-songwriter, Ideastream coverage"
+          }
         }
       ]
     },
@@ -1179,7 +1665,13 @@
         {
           "slot": "6:00 PM",
           "name": "Chanilla",
-          "genre": "Pop, Indie-Pop"
+          "genre": "Pop, Indie-Pop",
+          "link": {
+            "url": "https://open.spotify.com/artist/3H6FQS6uvNCfBNwimCvIM3",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Distinctive name; pop/indie-pop matches billing"
+          }
         }
       ]
     },
@@ -1200,7 +1692,13 @@
         {
           "slot": "11:00 AM",
           "name": "Frog Books",
-          "genre": "Rock/Ambient/Country"
+          "genre": "Rock/Ambient/Country",
+          "link": {
+            "url": "https://thefrogbooks.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Bandcamp located Akron, Ohio"
+          }
         },
         {
           "slot": "1:00 PM",
@@ -1215,7 +1713,13 @@
         {
           "slot": "5:00 PM",
           "name": "Daniel Drouhard",
-          "genre": "Rock, Alternative"
+          "genre": "Rock, Alternative",
+          "link": {
+            "url": "https://danieldrouhardmusic.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Akron indie rock/alternative artist"
+          }
         }
       ]
     },
@@ -1240,17 +1744,35 @@
         {
           "slot": "2:00 PM",
           "name": "Librarians With Hickeys",
-          "genre": "Power Pop"
+          "genre": "Power Pop",
+          "link": {
+            "url": "https://open.spotify.com/artist/2lY34napIsVQrudKoxiSHq",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Akron power pop on Big Stir Records; distinctive name"
+          }
         },
         {
           "slot": "4:00 PM",
           "name": "Ataraxis",
-          "genre": "Alt Rock"
+          "genre": "Alt Rock",
+          "link": {
+            "url": "https://open.spotify.com/artist/1koZcg8lM2AVHPIRhR0qpc",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Akron alt-rock trio, PorchRokr 2025/2026"
+          }
         },
         {
           "slot": "6:00 PM",
           "name": "Boyd & The Monkeys",
-          "genre": "Punk Pop/Emo Punk Rock"
+          "genre": "Punk Pop/Emo Punk Rock",
+          "link": {
+            "url": "https://youtube.com/@boydandthemonkeys",
+            "platform": "youtube",
+            "at": "2026-08-09",
+            "note": "From official linktr.ee/boydandthemonkeys; Akron pop-punk"
+          }
         }
       ]
     },
@@ -1275,17 +1797,35 @@
         {
           "slot": "1:00 PM",
           "name": "Shame Chamber",
-          "genre": "Post Hardcore"
+          "genre": "Post Hardcore",
+          "link": {
+            "url": "https://shamechamber.bandcamp.com",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "John King (Canton OH); PorchRokr 2024/2025 appearances"
+          }
         },
         {
           "slot": "3:00 PM",
           "name": "Damnagedkids",
-          "genre": "Hip Hop"
+          "genre": "Hip Hop",
+          "link": {
+            "url": "https://open.spotify.com/artist/488I2yFU9XPEsaKuBSt01u",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "On 2026 lineup; headlines Grog Shop (NE Ohio)"
+          }
         },
         {
           "slot": "5:00 PM",
           "name": "Wednesday Demonstration",
-          "genre": "Punk Rock"
+          "genre": "Punk Rock",
+          "link": {
+            "url": "https://open.spotify.com/artist/4UflarXFEswvsxfpEfwXWN",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "NE Ohio political punk; MusicBrainz links this Spotify"
+          }
         }
       ]
     },
@@ -1305,12 +1845,24 @@
         {
           "slot": "12:00 PM",
           "name": "Velocity Stax",
-          "genre": "Rockabilly"
+          "genre": "Rockabilly",
+          "link": {
+            "url": "https://velocitystax.bandcamp.com",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Bandcamp location Akron; original rockabilly from the Rubber City"
+          }
         },
         {
           "slot": "2:00 PM",
           "name": "Bad Hooks",
-          "genre": "Alt, Blues, Rock"
+          "genre": "Alt, Blues, Rock",
+          "link": {
+            "url": "https://open.spotify.com/artist/5nv2eBJ6cPGyGMvNYXFXgg",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Cleveland rock/blues quartet, 91.3 The Summit favorite"
+          }
         },
         {
           "slot": "4:00 PM",
@@ -1320,7 +1872,13 @@
         {
           "slot": "6:00 PM",
           "name": "Van Arlo",
-          "genre": "Americana/Indie Rock"
+          "genre": "Americana/Indie Rock",
+          "link": {
+            "url": "https://open.spotify.com/artist/1DmWhmN0pFhD4a0BIALEvy",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Akron act (Civic, Rialto); Bandsintown links Spotify + vanarlo.com"
+          }
         }
       ]
     },
@@ -1340,7 +1898,13 @@
         {
           "slot": "11:00 AM",
           "name": "Da Land Brass Band",
-          "genre": "Brass Band, Jazz"
+          "genre": "Brass Band, Jazz",
+          "link": {
+            "url": "https://open.spotify.com/artist/15xfopsaCgxbw7I4RqrXmE",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Cleveland brass band, prior PorchRokr appearance"
+          }
         },
         {
           "slot": "1:00 PM",
@@ -1350,12 +1914,24 @@
         {
           "slot": "3:00 PM",
           "name": "Twin Atomic",
-          "genre": "Rock"
+          "genre": "Rock",
+          "link": {
+            "url": "https://twinatomic.bandcamp.com",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Akron rock band; twinatomic.com corroborates"
+          }
         },
         {
           "slot": "5:00 PM",
           "name": "12 O'clock Tribe",
-          "genre": "Reggae"
+          "genre": "Reggae",
+          "link": {
+            "url": "https://open.spotify.com/artist/4CzpNCRyXnqAiDCPJ1tGxj",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Akron six-piece reggae collective; FB/Bandcamp corroborate"
+          }
         }
       ]
     },
@@ -1374,12 +1950,24 @@
         {
           "slot": "12:00 PM",
           "name": "Empty Kodiak",
-          "genre": "Indie Rock"
+          "genre": "Indie Rock",
+          "link": {
+            "url": "https://open.spotify.com/artist/6Vav9zeagAFiTJP0ut7WKK",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "From band's own smart link (nfan.link/empty-kodiak); Cleveland shoegaze"
+          }
         },
         {
           "slot": "2:00 PM",
           "name": "Matthew Alec & The Soul Electric",
-          "genre": "Jazz Fusion"
+          "genre": "Jazz Fusion",
+          "link": {
+            "url": "https://www.youtube.com/c/matthewalec",
+            "platform": "youtube",
+            "at": "2026-08-09",
+            "note": "From matthewalec.com; album 'Bad Rep, Rubber City'"
+          }
         },
         {
           "slot": "4:00 PM",
@@ -1413,12 +2001,24 @@
         {
           "slot": "1:00 PM",
           "name": "Steel Academy Steel Drum Band",
-          "genre": "Multi-Genres"
+          "genre": "Multi-Genres",
+          "link": {
+            "url": "https://www.steelacademyedu.org",
+            "platform": "website",
+            "at": "2026-08-09",
+            "note": "Akron arts charter school; site is the band's home"
+          }
         },
         {
           "slot": "3:00 PM",
           "name": "Tyler Bohinc",
-          "genre": "Bluegrass"
+          "genre": "Bluegrass",
+          "link": {
+            "url": "https://tylerbohinc.bandcamp.com",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Akron folk/bluegrass; tylerbohinc.com, 'Rubber City Blues'"
+          }
         },
         {
           "slot": "5:00 PM",
@@ -1445,7 +2045,13 @@
         {
           "slot": "12:00 PM",
           "name": "Craig Rich",
-          "genre": "Alt. Psych-Rock, Dream Pop"
+          "genre": "Alt. Psych-Rock, Dream Pop",
+          "link": {
+            "url": "https://craigrichmusic.bandcamp.com/",
+            "platform": "bandcamp",
+            "at": "2026-08-09",
+            "note": "Bandcamp bio matches alt-rock/dream-pop billing; PorchRokr 2024/2026"
+          }
         },
         {
           "slot": "2:00 PM",
@@ -1455,7 +2061,13 @@
         {
           "slot": "4:00 PM",
           "name": "Mick & Rick",
-          "genre": "Classic Rock, Soul & Blues"
+          "genre": "Classic Rock, Soul & Blues",
+          "link": {
+            "url": "https://www.youtube.com/mickandrickband",
+            "platform": "youtube",
+            "at": "2026-08-09",
+            "note": "From mickandrickband.com; site lists PorchRokr performances"
+          }
         },
         {
           "slot": "6:00 PM",
@@ -1476,7 +2088,13 @@
           "slot": "7:30 PM",
           "name": "Rent for Cheryl",
           "genre": "rock",
-          "headliner": true
+          "headliner": true,
+          "link": {
+            "url": "https://open.spotify.com/artist/0wSPv8e8dKlDkCkbuFvPgK",
+            "platform": "spotify",
+            "at": "2026-08-09",
+            "note": "Akron/Cleveland five-piece; 2026 PorchRokr headliner"
+          }
         }
       ]
     },

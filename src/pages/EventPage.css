@@ -191,6 +191,11 @@
 .event-detail-desc p:last-child {
   margin-bottom: 0;
 }
+.event-detail-desc a {
+  /* Bare linkified URLs (e.g. "Listen: https://…") can be very long single
+     tokens; let them break anywhere rather than overflow the column. */
+  overflow-wrap: anywhere;
+}
 .event-detail-list {
   font-size: var(--text-lg); line-height: 1.8;
   color: var(--text-secondary);
