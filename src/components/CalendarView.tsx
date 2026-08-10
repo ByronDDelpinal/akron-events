@@ -1,5 +1,5 @@
 import type { LooseRow } from '@/types'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { eventPath } from '@/lib/slug'
 import { gradientForEvent, treatmentCategory } from '@/lib/categories.js'

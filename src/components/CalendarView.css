@@ -92,6 +92,10 @@
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: var(--space-2xs);
+  /* pan-y keeps vertical page scrolling native while letting the horizontal
+     swipe handler in CalendarView.tsx page through weeks/months. Without it
+     the browser claims the horizontal gesture and the swipe never fires. */
+  touch-action: pan-y;
 }
 .cal-cell {
   min-height: 116px;
