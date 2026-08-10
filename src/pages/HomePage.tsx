@@ -372,38 +372,49 @@ export default function HomePage() {
 
       {/* ── BROWSING SURFACE (shared with the embed) ── */}
       {/* Festival banner (single-column GridPromo variant) rides on top of
-          the mid-grid callout so the promo slot stays one interruption. */}
+          the mid-grid callout so the promo slot stays one interruption.
+          Density gating lives HERE, not in EventsBrowser: the festival
+          banner shows in both comfortable and efficient (compact) grids,
+          while the evergreen GridPromo stays comfortable-only. When neither
+          applies (efficient, no festival) no callback is passed, so the
+          grid gets no empty promo cell. The end slot mirrors the GridPromo
+          rule: comfortable-only, nothing in efficient — the banner appears
+          once, in the mid slot. */}
       <div ref={resultsRef}>
         <EventsBrowser
           filters={filters}
           view={view}            onView={setView}
           density={cardViewMode} onDensity={handleCardViewMode}
-          renderPromoMid={() => (
-            <>
-              {bannerFestival && (
-                <div className="grid-promo grid-promo--festival">
-                  <div className="grid-promo-inner">
-                    <div className="grid-promo-col">
-                      <span className="grid-promo-icon">🎪</span>
-                      <div className="grid-promo-text">
-                        <strong>{bannerFestival.name} is {festivalDayLabel(bannerFestival.dateKey)}.</strong>
-                        <p>Browse the full schedule and plan your day.</p>
+          renderPromoMid={
+            (bannerFestival || cardViewMode === 'comfortable')
+              ? () => (
+                  <>
+                    {bannerFestival && (
+                      <div className="grid-promo grid-promo--festival">
+                        <div className="grid-promo-inner">
+                          <div className="grid-promo-col">
+                            <span className="grid-promo-icon">🎪</span>
+                            <div className="grid-promo-text">
+                              <strong>{bannerFestival.name} is {festivalDayLabel(bannerFestival.dateKey)}.</strong>
+                              <p>Browse the full schedule and plan your day.</p>
+                            </div>
+                            <Link
+                              to={`/festival/${bannerFestival.slug}`}
+                              className="grid-promo-btn"
+                              onClick={() => trackEvent(EVENTS.SELECT_CONTENT, { content_type: 'festival_banner', item_id: bannerFestival.slug })}
+                            >
+                              See the festival hub →
+                            </Link>
+                          </div>
+                        </div>
                       </div>
-                      <Link
-                        to={`/festival/${bannerFestival.slug}`}
-                        className="grid-promo-btn"
-                        onClick={() => trackEvent(EVENTS.SELECT_CONTENT, { content_type: 'festival_banner', item_id: bannerFestival.slug })}
-                      >
-                        See the festival hub →
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              )}
-              <GridPromo />
-            </>
-          )}
-          renderPromoEnd={() => <GridPromo />}
+                    )}
+                    {cardViewMode === 'comfortable' && <GridPromo />}
+                  </>
+                )
+              : undefined
+          }
+          renderPromoEnd={cardViewMode === 'comfortable' ? () => <GridPromo /> : undefined}
           onFirstPageLoad={handleFirstPageLoad}
           onItemsChange={handleItemsChange}
         />

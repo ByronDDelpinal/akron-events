@@ -17,6 +17,7 @@ import { format } from 'date-fns'
 export interface GroupableEvent {
   source?: string | null
   start_at: string
+  featured?: boolean | null
   [key: string]: unknown
 }
 
@@ -131,6 +132,31 @@ export function applySourceCap<E extends GroupableEvent>(
   }
 
   return items
+}
+
+/**
+ * sortFeaturedFirst(dayEvents)
+ *
+ * Within one day group, every featured event orders ahead of every
+ * non-featured event. The partition is stable: featured events keep
+ * their existing (start_at) order among themselves, and non-featured
+ * events keep theirs. Days with no featured events return the SAME
+ * array reference, so downstream memoization and rendering are
+ * untouched on the common path.
+ *
+ * This runs where the day-grouped list is derived — before the
+ * source-cap overflow pass and before promo-injection math — so a
+ * featured event is naturally card 0 of its day.
+ */
+export function sortFeaturedFirst<E extends GroupableEvent>(dayEvents: E[]): E[] {
+  const featured: E[] = []
+  const rest: E[] = []
+  for (const ev of dayEvents) {
+    if (ev.featured) featured.push(ev)
+    else rest.push(ev)
+  }
+  if (featured.length === 0) return dayEvents
+  return [...featured, ...rest]
 }
 
 /**

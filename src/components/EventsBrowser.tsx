@@ -10,7 +10,7 @@ import MapView from '@/components/MapView'
 import CalendarView from '@/components/CalendarView'
 import SourceOverflowCard from '@/components/SourceOverflowCard'
 import DateHeading from '@/components/DateHeading'
-import { groupEventsByDate, applySourceCap } from '@/lib/eventGrouping'
+import { groupEventsByDate, applySourceCap, sortFeaturedFirst } from '@/lib/eventGrouping'
 import { useSearchReporting } from '@/hooks/useSearchReporting'
 // Grid / list / load-more styles live in HomePage.css (global, deduped by Vite).
 import '@/pages/HomePage.css'
@@ -182,7 +182,18 @@ export default function EventsBrowser({
     }
   }, [allEvents.length, onFirstPageLoad])
 
-  const grouped = useMemo(() => groupEventsByDate(allEvents), [allEvents])
+  // Day groups, with featured events sorted to the front of their day
+  // (stable: featured keep start_at order among themselves, non-featured
+  // keep theirs). Applied here — where the day-grouped list is derived —
+  // so it happens before the source-cap pass and promo-injection math.
+  // Days without featured events pass through as the same array.
+  const grouped = useMemo(
+    () =>
+      groupEventsByDate(allEvents).map(
+        ([dateKey, dayEvents]) => [dateKey, sortFeaturedFirst(dayEvents)] as [string, AppEvent[]],
+      ),
+    [allEvents],
+  )
 
   // ── Source overflow expansion state (keys: `${dateKey}-${source}`) ────
   const [expandedSources, setExpandedSources] = useState<Set<string>>(() => new Set())
@@ -320,8 +331,8 @@ export default function EventsBrowser({
           {(() => {
             let cardIdx = 0
             let midPromoShown = false
-            const midThreshold = getMidPromoThreshold()
-            const gridCols = getGridColumns()
+            const midThreshold = getMidPromoThreshold(isEfficient)
+            const gridCols = getGridColumns(isEfficient)
             return grouped.map(([dateKey, dayEvents]) => {
               const cappedItems = applySourceCap(dayEvents, expandedSources, dateKey)
               const gridItems: ReactNode[] = []
@@ -344,9 +355,13 @@ export default function EventsBrowser({
                 const event = item.event
                 const isFeatured = Boolean(event.featured) && dayCardIdx === 0
 
+                // Density is the CALLER's decision: renderPromoMid runs in
+                // both comfortable and efficient grids (the promo cell spans
+                // all columns via .cards-grid-promo). Callers that want a
+                // density-gated promo pass undefined (or render nothing) for
+                // the density they want to skip.
                 if (
                   renderPromoMid &&
-                  !isEfficient &&
                   !midPromoShown &&
                   cardIdx >= midThreshold &&
                   gridItems.length % gridCols === 0
@@ -389,7 +404,7 @@ export default function EventsBrowser({
           })()}
 
           {/* End-of-grid promo — only when there's enough content to earn it */}
-          {renderPromoEnd && allEvents.length >= getMidPromoThreshold() && !hasMore && renderPromoEnd()}
+          {renderPromoEnd && allEvents.length >= getMidPromoThreshold(isEfficient) && !hasMore && renderPromoEnd()}
 
           {/* Infinite-scroll sentinel + end-of-list marker. */}
           {allEvents.length > 0 && (
@@ -416,14 +431,19 @@ export default function EventsBrowser({
 }
 
 // Column count for the comfortable cards-grid — kept in sync with EventCard.css.
-function getGridColumns(): number {
+/** Column count must mirror the active grid's CSS: .cards-grid (3/2/1) or
+ *  .cards-grid--efficient (4/2/2, EventCard.css). The mid-promo insertion
+ *  point aligns to row boundaries, so using the wrong density's count leaves
+ *  an empty slot above the full-width promo cell. */
+function getGridColumns(efficient: boolean): number {
   const w = window.innerWidth
+  if (efficient) return w >= 900 ? 4 : 2
   if (w >= 900) return 3
   if (w >= 600) return 2
   return 1
 }
 
 // Inject the mid promo after ~3 rows; threshold scales with column count.
-function getMidPromoThreshold(): number {
-  return getGridColumns() * 3
+function getMidPromoThreshold(efficient: boolean): number {
+  return getGridColumns(efficient) * 3
 }
