@@ -94,6 +94,16 @@ export function raceTags(detail) {
 }
 
 /**
+ * The Akron Pride Festival 5K is Akron Pride's own race (akronpridefestival.org).
+ * It's owned by scrape-akron-pride.js so it sits under the Akron Pride umbrella —
+ * we cede it here rather than crediting the City Series aggregator. Exported for
+ * tests. Matches "Akron Pride 5K" / "Akron Pride Festival 5K".
+ */
+export function isCededRace(title) {
+  return /\bakron\s+pride\b/i.test(String(title || ''))
+}
+
+/**
  * Parse the "Upcoming Races" cards out of the City Series HTML.
  * @returns {object[]} — { title, startIso, imageUrl, ticketUrl, description, detail }
  */
@@ -108,6 +118,7 @@ export function parseRaces(html, origin = ORIGIN) {
     const dateText = (card.match(/<div[^>]*class="date"[^>]*>([\s\S]*?)<\/div>/i)?.[1] || '')
       .replace(/<[^>]*>/g, '').trim()
     if (!title || !dateText) continue
+    if (isCededRace(title)) continue   // Akron Pride owns its 5K (Pride umbrella)
 
     const dt = parsePromiseDate(dateText)
     if (!dt) continue

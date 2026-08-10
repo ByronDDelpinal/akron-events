@@ -10,7 +10,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-const { parsePromiseDate, fullImage, raceTags, parseRaces, SOURCE_KEY } =
+const { parsePromiseDate, fullImage, raceTags, parseRaces, isCededRace, SOURCE_KEY } =
   await import('../scrape-akron-promise.js')
 
 describe('parsePromiseDate', () => {
@@ -71,6 +71,14 @@ const HTML = `
       Finisher Medal, Wheel Racers Welcome<br>Registration and Date Confirmation Pending
     </div>
   </div></div>
+  <div class="item"><div class="wrap">
+    <div class="image"></div>
+    <div class="text">
+      <h3>Akron Pride 5K</h3>
+      <div class="date">8/21/26 6:30 PM</div>
+      Dog Friendly<a href="https://akronpridefestival.org/2026-akron-pride-festival-5k/" class="btn" target="_blank">Register Now</a>
+    </div>
+  </div></div>
 </main>
 <footer><h3>Join Our Newsletter</h3></footer>
 `
@@ -78,10 +86,11 @@ const HTML = `
 describe('parseRaces', () => {
   const races = parseRaces(HTML)
 
-  it('parses every race card and ignores footer headings', () => {
-    assert.equal(races.length, 2)
+  it('parses every race card, ignores footer headings, and cedes the Akron Pride 5K', () => {
+    assert.equal(races.length, 2) // Heron + Tread; the Akron Pride 5K is ceded to akron_pride
     assert.equal(races[0].title, 'Flight of the Heron 5K')
     assert.equal(races[1].title, 'Tread Together 5K (Date TBD)')
+    assert.ok(!races.some((r) => /pride/i.test(r.title)))
   })
 
   it('builds correct start times (8:00 AM EDT → 12:00Z)', () => {
@@ -100,6 +109,17 @@ describe('parseRaces', () => {
     assert.equal(races[1].imageUrl, null)
     assert.equal(races[1].ticketUrl, null)
     assert.match(races[1].description, /Registration and Date Confirmation Pending/)
+  })
+})
+
+describe('isCededRace', () => {
+  it('cedes the Akron Pride 5K (owned by akron_pride, under the Pride umbrella)', () => {
+    assert.equal(isCededRace('Akron Pride 5K'), true)
+    assert.equal(isCededRace('2026 Akron Pride Festival 5K'), true)
+  })
+  it('keeps the other City Series races', () => {
+    assert.equal(isCededRace('Flight of the Heron 5K'), false)
+    assert.equal(isCededRace('Tread Together 5K (Date TBD)'), false)
   })
 })
 
