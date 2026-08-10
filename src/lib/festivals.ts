@@ -68,6 +68,21 @@ export const FESTIVALS: Festival[] = [
     website: 'https://www.highlandsquareakron.org/',
     venueNamePrefix: 'PorchRokr ',
   },
+  {
+    slug: 'akron-pride-2026',
+    // Short display name on purpose: hub title and banner copy read
+    // "{name} is Saturday." The umbrella event keeps the full official
+    // title ("Akron Pride Festival and Equity March 2026").
+    name: 'Akron Pride Festival',
+    dateKey: '2026-08-22',
+    tag: 'akron-pride-2026',
+    // Downtown Akron / Main St corridor seed box (camera fallback only;
+    // pins drive fitBounds once the lineup lands).
+    mapBounds: [-81.532, 41.072, -81.51, 41.09],
+    // Populated once stage coordinates are confirmed; empty on purpose.
+    landmarks: [],
+    website: 'https://akronpridefestival.org/',
+  },
 ]
 
 export function festivalBySlug(slug: string | undefined): Festival | null {
