@@ -116,6 +116,34 @@ export default function CalendarView({
     setSelected(null)
     setCursor(mode === 'month' ? new Date(today.getFullYear(), today.getMonth(), 1) : new Date())
   }
+
+  // ── Swipe the day grid to page through dates ──
+  // Observed 2026-08-09: a visitor on a phone tried to swipe the week strip
+  // and nothing happened, because paging lived only in the ‹ › buttons. On
+  // touch, dragging a row of dates is the expected way to move through them.
+  //
+  // Horizontal intent is required (|dx| must beat |dy|) so this never steals a
+  // vertical page scroll, and the gesture is ignored below SWIPE_MIN_PX so a
+  // slightly-imprecise TAP on a day cell still selects that day rather than
+  // paging. Backwards is gated on canPrev for the same reason the ‹ button is
+  // disabled: there is nothing but past events behind us.
+  const SWIPE_MIN_PX = 48
+  const swipeStart = useRef<{ x: number; y: number } | null>(null)
+
+  const onGridPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === 'mouse') return // mouse users have the ‹ › buttons
+    swipeStart.current = { x: e.clientX, y: e.clientY }
+  }
+  const onGridPointerEnd = (e: React.PointerEvent) => {
+    const start = swipeStart.current
+    swipeStart.current = null
+    if (!start) return
+    const dx = e.clientX - start.x
+    const dy = e.clientY - start.y
+    if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) <= Math.abs(dy)) return
+    if (dx < 0) step(1)
+    else if (canPrev) step(-1)
+  }
   function changeMode(m: Mode) {
     setSelected(null)
     setMode(m)
@@ -215,7 +243,13 @@ export default function CalendarView({
       )}
 
       {mode !== 'day' && (
-        <div className={`cal-grid${mode === 'week' ? ' cal-grid--week' : ''}`} role="grid">
+        <div
+          className={`cal-grid${mode === 'week' ? ' cal-grid--week' : ''}`}
+          role="grid"
+          onPointerDown={onGridPointerDown}
+          onPointerUp={onGridPointerEnd}
+          onPointerCancel={() => { swipeStart.current = null }}
+        >
           {gridCells.map(({ date, key, inMonth }) => {
             const evs = byDay.get(key) ?? []
             const isToday = key === todayKey

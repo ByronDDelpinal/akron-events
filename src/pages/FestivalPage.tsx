@@ -232,7 +232,7 @@ export default function FestivalPage() {
     <div className="page-festival">
       <SEO
         title={`${festival.name} — schedule & lineup`}
-        description={`Full ${festival.name} schedule: every set, stage, and porch, with times and locations.`}
+        description={`Full ${festival.name} schedule: every performance, stage, and location, with times and a map.`}
         path={`/festival/${festival.slug}`}
         image={umbrella?.image_url || undefined}
       />
@@ -318,7 +318,7 @@ export default function FestivalPage() {
           </>
         ) : (
           <p className="festival-plan-cta-text">
-            Tap + Plan on any set below to build your own {festival.name} schedule.
+            Tap + Plan on anything below to build your own {festival.name} schedule.
           </p>
         )}
       </div>
@@ -347,7 +347,7 @@ export default function FestivalPage() {
       {loading && <p className="festival-status-line">Loading schedule…</p>}
       {error && <p className="festival-status-line">Could not load the schedule. Please try again.</p>}
       {!loading && !error && schedule.slots.length === 0 && (
-        <p className="festival-status-line">The set-by-set schedule hasn&apos;t been published yet — check back soon.</p>
+        <p className="festival-status-line">The full schedule hasn&apos;t been published yet. Check back soon.</p>
       )}
 
       {/* ── Time-major schedule — shared compact-view components ── */}

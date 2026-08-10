@@ -291,11 +291,11 @@ export default function EventPage() {
             ) : null}
 
             {/* Festival hub cross-link — the umbrella row is the SEO/share
-                landing surface; this hands visitors on to the set-by-set
+                landing surface; this hands visitors on to the full
                 schedule at /festival/:slug. */}
             {festivalHub && (
               <Link to={`/festival/${festivalHub.slug}`} className="btn-ticket-family">
-                See the full set-by-set schedule and plan your day
+                See the full festival schedule and plan your day
               </Link>
             )}
 

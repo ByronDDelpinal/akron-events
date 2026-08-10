@@ -46,10 +46,12 @@ function timeLabel(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
 
-/** Popup subline: "8 sets, 11:00 AM to 7:00 PM" (single time when the
- *  venue's sets all start together). Copy rule: no em dashes. */
+/** Popup subline: "8 performances, 11:00 AM to 7:00 PM" (single time when
+ *  everything at the venue starts together). "Performance" over "set": not
+ *  every festival act plays a set (Byron 2026-08-09). Copy rule: no em
+ *  dashes. */
 function setsLine(pin: FestivalMapPin): string {
-  const count = `${pin.setCount} ${pin.setCount === 1 ? 'set' : 'sets'}`
+  const count = `${pin.setCount} ${pin.setCount === 1 ? 'performance' : 'performances'}`
   const first = timeLabel(pin.firstStartAt)
   const last = timeLabel(pin.lastStartAt)
   return first === last ? `${count}, ${first}` : `${count}, ${first} to ${last}`
