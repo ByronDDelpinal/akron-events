@@ -24,7 +24,21 @@ import {
   useEndDatePart,
   easternLocalToUtcIso,
   isEDT,
+  isFirstPartyOwnedTitle,
 } from '../scrape-visit-akron-cvb.js'
+
+describe('isFirstPartyOwnedTitle', () => {
+  it('cedes Akron Pride events to the first-party akron_pride scraper', () => {
+    assert.equal(isFirstPartyOwnedTitle('Akron Pride March & Festival'), true)
+    assert.equal(isFirstPartyOwnedTitle('Akron Pride Festival and Equity March 2026'), true)
+    assert.equal(isFirstPartyOwnedTitle('2026 Akron Pride Festival 5K'), true)
+  })
+  it('leaves unrelated CVB events alone', () => {
+    assert.equal(isFirstPartyOwnedTitle('Roast Battle Cleveland'), false)
+    assert.equal(isFirstPartyOwnedTitle('Downtown Art Walk'), false)
+    assert.equal(isFirstPartyOwnedTitle(''), false)
+  })
+})
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 

@@ -468,6 +468,27 @@ function normalizeCvbTitle(raw) {
   return t
 }
 
+// ── First-party suppression ──────────────────────────────────────────────────
+//
+// Visit Akron is a tourism aggregator: it re-lists events that a first-party
+// scraper already owns. When the CVB title diverges from the official one, the
+// cross-source dedupe misses the pair and both go live — e.g. CVB's "Akron Pride
+// March & Festival" shadowed akron_pride's "Akron Pride Festival and Equity
+// March 2026". We cede those events to the first-party source at ingest (same
+// approach as the downtown_akron aggregator suppression), so the canonical
+// record is the only one that survives a re-scrape.
+const FIRST_PARTY_OWNED_TITLE_PATTERNS = [
+  { pattern: /\bakron\s+pride\b/i, scraper: 'akron_pride' },
+]
+
+/**
+ * True when a CVB title belongs to a first-party scraper and should be ceded
+ * (not ingested by the aggregator). Exported for tests.
+ */
+export function isFirstPartyOwnedTitle(title) {
+  return FIRST_PARTY_OWNED_TITLE_PATTERNS.some((p) => p.pattern.test(String(title || '')))
+}
+
 // ── Process ────────────────────────────────────────────────────────────────
 
 async function processEvents(docs) {
@@ -477,6 +498,14 @@ async function processEvents(docs) {
     try {
       const title = normalizeCvbTitle(doc.cms_title || doc.title || '')
       if (!title || title.length < 3) { skipped++; continue }
+
+      // Cede events owned by a first-party scraper (e.g. Akron Pride → akron_pride)
+      // so this aggregator's copy never shadows the canonical record.
+      if (isFirstPartyOwnedTitle(title)) {
+        console.log(`  ⤷ Ceding "${title}" to a first-party scraper`)
+        skipped++
+        continue
+      }
 
       const { start_at, end_at } = buildStartEnd(doc)
       if (!start_at) { skipped++; continue }
