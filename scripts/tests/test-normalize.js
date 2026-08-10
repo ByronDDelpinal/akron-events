@@ -198,6 +198,10 @@ describe('canonicalVenueName', () => {
     assert.equal(canonicalVenueName('The Nightlight'), 'The Nightlight Cinema')
     assert.equal(canonicalVenueName('The Akron RubberDucks Duck Club'), '7 17 Credit Union Park')
     assert.equal(canonicalVenueName('The Duck Club by Firestone at 7 17 Credit Union Park'), '7 17 Credit Union Park')
+    assert.equal(canonicalVenueName('The Cummings Center for the History of Psychology'), 'Cummings Center for the History of Psychology')
+    assert.equal(canonicalVenueName('The University of Akron: The National Museum of Psychology'), 'Cummings Center for the History of Psychology')
+    assert.equal(canonicalVenueName('National Museum of Psychology'), 'Cummings Center for the History of Psychology')
+    assert.equal(canonicalVenueName('The National Museum of Psychology'), 'Cummings Center for the History of Psychology')
   })
   it('returns the input unchanged for unknown names', () => {
     assert.equal(canonicalVenueName('Akron Civic Theatre'), 'Akron Civic Theatre')

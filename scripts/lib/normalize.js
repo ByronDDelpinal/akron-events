@@ -1135,6 +1135,15 @@ const VENUE_NAME_ALIASES = new Map([
   ['the akron rubberducks duck club',                      '7 17 Credit Union Park'],
   ['the duck club by firestone at 7 17 credit union park', '7 17 Credit Union Park'],
   ['the duck club',                                        '7 17 Credit Union Park'],
+  // The National Museum of Psychology lives inside the Cummings Center at
+  // 73 S College St — uakron feeds name the building, the museum, or either
+  // with a "The University of Akron:" prefix, which minted two extra venue
+  // rows (merged 2026-08-10, partner-confirmed). Fold every spelling onto the
+  // canonical Cummings Center row so the split can't reappear on re-scrape.
+  ['the cummings center for the history of psychology',        'Cummings Center for the History of Psychology'],
+  ['the university of akron: the national museum of psychology', 'Cummings Center for the History of Psychology'],
+  ['national museum of psychology',                            'Cummings Center for the History of Psychology'],
+  ['the national museum of psychology',                        'Cummings Center for the History of Psychology'],
 ])
 
 /**
