@@ -30,6 +30,10 @@ import {
   easternToIso,
   easternTodayIso,
 } from './lib/normalize.js'
+// The date-only default-time disclosure lives in lib/ics.js next to the other
+// consumers of the same product decision. DAP is not an ICS feed, but the note
+// string is what the digest matches on, so it is shared rather than re-declared.
+import { withDateOnlyTimeNote } from './lib/ics.js'
 import { getPublishedEventsAtVenue, classifyAggregatorEvent } from './lib/source-tiers.js'
 
 const BASE_URL = 'https://www.downtownakron.com'
@@ -84,6 +88,45 @@ function parseTime(raw) {
   }
 
   return null
+}
+
+// SANCTIONED-DEFAULT-TIME
+// A DAP card that gives a date but no time div gets noon Eastern. That is
+// deliberate, not an oversight, and it is no longer an open question. The
+// alternatives were both rejected: a null start_at is not storable (every feed
+// orders and filters on it), and midnight — which this scraper used to emit
+// via easternToIso's empty-time branch — is actively harmful, because the
+// list, map, first-page, and digest feeds all filter `.gte('start_at', now())`
+// with no grace window. A midnight row matches at exactly 00:00:00 and then
+// drops out of the entire site from 00:00:01 ET on its own day, the one day it
+// matters. (useRelatedEvents is the lone exception, with a 3-hour grace
+// window; see src/hooks/useEvents.ts:548.) A mid-day default is what keeps a
+// timeless listing visible to the people it is for.
+//
+// The default must never be silent, so resolveStart reports whether the time
+// was invented; when it was, processEvents appends the shared disclosure
+// sentence to the description (withDateOnlyTimeNote) and flags the row
+// needs_review — the review queue is the only audit trail we have for an
+// invented time. Do not "fix" this back to midnight.
+const DATE_ONLY_DEFAULT_TIME = '12:00:00'
+
+/**
+ * Resolve a card's start instant, substituting DATE_ONLY_DEFAULT_TIME when the
+ * card carried no time at all.
+ *
+ * `timeSynthesized` is gated on the ABSENCE of a parsed time, never on the
+ * resulting timestamp: parseTime maps a literal "midnight" card to a real
+ * '00:00:00', and comparing the output against midnight would slap a false
+ * "no start time given" disclosure on a listing that plainly gave one.
+ *
+ * Returns `{ startAt, timeSynthesized }`; `startAt` is null when the date
+ * itself is unparseable, which the caller treats as a skip.
+ */
+function resolveStart(dateStr, timeStr) {
+  return {
+    startAt:         easternToIso(dateStr, timeStr ?? DATE_ONLY_DEFAULT_TIME),
+    timeSynthesized: timeStr == null,
+  }
 }
 
 /**
@@ -514,16 +557,11 @@ async function processEvents(events, organizerId) {
   for (const ev of events) {
     try {
       const venueId = await ensureVenueByName(ev.venueName)
-      // Timeless cards get midnight ET via easternToIso's empty-time branch.
-      // Known consequence: the list, map, first-page, and digest feeds filter
-      // .gte('start_at', now()) with no grace window, so a midnight row is
-      // still matched at exactly 00:00:00 but drops out of results from
-      // 00:00:01 ET on its own day (useRelatedEvents is an exception: it has
-      // a 3-hour grace window, see src/hooks/useEvents.ts:548). This is an
-      // OPEN QUESTION, not settled convention.
-      // See the SANCTIONED-DEFAULT-TIME grep marker in scrape-city-of-cuyahoga-falls.js,
-      // scrape-ohio-erie-canalway.js, and scrape-ohio-festivals.js; pending the maintainer's decision.
-      const startAt = easternToIso(ev.dateStr, ev.timeStr ?? '')
+      // Timeless cards get noon ET, disclosed and flagged — see the
+      // SANCTIONED-DEFAULT-TIME block above resolveStart for why midnight was
+      // rejected. Same marker in scrape-city-of-cuyahoga-falls.js,
+      // scrape-ohio-erie-canalway.js, and scrape-ohio-festivals.js.
+      const { startAt, timeSynthesized } = resolveStart(ev.dateStr, ev.timeStr)
       if (!startAt) { skipped++; continue }
 
       const atVenue = await venueEventsFor(venueId)
@@ -552,9 +590,17 @@ async function processEvents(events, organizerId) {
       }
       await new Promise((r) => setTimeout(r, 250)) // polite delay between detail pages
 
+      // The card carried no time, so noon was invented (see resolveStart).
+      // Say so in the description. A null/blank description gets no note by
+      // design — the sentence is a suffix to real prose, never a description
+      // in its own right — so those rows are covered by needs_review alone,
+      // same as the ICS path. The note is appended last so nothing that scores
+      // the source's own copy ever sees our boilerplate.
+      const storedDescription = timeSynthesized ? withDateOnlyTimeNote(description) : description
+
       const row = {
         title:           ev.title,
-        description,
+        description:     storedDescription,
         start_at:        startAt,
         end_at:          null,
         category:        parseCategory(ev.title),
@@ -568,9 +614,9 @@ async function processEvents(events, organizerId) {
         source_id:       ev.slug,
         status:          'published',
         featured:        false,
-        ...(needsReview ? { needs_review: true } : {}),
+        ...(needsReview || timeSynthesized ? { needs_review: true } : {}),
       }
-      if (needsReview) flaggedForReview++
+      if (needsReview || timeSynthesized) flaggedForReview++
 
       const enrichedRow = await enrichWithImageDimensions(row)
       const { data: upserted, error } = await upsertEventSafe(enrichedRow)
@@ -712,7 +758,7 @@ async function main() {
 }
 
 // Pure parsers exported for unit tests (no live run on import).
-export { parseCalendarHtml, parseTime, reconstructDate, directlyScrapedVenue, directlyScrapedTitle, crawlOutcome, partialCrawlNote }
+export { parseCalendarHtml, parseTime, reconstructDate, resolveStart, directlyScrapedVenue, directlyScrapedTitle, crawlOutcome, partialCrawlNote }
 
 // Run only when invoked directly (`node scripts/scrape-downtown-akron.js`); importing the module
 // for tests exposes the pure parsers without triggering a live run.

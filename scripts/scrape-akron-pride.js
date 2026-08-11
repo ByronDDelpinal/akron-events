@@ -10,12 +10,10 @@
  * (RFC 5545, TZID=America/New_York, structured LOCATION). We consume that via
  * the shared lib/ics.js runIcsScraper.
  *
- * Scope note: this feed carries Akron Pride's OWN events — the Festival & Equity
- * March and the Akron Pride Festival 5K. The 5K is Pride's race (its RunSignup
- * page is just the registration system), so Akron Pride is the correct
- * first-party owner and the 5K belongs under the Pride umbrella — NOT credited to
- * the City Series aggregator. scrape-akron-promise.js cedes it here (isCededRace),
- * so we ingest every event in the feed.
+ * Scope note: the org's "Akron Pride Festival 5K" is a RunSignup race that's
+ * already ingested by scrape-runsignup.js + scrape-akron-promise.js (City
+ * Series) — so we SKIP 5K events here (includeEvent) to avoid a triplicate, and
+ * own the unique events: the Festival & Equity March.
  *
  * Events Manager's iCal LOCATION is "Name, Street, City, State, Zip, Country";
  * parseEventsManagerLocation() splits it into a clean venue name + address so we
@@ -61,6 +59,11 @@ export function parseEventsManagerLocation(loc) {
   return { name, details: { address, city: city || 'Akron', state: state || 'OH', zip } }
 }
 
+/** Skip the 5K race (owned by runsignup + akron_promise). */
+export function includeEvent(ev) {
+  return !/\b5k\b/i.test(ev?.SUMMARY || '')
+}
+
 export function mapTags() {
   return ['pride', 'lgbtq', 'festival', 'downtown-akron', 'community']
 }
@@ -74,6 +77,7 @@ async function main() {
       website: 'https://akronpridefestival.org',
       description: 'Akron Pride Festival unifies and affirms the LGBTQ+ community and its allies, celebrating diversity year-round and producing the annual Akron Pride Festival & Equity March in downtown Akron.',
     },
+    includeEvent,
     parseLocation: parseEventsManagerLocation,
     mapCategory: () => 'festival',
     mapTags,

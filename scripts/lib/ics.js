@@ -168,10 +168,17 @@ function isBareIcsDate(rawValue) {
 // site at 00:00:01 on the very morning it happens — the one day it matters.
 // A mid-day default is what keeps it visible to the people it is for.
 //
-// This is the same product decision already carried by four non-ICS scrapers
-// (scrape-city-of-cuyahoga-falls.js, scrape-downtown-akron.js,
-// scrape-ohio-erie-canalway.js, scrape-ohio-festivals.js). None of them route
-// through this module, so there is no double-apply.
+// This is the same product decision carried by six non-ICS scrapers:
+// scrape-city-of-cuyahoga-falls.js, scrape-downtown-akron.js,
+// scrape-ohio-erie-canalway.js, scrape-ohio-festivals.js and
+// scrape-stow-library.js all default to noon; scrape-stan-hywet.js defaults to
+// 9am, the estate's own opening hour. Note that scrape-downtown-akron.js only
+// belongs on that list as of 2026-08; before then it emitted midnight via
+// easternToIso's empty-time branch, so treat older references to it here as
+// stale. None of the six route through this module, so there is no
+// double-apply: the ones that disclose (scrape-downtown-akron.js,
+// scrape-stan-hywet.js, scrape-stow-library.js) import withDateOnlyTimeNote
+// for the sentence only and substitute their own default themselves.
 //
 // The default must never be silent, so normaliseIcsEvent discloses it in the
 // description (see DATE_ONLY_TIME_NOTE) and the caller's needs_review flag is

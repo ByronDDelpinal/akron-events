@@ -25,6 +25,9 @@ process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         ||
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
 import { extractStartTime, parseStanHywetDate, resolveStartTime } from '../scrape-stan-hywet.js'
+// The real note text and the real appender — never a local copy. The digest
+// subtracts this exact string before scoring description length.
+import { withDateOnlyTimeNote, DATE_ONLY_TIME_NOTE } from '../lib/ics.js'
 import { LATE_EDT, LATE_EDT_TODAY, LATE_EST, LATE_EST_TODAY } from './fixtures/late-night-clocks.js'
 
 describe('extractStartTime — start-of-range + a.m./p.m. handling', () => {
@@ -88,25 +91,83 @@ describe('resolveStartTime — recovers the time from description prose', () => 
       'BIG adventures for little explorers! Each session features a unique theme. ' +
       'All sessions run 10:30 - 11:30 a.m. Members: Adults FREE, Youth $5. ' +
       'Registration closes at 5:00 p.m. the day before each session.'
-    assert.equal(resolveStartTime(dateLine, body), '10:30:00')
+    assert.deepEqual(resolveStartTime(dateLine, body), { time: '10:30:00', synthesized: false })
   })
 
   it('prefers the date line when it carries a time, ignoring the prose', () => {
-    assert.equal(
+    assert.deepEqual(
       resolveStartTime('July 31 | 5:30-8:30pm', 'Doors at 7:00pm; show later.'),
-      '17:30:00',
+      { time: '17:30:00', synthesized: false },
     )
   })
 
   it('falls back to the 09:00 default when neither has a clock time', () => {
-    assert.equal(resolveStartTime('July 7, and August 4', 'Join us for a fun morning on the grounds.'), '09:00:00')
+    assert.deepEqual(
+      resolveStartTime('July 7, and August 4', 'Join us for a fun morning on the grounds.'),
+      { time: '09:00:00', synthesized: true },
+    )
   })
 
   it('ignores dash-joined digits without a meridiem (phone numbers)', () => {
-    assert.equal(
+    assert.deepEqual(
       resolveStartTime('August 15', 'Questions? Call the Visitors Center at 330-865-8065.'),
-      '09:00:00',
+      { time: '09:00:00', synthesized: true },
     )
+  })
+})
+
+describe('Stan Hywet: the 09:00 default is disclosed, never silent', () => {
+  // SANCTIONED-DEFAULT-TIME. A listing with a date but no clock time is stored
+  // at 9am ET because null is unstorable and midnight drops the row out of
+  // every feed at 00:00:01 on its own morning. The price of inventing a time
+  // is that we say so in the description and send the row to the review queue.
+  // These cases call the same two functions processEvents calls, in the same
+  // order, so the disclosure text cannot drift away from the digest's copy.
+
+  it('synthesized: notes the description exactly once and flags for review', () => {
+    const { time, synthesized } = resolveStartTime(
+      'August 15',
+      'Wander the gardens at your own pace.',
+    )
+    assert.equal(time, '09:00:00')
+    assert.equal(synthesized, true, 'synthesized drives BOTH the note and needs_review')
+
+    const stored = synthesized
+      ? withDateOnlyTimeNote('Wander the gardens at your own pace.')
+      : 'Wander the gardens at your own pace.'
+    assert.ok(stored.endsWith(DATE_ONLY_TIME_NOTE), 'note must be the final clause')
+    assert.equal(stored.split(DATE_ONLY_TIME_NOTE).length - 1, 1)
+
+    // Re-scraping must not stack the sentence.
+    assert.equal(
+      withDateOnlyTimeNote(stored).split(DATE_ONLY_TIME_NOTE).length - 1,
+      1,
+    )
+  })
+
+  it('parsed: a genuine 9 a.m. listing gets no note and no review flag', () => {
+    // The regression this guards: deriving `synthesized` by comparing the
+    // result to '09:00:00' would put a "no start time given" disclosure on an
+    // event that plainly gave one — the estate runs several 9 a.m. programs.
+    const { time, synthesized } = resolveStartTime(
+      'September 12 | 9 a.m.-noon',
+      'Doors open at 8:30 a.m. for members.',
+    )
+    assert.equal(time, '09:00:00')
+    assert.equal(synthesized, false)
+    const stored = synthesized
+      ? withDateOnlyTimeNote('Doors open at 8:30 a.m. for members.')
+      : 'Doors open at 8:30 a.m. for members.'
+    assert.ok(!stored.includes(DATE_ONLY_TIME_NOTE))
+  })
+
+  it('synthesized with no description: stays null, review flag still earned', () => {
+    // A note-only description would read as a complete listing to anything
+    // measuring description length, so the note is a suffix to real prose or
+    // nothing. needs_review is the whole audit trail for these rows.
+    const { synthesized } = resolveStartTime('August 15', '')
+    assert.equal(synthesized, true)
+    assert.equal(withDateOnlyTimeNote(null), null)
   })
 })
 

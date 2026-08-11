@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-const { parseEventsManagerLocation, mapTags, SOURCE_KEY } =
+const { parseEventsManagerLocation, includeEvent, mapTags, SOURCE_KEY } =
   await import('../scrape-akron-pride.js')
 
 describe('parseEventsManagerLocation', () => {
@@ -41,8 +41,14 @@ describe('parseEventsManagerLocation', () => {
   })
 })
 
-// The 5K is no longer filtered out here — Akron Pride owns its own race (it sits
-// under the Pride umbrella); scrape-akron-promise.js cedes it via isCededRace.
+describe('includeEvent', () => {
+  it('skips the 5K race (owned by runsignup + akron_promise)', () => {
+    assert.equal(includeEvent({ SUMMARY: '2026 Akron Pride Festival 5K' }), false)
+  })
+  it('keeps the Festival & Equity March', () => {
+    assert.equal(includeEvent({ SUMMARY: 'Akron Pride Festival and Equity March 2026' }), true)
+  })
+})
 
 describe('mapTags + SOURCE_KEY', () => {
   it('tags pride/lgbtq', () => {

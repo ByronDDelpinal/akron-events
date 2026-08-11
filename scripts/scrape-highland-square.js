@@ -161,10 +161,7 @@ async function main() {
       description:     ev.description,
       start_at:        startAt,
       end_at:          endAt,
-      // The umbrella is festival-first (music second): the per-set porchrokr
-      // events carry music-primary, the festival event IS the festival. The
-      // importer pins this via manual_overrides once the junction agrees.
-      categories:      ['festival', 'music'],
+      category:        'music',
       tags:            ['porchrokr', 'highland-square', 'akron', 'festival', 'music', 'free', 'outdoor'],
       price_min:       0,
       price_max:       null,

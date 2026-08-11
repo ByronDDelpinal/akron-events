@@ -51,6 +51,11 @@ import {
   easternToIso,
   easternTodayIso,
 } from './lib/normalize.js'
+// The date-only default-time disclosure lives in lib/ics.js next to the other
+// consumers of the same product decision. Stan Hywet is not an ICS feed, but
+// the note string is what the digest matches on, so it is shared rather than
+// re-declared.
+import { withDateOnlyTimeNote } from './lib/ics.js'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -61,6 +66,20 @@ const BASE_DOMAIN  = 'https://stanhywet.org'
 // Drupal image-style prefix we strip when normalising thumbnail → full image
 const DRUPAL_STYLE_RE = /\/files\/styles\/[^/]+\/public\//
 
+// SANCTIONED-DEFAULT-TIME
+// A Stan Hywet listing that gives a date but no clock time gets 9am Eastern.
+// That is deliberate, not an oversight. The alternatives were both rejected:
+// a null start_at is not storable (every feed orders and filters on it), and
+// midnight is worse than useless — each feed query filters `start_at >= now()`
+// with no grace window, so a row stored at 00:00 vanishes from the entire site
+// at 00:00:01 on the very morning it happens, the one day it matters. 9am is
+// the estate's own gate-opening hour, so it is the least-wrong guess here.
+//
+// The default must never be silent. resolveStartTime reports whether the time
+// was parsed or invented; when it was invented the row carries the shared
+// disclosure sentence in its description (withDateOnlyTimeNote) and is flagged
+// needs_review, because the review queue is the only audit trail we have for
+// an invented time. Do not "fix" this back to midnight or to a bare default.
 const DEFAULT_TIME = '09:00:00'   // when only a date is given
 
 // ── Date parsing ───────────────────────────────────────────────────────────
@@ -141,13 +160,17 @@ export function extractStartTime(raw) {
  * end's meridiem; phone numbers and other dash-joined digits never match
  * because a clock time requires an am/pm token), so a misread is unlikely and,
  * when it happens, is still strictly better than the blind 09:00 default.
+ *
+ * Returns `{ time, synthesized }`. `synthesized` is true only when NEITHER
+ * source carried a clock time and DEFAULT_TIME was substituted, so the caller
+ * can disclose the invented time. It is deliberately derived from the parse
+ * outcome rather than by comparing the result to '09:00:00': a listing that
+ * genuinely starts at 9 a.m. would otherwise get a false disclosure and an
+ * unearned trip through the review queue.
  */
 export function resolveStartTime(dateText, descriptionText) {
-  return (
-    extractStartTime(dateText) ??
-    extractStartTime(descriptionText) ??
-    DEFAULT_TIME
-  )
+  const parsed = extractStartTime(dateText) ?? extractStartTime(descriptionText)
+  return { time: parsed ?? DEFAULT_TIME, synthesized: parsed == null }
 }
 
 // Month names (longest-first so "sept"/"june" win over "sep"/"jun").
@@ -497,15 +520,26 @@ async function processEvents(cards, venueId, organizerId) {
         ?? (card.alertText && card.alertText.length > 0 ? card.alertText : null)
 
       // Recover the time from the description when the `.date` line had none.
-      const effectiveTime = resolveStartTime(card.dateText, description ?? '')
+      const { time: effectiveTime, synthesized } = resolveStartTime(card.dateText, description ?? '')
       const startAt = effectiveTime === timeStr
         ? provisionalStart
         : easternToIso(`${dateStr} ${effectiveTime}`)
       if (!startAt) { skipped++; continue }
 
+      // Neither the date line nor the body copy carried a clock time, so
+      // DEFAULT_TIME was invented (see the SANCTIONED-DEFAULT-TIME block).
+      // Say so in the description and send the row to the review queue.
+      // A null/blank description gets no note by design — the sentence is a
+      // suffix to real prose, never a description in its own right — so those
+      // rows are covered by needs_review alone, same as the ICS path.
+      // The note is appended LAST: inferCategory below must score the source's
+      // own copy, not our boilerplate, and the note mentions no category words
+      // today but would be a silent inference bug the day it did.
+      const storedDescription = synthesized ? withDateOnlyTimeNote(description) : description
+
       const row = {
         title:           card.title,
-        description,
+        description:     storedDescription,
         start_at:        startAt,
         end_at:          endAt,
         category:        inferCategory(card.title, description ?? ''),
@@ -519,6 +553,7 @@ async function processEvents(cards, venueId, organizerId) {
         source_id:       card.slug,
         status:          'published',
         featured:        false,
+        ...(synthesized ? { needs_review: true } : {}),
       }
 
       const enrichedRow = await enrichWithImageDimensions(row)

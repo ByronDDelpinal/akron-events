@@ -11,6 +11,7 @@ import {
   parseCalendarHtml,
   parseTime,
   reconstructDate,
+  resolveStart,
   filterFutureEvents,
   directlyScrapedVenue,
   directlyScrapedTitle,
@@ -19,6 +20,9 @@ import {
   partialCrawlNote,
 } from '../scrape-downtown-akron.js'
 import { easternTodayIso } from '../lib/normalize.js'
+// The real note text and the real appender — never a local copy. The digest
+// subtracts this exact string before scoring description length.
+import { withDateOnlyTimeNote, DATE_ONLY_TIME_NOTE } from '../lib/ics.js'
 
 // The bug: at 11pm ET the UTC calendar date is already tomorrow, so both the
 // year-rollover heuristic and the past-event filter treated today as past.
@@ -120,6 +124,62 @@ describe('Downtown Akron: time parsing', () => {
   })
   it('returns null for unparseable input (no fabricated noon)', () => {
     assert.equal(parseTime('no clock here'), null)
+  })
+})
+
+describe('Downtown Akron: the noon default is disclosed, never silent', () => {
+  // SANCTIONED-DEFAULT-TIME. parseTime still refuses to fabricate a clock time
+  // (the two nulls above are unchanged); the noon substitution now happens one
+  // layer down, in resolveStart, where it can be disclosed. Midnight was the
+  // old behaviour and it dropped timeless rows out of every feed at 00:00:01
+  // on their own morning.
+
+  it('synthesized: a timeless card lands at noon ET and is marked as invented', () => {
+    const { startAt, timeSynthesized } = resolveStart('2026-07-31', parseTime(null))
+    assert.equal(timeSynthesized, true, 'timeSynthesized drives BOTH the note and needs_review')
+    // Noon EDT = 16:00Z, NOT the 04:00Z midnight this used to store.
+    assert.equal(startAt, '2026-07-31T16:00:00.000Z')
+  })
+
+  it('synthesized: notes the description exactly once, leaves a null one alone', () => {
+    const { timeSynthesized } = resolveStart('2026-07-31', null)
+    const base = 'A self-guided walk through the Northside galleries.'
+    const stored = timeSynthesized ? withDateOnlyTimeNote(base) : base
+    assert.ok(stored.endsWith(DATE_ONLY_TIME_NOTE), 'note must be the final clause')
+    assert.equal(stored.split(DATE_ONLY_TIME_NOTE).length - 1, 1)
+    // Re-scraping must not stack the sentence.
+    assert.equal(withDateOnlyTimeNote(stored).split(DATE_ONLY_TIME_NOTE).length - 1, 1)
+    // No prose = no note; needs_review is the whole audit trail for those rows.
+    assert.equal(withDateOnlyTimeNote(null), null)
+  })
+
+  it('parsed: a literal "midnight" card keeps 00:00 and gets no disclosure', () => {
+    // The regression this guards: gating on the resulting timestamp instead of
+    // on the absent time would call a real midnight card "timeless" and both
+    // note it and flag it. DAP genuinely lists New Year's-style midnight cards.
+    const { startAt, timeSynthesized } = resolveStart('2026-07-31', parseTime('midnight'))
+    assert.equal(timeSynthesized, false)
+    assert.equal(startAt, '2026-07-31T04:00:00.000Z')  // midnight EDT
+    const base = 'Ring it in at the lock.'
+    assert.ok(!(timeSynthesized ? withDateOnlyTimeNote(base) : base).includes(DATE_ONLY_TIME_NOTE))
+  })
+
+  it('parsed: an ordinary timed card is untouched', () => {
+    const { startAt, timeSynthesized } = resolveStart('2026-07-31', parseTime('7:30 p.m.'))
+    assert.equal(timeSynthesized, false)
+    assert.equal(startAt, '2026-07-31T23:30:00.000Z')
+  })
+
+  it('the real timeless fixture card routes through the noon default', () => {
+    // End-to-end over the captured calendar HTML: parseCalendarHtml still
+    // hands back timeStr === null (asserted below in venue parsing), and
+    // resolveStart is what turns that into a disclosed noon.
+    const events = parseCalendarHtml(CALENDAR_HTML, LATE_EDT)
+    const timeless = events.find(e => e.slug === 'all-day-art-walk')
+    assert.ok(timeless, 'timeless card parsed')
+    const { startAt, timeSynthesized } = resolveStart(timeless.dateStr, timeless.timeStr)
+    assert.equal(timeSynthesized, true)
+    assert.ok(startAt.endsWith('T16:00:00.000Z'), `expected noon EDT, got ${startAt}`)
   })
 })
 
