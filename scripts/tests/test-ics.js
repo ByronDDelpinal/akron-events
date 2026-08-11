@@ -9,6 +9,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 
 import {
   parseIcs, icsDateToIso, normaliseIcsEvent, expandRecurrence, parseRrule,
+  expandRecurrenceSet, isRecurrenceOverride,
   applyNeedsReviewHook, icsDateOnlyToNoonIso, withDateOnlyTimeNote,
   DATE_ONLY_TIME_NOTE, MAX_DESCRIPTION, isBotChallenge,
 } from '../lib/ics.js'
@@ -321,6 +322,117 @@ describe('ICS: expandRecurrence', () => {
       { windowStartMs: JAN1, windowDays: 14 },
     )
     assert.deepEqual(starts(out), ['20260105T190000', '20260112T190000'])
+  })
+})
+
+describe('ICS: RECURRENCE-ID overrides (expandRecurrenceSet)', () => {
+  // A weekly Wednesday-night series where the Jul 22 occurrence was edited
+  // (moved an hour later, retitled) — Google Calendar emits the edit as an
+  // extra VEVENT with the master's UID plus a RECURRENCE-ID naming the
+  // original instant. Mirrors the live Better Plays Gaming mtg feed
+  // (Commander Night, RECURRENCE-ID;TZID=America/New_York:20260722T180000).
+  const OVERRIDE_FEED = [
+    'BEGIN:VCALENDAR',
+    'BEGIN:VEVENT',
+    'UID:cmd@google.com',
+    'SUMMARY:Commander Night',
+    'X-TEST-MARKER:mtg',
+    'DTSTART;TZID=America/New_York:20260701T180000',
+    'DTEND;TZID=America/New_York:20260701T210000',
+    'RRULE:FREQ=WEEKLY;BYDAY=WE',
+    'END:VEVENT',
+    'BEGIN:VEVENT',
+    'UID:cmd@google.com',
+    'RECURRENCE-ID;TZID=America/New_York:20260722T180000',
+    'SUMMARY:Commander Night (special start)',
+    'X-TEST-MARKER:mtg',
+    'DTSTART;TZID=America/New_York:20260722T190000',
+    'DTEND;TZID=America/New_York:20260722T220000',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n')
+
+  const JUL1 = Date.parse('2026-07-01T00:00:00Z')
+  const expand = () => expandRecurrenceSet(parseIcs(OVERRIDE_FEED), { windowStartMs: JUL1, windowDays: 30 })
+
+  it('parseIcs keeps RECURRENCE-ID as a date property with params', () => {
+    const [, override] = parseIcs(OVERRIDE_FEED)
+    assert.equal(override['RECURRENCE-ID'].value, '20260722T180000')
+    assert.equal(override['RECURRENCE-ID'].params.TZID, 'America/New_York')
+  })
+
+  it('isRecurrenceOverride identifies override VEVENTs only', () => {
+    const [master, override] = parseIcs(OVERRIDE_FEED)
+    assert.equal(isRecurrenceOverride(master), false)
+    assert.equal(isRecurrenceOverride(override), true)
+    assert.equal(isRecurrenceOverride(null), false)
+    assert.equal(isRecurrenceOverride({}), false)
+  })
+
+  it('drops the master-materialised occurrence the override replaces', () => {
+    const out = expand()
+    // Wednesdays Jul 1, 8, 15, 22, 29 → five slots; Jul 22 comes from the
+    // override, so exactly one event starts on Jul 22 and it is the edit.
+    assert.equal(out.length, 5)
+    const jul22 = out.filter(e => e.DTSTART.value.startsWith('20260722'))
+    assert.equal(jul22.length, 1)
+    assert.equal(jul22[0].SUMMARY, 'Commander Night (special start)')
+    assert.equal(jul22[0].DTSTART.value, '20260722T190000')
+  })
+
+  it('rewrites the override UID into the replaced occurrence\'s slot', () => {
+    const out = expand()
+    const uids = out.map(e => e.UID).sort()
+    assert.deepEqual(uids, [
+      'cmd@google.com_20260701', 'cmd@google.com_20260708',
+      'cmd@google.com_20260715', 'cmd@google.com_20260722',
+      'cmd@google.com_20260729',
+    ])
+    // The emitted override carries no RECURRENCE-ID residue.
+    const jul22 = out.find(e => e.UID === 'cmd@google.com_20260722')
+    assert.equal(jul22['RECURRENCE-ID'], undefined)
+    // Unknown properties survive on master clones and the override alike.
+    assert.ok(out.every(e => e['X-TEST-MARKER'] === 'mtg'))
+  })
+
+  it('normalises the override into the same source_id slot with the new time', () => {
+    const out = expand()
+    const jul22 = out.find(e => e.UID === 'cmd@google.com_20260722')
+    const row = normaliseIcsEvent(jul22, { source: 'test_ics' })
+    assert.equal(row.source_id, 'cmd@google.com_20260722')
+    assert.equal(row.start_at, '2026-07-22T23:00:00.000Z')   // 19:00 EDT
+    assert.equal(row.end_at,   '2026-07-23T02:00:00.000Z')   // 22:00 EDT
+  })
+
+  it('changes nothing for feeds without overrides', () => {
+    const noOverrideFeed = [
+      'BEGIN:VCALENDAR',
+      'BEGIN:VEVENT',
+      'UID:weekly-1',
+      'SUMMARY:Game Night',
+      'DTSTART;TZID=America/New_York:20260701T180000',
+      'RRULE:FREQ=WEEKLY;BYDAY=WE',
+      'END:VEVENT',
+      'BEGIN:VEVENT',
+      'UID:oneoff-1',
+      'SUMMARY:One-off',
+      'DTSTART;TZID=America/New_York:20260710T190000',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n')
+    const raw = parseIcs(noOverrideFeed)
+    const opts = { windowStartMs: JUL1, windowDays: 30 }
+    assert.deepEqual(
+      expandRecurrenceSet(raw, opts),
+      raw.flatMap(ev => expandRecurrence(ev, opts)),
+    )
+  })
+
+  it('an override whose master is absent still surfaces (slot-suffixed)', () => {
+    const [, override] = parseIcs(OVERRIDE_FEED)
+    const out = expandRecurrenceSet([override], { windowStartMs: JUL1, windowDays: 30 })
+    assert.equal(out.length, 1)
+    assert.equal(out[0].UID, 'cmd@google.com_20260722')
   })
 })
 

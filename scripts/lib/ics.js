@@ -589,6 +589,96 @@ export function expandRecurrence(ev, opts = {}) {
   })
 }
 
+// ── RECURRENCE-ID overrides ────────────────────────────────────────────────
+//
+// When a single occurrence of a recurring series is edited (moved, retitled,
+// re-described), Google Calendar and other publishers emit an extra VEVENT
+// with the SAME UID as the master plus a RECURRENCE-ID naming the original
+// instant it replaces — and no RRULE of its own. Expanding the master alone
+// would materialise the stale, pre-edit occurrence AND leave the override
+// floating with a UID that collides with the master's source_id space.
+//
+// expandRecurrenceSet resolves this per feed:
+//   1. Override VEVENTs (RECURRENCE-ID present, no RRULE) are collected,
+//      keyed by UID + the RECURRENCE-ID's absolute instant.
+//   2. Masters expand through expandRecurrence as before; any materialised
+//      occurrence whose start instant matches a collected override for that
+//      UID is dropped — the override replaces it.
+//   3. Each override is emitted with UID rewritten to
+//      `${UID}_${yyyymmdd of RECURRENCE-ID}`, the exact per-occurrence UID
+//      expandRecurrence would have minted for the replaced slot, so the
+//      edited occurrence occupies the same source_id and upserts in place.
+//
+// Feeds with no RECURRENCE-ID VEVENTs take step 2's old path verbatim —
+// behaviour is unchanged for every existing caller.
+
+/** True for an override VEVENT: RECURRENCE-ID present, no RRULE of its own. */
+export function isRecurrenceOverride(ev) {
+  return Boolean(ev && ev['RECURRENCE-ID'] && !ev.RRULE)
+}
+
+/**
+ * Expand a whole feed's VEVENTs, honouring RECURRENCE-ID overrides.
+ *
+ * @param {object[]} rawEvents — parseIcs() output for the feed
+ * @param {object}   opts      — passed through to expandRecurrence()
+ * @returns {object[]} concrete VEVENTs ready for normalisation
+ */
+export function expandRecurrenceSet(rawEvents, opts = {}) {
+  const events = Array.isArray(rawEvents) ? rawEvents : []
+
+  // 1. Collect overrides keyed by UID → (instant ISO → override VEVENT).
+  const overridesByUid = new Map()
+  const rest = []
+  for (const ev of events) {
+    if (isRecurrenceOverride(ev)) {
+      const uid = (ev.UID || '').trim()
+      const rid = ev['RECURRENCE-ID']
+      const ridValue  = typeof rid === 'object' ? rid.value : rid
+      const ridParams = (typeof rid === 'object' && rid.params) || {}
+      const iso = icsDateToIso(ridValue, ridParams)
+      if (uid && iso) {
+        if (!overridesByUid.has(uid)) overridesByUid.set(uid, new Map())
+        // Last write wins for a duplicated override of the same instant —
+        // publishers emit the latest edit last.
+        overridesByUid.get(uid).set(iso, { ev, ridValue })
+        continue
+      }
+    }
+    rest.push(ev)
+  }
+
+  // 2. Expand masters; drop occurrences an override replaces.
+  const out = []
+  for (const ev of rest) {
+    const occurrences = expandRecurrence(ev, opts)
+    const uid = (ev.UID || '').trim()
+    const overrides = ev.RRULE ? overridesByUid.get(uid) : null
+    if (!overrides) {
+      out.push(...occurrences)
+      continue
+    }
+    for (const occ of occurrences) {
+      const iso = occ.DTSTART ? icsDateToIso(occ.DTSTART.value, occ.DTSTART.params || {}) : null
+      if (iso && overrides.has(iso)) continue   // replaced by the override
+      out.push(occ)
+    }
+  }
+
+  // 3. Emit overrides in the replaced occurrences' UID slots.
+  for (const [uid, byInstant] of overridesByUid) {
+    for (const { ev, ridValue } of byInstant.values()) {
+      const clone = { ...ev }
+      delete clone['RECURRENCE-ID']
+      const ymd = String(ridValue).trim().slice(0, 8)
+      clone.UID = /^\d{8}$/.test(ymd) ? `${uid}_${ymd}` : uid
+      out.push(clone)
+    }
+  }
+
+  return out
+}
+
 // ── VEVENT extraction ──────────────────────────────────────────────────────
 
 /**
@@ -646,7 +736,10 @@ export function parseIcs(icsText) {
     // EXDATE/RDATE may appear on multiple lines (or carry a comma-separated
     // value list), so accumulate them into an array rather than overwriting.
     const isMultiDateProp = name === 'EXDATE' || name === 'RDATE'
-    const isDateProp = ['DTSTART', 'DTEND', 'DTSTAMP', 'LAST-MODIFIED', 'CREATED'].includes(name)
+    // RECURRENCE-ID is a date property: expandRecurrenceSet needs its TZID
+    // param to resolve which occurrence an override VEVENT replaces. Stored
+    // as text it would lose the params and the instant would be ambiguous.
+    const isDateProp = ['DTSTART', 'DTEND', 'DTSTAMP', 'LAST-MODIFIED', 'CREATED', 'RECURRENCE-ID'].includes(name)
 
     if (isMultiDateProp) {
       ;(current[name] ||= []).push({ value, params })
@@ -983,13 +1076,14 @@ export async function runIcsScraper(config) {
     const rawEvents = parseIcs(icsText)
     console.log(`  Parsed ${rawEvents.length} VEVENT blocks`)
 
-    // Optionally materialise recurring masters into concrete occurrences.
+    // Optionally materialise recurring masters into concrete occurrences,
+    // honouring RECURRENCE-ID override VEVENTs (see expandRecurrenceSet).
     let workEvents = rawEvents
     if (config.expandRecurring) {
-      workEvents = rawEvents.flatMap(ev =>
-        expandRecurrence(ev, { windowDays: config.recurrenceWindowDays ?? 120 }))
+      workEvents = expandRecurrenceSet(rawEvents, { windowDays: config.recurrenceWindowDays ?? 120 })
       const recurring = rawEvents.filter(e => e.RRULE).length
-      console.log(`  Expanded ${recurring} recurring master(s) → ${workEvents.length} occurrences total`)
+      const overrides = rawEvents.filter(e => isRecurrenceOverride(e)).length
+      console.log(`  Expanded ${recurring} recurring master(s) (${overrides} override(s)) → ${workEvents.length} occurrences total`)
     }
 
     if (rawEvents.length === 0) {
