@@ -1222,6 +1222,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'better_plays_gaming',
+    method:      'iCal feed',
+    methodDetail:'Ten public per-game Google Calendar iCal feeds, merged, with RRULE recurrence expansion',
+    venue:       'Better Plays Gaming — 4958 Darrow Rd, Stow',
+    notes:       "A Stow tabletop and trading-card game store whose weekly programming spans nine game systems — Magic: The Gathering, Pokémon, One Piece, Star Wars Unlimited, Lorcana, Riftbound, Gundam, Dungeons & Dragons, and Warhammer — plus a tenth calendar of one-off events. The store publishes each system as its own public Google Calendar, so we fetch all ten iCal feeds, stamp every event with the calendar it came from (which drives the game-system tags), and merge them through the shared ICS pipeline with recurrence expansion over a rolling 120-day window. Edited single occurrences (RECURRENCE-ID overrides) replace their series slot instead of duplicating it. Category is forced to 'games'; price is left null (entry fees vary and aren't in the feeds).",
+    status:      'active',
+  },
+  {
     key:         'mustard_seed',
     method:      'Rendered calendar + WP REST',
     methodDetail:'EventON (WordPress) — Puppeteer renders the calendar for dates, WP REST ajde_events?include= for metadata',
@@ -1755,6 +1763,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   better_kenmore:         'html',
   first_glance:           'html',
   full_grip_games:        'ics',
+  better_plays_gaming:    'ics',
   akron_makerspace:       'html',
   akron_soul_train:       'html',
   southgate_farm:         'html',

@@ -115,6 +115,7 @@ export const SCRAPERS = [
   { key: 'better_kenmore',       script: 'scripts/scrape-better-kenmore.js',          label: 'Better Kenmore CDC',           group: 'wordpress',      active: true  },
   { key: 'first_glance',         script: 'scripts/scrape-first-glance.js',            label: 'First Glance Student Center',  group: 'wordpress',      active: true  },
   { key: 'full_grip_games',      script: 'scripts/scrape-full-grip-games.js',         label: 'Full Grip Games',              group: 'ics',            active: true, defaultCategory: 'games' },
+  { key: 'better_plays_gaming',  script: 'scripts/scrape-better-plays-gaming.js',     label: 'Better Plays Gaming',          group: 'ics',            active: true, defaultCategory: 'games' },
   { key: 'mustard_seed',         script: 'scripts/scrape-mustard-seed.js',            label: 'Mustard Seed Market & Café',   group: 'custom',         active: true  },
   { key: 'royal_palace',         script: 'scripts/scrape-royal-palace.js',            label: 'Royal Palace Akron',           group: 'tribe',          active: true, defaultCategory: 'music' },
   { key: 'northfield_park',      script: 'scripts/scrape-northfield-park.js',         label: 'Northfield Park Racino',       group: 'tribe',          active: true, defaultCategory: 'music' },

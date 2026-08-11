@@ -16,6 +16,7 @@
  */
 export const SOURCE_FALLBACK_IMAGE = {
   full_grip_games:        null, // TODO(Byron): storefront / game-night photo
+  better_plays_gaming:    null, // TODO(Byron): storefront / game-night photo
   cuyahoga_falls_library:  null, // TODO(Byron): Taylor Memorial branch photo
   city_of_hudson:          null, // TODO(Byron): city seal or downtown Hudson photo
   akron_rec_parks:         null, // TODO(Byron): rec center / park photo
