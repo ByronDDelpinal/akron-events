@@ -1,21 +1,18 @@
 import { useState, type ReactNode } from 'react'
 import { INTENTS } from '@/lib/intents'
+import { WHEN_PRESETS, buildDateRangeLabel } from '@/lib/filterOptions'
+import type { WhenAction } from '@/components/WhenSection'
+import type { TimeOfDayId } from '@/lib/whenFilter'
+import { TIME_OF_DAY_OPTIONS } from '@/lib/whenFilter'
 import FilterTray from './FilterTray'
 import ViewModeToggle from './ViewModeToggle'
 import './FilterBar.css'
 
-interface DateTab {
-  id: string | null
-  label: string
-}
-
-const DATE_TABS: DateTab[] = [
-  { id: null,            label: 'All' },
-  { id: 'today',         label: 'Today' },
-  { id: 'this_weekend',  label: 'This Weekend' },
-  { id: 'this_week',     label: 'This Week' },
-  { id: 'this_month',    label: 'This Month' },
-]
+// `DATE_TABS` used to live here as a local, un-rendered label lookup — dead
+// UI (nothing ever rendered it as tabs) that was also a SECOND, silently
+// drifting date vocabulary alongside the tray's chips. `WHEN_PRESETS`
+// (filterOptions.ts) is now the only one; this file just reads it for the
+// removal-pill label below.
 
 export interface LockedDimensions {
   category?: boolean
@@ -27,11 +24,12 @@ interface FilterBarProps {
   activeIntentId: string | null
   onIntentId: (id: string | null) => void
   dateRange: string | null
-  onDateRange: (v: string | null) => void
+  /** Single entry point for every When-section write — see WhenSection.tsx. */
+  onWhenChange: (action: WhenAction) => void
+  timeOfDay: TimeOfDayId | null
+  onTimeOfDayChange: (v: TimeOfDayId | null) => void
   dateFrom: string | null
-  onDateFrom: (v: string | null) => void
   dateTo: string | null
-  onDateTo: (v: string | null) => void
   rawCategories: string[]
   onRawCategories: (cats: string[]) => void
   excludedCategories?: string[]
@@ -70,9 +68,9 @@ interface FilterBarProps {
  */
 export default function FilterBar({
   activeIntentId,  onIntentId,
-  dateRange,       onDateRange,
-  dateFrom,        onDateFrom,
-  dateTo,          onDateTo,
+  dateRange,       onWhenChange,
+  dateFrom,        dateTo,
+  timeOfDay,       onTimeOfDayChange,
   rawCategories,   onRawCategories,
   excludedCategories = [], onExcludedCategories,
   onCycleCategory,
@@ -98,6 +96,9 @@ export default function FilterBar({
   // Locked dimensions are presets the user can't undo (category-hub pages,
   // embeds), so their pills never appear in the clearable summary strip.
   const showDatePill = (dateRange || dateFrom || dateTo) && !lockedDimensions.dateRange
+  // Time of day is never lockable (docs/when-filter.md §5/§7), so it always
+  // shows in the clearable strip when active.
+  const showTimeOfDayPill = !!timeOfDay
   const visibleCategories = lockedDimensions.category ? [] : rawCategories
   const visibleExcluded = lockedDimensions.category ? [] : excludedCategories
   const showPricePill = priceFilter && !lockedDimensions.price
@@ -111,6 +112,7 @@ export default function FilterBar({
     excludeFamily,
     showPricePill,
     showDatePill && (dateFrom || dateTo),
+    showTimeOfDayPill,
     sort !== 'soonest',
   ].filter(Boolean).length
 
@@ -118,6 +120,7 @@ export default function FilterBar({
     hasSearch ||
     activeIntentId ||
     showDatePill ||
+    showTimeOfDayPill ||
     visibleCategories.length > 0 ||
     visibleExcluded.length > 0 ||
     excludeFamily ||
@@ -215,14 +218,20 @@ export default function FilterBar({
             )}
             {showDatePill && dateRange && (
               <ActivePill
-                label={DATE_TABS.find((t) => t.id === dateRange)?.label ?? dateRange}
-                onRemove={() => onDateRange(null)}
+                label={WHEN_PRESETS.find((p) => p.id === dateRange)?.label ?? dateRange}
+                onRemove={() => onWhenChange({ type: 'clear' })}
               />
             )}
             {showDatePill && (dateFrom || dateTo) && (
               <ActivePill
                 label={buildDateRangeLabel(dateFrom, dateTo)}
-                onRemove={() => { onDateFrom(null); onDateTo(null) }}
+                onRemove={() => onWhenChange({ type: 'clear' })}
+              />
+            )}
+            {showTimeOfDayPill && (
+              <ActivePill
+                label={TIME_OF_DAY_OPTIONS.find((o) => o.id === timeOfDay)?.label ?? timeOfDay}
+                onRemove={() => onTimeOfDayChange(null)}
               />
             )}
             {visibleCategories.map((cat) => (
@@ -277,8 +286,9 @@ export default function FilterBar({
         excludeFamily={excludeFamily}   onExcludeFamily={onExcludeFamily}
         showAudienceToggle={showAudienceToggle}
         priceFilter={priceFilter}       onPriceFilter={onPriceFilter}
-        dateFrom={dateFrom}             onDateFrom={onDateFrom}
-        dateTo={dateTo}                 onDateTo={onDateTo}
+        dateRange={dateRange}           dateFrom={dateFrom} dateTo={dateTo}
+        onWhenChange={onWhenChange}
+        timeOfDay={timeOfDay}           onTimeOfDayChange={onTimeOfDayChange}
         sort={sort}                     onSort={onSort}
         total={total}
         lockedDimensions={lockedDimensions}
@@ -295,17 +305,6 @@ export default function FilterBar({
 const SEARCH_PILL_MAX = 24
 function truncate(s: string, max: number): string {
   return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s
-}
-
-function buildDateRangeLabel(from: string | null, to: string | null): string {
-  const fmt = (d: string | null): string => {
-    if (!d) return '…'
-    const [, m, day] = d.split('-')
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-    return `${months[parseInt(m, 10) - 1]} ${parseInt(day, 10)}`
-  }
-  if (from === to) return fmt(from)
-  return `${fmt(from)} – ${fmt(to)}`
 }
 
 interface ActivePillProps {

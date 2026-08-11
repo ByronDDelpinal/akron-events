@@ -19,29 +19,16 @@
  * Intl.DateTimeFormat with an explicit America/New_York timeZone instead of
  * arithmetic on UTC offsets, so it stays correct across the EST/EDT
  * boundary without a manual DST table.
+ *
+ * `easternDateKey` / `easternTodayIso` moved to `easternDate.ts` (2026-08-10,
+ * the "When" filter design) so the date-filter code can use them without
+ * widening this module's day-planner-only contract; re-exported here
+ * unchanged so no existing import needs to move.
  */
 
-const EASTERN_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'America/New_York',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-})
+export { easternDateKey, easternTodayIso } from './easternDate.ts'
 
-/**
- * `yyyy-MM-dd` of an ISO instant, AS OBSERVED IN America/New_York.
- * `en-CA` locale formats numeric dates as `yyyy-MM-dd` directly, so no
- * further reassembly of Intl's parts is needed.
- */
-export function easternDateKey(isoInstant: string | Date): string {
-  const d = isoInstant instanceof Date ? isoInstant : new Date(isoInstant)
-  return EASTERN_DATE_FORMATTER.format(d)
-}
-
-/** Today's date, as observed in America/New_York, as `yyyy-MM-dd`. */
-export function easternTodayIso(): string {
-  return easternDateKey(new Date())
-}
+import { easternDateKey, easternTodayIso } from './easternDate.ts'
 
 /** True when `isoInstant`'s Eastern calendar date is today's Eastern calendar date. */
 export function isEasternToday(isoInstant: string | Date): boolean {

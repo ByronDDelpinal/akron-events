@@ -7,7 +7,17 @@
  * mis-dates the rest of today's events. `easternTodayIso()` in
  * scripts/lib/normalize.js is the safe helper.
  *
- * This scanner flags four shapes in scripts/*.js and scripts/lib/*.js:
+ * Extended 2026-08-10 (the "When" date filter) to also scan `src/**` (every
+ * .ts/.tsx/.js/.jsx file) after the scanner's own scripts-only scope let
+ * `FilterTray.tsx`'s `const TODAY = new Date().toISOString().split('T')[0]`
+ * (the exact banned shape below) ship undetected — between 8pm and midnight
+ * ET it made the date picker refuse to let a visitor pick today, the same
+ * bug class this file exists to catch, just on the frontend instead of a
+ * scraper. `CategoryPage.tsx` had the identical line. Both are fixed now
+ * (`easternTodayIso()`); this scanner is what keeps the fix from rotting.
+ *
+ * This scanner flags four shapes in scripts/*.js, scripts/lib/*.js, and every
+ * file under src/:
  *
  *   1. A UTC calendar date sliced out of an ISO string —
  *      `toISOString().split('T')[0]`, `.slice(0, 10)`, `.substring(0, 10)`,
@@ -48,11 +58,14 @@
  */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const SCRIPTS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const REPO_ROOT = path.resolve(SCRIPTS_DIR, '..')
+const SRC_DIR = path.join(REPO_ROOT, 'src')
+const SRC_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx'])
 
 // ── Banned shapes ──────────────────────────────────────────────────────────
 
@@ -187,19 +200,100 @@ const ALLOWLIST = [
   // below asserts it again with a readable failure. Without both, the original
   // bug could be reintroduced in this very file with zero test failures.
   { file: 'scrape-runsignup.js',              match: 'const ymd =',                   reason: 'far-horizon endDate only; the search FLOOR is startDate: easternTodayIso()', requires: RUNSIGNUP_EASTERN_FLOOR },
+
+  // ── src/ (frontend) — added with the src scan, 2026-08-10. Every entry
+  //    below is `root: 'src'`; paths are relative to src/.
+  //
+  // The project's OWN stated convention (dayPlanDate.ts's header, echoed in
+  // eventGrouping.ts's groupEventsByDate) is that list/grid/calendar
+  // surfaces group and DISPLAY dates in the VIEWER's local timezone — only
+  // the day planner and this new "When" filter are pinned to Eastern. So a
+  // local-getter or toLocaleDateString hit in a pure DISPLAY LABEL (never
+  // compared, never sent to a query, never used as a dedupe/grouping key
+  // that has to match a server-side Eastern boundary) is not this bug; it's
+  // the documented default behavior. Every allowance below says which of
+  // those it is.
+  {
+    root: 'src', file: 'components/CalendarView.tsx', match: '${pad(d.getMonth() + 1)}-${pad(d.getDate())}',
+    reason: 'ymd(): viewer-local calendar-grid grouping key, explicitly documented one line above (JSDoc) as viewer-local by design — not a "today" read, and the Date it formats is always a caller-supplied event date, never a bare `new Date()`',
+  },
+  {
+    root: 'src', file: 'components/CalendarView.tsx', match: "toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })",
+    reason: 'display label for the calendar header/day view, built from `cursor` (calendar navigation state) or a resolved day key — not a clock read',
+  },
+  {
+    root: 'src', file: 'components/CalendarView.tsx', match: "const left = ws.toLocaleDateString",
+    reason: 'week-view header display label built from the already-resolved week start Date',
+  },
+  {
+    root: 'src', file: 'components/CalendarView.tsx', match: 'const right = we.toLocaleDateString',
+    reason: 'week-view header display label built from the already-resolved week end Date',
+  },
+  {
+    root: 'src', file: 'components/CalendarView.tsx', match: '${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}',
+    reason: 'month-view header display label ("August 2026") built from `cursor`, the calendar\'s own navigation state, not the clock',
+  },
+  {
+    root: 'src', file: 'components/EventsBrowser.tsx', match: 'return d.toISOString().slice(0, 10)',
+    reason: 'calendarHorizon: a deliberately generous ~13-month-out upper bound so the calendar fetch is not restricted; a one-day UTC skew on a 13-month horizon is immaterial (same reasoning as the scripts/ TRIBE far-horizon endDate allowance)',
+  },
+  {
+    root: 'src', file: 'lib/ics.js', match: 'const fallback = new Date().toISOString().slice(0, 10)',
+    reason: 'decorative filename fallback for a .ics export (planIcsFilename), not a filter/business-logic date — see the comment above this line',
+  },
+  {
+    root: 'src', file: 'lib/festivals.ts', match: "toLocaleDateString('en-US', { weekday: 'long' })",
+    reason: 'festivalDayLabel: display-only weekday name; the today/tomorrow decision itself is pure Eastern date-key math (easternDateKeyDiffDays) on the line above',
+  },
+  {
+    root: 'src', file: 'pages/FestivalPage.tsx', match: 'const dateLabel = new Date(`${festival.dateKey}T12:00:00`).toLocaleDateString([],',
+    reason: 'display-only date label built from an already-resolved festival.dateKey, not a clock read',
+  },
 ]
 
 // ── Scan ───────────────────────────────────────────────────────────────────
 
+/** Recursively list files under `dir` with one of `SRC_EXTENSIONS`, as paths
+ * relative to `dir` (POSIX-style, so allowlist entries are platform-stable). */
+function walkSrc(dir, base = dir) {
+  const out = []
+  for (const entry of readdirSync(dir)) {
+    const full = path.join(dir, entry)
+    const stat = statSync(full)
+    if (stat.isDirectory()) {
+      out.push(...walkSrc(full, base))
+    } else if (SRC_EXTENSIONS.has(path.extname(entry))) {
+      out.push(path.relative(base, full).split(path.sep).join('/'))
+    }
+  }
+  return out
+}
+
+/** Every scannable file, tagged with which root it lives under so `scripts/`
+ * and `src/` files with the same relative path (e.g. both have a `lib/`)
+ * can't collide in the allowlist. */
 function scannableFiles() {
   const out = []
   for (const f of readdirSync(SCRIPTS_DIR)) {
-    if (f.endsWith('.js')) out.push(f)
+    if (f.endsWith('.js')) out.push({ root: 'scripts', file: f })
   }
   for (const f of readdirSync(path.join(SCRIPTS_DIR, 'lib'))) {
-    if (f.endsWith('.js')) out.push(`lib/${f}`)
+    if (f.endsWith('.js')) out.push({ root: 'scripts', file: `lib/${f}` })
   }
-  return out.sort()
+  for (const f of walkSrc(SRC_DIR)) {
+    out.push({ root: 'src', file: f })
+  }
+  return out.sort((a, b) => (a.root + a.file).localeCompare(b.root + b.file))
+}
+
+function rootDir(root) {
+  return root === 'src' ? SRC_DIR : SCRIPTS_DIR
+}
+
+/** Human-readable path for messages: bare for scripts/ (matches the
+ * pre-extension output exactly), `src/...` for the new root. */
+function displayPath(root, file) {
+  return root === 'src' ? `src/${file}` : file
 }
 
 /** Comment lines are documentation (including normalize.js's own warning). */
@@ -208,8 +302,8 @@ function isComment(line) {
   return t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')
 }
 
-function allowanceFor(file, line) {
-  return ALLOWLIST.find((a) => a.file === file && (
+function allowanceFor(root, file, line) {
+  return ALLOWLIST.find((a) => (a.root ?? 'scripts') === root && a.file === file && (
     typeof a.match === 'string' ? line.includes(a.match) : a.match.test(line)
   ))
 }
@@ -217,9 +311,10 @@ function allowanceFor(file, line) {
 const findings = []          // unallowed hits
 const usedAllowances = new Set()
 
-for (const file of scannableFiles()) {
-  const src   = readFileSync(path.join(SCRIPTS_DIR, file), 'utf8')
+for (const { root, file } of scannableFiles()) {
+  const src   = readFileSync(path.join(rootDir(root), file), 'utf8')
   const lines = src.split('\n')
+  const displayFile = displayPath(root, file)
   lines.forEach((line, i) => {
     if (isComment(line)) return
     const utcDate  = UTC_DATE_SHAPE.test(line)
@@ -228,7 +323,7 @@ for (const file of scannableFiles()) {
     const locale   = LOCALE_DATE_SHAPE.test(line) && !ET_PINNED.test(line)
     if (!utcDate && !utcNight && !localYmd && !locale) return
 
-    const allowance = allowanceFor(file, line)
+    const allowance = allowanceFor(root, file, line)
     if (allowance) {
       usedAllowances.add(allowance)
       // Allowances that are only safe because something ELSE in the file is
@@ -236,14 +331,14 @@ for (const file of scannableFiles()) {
       // file exists to prevent.
       if (allowance.requires && !allowance.requires.test(src)) {
         findings.push({
-          file, lineNo: i + 1, text: line.trim(),
+          file: displayFile, lineNo: i + 1, text: line.trim(),
           why: `allowlisted on the condition ${allowance.requires} holds in this file — it no longer does`,
         })
       }
       return
     }
     findings.push({
-      file, lineNo: i + 1, text: line.trim(),
+      file: displayFile, lineNo: i + 1, text: line.trim(),
       why: utcNight
         ? 'UTC midnight of a bare `new Date()` — use easternTodayIso() instead'
         : localYmd
@@ -341,12 +436,43 @@ describe('no UTC-derived "today" in scrapers', () => {
     // Cheap sanity check that the scan is actually looking at real files, so a
     // broken glob can't turn this suite into a no-op.
     const files = scannableFiles()
+    const scriptsFiles = files.filter((f) => f.root === 'scripts').map((f) => f.file)
     for (const f of [
       'scrape-downtown-akron.js', 'scrape-ohio-shakespeare.js', 'scrape-painting-twist.js',
       'scrape-weathervane.js', 'scrape-stan-hywet.js', 'scrape-runsignup.js', 'lib/normalize.js',
     ]) {
-      assert.ok(files.includes(f), `${f} should be in the scan set`)
+      assert.ok(scriptsFiles.includes(f), `${f} should be in the scripts/ scan set`)
     }
-    assert.ok(files.length > 100, `expected the full scripts/ tree, got ${files.length} files`)
+    assert.ok(scriptsFiles.length > 100, `expected the full scripts/ tree, got ${scriptsFiles.length} files`)
+  })
+
+  it('scans src/, including the frontend files fixed for this bug', () => {
+    // The whole reason this scanner was extended (2026-08-10): it must
+    // actually cover the frontend, or the FilterTray.tsx / CategoryPage.tsx
+    // class of bug (a UTC-derived TODAY used as a date-picker `min=`) can
+    // ship again unnoticed. Assert the fixed files are IN the scan set and
+    // no longer contain the banned shape (belt-and-suspenders — the main
+    // "flags every unreviewed use" test already proves this by finding zero
+    // findings overall, but a regression here would be silent if that test
+    // ever got an accidental allowlist entry added for these files).
+    const files = scannableFiles()
+    const srcFiles = files.filter((f) => f.root === 'src').map((f) => f.file)
+    for (const f of [
+      'components/FilterTray.tsx', 'pages/CategoryPage.tsx',
+      'lib/dateRange.js', 'lib/easternDate.ts', 'lib/whenFilter.ts',
+      'components/WhenSection.tsx',
+    ]) {
+      assert.ok(srcFiles.includes(f), `${f} should be in the src/ scan set`)
+    }
+    assert.ok(srcFiles.length > 100, `expected the full src/ tree, got ${srcFiles.length} files`)
+
+    for (const f of ['components/FilterTray.tsx', 'pages/CategoryPage.tsx']) {
+      const content = readFileSync(path.join(SRC_DIR, f), 'utf8')
+      assert.doesNotMatch(
+        content, UTC_DATE_SHAPE,
+        `${f} must not reintroduce a UTC-derived TODAY (use easternTodayIso()) — ` +
+        'this was the exact bug that motivated extending this scanner to src/.'
+      )
+    }
   })
 })

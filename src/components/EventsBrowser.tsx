@@ -111,7 +111,8 @@ export default function EventsBrowser({
   })
 
   // Separate unpaginated fetch for the map — same filters, all results. Only
-  // runs while the map is showing.
+  // runs while the map is showing. Time of day included so map and list can
+  // never diverge under the same filters (docs/when-filter.md §3.3).
   const { events: mapEvents, loading: mapLoading } = useMapEvents({
     categories: effective.categories,
     excludedCategories: effective.excludedCategories,
@@ -121,6 +122,7 @@ export default function EventsBrowser({
     dateRange: effective.dateRange,
     dateFrom: effective.dateFrom,
     dateTo: effective.dateTo,
+    timeOfDay: effective.timeOfDay,
     search: effective.search,
     freeOnly: effective.freeOnly,
     priceMax: effective.priceMax,
@@ -259,9 +261,11 @@ export default function EventsBrowser({
       {showFilterBar && (
         <FilterBar
           activeIntentId={filters.activeIntentId}  onIntentId={filters.setActiveIntentId}
-          dateRange={filters.dateRange}            onDateRange={filters.setDateRange}
-          dateFrom={filters.dateFrom}              onDateFrom={filters.setDateFrom}
-          dateTo={filters.dateTo}                  onDateTo={filters.setDateTo}
+          dateRange={filters.dateRange}
+          dateFrom={filters.dateFrom}
+          dateTo={filters.dateTo}
+          onWhenChange={filters.setWhen}
+          timeOfDay={filters.timeOfDay}             onTimeOfDayChange={filters.setTimeOfDay}
           rawCategories={filters.rawCategories}    onRawCategories={filters.setRawCategories}
           excludedCategories={filters.excludedCategories}
           onExcludedCategories={filters.setExcludedCategories}

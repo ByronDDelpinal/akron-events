@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
-import { CATEGORY_OPTIONS, SORT_OPTIONS, PRICE_OPTIONS, type CategoryOption } from '@/lib/filterOptions'
+import { CATEGORY_OPTIONS, SORT_OPTIONS, PRICE_OPTIONS, WHEN_PRESETS, type CategoryOption } from '@/lib/filterOptions'
+import WhenSection, { type WhenAction } from '@/components/WhenSection'
+import type { TimeOfDayId } from '@/lib/whenFilter'
 import './FilterTray.css'
-
-const TODAY = new Date().toISOString().split('T')[0]
 
 interface LockedDimensions {
   category?: boolean
@@ -22,10 +22,13 @@ interface FilterTrayProps {
   onCycleCategory?: (slug: string) => void
   priceFilter: string | null
   onPriceFilter: (v: string | null) => void
+  dateRange: string | null
   dateFrom: string | null
-  onDateFrom: (v: string | null) => void
   dateTo: string | null
-  onDateTo: (v: string | null) => void
+  /** Single entry point for every When-section write — see WhenSection.tsx. */
+  onWhenChange: (action: WhenAction) => void
+  timeOfDay: TimeOfDayId | null
+  onTimeOfDayChange: (v: TimeOfDayId | null) => void
   sort: string
   onSort: (v: string) => void
   /** Audience filter: hide events flagged is_family. */
@@ -70,8 +73,9 @@ export default function FilterTray({
   rawCategories,  onRawCategories,
   excludedCategories = [], onCycleCategory,
   priceFilter,    onPriceFilter,
-  dateFrom,       onDateFrom,
-  dateTo,         onDateTo,
+  dateRange,      dateFrom, dateTo,
+  onWhenChange,
+  timeOfDay,      onTimeOfDayChange,
   sort,           onSort,
   excludeFamily = false, onExcludeFamily,
   showAudienceToggle = false,
@@ -192,7 +196,10 @@ export default function FilterTray({
     onRawCategories([])
     onExcludeFamily?.(false)
     if (!lockedDimensions.price) onPriceFilter(null)
-    if (!lockedDimensions.dateRange) { onDateFrom(null); onDateTo(null) }
+    if (!lockedDimensions.dateRange) onWhenChange({ type: 'clear' })
+    // tod is not lockable in v1 (docs/when-filter.md §5) — always cleared,
+    // same as every other unlocked filter.
+    onTimeOfDayChange(null)
     onSort('soonest')
   }
 
@@ -227,6 +234,25 @@ export default function FilterTray({
           <span className="tray-title">Filter &amp; Sort</span>
           <button className="tray-clear-btn" onClick={clearAll}>Clear all</button>
         </div>
+
+        {/* ── When (date + time of day) ── */}
+        {/* Always the FIRST section, even when the date is locked (embed):
+            an absent first section makes the tray look broken, and a locked
+            date still leaves time of day narrowable — see WhenSection.tsx. */}
+        <TraySection label="When">
+          <WhenSection
+            dateRange={dateRange}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            timeOfDay={timeOfDay}
+            onWhenChange={onWhenChange}
+            onTimeOfDayChange={onTimeOfDayChange}
+            locked={!!lockedDimensions.dateRange}
+            lockLabel={WHEN_PRESETS.find((p) => p.id === dateRange)?.label ?? dateRange}
+            lockContext="embed"
+            idPrefix="tray"
+          />
+        </TraySection>
 
         {/* ── Sort ── */}
         <TraySection label="Sort by">
@@ -353,42 +379,6 @@ export default function FilterTray({
                 </button>
               ))}
             </div>
-          </TraySection>
-        )}
-
-        {/* ── Custom date range ── */}
-        {!lockedDimensions.dateRange && (
-          <TraySection label="Custom date range">
-            <div className="tray-date-row">
-              <label className="tray-date-label">
-                From
-                <input
-                  type="date"
-                  className="tray-date-input"
-                  value={dateFrom ?? ''}
-                  min={TODAY}
-                  onChange={(e) => onDateFrom(e.target.value || null)}
-                />
-              </label>
-              <label className="tray-date-label">
-                To
-                <input
-                  type="date"
-                  className="tray-date-input"
-                  value={dateTo ?? ''}
-                  min={dateFrom ?? TODAY}
-                  onChange={(e) => onDateTo(e.target.value || null)}
-                />
-              </label>
-            </div>
-            {(dateFrom || dateTo) && (
-              <button
-                className="tray-date-clear"
-                onClick={() => { onDateFrom(null); onDateTo(null) }}
-              >
-                Clear custom dates
-              </button>
-            )}
           </TraySection>
         )}
 

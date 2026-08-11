@@ -98,6 +98,20 @@ export type PlanOpenedRole = 'owner' | 'visitor' | 'draft'
 /** Whether the mobile map panel was opened or closed. */
 export type PlanMapToggleState = 'expanded' | 'collapsed'
 
+/**
+ * The "When" section's resulting state (date preset), always present on
+ * `when_filter` regardless of which control the user touched. 'custom' means
+ * a from/to range is active; 'this_week' is the legacy ghost value (see
+ * whenFilter.ts) -- still reportable if a partner embed's locked value
+ * somehow fires this event, though in practice locked dates don't.
+ */
+export type WhenPreset = 'any' | 'today' | 'tomorrow' | 'this_weekend'
+                        | 'next_7_days' | 'this_month' | 'this_week' | 'custom'
+/** The "When" section's resulting time-of-day state. 'none' when off. */
+export type TimeOfDay = 'none' | 'morning' | 'afternoon' | 'evening'
+/** Which control inside the When section the user actually touched. */
+export type WhenControl = 'preset' | 'range' | 'time_of_day'
+
 /** Which control changed the map/list selection. */
 export type PlanMapSelectionSource = 'list' | 'marker' | 'popup'
 
@@ -131,6 +145,14 @@ export const EVENTS = {
   OUTBOUND_CLICK:           'outbound_click',
   ADD_TO_CALENDAR:          'add_to_calendar',
   CATEGORY_FILTER:          'category_filter',
+  // WHEN_FILTER: NOT `date_filter` or `time_filter` -- one event describing
+  // both the date preset/range and time-of-day state, per this registry's
+  // "describe with parameters, not name explosions" rule (mirrors
+  // category_filter). Fired from WhenSection's own handlers so both funnels
+  // that mount it (the tray and the hub filter strip) report identically --
+  // see category_filter's own two-call-site note for why that has to be true
+  // at the shared-component level, not the hook level.
+  WHEN_FILTER:              'when_filter',
   THEME_CHANGED:            'theme_changed',
   FEEDBACK_OPENED:    'feedback_opened',
   FEEDBACK_SUBMITTED: 'feedback_submitted',
@@ -182,6 +204,22 @@ export interface EventParams {
   outbound_click:           { link_type: OutboundLinkType; source_tier: SourceTier; category: string }
   add_to_calendar:          { method: CalendarMethod; category: string }
   category_filter:          { category: string; action: CategoryFilterAction }
+  // Checked against initAnalytics' config-level default params before naming
+  // these -- `surface`, `embed_host`, `theme`, `neighborhood` are registered
+  // there on every hit, and an event-level param of the same name silently
+  // overrides a config default (the incident that renamed plan_surface, see
+  // plan_item_added below). None of these four collide with those.
+  // preset / time_of_day: RESULTING state (not deltas), so any single hit is
+  // self-describing in a report. changed: which control the user actually
+  // touched -- the only parameter that answers "does anyone use time of day,
+  // or did we build it for ourselves?". span_days: custom range length in
+  // days inclusive of both ends; 0 for every preset (there is no span).
+  when_filter: {
+    preset: WhenPreset
+    time_of_day: TimeOfDay
+    changed: WhenControl
+    span_days: number
+  }
   theme_changed:            { theme: string; previous_theme: string }
   feedback_opened:    { placement: FeedbackPlacement }
   feedback_submitted: { placement: FeedbackPlacement }

@@ -22,6 +22,8 @@ import NeighborhoodMap from '@/components/NeighborhoodMap'
 import SummitCountyMap from '@/components/SummitCountyMap'
 import SourceOverflowCard from '@/components/SourceOverflowCard'
 import DateHeading from '@/components/DateHeading'
+import WhenSection, { type WhenAction } from '@/components/WhenSection'
+import type { TimeOfDayId } from '@/lib/whenFilter'
 import { groupEventsByDate, applySourceCap } from '@/lib/eventGrouping'
 import {
   CATEGORY_OPTIONS,
@@ -136,6 +138,20 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
     setSearchParams(params, { replace: true })
   }, [searchParams, setSearchParams])
 
+  // Write several params in ONE history entry — mirrors useEventFilters.ts's
+  // updateParams. WhenSection's onWhenChange needs this: setting a preset
+  // must delete from/to in the same call and committing a range must delete
+  // date in the same call, or two sequential updateParam() calls (each
+  // reading the same render's searchParams snapshot) would clobber each other.
+  const updateParams = useCallback((entries: Record<string, string | string[] | null | undefined>) => {
+    const params = new URLSearchParams(searchParams)
+    for (const [key, value] of Object.entries(entries)) {
+      if (value == null || value === '' || (Array.isArray(value) && value.length === 0)) params.delete(key)
+      else params.set(key, Array.isArray(value) ? value.join(',') : String(value))
+    }
+    setSearchParams(params, { replace: true })
+  }, [searchParams, setSearchParams])
+
   const search        = useMemo(() => searchParams.get('q') || '', [searchParams])
   const rawCategories = useMemo(() => {
     if (lockedDimensions.category) return []
@@ -146,6 +162,13 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
     if (lockedDimensions.price) return null
     return searchParams.get('price') || null
   }, [searchParams, lockedDimensions.price])
+  // date — user-picked preset ('today' | 'this_weekend' | ...). Only
+  // meaningful when the hub itself hasn't already locked a dateRange; a
+  // locked hub's date comes from the registry (hub.dateRange), not the URL.
+  const dateRange     = useMemo(() => {
+    if (lockedDimensions.dateRange) return null
+    return searchParams.get('date') || null
+  }, [searchParams, lockedDimensions.dateRange])
   const dateFrom      = useMemo(() => {
     if (lockedDimensions.dateRange) return null
     return searchParams.get('from') || null
@@ -154,6 +177,12 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
     if (lockedDimensions.dateRange) return null
     return searchParams.get('to') || null
   }, [searchParams, lockedDimensions.dateRange])
+  // tod — time-of-day bucket. Never locked (docs/when-filter.md §5/§7 — not
+  // embed-lockable in v1, and no hub locks it either).
+  const timeOfDay = useMemo<TimeOfDayId | null>(() => {
+    const v = searchParams.get('tod')
+    return v === 'morning' || v === 'afternoon' || v === 'evening' ? v : null
+  }, [searchParams])
   const sort          = useMemo(() => searchParams.get('sort') || 'soonest', [searchParams])
   const activeIntentId = useMemo<string | null>(() => {
     if (lockedDimensions.category) return null
@@ -163,10 +192,16 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
   const setSearch         = useCallback((v: string) => updateParam('q', v), [updateParam])
   const setRawCategories  = useCallback((v: string[]) => updateParam('categories', v), [updateParam])
   const setPriceFilter    = useCallback((v: string | null) => updateParam('price', v), [updateParam])
-  const setDateFrom       = useCallback((v: string | null) => updateParam('from', v), [updateParam])
-  const setDateTo         = useCallback((v: string | null) => updateParam('to', v), [updateParam])
+  const setTimeOfDay      = useCallback((v: TimeOfDayId | null) => updateParam('tod', v), [updateParam])
   const setSort           = useCallback((v: string) => updateParam('sort', v === 'soonest' ? null : v), [updateParam])
   const setActiveIntentId = useCallback((v: string | null) => updateParam('intent', v), [updateParam])
+  // Single entry point for every When-section write — see WhenSection.tsx /
+  // useEventFilters.ts's setWhen (same shape, this page just doesn't use that hook).
+  const setWhen = useCallback((action: WhenAction) => {
+    if (action.type === 'preset') updateParams({ date: action.id, from: null, to: null })
+    else if (action.type === 'range') updateParams({ date: null, from: action.from, to: action.to })
+    else updateParams({ date: null, from: null, to: null })
+  }, [updateParams])
 
   // ── Search input draft (committed on Enter) ───────────────────────
   const [searchInput, setSearchInput] = useState(search)
@@ -194,7 +229,10 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
   const effectiveFreeOnly = lockedDimensions.price ? true : (priceFilter === 'free')
   const effectivePriceMax = lockedDimensions.price ? null
     : (priceFilter === 'free' ? null : priceFilter)
-  const effectiveDateRange = lockedDimensions.dateRange ? hub.dateRange : null
+  // A locked hub's date comes from the registry; otherwise the visitor's own
+  // preset chip. useEvents' own precedence (dateFrom/dateTo over dateRange)
+  // still applies underneath this — see useEvents.ts.
+  const effectiveDateRange = lockedDimensions.dateRange ? hub.dateRange : dateRange
 
   // ── Pagination state ──
   // offset/limit come from the history entry: a back navigation resumes at the
@@ -227,6 +265,7 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
     effectiveDateRange,
     dateFrom,
     dateTo,
+    timeOfDay,
     search,
     effectiveFreeOnly,
     effectivePriceMax,
@@ -246,15 +285,18 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
 
   // The hub's first page is edge-cacheable only when the request is the
   // pristine hub default: soonest sort, no search/intent, and no user-applied
-  // category/price/date filter. (Date-range hubs are time-relative, so they're
-  // never long-cached.) When all true, the effective filters equal what
-  // /api/events-hub applies, so we let useEvents serve page one from the edge.
+  // category/price/date/time-of-day filter. (Date-range hubs are time-relative,
+  // so they're never long-cached.) When all true, the effective filters equal
+  // what /api/events-hub applies, so we let useEvents serve page one from the
+  // edge. `&& !timeOfDay` is load-bearing, not decoration — see useEvents.ts's
+  // isDefaultFirstPage for the sibling guard and why (docs/when-filter.md §3.2).
   const hubFirstPageCacheable =
     sort === 'soonest' &&
     !search &&
     rawCategories.length === 0 &&
     !priceFilter &&
-    !dateFrom && !dateTo &&
+    !dateFrom && !dateTo && !dateRange &&
+    !timeOfDay &&
     !activeIntentId &&
     !hub.dateRange
 
@@ -267,6 +309,7 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
     dateRange:  effectiveDateRange,
     dateFrom,
     dateTo,
+    timeOfDay,
     search,
     sort,
     neighborhoodSlug: isAkronNeighborhood ? hub.slug : null,
@@ -454,18 +497,22 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
   const filtersPanel = (
     <HubFilters
       lockedDimensions={lockedDimensions}
+      lockLabel={hub.label}
       sort={sort}                      onSort={setSort}
       activeIntentId={activeIntentId}  onIntentId={setActiveIntentId}
       rawCategories={rawCategories}    onRawCategories={setRawCategories}
       priceFilter={priceFilter}        onPriceFilter={setPriceFilter}
-      dateFrom={dateFrom}              onDateFrom={setDateFrom}
-      dateTo={dateTo}                  onDateTo={setDateTo}
+      dateRange={effectiveDateRange}   dateFrom={dateFrom} dateTo={dateTo}
+      onWhenChange={setWhen}
+      timeOfDay={timeOfDay}            onTimeOfDayChange={setTimeOfDay}
       hasAnyUserFilter={
         !!activeIntentId
         || rawCategories.length > 0
         || priceFilter !== null
+        || dateRange !== null
         || dateFrom !== null
         || dateTo !== null
+        || timeOfDay !== null
         || sort !== 'soonest'
       }
       onClearAll={() => {
@@ -644,10 +691,10 @@ function HubSearchIcon() {
   )
 }
 
-const TODAY = new Date().toISOString().split('T')[0]
-
 interface HubFiltersProps {
   lockedDimensions: LockedDimensions
+  /** Chip text for the locked date preset — the hub's own label (e.g. "This Weekend"). */
+  lockLabel: string
   sort: string
   onSort: (v: string) => void
   activeIntentId: string | null
@@ -656,10 +703,12 @@ interface HubFiltersProps {
   onRawCategories: (v: string[]) => void
   priceFilter: string | null
   onPriceFilter: (v: string | null) => void
+  dateRange: string | null
   dateFrom: string | null
-  onDateFrom: (v: string | null) => void
   dateTo: string | null
-  onDateTo: (v: string | null) => void
+  onWhenChange: (action: WhenAction) => void
+  timeOfDay: TimeOfDayId | null
+  onTimeOfDayChange: (v: TimeOfDayId | null) => void
   hasAnyUserFilter: boolean
   onClearAll: () => void
 }
@@ -670,12 +719,14 @@ interface HubFiltersProps {
  */
 function HubFilters({
   lockedDimensions,
+  lockLabel,
   sort,            onSort,
   activeIntentId,  onIntentId,
   rawCategories,   onRawCategories,
   priceFilter,     onPriceFilter,
-  dateFrom,        onDateFrom,
-  dateTo,          onDateTo,
+  dateRange,       dateFrom, dateTo,
+  onWhenChange,
+  timeOfDay,       onTimeOfDayChange,
   hasAnyUserFilter,
   onClearAll,
 }: HubFiltersProps) {
@@ -730,6 +781,26 @@ function HubFilters({
         </div>
       </div>
 
+      {/* ── When (date + time of day) ── */}
+      {/* First filter section, always rendered — a locked hub date (e.g.
+          /events/this-weekend) still shows an inert selected chip rather than
+          hiding the section, so the strip visibly answers "why am I only
+          seeing weekend events?" (docs/when-filter.md §5). */}
+      <HubFilterSection label="When">
+        <WhenSection
+          dateRange={dateRange}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          timeOfDay={timeOfDay}
+          onWhenChange={onWhenChange}
+          onTimeOfDayChange={onTimeOfDayChange}
+          locked={!!lockedDimensions.dateRange}
+          lockLabel={lockLabel}
+          lockContext="hub"
+          idPrefix="hub"
+        />
+      </HubFilterSection>
+
       {!lockedDimensions.category && (
         <HubFilterSection label="Category">
           {CATEGORY_OPTIONS.map((opt) => (
@@ -755,42 +826,6 @@ function HubFilters({
               {label}
             </HubChip>
           ))}
-        </HubFilterSection>
-      )}
-
-      {!lockedDimensions.dateRange && (
-        <HubFilterSection label="Custom date range">
-          <div className="hub-filter-date-row">
-            <label className="hub-filter-date-label">
-              From
-              <input
-                type="date"
-                className="hub-filter-date-input"
-                value={dateFrom ?? ''}
-                min={TODAY}
-                onChange={(e) => onDateFrom(e.target.value || null)}
-              />
-            </label>
-            <label className="hub-filter-date-label">
-              To
-              <input
-                type="date"
-                className="hub-filter-date-input"
-                value={dateTo ?? ''}
-                min={dateFrom ?? TODAY}
-                onChange={(e) => onDateTo(e.target.value || null)}
-              />
-            </label>
-            {(dateFrom || dateTo) && (
-              <button
-                type="button"
-                className="hub-filter-date-clear"
-                onClick={() => { onDateFrom(null); onDateTo(null) }}
-              >
-                Clear dates
-              </button>
-            )}
-          </div>
         </HubFilterSection>
       )}
     </div>

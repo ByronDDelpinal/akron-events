@@ -383,50 +383,10 @@
   color: #fff;
   border-color: var(--amber);
 }
-.hub-filter-date-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: 12px;
-}
-.hub-filter-date-label {
-  display: grid;
-  gap: 4px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--text-muted);
-}
-.hub-filter-date-input {
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-body);
-  font-size: 0.88rem;
-}
-.hub-filter-date-input:focus {
-  outline: none;
-  border-color: var(--amber);
-  box-shadow: 0 0 0 3px var(--amber-tint-15, rgba(212,160,53,0.15));
-}
-.hub-filter-date-clear {
-  align-self: end;
-  margin-bottom: 1px;
-  border: none;
-  background: none;
-  padding: 6px 8px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--amber);
-  cursor: pointer;
-  border-radius: 6px;
-}
-.hub-filter-date-clear:hover {
-  background: var(--amber-tint-15, rgba(212,160,53,0.12));
-}
+/* .hub-filter-date-* rules removed 2026-08-10 — the hub strip's bare
+   From/To inputs were replaced by the shared WhenSection (see WhenSection.tsx
+   / WhenSection.css), which reuses FilterTray.css's .tray-date-* classes
+   instead of duplicating them under a hub-specific name. */
 
 /* ── Section headings ──────────────────────────────────────────── */
 

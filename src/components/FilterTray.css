@@ -198,23 +198,6 @@
 }
 .tray-date-input:focus { border-color: var(--amber); }
 
-.tray-date-clear {
-  margin-top: var(--space-md);
-  padding: var(--space-sm) var(--space-lg);
-  border-radius: var(--radius-sm);
-  border: var(--border-width-thin) solid var(--border);
-  background: transparent;
-  color: var(--text-muted);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-.tray-date-clear:hover {
-  border-color: var(--coral);
-  color: var(--coral);
-}
-
 /* ── CTA ── */
 .tray-cta {
   display: block;

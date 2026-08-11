@@ -52,6 +52,89 @@ export type Database = {
           },
         ]
       }
+      day_plan_items: {
+        Row: {
+          added_at: string
+          event_id: string
+          plan_id: string
+          removed_at: string | null
+          snap_end_at: string | null
+          snap_source: string | null
+          snap_source_id: string | null
+          snap_start_at: string
+          snap_title: string
+          snap_venue: string | null
+        }
+        Insert: {
+          added_at?: string
+          event_id: string
+          plan_id: string
+          removed_at?: string | null
+          snap_end_at?: string | null
+          snap_source?: string | null
+          snap_source_id?: string | null
+          snap_start_at: string
+          snap_title: string
+          snap_venue?: string | null
+        }
+        Update: {
+          added_at?: string
+          event_id?: string
+          plan_id?: string
+          removed_at?: string | null
+          snap_end_at?: string | null
+          snap_source?: string | null
+          snap_source_id?: string | null
+          snap_start_at?: string
+          snap_title?: string
+          snap_venue?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "day_plan_items_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "day_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      day_plans: {
+        Row: {
+          code: string
+          created_at: string
+          expires_at: string
+          id: string
+          item_count: number
+          mut_count: number
+          mut_window_at: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          item_count?: number
+          mut_count?: number
+          mut_window_at?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          item_count?: number
+          mut_count?: number
+          mut_window_at?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       email_sends: {
         Row: {
           created_at: string
@@ -309,6 +392,7 @@ export type Database = {
           source_id: string | null
           source_url: string | null
           start_at: string
+          start_hour_et: number | null
           status: string
           tags: string[]
           ticket_url: string | null
@@ -344,6 +428,7 @@ export type Database = {
           source_id?: string | null
           source_url?: string | null
           start_at: string
+          start_hour_et?: number | null
           status?: string
           tags?: string[]
           ticket_url?: string | null
@@ -379,6 +464,7 @@ export type Database = {
           source_id?: string | null
           source_url?: string | null
           start_at?: string
+          start_hour_et?: number | null
           status?: string
           tags?: string[]
           ticket_url?: string | null
@@ -798,12 +884,39 @@ export type Database = {
       }
     }
     Functions: {
+      create_day_plan: {
+        Args: { p_event_ids: string[]; p_plan_id: string; p_title: string }
+        Returns: string
+      }
+      day_plan_add_event: {
+        Args: { p_code: string; p_event_id: string }
+        Returns: Json
+      }
+      day_plan_insert_item: {
+        Args: { p_event_id: string; p_plan_id: string }
+        Returns: undefined
+      }
+      day_plan_mutation_gate: {
+        Args: { p_plan_id: string }
+        Returns: undefined
+      }
+      day_plan_remove_event: {
+        Args: { p_code: string; p_event_id: string }
+        Returns: Json
+      }
+      day_plan_set_title: {
+        Args: { p_code: string; p_title: string }
+        Returns: Json
+      }
       event_is_pending_review: {
         Args: { p_event_id: string }
         Returns: boolean
       }
+      gen_day_plan_code: { Args: never; Returns: string }
+      get_day_plan: { Args: { p_code: string }; Returns: Json }
       moderation_request_role: { Args: never; Returns: string }
       moderation_severity: { Args: { input: string }; Returns: string }
+      purge_expired_day_plans: { Args: never; Returns: number }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       source_priority: { Args: { src: string }; Returns: number }

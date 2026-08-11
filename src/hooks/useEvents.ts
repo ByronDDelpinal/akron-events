@@ -3,6 +3,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { EVENT_LIST_COLUMNS } from '@/lib/firstPageQuery'
 import { dateRangeBounds } from '@/lib/dateRange'
+import { easternIsoAt } from '@/lib/easternDate'
+import { timeOfDayBounds, type TimeOfDayId } from '@/lib/whenFilter'
 import { useAsync } from './useAsync'
 
 /**
@@ -136,6 +138,9 @@ export interface UseEventsOptions {
   dateRange?: string | null
   dateFrom?: string | null
   dateTo?: string | null
+  /** Time-of-day bucket filter. Requires migration 056's `start_hour_et`
+   * column — see whenFilter.ts's timeOfDayBounds. */
+  timeOfDay?: TimeOfDayId | null
   search?: string | null
   freeOnly?: boolean
   priceMax?: string | null
@@ -168,6 +173,7 @@ export function useEvents({
   dateRange        = null,
   dateFrom         = null,
   dateTo           = null,
+  timeOfDay        = null,
   search           = null,
   freeOnly         = false,
   priceMax         = null,
@@ -206,10 +212,15 @@ export function useEvents({
     // a day of stale-while-revalidate), answering in ~50 ms worldwide
     // instead of paying PostgREST latency. Any failure falls through
     // to the normal live query.
+    // `&& !timeOfDay` is load-bearing, not decoration: /api/events-first-page
+    // is a pre-baked response with no start_hour_et predicate applied, so a
+    // time-filtered request that slipped through this guard would silently
+    // get served the UNFILTERED cached page (docs/when-filter.md §3.2's cache
+    // guard note — this is one of the two sites it calls out).
     const isDefaultFirstPage =
       categories.length === 0 && excludedCategories.length === 0 &&
       !family && !excludeFamily && !fundraiser &&
-      !dateRange && !dateFrom && !dateTo &&
+      !dateRange && !dateFrom && !dateTo && !timeOfDay &&
       (!search || search.trim().length === 0) &&
       !freeOnly && !priceMax &&
       hiddenSources.length === 0 && !neighborhoodSlug &&
@@ -327,11 +338,27 @@ export function useEvents({
         }
 
         if (dateFrom || dateTo) {
-          if (dateFrom) query = query.gte('start_at', new Date(dateFrom + 'T00:00:00').toISOString())
-          if (dateTo)   query = query.lte('start_at', new Date(dateTo + 'T23:59:59').toISOString())
+          // Eastern, NOT viewer-local. `new Date('2026-08-15T00:00:00')` is
+          // parsed in the BROWSER's timezone, so the identical ?from=&to= URL
+          // returned three different windows from New York, Los Angeles and
+          // London. Presets were fixed in dateRangeBounds; this custom-range
+          // path is the one most likely to be in a shared link, so it matters
+          // most. See src/lib/easternDate.ts.
+          if (dateFrom) query = query.gte('start_at', easternIsoAt(dateFrom, '00:00:00'))
+          if (dateTo)   query = query.lte('start_at', easternIsoAt(dateTo, '23:59:59'))
         } else if (dateRange) {
           const { start, end } = dateRangeBounds(dateRange)
           query = query.gte('start_at', start.toISOString()).lte('start_at', end.toISOString())
+        }
+
+        // Time of day: ANDed with whatever date window is active. Requires
+        // migration 056's start_hour_et column (a trigger-maintained hour,
+        // NOT a generated column — AT TIME ZONE is STABLE, not IMMUTABLE, see
+        // the migration header). Single-select for v1; `.in(...)` is the
+        // drop-in for multi-select later, the column already supports it.
+        const todBounds = timeOfDayBounds(timeOfDay)
+        if (todBounds) {
+          query = query.gte('start_hour_et', todBounds[0]).lte('start_hour_et', todBounds[1])
         }
 
         if (freeOnly) {
@@ -379,7 +406,7 @@ export function useEvents({
 
     fetchEvents()
     return () => { cancelled = true }
-  }, [categoriesStable, excludedCatsStable, family, excludeFamily, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSourcesStable, neighborhoodSlug, venueCitiesStable, sort, limit, offset, hubSlug])
+  }, [categoriesStable, excludedCatsStable, family, excludeFamily, fundraiser, dateRange, dateFrom, dateTo, timeOfDay, search, freeOnly, priceMax, hiddenSourcesStable, neighborhoodSlug, venueCitiesStable, sort, limit, offset, hubSlug])
 
   const hasMore = offset + limit < total
 
@@ -564,6 +591,9 @@ export interface UseMapEventsOptions {
   dateRange?: string | null
   dateFrom?: string | null
   dateTo?: string | null
+  /** Time-of-day bucket filter. Applied here too so the map view can't
+   * diverge from the list view under the same filters (docs/when-filter.md §3.3). */
+  timeOfDay?: TimeOfDayId | null
   search?: string | null
   freeOnly?: boolean
   priceMax?: string | null
@@ -587,6 +617,7 @@ export function useMapEvents({
   dateRange     = null,
   dateFrom      = null,
   dateTo        = null,
+  timeOfDay     = null,
   search        = null,
   freeOnly      = false,
   priceMax      = null,
@@ -676,6 +707,11 @@ export function useMapEvents({
             query = query.gte('start_at', start.toISOString()).lte('start_at', end.toISOString())
           }
 
+          const todBounds = timeOfDayBounds(timeOfDay)
+          if (todBounds) {
+            query = query.gte('start_hour_et', todBounds[0]).lte('start_hour_et', todBounds[1])
+          }
+
           if (freeOnly) {
             query = query.eq('price_min', 0).or('price_max.is.null,price_max.eq.0')
           } else if (priceMax === 'under10') {
@@ -742,7 +778,7 @@ export function useMapEvents({
 
     fetchMapEvents()
     return () => { cancelled = true }
-  }, [enabled, categoriesStable, excludedCatsStable, family, excludeFamily, fundraiser, dateRange, dateFrom, dateTo, search, freeOnly, priceMax, hiddenSourcesStable, neighborhoodSlug, venueCitiesStable])
+  }, [enabled, categoriesStable, excludedCatsStable, family, excludeFamily, fundraiser, dateRange, dateFrom, dateTo, timeOfDay, search, freeOnly, priceMax, hiddenSourcesStable, neighborhoodSlug, venueCitiesStable])
 
   return { events, loading, error, total }
 }

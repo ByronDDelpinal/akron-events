@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { INTENTS } from '@/lib/intents'
 import { trackEvent, EVENTS } from '@/lib/analytics'
+import type { WhenAction, TimeOfDayId } from '@/lib/whenFilter'
 
 /**
  * useEventFilters — the single, URL-backed source of truth for the event
@@ -64,6 +65,8 @@ export interface EffectiveQuery {
   dateRange: string | null
   dateFrom: string | null
   dateTo: string | null
+  /** Time-of-day bucket ('morning' | 'afternoon' | 'evening'), or null for no filter. */
+  timeOfDay: TimeOfDayId | null
   search: string
   freeOnly: boolean
   priceMax: string | null
@@ -75,8 +78,10 @@ export interface EffectiveQuery {
 
 // All filter-owned query keys. clearFilters only ever touches these, so
 // non-filter params (embed theme/features/target/view/density) survive a
-// "Clear filters" untouched.
-export const FILTER_PARAM_KEYS = ['intent', 'date', 'from', 'to', 'categories', 'exclude', 'price', 'sort', 'q', 'audience']
+// "Clear filters" untouched. `tod` (time of day) was added alongside the
+// "When" section — omitting it here would leave a stale bucket filter behind
+// after "Clear filters".
+export const FILTER_PARAM_KEYS = ['intent', 'date', 'from', 'to', 'categories', 'exclude', 'price', 'sort', 'q', 'audience', 'tod']
 
 type ParamValue = string | string[] | null | undefined
 
@@ -132,6 +137,27 @@ export function useEventFilters({
   const setDateFrom = useCallback((v: string | null) => updateParam('from', v), [updateParam])
   const dateTo = useMemo(() => searchParams.get('to') || null, [searchParams])
   const setDateTo = useCallback((v: string | null) => updateParam('to', v), [updateParam])
+
+  // tod — time-of-day bucket ('morning' | 'afternoon' | 'evening'). Absent
+  // means no filter, so the default URL stays clean (matches sort/audience).
+  // Unknown values fall back to no filter, same defensive posture as intent.
+  const timeOfDay = useMemo<TimeOfDayId | null>(() => {
+    const v = searchParams.get('tod')
+    return v === 'morning' || v === 'afternoon' || v === 'evening' ? v : null
+  }, [searchParams])
+  const setTimeOfDay = useCallback((v: TimeOfDayId | null) => updateParam('tod', v), [updateParam])
+
+  // setWhen — the single entry point WhenSection calls. Every WhenAction
+  // variant is ONE updateParams() call so a preset write deletes from/to (and
+  // a range write deletes date) atomically, in the same history entry —
+  // required by §1.2 of the design; two sequential updateParam() calls would
+  // each read the same render's searchParams snapshot and the second would
+  // clobber the first.
+  const setWhen = useCallback((action: WhenAction) => {
+    if (action.type === 'preset') updateParams({ date: action.id, from: null, to: null })
+    else if (action.type === 'range') updateParams({ date: null, from: action.from, to: action.to })
+    else updateParams({ date: null, from: null, to: null })
+  }, [updateParams])
 
   // categories — comma-separated list (e.g. "music,outdoors")
   const rawCategories = useMemo(() => {
@@ -250,6 +276,7 @@ export function useEventFilters({
     dateRange,
     dateFrom,
     dateTo,
+    timeOfDay,
     search,
     freeOnly: effectiveFreeOnly,
     priceMax: effectivePriceMax,
@@ -270,6 +297,7 @@ export function useEventFilters({
     dateRange,
     dateFrom,
     dateTo,
+    timeOfDay,
     search,
     effectiveFreeOnly,
     effectivePriceMax,
@@ -284,6 +312,7 @@ export function useEventFilters({
     dateRange, setDateRange,
     dateFrom, setDateFrom,
     dateTo, setDateTo,
+    timeOfDay, setTimeOfDay, setWhen,
     rawCategories, setRawCategories,
     excludedCategories, setExcludedCategories, cycleCategory,
     priceFilter, setPriceFilter,

@@ -44,11 +44,19 @@ function shortTime(iso: string): string {
     .toLowerCase()
 }
 
-/** Seed the calendar's mode + focus from any date-range filter already active. */
+/** Seed the calendar's mode + focus from any date-range filter already active.
+ * Note: the calendar still ignores the date filter for FETCHING
+ * (EventsBrowser.tsx's calendar fetch has no dateFrom/dateTo/dateRange) —
+ * this only decides which day/week/month it opens on. Time of day does not
+ * seed or filter the calendar in v1 (docs/when-filter.md §9). */
 function initialState(range: string | null, from: string | null, to: string | null): { mode: Mode; cursor: Date } {
   const today = new Date()
   if (range === 'today') return { mode: 'day', cursor: today }
-  if (range === 'this_weekend' || range === 'this_week') return { mode: 'week', cursor: today }
+  if (range === 'tomorrow') return { mode: 'day', cursor: addDays(today, 1) }
+  // `this_week` is the legacy ghost preset (no chip — see filterOptions.ts's
+  // WHEN_PRESETS) kept here only so an old embed/shared URL still seeds a
+  // sane calendar view; do not remove.
+  if (range === 'this_weekend' || range === 'this_week' || range === 'next_7_days') return { mode: 'week', cursor: today }
   if (range === 'this_month') return { mode: 'month', cursor: new Date(today.getFullYear(), today.getMonth(), 1) }
   if (from || to) {
     const f = from ? parseYmd(from) : (to ? parseYmd(to) : today)

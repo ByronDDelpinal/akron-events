@@ -16,7 +16,10 @@
  *                              change it. Unknown slugs are ignored.
  *   categories=music,arts      locked content filter (any-match)
  *   price=free|under10|under25 locked price filter
- *   date=today|this_weekend|this_week|this_month   locked date preset
+ *   date=today|tomorrow|this_weekend|next_7_days|this_month   locked date
+ *                              preset (`this_week` also resolves -- legacy
+ *                              compatibility value, not offered by the
+ *                              builder, see EmbedDate in this file)
  *   family=1                   locked family-friendly facet
  *   features=filter,map,calendar,density,price,tags
  *                              allowlist of enabled features; OMITTED = all on
@@ -49,7 +52,16 @@ export const EMBED_FEATURES = ['filter', 'map', 'calendar', 'density', 'price', 
 export type EmbedFeature = (typeof EMBED_FEATURES)[number]
 
 export type EmbedPrice = 'free' | 'under10' | 'under25'
-export type EmbedDate = 'today' | 'this_weekend' | 'this_week' | 'this_month'
+// `tomorrow` and `next_7_days` added 2026-08-10 for parity with the tray's
+// WHEN_PRESETS chips (docs/when-filter.md §5). `this_week` stays listed and
+// stays VALID (below) as a COMPATIBILITY GHOST ONLY: it is a legacy value
+// with no chip anywhere in the UI (see filterOptions.ts's WHEN_PRESETS and
+// WhenSection.tsx) and the embed BUILDER no longer offers it
+// (EmbedBuilderPage.tsx's DATE_OPTIONS). It must keep resolving forever
+// because a partner iframe minted before this change may still carry
+// `date=this_week` in its embed src -- do NOT remove it from this type or
+// from VALID_DATE below, and do NOT re-add it to the builder's dropdown.
+export type EmbedDate = 'today' | 'tomorrow' | 'this_weekend' | 'next_7_days' | 'this_week' | 'this_month'
 export type EmbedView = 'list' | 'map' | 'calendar'
 export type EmbedDensity = 'comfortable' | 'efficient'
 export type EmbedTarget = 'inline' | 'blank' | 'external'
@@ -78,7 +90,8 @@ export interface EmbedConfig {
 }
 
 const VALID_PRICE = new Set<EmbedPrice>(['free', 'under10', 'under25'])
-const VALID_DATE = new Set<EmbedDate>(['today', 'this_weekend', 'this_week', 'this_month'])
+// `this_week` stays valid — compatibility ghost, see EmbedDate's comment above.
+const VALID_DATE = new Set<EmbedDate>(['today', 'tomorrow', 'this_weekend', 'next_7_days', 'this_week', 'this_month'])
 const VALID_VIEW = new Set<EmbedView>(['list', 'map', 'calendar'])
 const VALID_DENSITY = new Set<EmbedDensity>(['comfortable', 'efficient'])
 const VALID_TARGET = new Set<EmbedTarget>(['inline', 'blank', 'external'])

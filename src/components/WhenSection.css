@@ -1,0 +1,66 @@
+/* WhenSection — shared by FilterTray (imports FilterTray.css for the base
+   .tray-chip/.tray-chips/.tray-section-hint/.tray-date-* rules it reuses)
+   and CategoryPage's hub filter strip (imports this file directly since it
+   does not otherwise load FilterTray.css). Only the styles specific to the
+   radio-chip and time-of-day pieces live here; everything else rides the
+   `.tray-*` classnames shared across both surfaces. */
+
+.when-fieldset,
+.when-locked {
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.when-chip {
+  position: relative;
+}
+
+.when-chip-input {
+  position: absolute;
+}
+
+.when-chip--locked {
+  cursor: default;
+}
+
+.when-chip--ghost-disabled {
+  opacity: 0.6;
+}
+
+.when-chip-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  min-height: 22px;
+  margin-left: var(--space-xs);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: var(--text-tiny);
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 50%;
+}
+.when-chip-clear:hover { opacity: 0.7; }
+
+/* 44x44 hit area without visually enlarging the small "x" glyph. */
+.when-chip-clear::before {
+  content: '';
+  position: absolute;
+  inset: -11px;
+}
+
+.when-custom-panel {
+  margin-top: var(--space-md);
+}
+
+.when-time-of-day {
+  margin-top: var(--space-xl);
+}
+
+.when-time-label {
+  margin-bottom: var(--space-md);
+}

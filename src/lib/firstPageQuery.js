@@ -15,7 +15,13 @@
  * Columns the list surfaces actually render. Deliberately excludes
  * `description` and the *_normalized search columns — they roughly
  * double the payload and nothing in a card reads them. Detail pages
- * (useEvent) select * for the full record.
+ * (useEvent) select * for the full record. `start_hour_et` (migration 056,
+ * the "When" section's time-of-day filter) is also NOT listed here on
+ * purpose — it's filtered on, never rendered — but this cached endpoint has
+ * no start_hour_et predicate at all, so the two cache guards that keep a
+ * time-filtered request from being served THIS unfiltered page live at the
+ * call sites, not here: useEvents.ts's `isDefaultFirstPage` and
+ * CategoryPage.tsx's `hubFirstPageCacheable` both gain `&& !timeOfDay`.
  */
 export const EVENT_LIST_COLUMNS = `
             id, title, start_at, end_at, status, source, source_url,

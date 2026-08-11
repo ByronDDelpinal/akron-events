@@ -11,50 +11,11 @@
 }
 
 /* ════════════════════════════════
-   ROW 1 — Date tabs + view toggle
+   ROW 1 — view toggle
 ════════════════════════════════ */
-.filter-date-row {
-  display: flex;
-  align-items: center;
-  border-bottom: var(--border-width-thin) solid var(--border);
-  max-width: var(--width-full);
-  margin: 0 auto;
-  padding: 0 var(--space-xl);
-}
-
-/* Scrollable date tab strip */
-.filter-date-tabs {
-  display: flex;
-  flex: 1;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.filter-date-tabs::-webkit-scrollbar { display: none; }
-
-.date-tab {
-  flex-shrink: 0;
-  padding: var(--space-md) var(--space-lg);
-  background: transparent;
-  border: none;
-  border-bottom: var(--border-width-thick) solid transparent;
-  color: var(--text-muted);
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color var(--transition-medium), border-color var(--transition-medium);
-  position: relative;
-  /* Counteract the parent border-bottom so our own sits flush */
-  margin-bottom: -1px;
-}
-.date-tab:hover { color: var(--text-secondary); }
-.date-tab.active {
-  color: var(--amber);
-  border-bottom-color: var(--amber);
-  font-weight: 700;
-}
+/* The old date-tab strip (.filter-date-row / .filter-date-tabs / .date-tab)
+   was dead UI — nothing rendered it, see FilterBar.tsx's DATE_TABS removal
+   note — and is deleted along with the JS. Removed 2026-08-10. */
 
 /* View toggle — pill housing the List / Map buttons */
 .view-toggle {
@@ -286,21 +247,12 @@
   z-index: 1;
 }
 
-/* Date tabs: mask fades content at the right edge before the view toggle */
-.filter-date-tabs {
-  -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
-  mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
-}
-
 /* ── Mobile ── */
 @media (max-width: 640px) {
   .filter-bar { top: 64px; } /* header is always 64px tall */
 
-  .filter-date-row,
   .filter-actions-row,
   .filter-active-strip { padding-left: var(--space-lg); padding-right: var(--space-lg); }
-
-  .date-tab { padding: var(--space-md) var(--space-md); font-size: var(--text-sm); }
 
   .view-toggle { border-left: none; padding-left: var(--space-sm); }
 

@@ -41,11 +41,16 @@ const PRICE_OPTIONS: { value: EmbedPrice | ''; label: string }[] = [
   { value: 'under25',  label: 'Under $25' },
 ]
 
+// `this_week` is deliberately NOT offered here — it's a compatibility ghost
+// kept alive only so embeds minted before 2026-08-10 keep resolving (see
+// embedConfig.ts's EmbedDate). Do not add it back to this list; a partner
+// building a NEW embed gets `next_7_days` instead.
 const DATE_OPTIONS: { value: EmbedDate | ''; label: string }[] = [
   { value: '',             label: 'All dates (no lock)' },
   { value: 'today',        label: 'Today' },
+  { value: 'tomorrow',     label: 'Tomorrow' },
   { value: 'this_weekend', label: 'This weekend' },
-  { value: 'this_week',    label: 'This week' },
+  { value: 'next_7_days',  label: 'Next 7 days' },
   { value: 'this_month',   label: 'This month' },
 ]
 
