@@ -282,7 +282,9 @@ const PRICE_LABELS: Record<EmbedPrice, string> = {
 
 const DATE_LABELS: Record<EmbedDate, string> = {
   today: 'Today',
+  tomorrow: 'Tomorrow',
   this_weekend: 'This weekend',
+  next_7_days: 'Next 7 days',
   this_week: 'This week',
   this_month: 'This month',
 }
