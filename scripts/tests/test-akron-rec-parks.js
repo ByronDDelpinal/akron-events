@@ -15,7 +15,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ||
 
 const {
   parseDetailHtml, parseDescription, parseFees, parseSchedule,
-  mdyToYmd, to24h, decodeEntities, KNOWN_FACILITIES,
+  mdyToYmd, to24h, decodeEntities, KNOWN_FACILITIES, isRecurringSeries,
   resolveFacilityName, facilityFromTitle,
 } = await import('../scrape-akron-rec-parks.js')
 
@@ -112,10 +112,52 @@ describe('parseSchedule', () => {
       startTime: '9:00 AM',
       endTime:   '3:00 PM',
       location:  'Lawton Street Community Center',
+      sessionCount: 3,
     })
+  })
+  it('counts one session per data-label="Date" row', () => {
+    assert.equal(parseSchedule(DETAIL_HTML).sessionCount, 3)
   })
   it('returns null when there is no schedule table', () => {
     assert.equal(parseSchedule(DETAIL_HTML_MINIMAL), null)
+  })
+})
+
+describe('isRecurringSeries', () => {
+  it('contiguous camps are NOT series (real end_at kept)', () => {
+    // 5 sessions across 5 days — classic one-week camp
+    assert.equal(isRecurringSeries('2026-06-08', '2026-06-12', 5), false)
+    // holiday-skip: 4 sessions across 5 days
+    assert.equal(isRecurringSeries('2026-06-15', '2026-06-19', 4), false)
+    // two-week camp: 10 weekday sessions across 12 days
+    assert.equal(isRecurringSeries('2026-06-08', '2026-06-19', 10), false)
+    // 3 sessions across 5 days — dense enough to stay a run
+    assert.equal(isRecurringSeries('2026-06-08', '2026-06-12', 3), false)
+  })
+  it('sparse schedules ARE series', () => {
+    // weekly class: 12 sessions across ~78 days
+    assert.equal(isRecurringSeries('2026-06-08', '2026-08-24', 12), true)
+    // 16 sessions across 52 days
+    assert.equal(isRecurringSeries('2026-06-01', '2026-07-22', 16), true)
+    // 4 sessions across 22 days
+    assert.equal(isRecurringSeries('2026-06-02', '2026-06-23', 4), true)
+  })
+  it('missing schedule falls back to the > 14-day span rule', () => {
+    assert.equal(isRecurringSeries('2026-06-01', '2026-08-31', null), true)
+    assert.equal(isRecurringSeries('2026-06-01', '2026-06-10', null), false)
+    // boundary: 14 inclusive days is NOT a series; 15 is
+    assert.equal(isRecurringSeries('2026-06-01', '2026-06-14', 0), false)
+    assert.equal(isRecurringSeries('2026-06-01', '2026-06-15', 0), true)
+  })
+  it('nullish, equal, or garbage args are never a series', () => {
+    assert.equal(isRecurringSeries(null, null, 5), false)
+    assert.equal(isRecurringSeries('2026-06-08', null, 5), false)
+    assert.equal(isRecurringSeries(null, '2026-06-08', 5), false)
+    assert.equal(isRecurringSeries('2026-06-08', '2026-06-08', 5), false)
+    assert.equal(isRecurringSeries('garbage', '2026-06-12', 5), false)
+    assert.equal(isRecurringSeries('2026-06-08', '6/12/2026', 5), false)
+    // inverted range
+    assert.equal(isRecurringSeries('2026-06-12', '2026-06-08', 5), false)
   })
 })
 

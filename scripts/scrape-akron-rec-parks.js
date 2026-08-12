@@ -281,6 +281,39 @@ export function mdyToYmd(mdy) {
   return `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`
 }
 
+/** "YYYY-MM-DD" → "M/D/YYYY" | null (for human-facing recurrence notes). */
+function ymdToMdy(ymd) {
+  const m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return null
+  return `${parseInt(m[2], 10)}/${parseInt(m[3], 10)}/${m[1]}`
+}
+
+/**
+ * Heuristic: is this program a sparse recurring series (e.g. a weekly class
+ * spanning months) rather than a contiguous multi-day run (e.g. a week-long
+ * camp)? Series should NOT get an end_at stretched across the whole span.
+ *
+ * Day math uses Date.UTC on parsed YMD parts — never new Date(str) local
+ * parsing, never toISOString().
+ */
+export function isRecurringSeries(startYmd, endYmd, sessionCount) {
+  if (startYmd == null || endYmd == null || startYmd === endYmd) return false
+  const parse = (ymd) => {
+    const m = String(ymd).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    return m ? Date.UTC(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10)) : null
+  }
+  const startMs = parse(startYmd)
+  const endMs   = parse(endYmd)
+  if (startMs == null || endMs == null || endMs < startMs) return false
+  const spanDays = Math.round((endMs - startMs) / 86_400_000) + 1 // inclusive
+  if (spanDays <= 1) return false
+  // Real session count known: a contiguous run has ~1 session per day, a
+  // series is sparse. Density < 50% (span >= twice the sessions) → series.
+  if (sessionCount != null && sessionCount >= 2) return spanDays >= 2 * sessionCount
+  // No usable schedule: only a season-long list range (> 2 weeks) → series.
+  return spanDays > 14
+}
+
 /** "9:00 AM" / "3:00 PM" → "HH:MM:SS" (24h) | null. */
 export function to24h(timeStr) {
   const m = String(timeStr || '').trim().match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/)
@@ -390,6 +423,7 @@ export function parseSchedule(html) {
     startTime: cell(first, 'Start Time'),
     endTime:   cell(first, 'End Time'),
     location,
+    sessionCount: rows.length,
   }
 }
 
@@ -638,15 +672,34 @@ async function main() {
         const startAt = easternToIso(`${startYmd} ${startTime}`)
         if (!startAt) { skipped++; continue }
 
+        // Sparse recurring series (e.g. a weekly class spanning months) must
+        // not stretch end_at across the whole span — end with the FIRST
+        // session (or leave null when no schedule provides a real end time).
+        const series = isRecurringSeries(startYmd, endYmd, sched?.sessionCount ?? null)
+
         // Multi-day → end on the last day; single-day → only set an end when we
         // actually have a real end time from the schedule (else leave null).
-        const endAt = endYmd !== startYmd
-          ? easternToIso(`${endYmd} ${endTime}`)
-          : (sched?.endTime ? easternToIso(`${startYmd} ${endTime}`) : null)
+        const endAt = series
+          ? (sched?.endTime ? easternToIso(`${startYmd} ${endTime}`) : null)
+          : (endYmd !== startYmd
+              ? easternToIso(`${endYmd} ${endTime}`)
+              : (sched?.endTime ? easternToIso(`${startYmd} ${endTime}`) : null))
+
+        // Series: disclose the real run window in the description. Built
+        // deterministically from freshly scraped fields each night, so a
+        // re-scrape replaces the note rather than accreting copies.
+        let description = detail.description ?? null
+        if (series && (sched?.lastDate || listDates)) {
+          const throughText = sched?.lastDate ?? ymdToMdy(endYmd)
+          if (throughText) {
+            const note = `Recurring program; sessions run through ${throughText}.`
+            description = description ? `${description}\n\n${note}` : note
+          }
+        }
 
         const row = {
           title:           prog.title,
-          description:     detail.description ?? null,
+          description,
           start_at:        startAt,
           end_at:          endAt,
           category:        mapCategory(prog.programType),
