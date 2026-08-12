@@ -9,17 +9,50 @@ import assert from 'node:assert/strict'
 
 import { dateRangeBounds } from '../../src/lib/dateRange.js'
 
-/** Build a local-time Date for a given Y-M-D at noon (stable, DST-safe). */
+// All assertions read the resolved bounds in America/New_York via Intl —
+// NOT local getters (getHours/getDate/getDay). dateRangeBounds resolves
+// every boundary in Eastern regardless of the viewer's timezone, so local
+// getters only agree with it when the test process itself runs in Eastern.
+// That's exactly how this suite passed on dev machines but failed 11 tests
+// on GitHub's UTC runners (Friday 16:00 Eastern reads as getHours() === 20
+// in UTC; Sunday 23:59 Eastern reads as Monday). Intl gives an assertion
+// path independent of both the runner's TZ and the implementation's own
+// easternDate helpers.
+const EASTERN_YMD = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/New_York',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+const EASTERN_PARTS = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York',
+  weekday: 'short',
+  hour: '2-digit',
+  hourCycle: 'h23',
+})
+
+/** Build a Date for a given Y-M-D at noon UTC. Noon UTC is 7/8am Eastern —
+ * same calendar date in both zones year-round, so the reference day is
+ * unambiguous no matter where the test runs. */
 function at(y, m, d, hh = 12) {
-  return new Date(y, m - 1, d, hh, 0, 0, 0)
+  return new Date(Date.UTC(y, m - 1, d, hh, 0, 0, 0))
 }
 
-/** 'YYYY-MM-DD' of a Date in local time. */
+/** 'YYYY-MM-DD' of a Date in America/New_York. */
 function ymd(date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
+  return EASTERN_YMD.format(date) // en-CA formats as YYYY-MM-DD
+}
+
+/** Hour-of-day (0–23) of a Date in America/New_York. */
+function easternHour(date) {
+  return Number(EASTERN_PARTS.formatToParts(date).find((p) => p.type === 'hour').value)
+}
+
+const DOW = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+
+/** Day-of-week (0 = Sun … 6 = Sat) of a Date in America/New_York. */
+function easternDay(date) {
+  return DOW[EASTERN_PARTS.formatToParts(date).find((p) => p.type === 'weekday').value]
 }
 
 describe('dateRangeBounds: today', () => {
@@ -28,8 +61,8 @@ describe('dateRangeBounds: today', () => {
     const { start, end } = dateRangeBounds('today', now)
     assert.equal(ymd(start), '2026-06-17')
     assert.equal(ymd(end), '2026-06-17')
-    assert.equal(start.getHours(), 0)
-    assert.equal(end.getHours(), 23)
+    assert.equal(easternHour(start), 0)
+    assert.equal(easternHour(end), 23)
   })
 })
 
@@ -39,16 +72,16 @@ describe('dateRangeBounds: this_weekend', () => {
     const now = at(2026, 6, 17) // Wednesday
     const { start, end } = dateRangeBounds('this_weekend', now)
     assert.equal(ymd(start), '2026-06-19') // Friday
-    assert.equal(start.getHours(), 16)     // 4pm
+    assert.equal(easternHour(start), 16)   // 4pm
     assert.equal(ymd(end), '2026-06-21')   // Sunday
-    assert.equal(end.getHours(), 23)
+    assert.equal(easternHour(end), 23)
   })
 
   it('on Friday, starts today at 4pm', () => {
     const now = at(2026, 6, 19) // Friday
     const { start, end } = dateRangeBounds('this_weekend', now)
     assert.equal(ymd(start), '2026-06-19')
-    assert.equal(start.getHours(), 16)
+    assert.equal(easternHour(start), 16)
     assert.equal(ymd(end), '2026-06-21')
   })
 
@@ -111,9 +144,9 @@ describe('dateRangeBounds: every weekday is covered for weekend/week', () => {
     for (let d = 15; d <= 21; d++) {
       const now = at(2026, 6, d)
       const { start, end } = dateRangeBounds('this_weekend', now)
-      assert.equal(start.getDay(), 5, `start dow for day ${d} should be Friday`)
-      assert.equal(start.getHours(), 16, `start hour for day ${d} should be 4pm`)
-      assert.equal(end.getDay(), 0, `weekend end for day ${d} should be Sunday`)
+      assert.equal(easternDay(start), 5, `start dow for day ${d} should be Friday`)
+      assert.equal(easternHour(start), 16, `start hour for day ${d} should be 4pm`)
+      assert.equal(easternDay(end), 0, `weekend end for day ${d} should be Sunday`)
       assert.ok(end > start, `end after start for day ${d}`)
     }
   })
