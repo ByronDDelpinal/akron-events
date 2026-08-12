@@ -53,6 +53,11 @@ import {
   ensureOrganization,
 } from './lib/normalize.js'
 import { preloadSummitCountyBoundary, classifySummitLocation } from './lib/summit-county.js'
+// The date-only default-time disclosure lives in lib/ics.js next to the other
+// consumers of the same product decision. The CVB feed is not an ICS feed, but
+// the note string is what the digest matches on, so it is shared rather than
+// re-declared.
+import { withDateOnlyTimeNote } from './lib/ics.js'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -282,19 +287,42 @@ function etCalendarDate(iso) {
  * with `doc.startTime`/`doc.endTime` (local HH:MM:SS) into proper UTC ISO
  * timestamps for storage.
  */
+// SANCTIONED-DEFAULT-TIME
+// A CVB doc that gives a date but no parseable startTime gets 9am Eastern.
+// That is deliberate, not an oversight. The alternatives were both rejected:
+// a null start_at is not storable (every feed orders and filters on it), and
+// midnight is actively harmful, because the list, map, first-page, and digest
+// feeds all filter `.gte('start_at', now())` with no grace window. A midnight
+// row matches at exactly 00:00:00 and then drops out of the entire site from
+// 00:00:01 ET on its own day, the one day it matters. A daytime default is
+// what keeps a timeless listing visible to the people it is for.
+//
+// 9am, not the noon most scrapers use, because 9am predates this fix — it is
+// retained as-is so already-stored CVB rows see no start_at churn.
+//
+// The default must never be silent, so buildStartEnd reports whether the time
+// was invented; when it was, processEvents appends the shared disclosure
+// sentence to the description (withDateOnlyTimeNote) and flags the row
+// needs_review — the review queue is the only audit trail we have for an
+// invented time. Do not "fix" this back to midnight.
+const DATE_ONLY_DEFAULT_TIME = '09:00:00'
+
 function buildStartEnd(doc) {
   const occurrenceIso = doc.date || doc.nextDate || doc.startDate
   const datePart = etCalendarDate(occurrenceIso)
-  if (!datePart) return { start_at: null, end_at: null }
+  if (!datePart) return { start_at: null, end_at: null, timeSynthesized: true }
 
-  const startTime = /^\d{2}:\d{2}:\d{2}$/.test(doc.startTime || '') ? doc.startTime : '09:00:00'
+  // timeSynthesized gates on parse ABSENCE, never on the output value: a doc
+  // whose startTime is genuinely 09:00:00 must not be disclosed as invented.
+  const parsedStart = /^\d{2}:\d{2}:\d{2}$/.test(doc.startTime || '') ? doc.startTime : null
+  const startTime = parsedStart ?? DATE_ONLY_DEFAULT_TIME
   const endTime   = /^\d{2}:\d{2}:\d{2}$/.test(doc.endTime   || '') ? doc.endTime   : null
 
   const start_at = easternLocalToUtcIso(`${datePart} ${startTime}`)
   const end_at   = endTime
     ? easternLocalToUtcIso(`${useEndDatePart(doc, datePart)} ${endTime}`)
     : null
-  return { start_at, end_at }
+  return { start_at, end_at, timeSynthesized: parsedStart == null }
 }
 
 /**
@@ -507,7 +535,7 @@ async function processEvents(docs) {
         continue
       }
 
-      const { start_at, end_at } = buildStartEnd(doc)
+      const { start_at, end_at, timeSynthesized } = buildStartEnd(doc)
       if (!start_at) { skipped++; continue }
 
       // Filter out occurrences that have already passed.  We compare against
@@ -533,6 +561,11 @@ async function processEvents(docs) {
 
       const { price_min, price_max } = parseAdmission(doc.admission)
       const description = doc.description ? htmlToText(doc.description) : null
+      // No parseable startTime, so 9am was invented (SANCTIONED-DEFAULT-TIME
+      // block above buildStartEnd) — say so in the stored description. Safe
+      // for category inference: pickCategory reads doc.description directly,
+      // so the note can never contaminate it.
+      const storedDescription = timeSynthesized ? withDateOnlyTimeNote(description) : description
 
       const sourceId = doc.recid ? String(doc.recid) : (doc._id ? String(doc._id) : null)
       if (!sourceId) { skipped++; continue }
@@ -549,7 +582,7 @@ async function processEvents(docs) {
 
       const row = {
         title,
-        description,
+        description:     storedDescription,
         start_at,
         end_at,
         category:        pickCategory(doc),
@@ -570,7 +603,7 @@ async function processEvents(docs) {
         // Regional aggregator with patchy geo data: unknown locality goes to
         // the review queue rather than publishing OR silently vanishing.
         status:          geo === 'unknown' ? 'pending_review' : 'published',
-        ...(geo === 'unknown' ? { needs_review: true } : {}),
+        ...(geo === 'unknown' || timeSynthesized ? { needs_review: true } : {}),
         featured:        false,
       }
 

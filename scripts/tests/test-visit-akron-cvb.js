@@ -85,9 +85,10 @@ describe('etCalendarDate', () => {
 
 describe('buildStartEnd — off-by-one regression (recid 1231)', () => {
   it('stores the Dance Party as Jun 20 8pm ET (Jun 21 00:00 UTC), not Jun 21', () => {
-    const { start_at, end_at } = buildStartEnd(DANCE_PARTY)
+    const { start_at, end_at, timeSynthesized } = buildStartEnd(DANCE_PARTY)
     assert.equal(start_at, '2026-06-21T00:00:00.000Z') // Jun 20 20:00 EDT
     assert.equal(end_at,   '2026-06-21T03:00:00.000Z') // Jun 20 23:00 EDT
+    assert.equal(timeSynthesized, false) // real 20:00:00 from the feed
   })
 
   it('falls back to startDate when date/nextDate are absent and still agrees', () => {
@@ -99,8 +100,27 @@ describe('buildStartEnd — off-by-one regression (recid 1231)', () => {
 
 describe('buildStartEnd — general behavior', () => {
   it('defaults startTime to 09:00 ET when missing', () => {
-    const { start_at } = buildStartEnd({ date: '2026-06-21T03:59:59.000Z' })
+    const { start_at, timeSynthesized } = buildStartEnd({ date: '2026-06-21T03:59:59.000Z' })
     assert.equal(start_at, '2026-06-20T13:00:00.000Z') // Jun 20 09:00 EDT
+    assert.equal(timeSynthesized, true)
+  })
+
+  it('flags a malformed startTime as synthesized and falls back to 09:00 ET', () => {
+    const { start_at, timeSynthesized } = buildStartEnd({
+      date:      '2026-06-21T03:59:59.000Z',
+      startTime: 'TBD',
+    })
+    assert.equal(start_at, '2026-06-20T13:00:00.000Z') // Jun 20 09:00 EDT
+    assert.equal(timeSynthesized, true)
+  })
+
+  it('does not flag a genuine 09:00:00 from the feed (false-disclosure guard)', () => {
+    const { start_at, timeSynthesized } = buildStartEnd({
+      date:      '2026-06-21T03:59:59.000Z',
+      startTime: '09:00:00',
+    })
+    assert.equal(start_at, '2026-06-20T13:00:00.000Z') // same instant as the default
+    assert.equal(timeSynthesized, false) // parsed, not invented
   })
 
   it('leaves end_at null when endTime is missing', () => {
@@ -109,7 +129,7 @@ describe('buildStartEnd — general behavior', () => {
   })
 
   it('returns nulls when no date field is present', () => {
-    assert.deepEqual(buildStartEnd({}), { start_at: null, end_at: null })
+    assert.deepEqual(buildStartEnd({}), { start_at: null, end_at: null, timeSynthesized: true })
   })
 
   it('uses endDate for the final day of multi-day events', () => {
