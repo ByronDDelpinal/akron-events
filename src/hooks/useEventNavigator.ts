@@ -1,58 +1,28 @@
-import type { LooseRow } from '@/types'
 import { useCallback } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
-import { eventPath } from '@/lib/slug'
-import { embedEventPath } from '@/lib/embedConfig'
-import { useEmbed } from '@/hooks/useEmbed'
-
-/** The event shape `eventPath` accepts (id + title + start_at). */
-type NavigableEvent = Parameters<typeof eventPath>[0]
+import { useNavigate } from 'react-router-dom'
+import type { HrefEvent } from '@/lib/eventHref'
+import { useEventHref } from '@/hooks/useEventHref'
 
 /**
- * useEventNavigator — single source of truth for "what happens when a user
- * clicks an event card / map pin". Shared by EventCard and MapView so the
- * click behavior is identical everywhere.
- *
- *   - Normal site:          client-side navigate to /events/{slug}/{id}.
- *   - Embed, target=inline: client-side navigate within the iframe to
- *                           /embed/events/{slug}/{id}, carrying the embed
- *                           config query string forward.
- *   - Embed, target=blank:  open the full hosted (chrome + SEO) detail page
- *                           in a new tab, leaving the partner page intact.
- *   - Embed, target=external: skip the detail page entirely — open the
- *                           event's ticket_url or source_url directly in a
- *                           new tab. Falls back to blank if neither exists.
- *                           Useful for sidebar widgets where a detail page
- *                           visit inside the iframe would be disruptive.
+ * useEventNavigator — imperative event click-through for surfaces that can't
+ * render a real anchor (MapView's pin popups). The policy for what a click
+ * MEANS lives in lib/eventHref's buildEventHref (single source of truth,
+ * shared with EventLink's anchors); this hook only executes the result:
+ * internal hrefs client-side navigate, external hrefs open a new tab.
  */
-export function useEventNavigator(): (event: NavigableEvent) => void {
+export function useEventNavigator(): (event: HrefEvent) => void {
   const navigate = useNavigate()
-  const location = useLocation()
-  const embed = useEmbed()
+  const getHref = useEventHref()
 
   return useCallback(
-    (event: NavigableEvent) => {
-      const path = eventPath(event)
-      if (!embed) {
-        navigate(path)
+    (event: HrefEvent) => {
+      const { kind, href } = getHref(event)
+      if (kind === 'internal') {
+        navigate(href)
         return
       }
-      if (embed.target === 'external') {
-        // Go straight to the event's own site; skip the Akron Pulse detail page.
-        const externalUrl = (event as LooseRow).ticket_url || (event as LooseRow).source_url
-        const url = externalUrl ?? `${window.location.origin}${path}`
-        window.open(url, '_blank', 'noopener,noreferrer')
-        return
-      }
-      if (embed.target === 'blank') {
-        // Full hosted detail page (real URL, indexable, full chrome).
-        const url = `${window.location.origin}${path}`
-        window.open(url, '_blank', 'noopener,noreferrer')
-        return
-      }
-      // Inline: stay in the iframe, keep the embed config in the URL.
-      navigate(embedEventPath(path, location.search))
+      window.open(href, '_blank', 'noopener,noreferrer')
     },
-    [navigate, location.search, embed],
+    [navigate, getHref],
   )
 }

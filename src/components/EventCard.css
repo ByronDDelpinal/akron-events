@@ -28,6 +28,10 @@
  * .card-bg-scrim  — gradient white overlay that preserves WCAG AA contrast
  *                   (all text is near-black on an effective near-white bg)
  * z-index stacking: bg-image(0) → bg-scrim(1) → card content(2)
+ *                   → stretched-link overlay(3) → in-card interactives(4)
+ * The overlay is .card-title-link::after (the whole-card hit area); any
+ * clickable element inside a card must be lifted to 4+ or it dies under
+ * the overlay. See the stretched-link contract comment in EventCard.tsx.
  * ──────────────────────────────────────────────────────────────────────── */
 .card-bg-image {
   position: absolute;
@@ -70,7 +74,6 @@
   box-shadow: var(--shadow-hover);
   border-color: var(--amber-border);
 }
-.card:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 
 /* Category accent — gradient bar at the top of every card.
  * Image rendering was removed because scraper image yield is too sparse
@@ -119,6 +122,47 @@
   margin-bottom: var(--space-xs);
   letter-spacing: -0.01em;
 }
+/* The title is now a real anchor; keep the block metrics it had as a div.
+ * Scoped to the comfortable title only — .card-efficient-title must keep
+ * its display:-webkit-box line clamp, so .card-title-link sets no display. */
+a.card-title { display: block; }
+
+/* ── Stretched link ────────────────────────────────────────────────────
+ * The title anchor's ::after expands to the nearest positioned ancestor
+ * (.card-body in comfortable mode — see the stacking-context note in
+ * EventCard.tsx — the whole .card-efficient in efficient mode), making the
+ * card one big link without wrapping the DOM in an <a>. Focus is shown on
+ * the overlay, not the title text, so the visible ring hugs the card the
+ * way the old .card:focus-visible ring did. */
+.card-title-link {
+  color: inherit;
+  text-decoration: none;
+}
+.card-title-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+}
+.card-title-link:focus-visible { outline: none; }
+.card-title-link:focus-visible::after {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  border-radius: var(--radius-xxl);
+}
+/* Efficient cards are squarer; match .card-efficient's own radius. */
+.card-efficient .card-title-link:focus-visible::after {
+  border-radius: var(--radius-md);
+}
+
+/* Anything clickable inside a card must beat the z-index 3 overlay. */
+.card .add-to-plan-btn-wrap,
+.card-efficient .add-to-plan-btn-wrap,
+.btn-details {
+  position: relative;
+  z-index: 4;
+}
+
 .card-organizer {
   font-size: var(--text-xs);
   color: var(--text-muted);
@@ -181,6 +225,14 @@
 }
 .btn-details:hover { background: var(--amber); color: var(--chip-active-txt); }
 
+/* .btn-details is now an anchor (decorative EventLink), not a <button> —
+ * neutralize link underline and restore inline-block button metrics. It is
+ * aria-hidden and out of the tab order, so hovering the CARD (whose overlay
+ * link is what a mouse user actually activates) should light it up like the
+ * old whole-card-button affordance did. */
+.btn-details { text-decoration: none; display: inline-block; }
+.card:hover .btn-details { background: var(--amber); color: var(--chip-active-txt); }
+
 /* Pin the View Details button to the right edge of the card footer
  * regardless of whether the optional age pill is rendered. Flex's
  * margin-auto trick wins over justify-content for a lone child. */
@@ -228,6 +280,10 @@
 @media (min-width: 900px) { .cards-grid--efficient { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
 .card-efficient {
+  /* Anchor for the stretched-link overlay (.card-title-link::after) —
+   * without this the overlay would climb to some ancestor and swallow
+   * clicks outside the card. */
+  position: relative;
   display: flex;
   flex-direction: column;
   background: var(--bg-card);
@@ -262,11 +318,6 @@
   box-shadow: var(--shadow-hover);
   border-color: var(--amber-border);
 }
-.card-efficient:focus-visible {
-  outline: 2px solid var(--amber);
-  outline-offset: 2px;
-}
-
 .card-efficient-main {
   min-width: 0;
   flex: 1;

@@ -1,8 +1,7 @@
-import type { KeyboardEvent } from 'react'
 import { CategoryBadges } from './CategoryBadge'
 import AddToPlanButton from './AddToPlanButton'
+import EventLink from './EventLink'
 import { useEmbed } from '@/hooks/useEmbed'
-import { useEventNavigator } from '@/hooks/useEventNavigator'
 import type { EmbedConfig } from '@/lib/embedConfig'
 import type { AppEvent } from '@/hooks/useEvents'
 import type { PlanSurface } from '@/lib/analyticsEvents'
@@ -18,8 +17,6 @@ import {
 import { getSourceLabel, shouldShowSourceCredit } from '@/lib/sources'
 import './EventCard.css'
 import { CalIcon, PinIcon } from '@/components/icons'
-
-type GoTo = (event: AppEvent) => void
 
 // Whether a card feature is on. Outside the embed (embed === null) every
 // feature is implicitly enabled; inside the embed the partner can switch
@@ -50,7 +47,6 @@ interface EventCardProps {
 // ── COMFORTABLE MODE (default) ──────────────────────────────────────────────
 
 export default function EventCard({ event, featured = false, viewMode = 'comfortable', planSurface = 'card', subtitle }: EventCardProps) {
-  const goTo     = useEventNavigator()
   const embed    = useEmbed()
   const price    = formatPrice(event.price_min, event.price_max)
   const gradient = gradientForEvent(event)
@@ -61,7 +57,6 @@ export default function EventCard({ event, featured = false, viewMode = 'comfort
         event={event}
         featured={featured}
         price={price}
-        goTo={goTo}
         embed={embed}
         gradient={gradient}
         planSurface={planSurface}
@@ -75,7 +70,6 @@ export default function EventCard({ event, featured = false, viewMode = 'comfort
       event={event}
       featured={featured}
       price={price}
-      goTo={goTo}
       embed={embed}
       planSurface={planSurface}
     />
@@ -86,12 +80,22 @@ interface CardProps {
   event: AppEvent
   featured: boolean
   price: PriceDisplay
-  goTo: GoTo
   embed: EmbedConfig | null
   planSurface: PlanSurface
 }
 
-function ComfortableCard({ event, featured, price, goTo, embed, planSurface }: CardProps) {
+// Stretched-link contract (EventCard.css): the card is NOT a button — the
+// title anchor is the one real link, and its ::after overlay (z-index 3) is
+// the whole-card hit area. Anything interactive inside a card must sit at
+// z-index 4+ to stay clickable above the overlay; duplicate links to the same
+// destination ("View Details →") use EventLink's `decorative` so assistive
+// tech hears one link per card. Stacking-context trap: .card-body and
+// .card-footer are their own stacking contexts (z-index: 2), so the overlay —
+// stuck inside .card-body's context — can never reach above .card-footer.
+// Footer interactives therefore work by paint order alone (footer paints
+// after body); the featured row's interactives live INSIDE .card-body with
+// the overlay and genuinely need the z-index 4 rules.
+function ComfortableCard({ event, featured, price, embed, planSurface }: CardProps) {
   const gradient  = gradientForEvent(event)
   // Image fallback chain: event → venue → organizer.
   const imageUrl  = imageUrlForEvent(event)
@@ -100,13 +104,7 @@ function ComfortableCard({ event, featured, price, goTo, embed, planSurface }: C
   const showTags  = featureOn(embed, 'tags')
 
   return (
-    <div
-      className={`card ${featured ? 'featured' : ''}${hasImage ? ' card--has-image' : ''}`}
-      onClick={() => goTo(event)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e: KeyboardEvent) => e.key === 'Enter' && goTo(event)}
-    >
+    <div className={`card ${featured ? 'featured' : ''}${hasImage ? ' card--has-image' : ''}`}>
       {/* Faint background photo — scrim keeps all text at WCAG AA contrast.
           A real <img> (not a CSS background) so the browser can lazy-load
           offscreen cards and pick the AVIF/WebP rendition. On load failure
@@ -139,7 +137,7 @@ function ComfortableCard({ event, featured, price, goTo, embed, planSurface }: C
           )}
         </div>
 
-        <div className="card-title">{event.title}</div>
+        <EventLink event={event} className="card-title card-title-link">{event.title}</EventLink>
         {event.organizer ? (
           <div className="card-organizer">{event.organizer.name}</div>
         ) : shouldShowSourceCredit(event.source, false) ? (
@@ -165,7 +163,7 @@ function ComfortableCard({ event, featured, price, goTo, embed, planSurface }: C
 
         {featured && (
           <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-            <button className="btn-details">View Details →</button>
+            <EventLink event={event} className="btn-details" decorative>View Details →</EventLink>
             <AddToPlanButton event={event} surface={planSurface} variant="chip" />
           </div>
         )}
@@ -175,7 +173,7 @@ function ComfortableCard({ event, featured, price, goTo, embed, planSurface }: C
         <div className="card-footer">
           <AgeRestrictionPill value={event.age_restriction} />
           <AddToPlanButton event={event} surface={planSurface} variant="chip" />
-          <button className="btn-details">View Details →</button>
+          <EventLink event={event} className="btn-details" decorative>View Details →</EventLink>
         </div>
       )}
     </div>
@@ -184,24 +182,18 @@ function ComfortableCard({ event, featured, price, goTo, embed, planSurface }: C
 
 // ── EFFICIENT MODE ──────────────────────────────────────────────────────────
 
-function EfficientCard({ event, featured, price, goTo, embed, gradient, planSurface, subtitle }: CardProps & { gradient: string; subtitle?: string }) {
+function EfficientCard({ event, featured, price, embed, gradient, planSurface, subtitle }: CardProps & { gradient: string; subtitle?: string }) {
   const showPrice = featureOn(embed, 'price')
   const showTags  = featureOn(embed, 'tags')
   return (
-    <div
-      className={`card-efficient ${featured ? 'card-efficient--featured' : ''}`}
-      onClick={() => goTo(event)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e: KeyboardEvent) => e.key === 'Enter' && goTo(event)}
-    >
+    <div className={`card-efficient ${featured ? 'card-efficient--featured' : ''}`}>
       {/* Gradient accent bar — only on non-featured cards; featured uses border-left */}
       {!featured && (
         <div className={`card-efficient-accent ${gradient}`} aria-hidden="true" />
       )}
       <div className="card-efficient-inner">
         <div className="card-efficient-main">
-          <div className="card-efficient-title">{event.title}</div>
+          <EventLink event={event} className="card-efficient-title card-title-link">{event.title}</EventLink>
           {subtitle && <div className="card-efficient-subtitle">{subtitle}</div>}
           <div className="card-efficient-meta">
             <div className="card-efficient-meta-row">

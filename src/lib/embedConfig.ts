@@ -231,17 +231,5 @@ export function parseEmbedConfig(
   }
 }
 
-/**
- * Build the in-iframe detail path for an event, carrying the embed config
- * query string forward so theme/features/target survive the navigation.
- * Mirrors lib/slug eventPath but under the /embed prefix.
- */
-export function embedEventPath(
-  eventPathStr: string,
-  configSearch: string | null | undefined
-): string {
-  // eventPathStr is the canonical "/events/{slug}/{id}". Re-root under /embed.
-  const rerooted = `/embed${eventPathStr}`
-  const qs = configSearch ? (configSearch.startsWith('?') ? configSearch : `?${configSearch}`) : ''
-  return `${rerooted}${qs}`
-}
+// embedEventPath moved to lib/eventHref.ts so the href builder stays
+// node-importable; this module's `@/` imports make it Vite/Deno-only.

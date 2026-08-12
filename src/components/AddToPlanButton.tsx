@@ -56,12 +56,12 @@ interface AddToPlanButtonProps {
  *   - Efficient card: chip, first child of .card-efficient-end.
  *   - EventPage: inline, in the CTA stack next to Add to Calendar.
  *
- * `EventCard` renders the whole card as `role="button"` with onClick
- * (navigate) and onKeyDown (Enter navigates). This control MUST call
- * stopPropagation on BOTH onClick and onKeyDown — missing the keydown
- * handler means keyboard users get navigated away every time they try to
- * add an event, which is exactly the kind of bug that only shows up in an
- * accessibility pass.
+ * `EventCard` is a stretched link (a title anchor whose ::after overlay is
+ * the card's hit area) and this button sits above that overlay at z-index 4,
+ * so clicks and keys land here natively — no ancestor handler to defeat.
+ * The stopPropagation calls on onClick and onKeyDown stay anyway, purely
+ * defensively: if a future ancestor ever grows a click/key handler, this
+ * control must not start navigating users away mid-add again.
  *
  * Not rendered inside the embed (decision 8): the embed is white-label, and
  * a partner's iframe must not grow an Akron Pulse feature the partner never
@@ -107,11 +107,13 @@ export default function AddToPlanButton({ event, surface, variant = 'chip', clas
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      // Always stop propagation, even on keys that don't trigger a toggle —
-      // the card's own onKeyDown listens for Enter and would otherwise
-      // navigate away as this bubbles up.
+      // Defensive only: the card stopped being a role="button" with its own
+      // onKeyDown when it became a stretched link, but stopping propagation
+      // keeps any future ancestor handler from ever hijacking these keys.
       e.stopPropagation()
       if (e.key === 'Enter' || e.key === ' ') {
+        // preventDefault so Space doesn't ALSO fire the button's native
+        // click on keyup (double-toggle) or scroll the page.
         e.preventDefault()
         toggle()
       }
