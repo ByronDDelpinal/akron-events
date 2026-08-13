@@ -84,7 +84,20 @@ function AppInner() {
   const location       = useLocation()
   const navigationType = useNavigationType()
 
+  // Fire a GA4 page_view on real navigations only. useEventFilters writes
+  // every filter toggle to the URL search params (setSearchParams with
+  // { replace: true }), which mutates `location` without a navigation. Keying
+  // the hit on the whole location counted that filter-param churn as
+  // pageviews and inflated screenPageViews ~2-4x. Guarding on pathname means a
+  // hit fires once per page and filter changes don't; filter usage is captured
+  // separately via custom events (category_filter, when_filter, …). We still
+  // send location.search so the landing filter state is recorded on arrival.
+  // NOTE: a future route whose primary navigation is param-only (e.g.
+  // /search?q=) would need a carve-out here.
+  const lastPathRef = useRef<string | null>(null)
   useEffect(() => {
+    if (location.pathname === lastPathRef.current) return
+    lastPathRef.current = location.pathname
     trackPageView(location.pathname + location.search)
   }, [location])
 

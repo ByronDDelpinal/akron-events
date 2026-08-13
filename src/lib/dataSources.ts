@@ -602,6 +602,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'music_western_reserve',
+    method:      'HTML scrape',
+    methodDetail:'musicwr.org homepage (Wix site, NOT Wix Events) — the season is a hand-rendered list of <h1><a href="/tickets"> concert headings whose text Wix fragments across nested spans + <br>. Parsed from the flattened page text (htmlToText) rather than the brittle markup; the season\'s start year is read from the "2026–2027" range and Sep–Dec map to it while Jan–Aug map to the next year.',
+    venue:       'Christ Church Episcopal — 21 Aurora Street, Hudson (Summit County)',
+    notes:       'Music from The Western Reserve is a free chamber-music concert series in downtown Hudson: every concert is a Sunday 5pm performance at Christ Church Episcopal (4:30pm pre-concert talk, reception to follow), admission free (price 0). Low but stable volume — ~6 concerts per season, spanning two calendar years. Category music; Summit gate is defensive (Hudson is in-county).',
+    status:      'active',
+  },
+  {
     key:         'habitat_summit',
     method:      'HTML scrape',
     methodDetail:'hfhsummitcounty.org/joinus/events/ — parses the fundraiser cards + the ECWD (Events Calendar WD) calendar grid',
@@ -1637,6 +1645,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   pegs_foundation:     'ics',
   village_of_mogadore: 'ics',
   village_of_peninsula: 'html',
+  music_western_reserve: 'html',
   habitat_summit:      'html',
   ohio_festivals:      'html',
   summit_county_fairgrounds: 'html',
