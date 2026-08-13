@@ -37,6 +37,7 @@ import {
   ensureOrganization,
 } from './lib/normalize.js'
 import { classifySummitLocation, preloadSummitCountyBoundary } from './lib/summit-county.js'
+import { supabaseAdmin } from './lib/supabase-admin.js'
 
 const API_URL = 'https://calendar.uakron.edu/live/json/events?days=365&user_tz=America/New_York'
 
@@ -299,6 +300,71 @@ async function fetchEvents() {
   return events
 }
 
+// ── Intra-feed duplicate suppression ───────────────────────────────────────
+//
+// LiveWhale syndicates group calendars into the umbrella /live calendar, and
+// the JSON feed returns BOTH rows for the same real-world event: the group
+// original, whose numeric listing id matches the id embedded in its URL slug
+// (e.g. /sopa/event/26852-x with id 26852), plus a /live copy minted under
+// its own listing id (e.g. /live/events/26852-x with id 26855). source_id is
+// String(ev.id), so upserting both mints two events rows for one event. The
+// URL slug id is the stable join key: group feed entries by it and upsert
+// exactly one entry per group.
+
+/**
+ * Extract the numeric event id embedded in a LiveWhale event URL slug.
+ * Handles both observed shapes: /<group>/event/<id>-<slug> and
+ * /live/events/<id>-<slug>. Returns the id as a string, or null when the
+ * URL is absent or carries no slug id.
+ */
+export function slugIdFromUrl(url) {
+  if (!url) return null
+  const m = String(url).match(/\/events?\/(\d+)-/)
+  return m ? m[1] : null
+}
+
+/**
+ * Pick which entry of a duplicate group gets upserted. Pure — the caller
+ * supplies the set of source_ids already present in `events`, so tests can
+ * inject it without a DB. Preference order:
+ *   (a) an entry whose source_id already exists in events — keep updating
+ *       the row we already minted instead of minting a sibling;
+ *   (b) the group original, i.e. the entry whose listing id equals its URL
+ *       slug id;
+ *   (c) the lowest numeric listing id, as a deterministic tiebreak.
+ */
+export function pickCanonicalEntry(entries, existingIdSet = new Set()) {
+  if (!entries.length) return null
+  if (entries.length === 1) return entries[0]
+  const existing = entries.filter(ev => existingIdSet.has(String(ev.id)))
+  const pool = existing.length ? existing : entries
+  const original = pool.find(ev => slugIdFromUrl(ev.url) === String(ev.id))
+  if (original) return original
+  return pool.reduce((a, b) => (Number(b.id) < Number(a.id) ? b : a))
+}
+
+/**
+ * Small SELECT: which of these candidate source_ids already exist in `events`
+ * under a UAkron source? Called only for multi-entry duplicate groups. On
+ * query failure fall back to an empty set — pickCanonicalEntry then prefers
+ * the group original, which is still a safe, deterministic default.
+ */
+async function fetchExistingUakronSourceIds(candidateIds) {
+  const sources = [DEFAULT_SOURCE, ...SUB_CALENDARS.map(sub => sub.source)]
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('events')
+      .select('source_id')
+      .in('source', sources)
+      .in('source_id', candidateIds)
+    if (error) throw new Error(error.message)
+    return new Set((data ?? []).map(r => String(r.source_id)))
+  } catch (err) {
+    console.warn(`  ⚠ Duplicate-group existence lookup failed (${err.message}) — falling back to slug-original preference`)
+    return new Set()
+  }
+}
+
 // ── Process ────────────────────────────────────────────────────────────────
 
 async function processEvents(rawEvents, organizerId) {
@@ -310,8 +376,43 @@ async function processEvents(rawEvents, organizerId) {
 
   let allDayFiltered = 0
   let outOfCounty    = 0
+  let duplicateCopiesSkipped = 0
 
+  // Pre-pass: collapse LiveWhale's group-original + /live syndicated copies
+  // of the same event down to one listing id per URL slug id (see
+  // slugIdFromUrl / pickCanonicalEntry). Groups with a single listing id
+  // pass through untouched, so singletons and same-id recurrences behave
+  // exactly as before.
+  const groups = new Map()
   for (const ev of rawEvents) {
+    const key = slugIdFromUrl(ev.url) ?? String(ev.id)
+    const bucket = groups.get(key)
+    if (bucket) bucket.push(ev)
+    else groups.set(key, [ev])
+  }
+
+  const dedupedEvents = []
+  for (const entries of groups.values()) {
+    const distinctIds = new Set(entries.map(ev => String(ev.id)))
+    if (distinctIds.size === 1) {
+      // A single entry — or a recurring event the feed repeats under ONE
+      // listing id per occurrence date (e.g. week-long academic markers).
+      // Identical listing ids can't mint duplicate rows (same source_id),
+      // so pass every occurrence through byte-identical to before.
+      dedupedEvents.push(...entries)
+      continue
+    }
+    // Distinct listing ids sharing one slug id: the /live syndication bug.
+    // Pick one canonical listing id and keep only its entries.
+    const existingIdSet = await fetchExistingUakronSourceIds([...distinctIds])
+    const winnerId = String(pickCanonicalEntry(entries, existingIdSet).id)
+    for (const ev of entries) {
+      if (String(ev.id) === winnerId) dedupedEvents.push(ev)
+      else duplicateCopiesSkipped++
+    }
+  }
+
+  for (const ev of dedupedEvents) {
     if (!ev.title || !ev.date_iso) continue
 
     // Skip all-day academic-calendar / holiday / administrative markers — these
@@ -387,6 +488,9 @@ async function processEvents(rawEvents, organizerId) {
     }
   }
 
+  if (duplicateCopiesSkipped) {
+    console.log(`  ⤷ Skipped ${duplicateCopiesSkipped} syndicated duplicate cop${duplicateCopiesSkipped === 1 ? 'y' : 'ies'} (same URL slug id)`)
+  }
   if (allDayFiltered) {
     console.log(`  ⤷ Filtered ${allDayFiltered} all-day academic-calendar / holiday entr${allDayFiltered === 1 ? 'y' : 'ies'}`)
   }

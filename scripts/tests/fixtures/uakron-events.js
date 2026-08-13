@@ -114,4 +114,42 @@ export const WAYNE_NO_COORDS_EVENT = {
   event_types: [], tags: [],
 }
 
+// LiveWhale intra-feed duplication: the umbrella /live calendar syndicates
+// group events, so the feed returns the same real-world event twice — the
+// group original (listing id == the id embedded in the URL slug) and a /live
+// copy minted under its own listing id. Both observed URL shapes are modeled
+// here. Deliberately NOT in ALL_FIXTURES: the duplicate pre-pass collapses
+// these before normalization.
+export const SOPA_ORIGINAL_26852 = {
+  id: 26852, title: 'SoPA Faculty Showcase', group_title: 'School of Performing Arts', location_title: 'Guzzetta Recital Hall',
+  url: 'https://calendar.uakron.edu/sopa/event/26852-sopa-faculty-showcase',
+  date_iso: '2026-09-10T19:30:00-04:00', date2_iso: '2026-09-10T21:00:00-04:00', location_latitude: null, location_longitude: null,
+  description: '<p>Faculty performance showcase</p>', thumbnail: null, cost: 'Free',
+  event_types: [{ name: 'Performance' }], tags: [],
+}
+
+export const LIVE_COPY_26855 = {
+  id: 26855, title: 'SoPA Faculty Showcase', group_title: 'School of Performing Arts', location_title: 'Guzzetta Recital Hall',
+  url: 'https://calendar.uakron.edu/live/events/26852-sopa-faculty-showcase',
+  date_iso: '2026-09-10T19:30:00-04:00', date2_iso: '2026-09-10T21:00:00-04:00', location_latitude: null, location_longitude: null,
+  description: '<p>Faculty performance showcase</p>', thumbnail: null, cost: 'Free',
+  event_types: [{ name: 'Performance' }], tags: [],
+}
+
+export const CHP_ORIGINAL_26863 = {
+  id: 26863, title: 'Archives Open House', group_title: 'Cummings Center for the History of Psychology', location_title: 'Cummings Center',
+  url: 'https://calendar.uakron.edu/chp/event/26863-archives-open-house',
+  date_iso: '2026-09-18T13:00:00-04:00', date2_iso: '2026-09-18T15:00:00-04:00', location_latitude: null, location_longitude: null,
+  description: '<p>Behind-the-scenes look at the archives</p>', thumbnail: null, cost: 'Free',
+  event_types: [{ name: 'Open House' }], tags: [],
+}
+
+export const CHP_LIVE_COPY_26864 = {
+  id: 26864, title: 'Archives Open House', group_title: 'Cummings Center for the History of Psychology', location_title: 'Cummings Center',
+  url: 'https://calendar.uakron.edu/live/events/26863-archives-open-house',
+  date_iso: '2026-09-18T13:00:00-04:00', date2_iso: '2026-09-18T15:00:00-04:00', location_latitude: null, location_longitude: null,
+  description: '<p>Behind-the-scenes look at the archives</p>', thumbnail: null, cost: 'Free',
+  event_types: [{ name: 'Open House' }], tags: [],
+}
+
 export const ALL_FIXTURES = [EJ_THOMAS_EVENT, GENERAL_UAKRON_EVENT, SPORTS_EVENT, LECTURE_EVENT, MISSING_TITLE, MISSING_DATE, PAID_EVENT, PERFORMANCE_CONCERT, MYERS_ART_EVENT, CHP_EVENT, NUMERIC_COST_EVENT, TIERED_COST_EVENT, OBJECT_COST_EVENT]

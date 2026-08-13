@@ -7,8 +7,8 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 
 import { stripHtml } from '../lib/normalize.js'
 import { preloadSummitCountyBoundary } from '../lib/summit-county.js'
-import { classifySource, isAllDayEntry, resolveLocality } from '../scrape-uakron-calendar.js'
-import { EJ_THOMAS_EVENT, GENERAL_UAKRON_EVENT, LECTURE_EVENT, MISSING_TITLE, MISSING_DATE, PAID_EVENT, PERFORMANCE_CONCERT, MYERS_ART_EVENT, CHP_EVENT, NUMERIC_COST_EVENT, TIERED_COST_EVENT, OBJECT_COST_EVENT, WAYNE_ORRVILLE_COORDS_EVENT, WAYNE_NO_COORDS_EVENT, ALL_FIXTURES } from './fixtures/uakron-events.js'
+import { classifySource, isAllDayEntry, resolveLocality, slugIdFromUrl, pickCanonicalEntry } from '../scrape-uakron-calendar.js'
+import { EJ_THOMAS_EVENT, GENERAL_UAKRON_EVENT, LECTURE_EVENT, MISSING_TITLE, MISSING_DATE, PAID_EVENT, PERFORMANCE_CONCERT, MYERS_ART_EVENT, CHP_EVENT, NUMERIC_COST_EVENT, TIERED_COST_EVENT, OBJECT_COST_EVENT, WAYNE_ORRVILLE_COORDS_EVENT, WAYNE_NO_COORDS_EVENT, SOPA_ORIGINAL_26852, LIVE_COPY_26855, CHP_ORIGINAL_26863, CHP_LIVE_COPY_26864, ALL_FIXTURES } from './fixtures/uakron-events.js'
 
 // resolveLocality's coordinate branch needs the county polygon loaded — same
 // top-level preload pattern as test-summit-county.js / test-akron-life.js.
@@ -306,6 +306,98 @@ describe('UAkron: resolveLocality (Wayne College geo-gate)', () => {
     assert.equal(resolveLocality({ group_title: '  WAYNE  ' }), 'out')
     assert.equal(resolveLocality({ group_title: null }), 'in')
     assert.equal(resolveLocality({}), 'in')
+  })
+})
+
+// Mirror of the processEvents duplicate pre-pass grouping key:
+// slugIdFromUrl(ev.url) ?? String(ev.id).
+function groupByFeedKey(rawEvents) {
+  const groups = new Map()
+  for (const ev of rawEvents) {
+    const key = slugIdFromUrl(ev.url) ?? String(ev.id)
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(ev)
+  }
+  return groups
+}
+
+describe('UAkron: slugIdFromUrl', () => {
+  it('extracts the id from a group-original /event/ URL', () => {
+    assert.equal(slugIdFromUrl('https://calendar.uakron.edu/sopa/event/26852-x'), '26852')
+  })
+
+  it('extracts the id from a /live/events/ syndicated URL', () => {
+    assert.equal(slugIdFromUrl('https://calendar.uakron.edu/live/events/26852-x'), '26852')
+  })
+
+  it('returns null for no-match and missing URLs', () => {
+    assert.equal(slugIdFromUrl('https://calendar.uakron.edu/live/'), null)
+    assert.equal(slugIdFromUrl('https://www.uakron.edu/about'), null)
+    assert.equal(slugIdFromUrl(''), null)
+    assert.equal(slugIdFromUrl(null), null)
+    assert.equal(slugIdFromUrl(undefined), null)
+  })
+})
+
+describe('UAkron: intra-feed duplicate suppression', () => {
+  it('groups a sopa original and its /live copy under one slug key', () => {
+    const groups = groupByFeedKey([SOPA_ORIGINAL_26852, LIVE_COPY_26855])
+    assert.equal(groups.size, 1)
+    assert.equal(groups.get('26852').length, 2)
+  })
+
+  it('picks the group original when neither copy exists in the DB', () => {
+    const winner = pickCanonicalEntry([SOPA_ORIGINAL_26852, LIVE_COPY_26855], new Set())
+    assert.equal(String(winner.id), '26852')
+    // Order-insensitive
+    const reversed = pickCanonicalEntry([LIVE_COPY_26855, SOPA_ORIGINAL_26852], new Set())
+    assert.equal(String(reversed.id), '26852')
+  })
+
+  it('prefers the copy whose source_id already exists in events', () => {
+    // The /live copy 26864 was minted on a previous run — keep updating that
+    // row instead of minting a sibling under the slug id.
+    const winner = pickCanonicalEntry([CHP_ORIGINAL_26863, CHP_LIVE_COPY_26864], new Set(['26864']))
+    assert.equal(String(winner.id), '26864')
+  })
+
+  it('falls back to lowest numeric id when no entry is the slug original', () => {
+    const a = { id: 26990, url: 'https://calendar.uakron.edu/live/events/26900-x' }
+    const b = { id: 26955, url: 'https://calendar.uakron.edu/live/events/26900-x' }
+    assert.equal(pickCanonicalEntry([a, b], new Set()).id, 26955)
+  })
+
+  it('leaves a singleton /live copy untouched (source_id stays its listing id)', () => {
+    const groups = groupByFeedKey([CHP_LIVE_COPY_26864])
+    assert.equal(groups.size, 1)
+    assert.ok(groups.has('26863'), 'grouped under its URL slug id')
+    const entries = groups.get('26863')
+    assert.equal(entries.length, 1)
+    const winner = pickCanonicalEntry(entries, new Set())
+    assert.equal(String(winner.id), '26864', 'singleton keeps its own listing id as source_id')
+  })
+
+  it('recurring same-id occurrences share a group but have one distinct listing id (pass-through, not collapse)', () => {
+    // The feed repeats week-long academic markers as one listing id across
+    // many occurrence dates (e.g. id 25162 on 26 dates). Same source_id
+    // cannot mint duplicates, so processEvents only collapses groups with
+    // MORE than one distinct listing id.
+    const occurrences = [
+      { id: 25167, title: 'UA Closed', url: 'https://calendar.uakron.edu/event/25167-ua-closed', date_iso: '2026-12-28T00:00:00-05:00', is_all_day: 1 },
+      { id: 25167, title: 'UA Closed', url: 'https://calendar.uakron.edu/event/25167-ua-closed', date_iso: '2026-12-29T00:00:00-05:00', is_all_day: 1 },
+    ]
+    const groups = groupByFeedKey(occurrences)
+    assert.equal(groups.size, 1)
+    const entries = groups.get('25167')
+    assert.equal(entries.length, 2)
+    assert.equal(new Set(entries.map(ev => String(ev.id))).size, 1, 'one distinct listing id → pass-through')
+  })
+
+  it('groups url-less entries by their own id (no accidental merging)', () => {
+    const groups = groupByFeedKey([GENERAL_UAKRON_EVENT, LECTURE_EVENT])
+    assert.equal(groups.size, 2)
+    assert.ok(groups.has('2'))
+    assert.ok(groups.has('4'))
   })
 })
 
