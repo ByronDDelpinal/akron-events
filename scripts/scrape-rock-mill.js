@@ -8,16 +8,17 @@
  * Platform: Webflow. The "Happening Now" page (/happening-now) renders a
  * Webflow CMS collection whose items are baked into the static HTML as
  * `role="listitem" class="w-dyn-item"` blocks (a plain `fetch().text()` returns
- * the full markup — no JS execution needed). Each item carries a consistent
- * shape:
- *   • .tagline_text            — the schedule line ("Saturday, July 18 | 5-8 PM",
- *                                "Wednesdays | 9:00 AM - Noon", "First Friday of
- *                                the month", …)
- *   • h2[blocks-name=heading-2]— the title
- *   • .happening-now-rich-text — an HTML description
- *   • .event12_image-wrapper img — the card image
- *   • .button-group a          — a "Sign Up"/"Register" CTA (a second, empty
- *                                button carries class w-dyn-bind-empty)
+ * the full markup — no JS execution needed). Since the 2026-08 redesign each
+ * item carries:
+ *   • two .text-size-tiny spans  — the schedule, split into date then time
+ *                                  ("Monday, August 17" / "5:00-7:00 PM");
+ *                                  joined back into "date | time" for parsing
+ *   • h3.heading-style-h3        — the title
+ *   • .w-richtext                — an HTML description
+ *   • an <img> + a .button.w-button CTA
+ * Standing programs moved out of the CMS list into an "Ongoing at the Mill"
+ * slider of `.event26_slide` blocks (h5 title, optional `.tag.is-alternate`
+ * schedule chip, `.text-size-small` blurb) — see parseOngoingCards.
  *
  * Event model: the tagline is the ONLY schedule signal, and it comes in three
  * shapes — one-time ("Weekday, Month Day [| time]"), weekly ("Weekday[s] &
@@ -44,7 +45,7 @@
  * The markup is Webflow div soup, so descriptions are extracted from the
  * .w-richtext block and run through htmlToText (paragraph-preserving). Fixture
  * captured from the live raw source (fetch().text(), not the rendered DOM) on
- * 2026-07-14.
+ * 2026-08-13.
  *
  * Usage:   node scripts/scrape-rock-mill.js
  * Env:     VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
@@ -114,9 +115,19 @@ export function parseItems(html = '') {
   const blocks = String(html).split('role="listitem" class="w-dyn-item"').slice(1)
   const items = []
   for (const block of blocks) {
-    const tagline = matchText(block, /tagline_text">([^<]*)</)
-    const title   = matchText(block, /blocks-name="heading-2"[^>]*>([^<]*)</)
+    // 2026-08 Webflow redesign: the title moved to an h3.heading-style-h3 and
+    // the schedule line split into two .text-size-tiny spans (date, then time).
+    // The pre-redesign selectors remain as fallbacks in case a stale template
+    // ever resurfaces.
+    const title = matchText(block, /heading-style-h3"[^>]*>([^<]*)</)
+      || matchText(block, /blocks-name="heading-2"[^>]*>([^<]*)</)
     if (!title) continue
+    const tinies = [...block.matchAll(/text-size-tiny">([^<]*)</g)]
+      .map((m) => decodeAmp(m[1]).replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
+    const tagline = tinies.length
+      ? (tinies[1] ? `${tinies[0]} | ${tinies[1]}` : tinies[0])
+      : matchText(block, /tagline_text">([^<]*)</)
     const richMatch = block.match(/w-richtext">([\s\S]*?)<\/div>/)
     const description = richMatch ? htmlToText(richMatch[1]) : ''
     const imageUrl = matchAttr(block, /<img\b[^>]*\bsrc="([^"]+)"/)
@@ -270,6 +281,9 @@ function familyFor(title, description) {
  */
 export function buildItemEvents(item, now = new Date()) {
   const title = cleanTitle(item.title)
+  // A bare recruitment card ("Call for Vendors" with no "| Event Name" tail)
+  // is a solicitation, not an event — never mint a row for it.
+  if (!title || /^(?:call for vendors|vendors wanted|now hiring)$/i.test(title)) return []
   const description = item.description || ''
   // Skip a cancelled/postponed item rather than generating occurrences for it.
   if (CANCELLED_RE.test(title) || CANCELLED_RE.test(item.tagline || '')) return []
@@ -294,7 +308,7 @@ export function buildItemEvents(item, now = new Date()) {
 
   // ── One-time: "Weekday, Month Day [| time]" ───────────────────────────────
   const oneTime = tagline.match(
-    new RegExp(`^(?:${WEEKDAY_ALT}),\\s+(${MONTH_ALT})\\s+(\\d{1,2})(?:\\s*\\|\\s*(.+))?$`, 'i'),
+    new RegExp(`^(?:${WEEKDAY_ALT}),\\s+(${MONTH_ALT})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:\\s*\\|\\s*(.+))?$`, 'i'),
   )
   if (oneTime) {
     const ymd = inferYmd(MONTHS[oneTime[1].toLowerCase()], Number(oneTime[2]), now)
@@ -323,9 +337,41 @@ export function buildItemEvents(item, now = new Date()) {
   return []
 }
 
+/**
+ * Parse the "Ongoing at the Mill" slider (2026-08 redesign): standing programs
+ * rendered as `.event26_slide` slides. Shape per slide: an h5 (class
+ * heading-style-h5) title, an optional `.tag.is-alternate` schedule chip
+ * ("Wednesdays | 9 AM - Noon", NBSP around the pipe), a `.text-size-small`
+ * blurb, and a CTA link. Only a chip that matches the weekly branch of
+ * buildItemEvents produces occurrences; monthly/promotional/blank chips fall
+ * through to [] by design (no time is ever invented). An `#` CTA (Co-Work) is
+ * dropped so the upsert falls back to PAGE_URL.
+ */
+export function parseOngoingCards(html = '') {
+  const blocks = String(html).split('class="event26_slide w-slide"').slice(1)
+  const items = []
+  for (const block of blocks) {
+    const title = matchText(block, /heading-style-h5"[^>]*>([^<]*)</)
+    if (!title) continue
+    // Scoped to this slide's block: the CMS cards above the slider carry
+    // category chips ("Youth Climbing") in the same .tag markup — those are
+    // not schedules and must not leak in here.
+    const tagline = matchText(block, /tag is-alternate"><div>(?:<strong>)?([^<]*)</)
+    const smallMatch = block.match(/text-size-small">([\s\S]*?)<\/div>/)
+    const description = smallMatch ? htmlToText(smallMatch[1]) : ''
+    const imageUrl = matchAttr(block, /<img\b[^>]*\bsrc="([^"]+)"/)
+    const linkMatch = block.match(/<a\b[^>]*href="([^"]+)"/)
+    let ctaUrl = linkMatch ? decodeAmp(linkMatch[1]) : null
+    if (!ctaUrl || ctaUrl === '#') ctaUrl = null
+    else if (ctaUrl.startsWith('/')) ctaUrl = new URL(ctaUrl, PAGE_URL).href
+    items.push({ tagline, title, description, imageUrl, ctaUrl })
+  }
+  return items
+}
+
 /** Assemble the full run across every parsed item, sorted by start date. */
 export function buildEvents(html, now = new Date()) {
-  return parseItems(html)
+  return [...parseItems(html), ...parseOngoingCards(html)]
     .flatMap((item) => buildItemEvents(item, now))
     .sort((a, b) => (a.startIso || '').localeCompare(b.startIso || ''))
 }
