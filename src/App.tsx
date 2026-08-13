@@ -1,48 +1,57 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useNavigationType, useParams } from 'react-router-dom'
-import { useEffect, useRef } from 'react'
+import { Suspense, lazy, useEffect, useRef } from 'react'
 import Header   from '@/components/Header'
 import Footer   from '@/components/Footer'
 import InstallPrompt from '@/components/InstallPrompt'
 import NeighborhoodPickerModal from '@/components/NeighborhoodPickerModal'
 import { NeighborhoodProvider } from '@/hooks/useNeighborhood'
 import { getMyHubSlug } from '@/lib/myHub'
+// Eager pages — the high-traffic surfaces on the critical path: the homepage,
+// hub pages (CategoryPage via EventsSlugRouter), event detail, and the embed
+// shell. Everything else is React.lazy below so its code (and anything only it
+// imports) leaves the entry chunk.
 import EmbedLayout   from '@/pages/embed/EmbedLayout'
 import EmbedHomePage from '@/pages/embed/EmbedHomePage'
 import HomePage  from '@/pages/HomePage'
 import EventPage from '@/pages/EventPage'
 import CategoryPage from '@/pages/CategoryPage'
-import SubmitPage from '@/pages/SubmitPage'
-import AboutPage     from '@/pages/AboutPage'
-import OrganizersPage from '@/pages/OrganizersPage'
-import TechnicalPage from '@/pages/TechnicalPage'
-import VenuesPage      from '@/pages/VenuesPage'
-import VenueDetailPage from '@/pages/VenueDetailPage'
-import VenueSubmitPage from '@/pages/VenueSubmitPage'
-import OrganizationsPage     from '@/pages/OrganizationsPage'
-import OrganizationDetailPage from '@/pages/OrganizationDetailPage'
-import OrganizationSubmitPage from '@/pages/OrganizationSubmitPage'
-import SubscribePage     from '@/pages/SubscribePage'
-import PreferencesPage   from '@/pages/PreferencesPage'
-import UnsubscribePage   from '@/pages/UnsubscribePage'
-import EmbedBuilderPage  from '@/pages/EmbedBuilderPage'
-import DayPlanPage    from '@/pages/DayPlanPage'
-import SharedPlanPage from '@/pages/SharedPlanPage'
-import FestivalPage   from '@/pages/FestivalPage'
 
-// Admin pages
-import AdminLayout from '@/pages/admin/AdminLayout'
-import EventsListPage from '@/pages/admin/events/EventsListPage'
-import EventEditPage from '@/pages/admin/events/EventEditPage'
-import VenuesListPage from '@/pages/admin/venues/VenuesListPage'
-import VenueEditPage from '@/pages/admin/venues/VenueEditPage'
-import OrganizationsListPage from '@/pages/admin/organizations/OrganizationsListPage'
-import OrgEditPage from '@/pages/admin/organizations/OrgEditPage'
-import AreasListPage from '@/pages/admin/areas/AreasListPage'
-import AreaEditPage from '@/pages/admin/areas/AreaEditPage'
-import ScraperRunsPage from '@/pages/admin/scraper-runs/ScraperRunsPage'
-import EmailPage from '@/pages/admin/email/EmailPage'
-import ReviewQueuePage from '@/pages/admin/review/ReviewQueuePage'
-import AdminFeedbackPage from '@/pages/admin/feedback/AdminFeedbackPage'
+// Route-split pages — each becomes its own chunk, fetched on first visit.
+// The single <Suspense> around SiteChrome's <Outlet/> shows RouteFallback
+// while a chunk loads. (Every route in the /embed group is eager, so the
+// embed outlet needs no Suspense.)
+const SubmitPage = lazy(() => import('@/pages/SubmitPage'))
+const AboutPage     = lazy(() => import('@/pages/AboutPage'))
+const OrganizersPage = lazy(() => import('@/pages/OrganizersPage'))
+const TechnicalPage = lazy(() => import('@/pages/TechnicalPage'))
+const VenuesPage      = lazy(() => import('@/pages/VenuesPage'))
+const VenueDetailPage = lazy(() => import('@/pages/VenueDetailPage'))
+const VenueSubmitPage = lazy(() => import('@/pages/VenueSubmitPage'))
+const OrganizationsPage     = lazy(() => import('@/pages/OrganizationsPage'))
+const OrganizationDetailPage = lazy(() => import('@/pages/OrganizationDetailPage'))
+const OrganizationSubmitPage = lazy(() => import('@/pages/OrganizationSubmitPage'))
+const SubscribePage     = lazy(() => import('@/pages/SubscribePage'))
+const PreferencesPage   = lazy(() => import('@/pages/PreferencesPage'))
+const UnsubscribePage   = lazy(() => import('@/pages/UnsubscribePage'))
+const EmbedBuilderPage  = lazy(() => import('@/pages/EmbedBuilderPage'))
+const DayPlanPage    = lazy(() => import('@/pages/DayPlanPage'))
+const SharedPlanPage = lazy(() => import('@/pages/SharedPlanPage'))
+const FestivalPage   = lazy(() => import('@/pages/FestivalPage'))
+
+// Admin pages — visitors never pay for the admin surface.
+const AdminLayout = lazy(() => import('@/pages/admin/AdminLayout'))
+const EventsListPage = lazy(() => import('@/pages/admin/events/EventsListPage'))
+const EventEditPage = lazy(() => import('@/pages/admin/events/EventEditPage'))
+const VenuesListPage = lazy(() => import('@/pages/admin/venues/VenuesListPage'))
+const VenueEditPage = lazy(() => import('@/pages/admin/venues/VenueEditPage'))
+const OrganizationsListPage = lazy(() => import('@/pages/admin/organizations/OrganizationsListPage'))
+const OrgEditPage = lazy(() => import('@/pages/admin/organizations/OrgEditPage'))
+const AreasListPage = lazy(() => import('@/pages/admin/areas/AreasListPage'))
+const AreaEditPage = lazy(() => import('@/pages/admin/areas/AreaEditPage'))
+const ScraperRunsPage = lazy(() => import('@/pages/admin/scraper-runs/ScraperRunsPage'))
+const EmailPage = lazy(() => import('@/pages/admin/email/EmailPage'))
+const ReviewQueuePage = lazy(() => import('@/pages/admin/review/ReviewQueuePage'))
+const AdminFeedbackPage = lazy(() => import('@/pages/admin/feedback/AdminFeedbackPage'))
 
 import { trackPageView } from '@/lib/analytics'
 import { historyEntryKey } from '@/lib/historyKey'
@@ -294,12 +303,29 @@ function SiteChrome() {
       <SEO jsonLd={siteGraph} />
       <Header />
       <main>
-        <Outlet />
+        {/* One Suspense boundary for every route-split page above: the lazy
+            chunk loads behind RouteFallback while the chrome stays mounted. */}
+        <Suspense fallback={<RouteFallback />}>
+          <Outlet />
+        </Suspense>
       </main>
       <Footer />
       <InstallPrompt />
       <NeighborhoodPickerModal />
     </NeighborhoodProvider>
+  )
+}
+
+/**
+ * RouteFallback — minimal centered loading state shown while a lazy route
+ * chunk downloads. Inline styles (like NotFound below) so it depends on no
+ * page-specific CSS; copy mirrors the existing "Loading events…" states.
+ */
+function RouteFallback() {
+  return (
+    <div style={{ textAlign: 'center', padding: '100px 20px', color: 'var(--text-muted)' }} role="status">
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.92rem' }}>Loading…</p>
+    </div>
   )
 }
 

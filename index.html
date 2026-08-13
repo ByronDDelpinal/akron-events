@@ -235,11 +235,25 @@
       //  - non-home paths get no shell (they'd flash the wrong page)
       //  - non-default themes hide the (default) logo image rather than
       //    show the wrong one; React mounts the correct logo moments later
+      //  - on the homepage, preload the edge-cached first events page so
+      //    the response is (usually) already in the preload cache when
+      //    useEvents issues its fetch after React boots
       (function () {
         try {
           var shell = document.getElementById('boot-shell')
           if (!shell) return
           if (location.pathname !== '/') { shell.remove(); return }
+          // Warm /api/events-first-page during JS boot. `crossorigin`
+          // (anonymous) is REQUIRED to match useEvents' plain fetch() —
+          // fetch defaults to mode:'cors' + credentials:'same-origin',
+          // and a preload whose mode/credentials differ is simply wasted
+          // (double fetch), never reused.
+          var pre = document.createElement('link')
+          pre.rel = 'preload'
+          pre.as = 'fetch'
+          pre.href = '/api/events-first-page'
+          pre.crossOrigin = 'anonymous'
+          document.head.appendChild(pre)
           var t = localStorage.getItem('akronpulse.theme')
           if (t && t !== 'akron-pulse') {
             var logo = shell.querySelector('.nav-logo-img')

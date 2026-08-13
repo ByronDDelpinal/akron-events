@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback, type ReactNode } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback, Suspense, lazy, type ReactNode } from 'react'
 import { useEvents, useMapEvents, PAGE_SIZE, type AppEvent } from '@/hooks/useEvents'
 import { useRestorablePagination } from '@/hooks/useRestorablePagination'
 import { useEventFilters } from '@/hooks/useEventFilters'
@@ -6,8 +6,6 @@ import { useEmbed } from '@/hooks/useEmbed'
 import EventCard from '@/components/EventCard'
 import FeedbackDialog from '@/components/FeedbackDialog'
 import FilterBar, { type LockedDimensions } from '@/components/FilterBar'
-import MapView from '@/components/MapView'
-import CalendarView from '@/components/CalendarView'
 import SourceOverflowCard from '@/components/SourceOverflowCard'
 import DateHeading from '@/components/DateHeading'
 import { groupEventsByDate, applySourceCap, sortFeaturedFirst } from '@/lib/eventGrouping'
@@ -15,6 +13,17 @@ import { useSearchReporting } from '@/hooks/useSearchReporting'
 // Grid / list / load-more styles live in HomePage.css (global, deduped by Vite).
 import '@/pages/HomePage.css'
 
+// React.lazy so the list view — what every visitor lands on — never fetches
+// the maplibre-gl chunk (~1.05 MB) or the calendar code. The chunks load on
+// the first switch to their view, behind the same loading treatment the data
+// fetch already shows.
+const MapView = lazy(() => import('@/components/MapView'))
+const CalendarView = lazy(() => import('@/components/CalendarView'))
+
+// Efficient-density page size. Must stay <= FIRST_PAGE_CACHE_ROWS
+// (src/lib/firstPageQuery.js) — the pristine first page in efficient density
+// is served entirely from the edge-cached head, which bakes exactly that many
+// rows. Enforced by scripts/tests/test-first-page-cache-rows.js.
 const COMPACT_PAGE_SIZE = 48
 const PREFETCH_PX = 400
 
@@ -291,18 +300,24 @@ export default function EventsBrowser({
       {effectiveView === 'map' && (
         mapLoading
           ? <div className="map-loading"><span>Loading map…</span></div>
-          : <MapView events={mapEvents} onBackToList={() => onView?.('list')} neighborhoodSlug={effective.neighborhoodSlug} />
+          : (
+            <Suspense fallback={<div className="map-loading"><span>Loading map…</span></div>}>
+              <MapView events={mapEvents} onBackToList={() => onView?.('list')} neighborhoodSlug={effective.neighborhoodSlug} />
+            </Suspense>
+          )
       )}
 
       {/* ── CALENDAR VIEW ── */}
       {effectiveView === 'calendar' && (
-        <CalendarView
-          events={calendarEvents}
-          loading={calendarLoading}
-          initialRange={effective.dateRange}
-          initialFrom={effective.dateFrom}
-          initialTo={effective.dateTo}
-        />
+        <Suspense fallback={<div className="map-loading"><span>Loading calendar…</span></div>}>
+          <CalendarView
+            events={calendarEvents}
+            loading={calendarLoading}
+            initialRange={effective.dateRange}
+            initialFrom={effective.dateFrom}
+            initialTo={effective.dateTo}
+          />
+        </Suspense>
       )}
 
       {/* ── LIST VIEW ── */}

@@ -6,12 +6,13 @@
  * PostgREST + connection latency on every cold visit. This endpoint
  * lets Vercel's CDN answer instantly from every edge region:
  *
- *   Cache-Control: s-maxage=300, stale-while-revalidate=86400
+ *   Cache-Control: s-maxage=28800, stale-while-revalidate=86400
  *
  * means a POP serves its cached copy (even a stale one) with zero
- * latency and refreshes from Supabase in the background. Worst-case
- * staleness after a scrape or an admin edit is ~5 minutes without any
- * purge plumbing — good enough that purging is optional, not required.
+ * latency and refreshes from Supabase in the background. The 8h fresh
+ * window is safe because the scraper purges the shared `events` tag at
+ * the end of every run (scripts/run-all.js), so fresh results appear
+ * immediately rather than waiting out the TTL.
  *
  * On-demand purge: the response carries the cache tag below, so it can
  * be busted at any time without a redeploy:
@@ -30,9 +31,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
-import { buildFirstPageQuery } from '../src/lib/firstPageQuery.js'
-
-const PAGE_SIZE = 24 // keep in sync with PAGE_SIZE in src/hooks/useEvents.ts
+import { buildFirstPageQuery, FIRST_PAGE_CACHE_ROWS } from '../src/lib/firstPageQuery.js'
 
 export default async function handler(req, res) {
   const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
@@ -44,7 +43,7 @@ export default async function handler(req, res) {
   }
 
   const supabase = createClient(url, key)
-  const { data, error, count } = await buildFirstPageQuery(supabase, PAGE_SIZE)
+  const { data, error, count } = await buildFirstPageQuery(supabase, FIRST_PAGE_CACHE_ROWS)
 
   if (error) {
     // Don't cache failures.

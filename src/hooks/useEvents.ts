@@ -1,7 +1,7 @@
 import type { LooseRow, LooseQuery } from '@/types'
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
-import { EVENT_LIST_COLUMNS } from '@/lib/firstPageQuery'
+import { EVENT_LIST_COLUMNS, FIRST_PAGE_CACHE_ROWS } from '@/lib/firstPageQuery'
 import { dateRangeBounds } from '@/lib/dateRange'
 import { easternIsoAt } from '@/lib/easternDate'
 import { timeOfDayBounds, type TimeOfDayId } from '@/lib/whenFilter'
@@ -208,7 +208,7 @@ export function useEvents({
 
     // The pristine homepage request (page one, no filters, default
     // sort) is byte-identical for every visitor, so it's served from
-    // /api/events-first-page — cached at Vercel's edge (s-maxage=300 +
+    // /api/events-first-page — cached at Vercel's edge (s-maxage=28800 +
     // a day of stale-while-revalidate), answering in ~50 ms worldwide
     // instead of paying PostgREST latency. Any failure falls through
     // to the normal live query.
@@ -217,6 +217,11 @@ export function useEvents({
     // time-filtered request that slipped through this guard would silently
     // get served the UNFILTERED cached page (docs/when-filter.md §3.2's cache
     // guard note — this is one of the two sites it calls out).
+    // No `limit` condition on purpose: the cached page always holds
+    // FIRST_PAGE_CACHE_ROWS rows, so ANY pristine offset-0 request can use it —
+    // smaller limits slice the head, larger ones (efficient density, restored
+    // scroll depth) add a live tail beyond the boundary. See the head+tail
+    // seam comment inside fetchEvents.
     const isDefaultFirstPage =
       categories.length === 0 && excludedCategories.length === 0 &&
       !family && !excludeFamily && !fundraiser &&
@@ -225,62 +230,20 @@ export function useEvents({
       !freeOnly && !priceMax &&
       hiddenSources.length === 0 && !neighborhoodSlug &&
       venueCities.length === 0 &&
-      sort === 'soonest' && offset === 0 && limit === PAGE_SIZE
+      sort === 'soonest' && offset === 0
 
     async function fetchEvents() {
       setLoading(true)
       setError(null)
 
-      if (isDefaultFirstPage) {
-        try {
-          const res = await fetch('/api/events-first-page')
-          if (res.ok) {
-            const { events: rows, total: cachedTotal } = await res.json()
-            if (Array.isArray(rows)) {
-              if (!cancelled) {
-                setEvents(rows.map((r: RawRow) => normalizeEventJoins(r) as AppEvent))
-                setTotal(cachedTotal ?? 0)
-                setLoading(false)
-              }
-              return
-            }
-          }
-        } catch {
-          // CDN/function unavailable (or vite dev, where /api doesn't
-          // exist) — fall through to the live PostgREST query.
-        }
-      }
-
-      // Hub first page (page one of a category/neighborhood/city hub with no
-      // user filters): served from the edge-cached /api/events-hub. The caller
-      // only passes hubSlug when the request matches the hub's pristine
-      // defaults, so the cached rows equal what the live query below returns.
-      //
-      // The `limit === PAGE_SIZE` guard is load-bearing: /api/events-hub always
-      // returns exactly PAGE_SIZE rows, so an offset-0 request for MORE than a
-      // page (a back-navigation restoring its scroll depth) would be silently
-      // truncated to 24 and the restored page would collapse.
-      if (hubSlug && offset === 0 && limit === PAGE_SIZE) {
-        try {
-          const res = await fetch(`/api/events-hub?slug=${encodeURIComponent(hubSlug)}`)
-          if (res.ok) {
-            const { events: rows, total: cachedTotal } = await res.json()
-            if (Array.isArray(rows)) {
-              if (!cancelled) {
-                setEvents(rows.map((r: RawRow) => normalizeEventJoins(r) as AppEvent))
-                setTotal(cachedTotal ?? 0)
-                setLoading(false)
-              }
-              return
-            }
-          }
-          // Non-OK (e.g. an uncacheable hub returns 404) — fall through.
-        } catch {
-          // CDN/function unavailable or vite dev — fall through to live query.
-        }
-      }
-
-      try {
+      // ── Shared live-query builder ─────────────────────────────────────
+      // ONE construction site for the PostgREST query, used by three paths:
+      //   • the normal (non-pristine) fetch — behaviorally identical to the
+      //     previous inline construction (count only on offset 0),
+      //   • the live TAIL beyond a cached head (rows FIRST_PAGE_CACHE_ROWS
+      //     .. limit-1, never with a count),
+      //   • the serial fallback when the edge layer is unavailable.
+      const buildLiveQuery = (rangeStart: number, rangeEnd: number, withCount: boolean): LooseQuery => {
         // The venue embed is an inner join only when neighborhoodSlug is
         // set — that flips PostgREST into "filter the parent by the
         // child" mode and lets us hand the slug constraint to Postgres.
@@ -294,12 +257,13 @@ export function useEvents({
         // artifacts. Dropping them halves the page payload (~48 kB →
         // ~26 kB measured 2026-06). Detail pages (useEvent) still
         // select * for the full record.
-        // Exact COUNT is only fetched on the first page: it's needed for the
-        // "N events" total and the initial hasMore, but re-running a full
-        // filtered COUNT on every "load more" is pure overhead. Later pages
-        // reuse the page-one total (held in state) for hasMore, so they skip
-        // the count entirely.
-        const countOption = offset === 0 ? { count: 'exact' as const } : undefined
+        // Exact COUNT is only fetched on the first page (withCount): it's
+        // needed for the "N events" total and the initial hasMore, but
+        // re-running a full filtered COUNT on every "load more" — or on a
+        // tail fetch whose total already came from the cached head — is pure
+        // overhead. Later pages reuse the page-one total (held in state) for
+        // hasMore, so they skip the count entirely.
+        const countOption = withCount ? { count: 'exact' as const } : undefined
         let query: LooseQuery = supabase
           .from('events')
           .select(`
@@ -386,9 +350,113 @@ export function useEvents({
           query = query.order('start_at', { ascending: true })
         }
 
-        query = query.range(offset, offset + limit - 1)
+        return query.range(rangeStart, rangeEnd)
+      }
 
-        const { data, error: fetchError, count } = await query
+      // ── Bounded stale-head / live-tail seam ───────────────────────────
+      // Both cached endpoints bake exactly FIRST_PAGE_CACHE_ROWS rows (the
+      // single variant — no per-limit variants at the edge). A pristine
+      // offset-0 request DEEPER than that (efficient density's 48-row page at
+      // a smaller future bake, or a back-navigation restoring scroll depth)
+      // is assembled from two pieces fetched in parallel:
+      //   head — rows 0..FIRST_PAGE_CACHE_ROWS-1 from the edge cache (may be
+      //          up to the cache TTL stale),
+      //   tail — rows FIRST_PAGE_CACHE_ROWS..limit-1 live from PostgREST,
+      //          no count (the total comes from the cached head).
+      // The staleness seam at the 48-row boundary is bounded and accepted:
+      // rows that moved across the boundary between bake time and now are
+      // deduped by id (head wins), so the worst case is a short gap or a
+      // slightly stale first 48 — never duplicates.
+      if (isDefaultFirstPage) {
+        // Start head AND tail before awaiting either, so they overlap.
+        // Promise.resolve() assimilates the lazy PostgrestBuilder thenable,
+        // firing its HTTP request NOW — a bare builder only sends when
+        // .then()/awaited, which would serialize the tail behind the head
+        // fetch + res.json(). The no-op catch keeps a tail rejection from
+        // escaping as unhandled when the head path bails before the tail is
+        // awaited (supabase-js resolves with { error } rather than rejecting,
+        // so this is purely defensive).
+        const headPromise = fetch('/api/events-first-page')
+        const tailPromise: Promise<{ data: RawRow[] | null; error: unknown }> | null =
+          limit > FIRST_PAGE_CACHE_ROWS
+            ? Promise.resolve(buildLiveQuery(FIRST_PAGE_CACHE_ROWS, limit - 1, false))
+            : null
+        tailPromise?.catch(() => {})
+        try {
+          const res = await headPromise
+          if (res.ok) {
+            const { events: rows, total: cachedTotal } = await res.json()
+            if (Array.isArray(rows)) {
+              let combined = (rows as RawRow[]).slice(0, limit)
+              if (tailPromise) {
+                const { data: tailRows, error: tailError } = await tailPromise
+                if (tailError) throw tailError
+                // Head then tail preserves start_at ordering (both are
+                // soonest-first and the tail starts at the boundary); drop
+                // tail rows whose id already appears in the head.
+                const seen = new Set(combined.map((r) => r.id))
+                combined = [...combined, ...((tailRows ?? []) as RawRow[]).filter((r) => !seen.has(r.id))]
+              }
+              if (!cancelled) {
+                setEvents(combined.map((r) => normalizeEventJoins(r) as AppEvent))
+                setTotal(cachedTotal ?? 0)
+                setLoading(false)
+              }
+              return
+            }
+          }
+        } catch {
+          // CDN/function unavailable (or vite dev, where /api doesn't exist),
+          // or the tail query failed — fall through to the full live query
+          // below. Serial cost is only paid when the edge layer is down.
+        }
+      }
+
+      // Hub first page (page one of a category/neighborhood/city hub with no
+      // user filters): served from the edge-cached /api/events-hub. The caller
+      // only passes hubSlug when the request matches the hub's pristine
+      // defaults, so the cached rows equal what buildLiveQuery returns for the
+      // current closure — which is also why the SAME builder produces the tail
+      // beyond the cached head (same head+tail seam as above).
+      if (hubSlug && offset === 0) {
+        const headPromise = fetch(`/api/events-hub?slug=${encodeURIComponent(hubSlug)}`)
+        // Same eager-start + defensive catch as the pristine block above: the
+        // builder is lazy, so wrap it in a real promise to overlap with the
+        // head fetch.
+        const tailPromise: Promise<{ data: RawRow[] | null; error: unknown }> | null =
+          limit > FIRST_PAGE_CACHE_ROWS
+            ? Promise.resolve(buildLiveQuery(FIRST_PAGE_CACHE_ROWS, limit - 1, false))
+            : null
+        tailPromise?.catch(() => {})
+        try {
+          const res = await headPromise
+          if (res.ok) {
+            const { events: rows, total: cachedTotal } = await res.json()
+            if (Array.isArray(rows)) {
+              let combined = (rows as RawRow[]).slice(0, limit)
+              if (tailPromise) {
+                const { data: tailRows, error: tailError } = await tailPromise
+                if (tailError) throw tailError
+                const seen = new Set(combined.map((r) => r.id))
+                combined = [...combined, ...((tailRows ?? []) as RawRow[]).filter((r) => !seen.has(r.id))]
+              }
+              if (!cancelled) {
+                setEvents(combined.map((r) => normalizeEventJoins(r) as AppEvent))
+                setTotal(cachedTotal ?? 0)
+                setLoading(false)
+              }
+              return
+            }
+          }
+          // Non-OK (e.g. an uncacheable hub returns 404) — fall through.
+        } catch {
+          // CDN/function unavailable, vite dev, or the tail query failed —
+          // fall through to the live query.
+        }
+      }
+
+      try {
+        const { data, error: fetchError, count } = await buildLiveQuery(offset, offset + limit - 1, offset === 0)
 
         if (fetchError) throw fetchError
         if (!cancelled) {

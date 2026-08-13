@@ -25,14 +25,12 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
-import { buildHubFirstPageQuery } from '../src/lib/firstPageQuery.js'
+import { buildHubFirstPageQuery, FIRST_PAGE_CACHE_ROWS } from '../src/lib/firstPageQuery.js'
 import {
   getCategoryHub,
   getNeighborhoodHub,
   getCityHub,
 } from '../src/lib/seo/categories.js'
-
-const PAGE_SIZE = 24 // keep in sync with PAGE_SIZE in src/hooks/useEvents.ts
 
 /** Resolve a slug to its hub + the locked filters useEvents would apply. */
 function resolveHub(slug) {
@@ -80,7 +78,7 @@ export default async function handler(req, res) {
   }
 
   const supabase = createClient(url, key)
-  const { data, error, count } = await buildHubFirstPageQuery(supabase, resolved.opts, PAGE_SIZE)
+  const { data, error, count } = await buildHubFirstPageQuery(supabase, resolved.opts, FIRST_PAGE_CACHE_ROWS)
 
   if (error) {
     res.setHeader('Cache-Control', 'no-store')

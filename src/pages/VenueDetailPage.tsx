@@ -1,7 +1,7 @@
 import type { LooseRow } from '@/types'
+import { Suspense, lazy } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useVenue, useVenueEvents } from '@/hooks/useEvents'
-import { VenueMap } from '@/components/MapView'
 import CategoryBadge from '@/components/CategoryBadge'
 import ShareButtons from '@/components/ShareButtons'
 import {
@@ -23,6 +23,31 @@ import {
 } from '@/lib/eventFormatting'
 import './VenueDetailPage.css'
 import { BackIcon, CalIcon, GlobeIcon, OrgIcon, PinIcon } from '@/components/icons'
+
+// VenueMap is a NAMED export of MapView.tsx — the .then() shim adapts it to
+// React.lazy's default-export contract. Lazy keeps maplibre-gl out of this
+// (already lazy) page chunk; the map fetches only when the venue has pins.
+const VenueMap = lazy(() => import('@/components/MapView').then((m) => ({ default: m.VenueMap })))
+
+/** Suspense fallback holding VenueMap's footprint while the maplibre chunk
+ *  loads — inline styles mirroring .venue-map-preview (MapView.css ships
+ *  inside the lazy chunk). Only rendered under `hasMap`, so coordinates are
+ *  known to exist. */
+function VenueMapFallback() {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        width: '100%',
+        height: 200,
+        marginTop: 'var(--space-lg)',
+        background: 'var(--bg-nav)',
+        border: 'var(--border-width-thin) solid var(--border)',
+        borderRadius: 'var(--radius-md)',
+      }}
+    />
+  )
+}
 
 type Row = LooseRow
 
@@ -154,17 +179,19 @@ export default function VenueDetailPage() {
               {/* Map */}
               {hasMap && (
                 <div className="venue-map-wrap">
-                  <VenueMap
-                    lat={venue.lat}
-                    lng={venue.lng}
-                    venueName={venue.name}
-                    venueAddress={[
-                      venue.address,
-                      [venue.city, venue.state].filter(Boolean).join(', '),
-                      venue.zip,
-                    ].filter(Boolean).join('\n')}
-                    directionsUrl={directionsUrl}
-                  />
+                  <Suspense fallback={<VenueMapFallback />}>
+                    <VenueMap
+                      lat={venue.lat}
+                      lng={venue.lng}
+                      venueName={venue.name}
+                      venueAddress={[
+                        venue.address,
+                        [venue.city, venue.state].filter(Boolean).join(', '),
+                        venue.zip,
+                      ].filter(Boolean).join('\n')}
+                      directionsUrl={directionsUrl}
+                    />
+                  </Suspense>
                 </div>
               )}
 

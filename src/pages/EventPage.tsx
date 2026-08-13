@@ -1,11 +1,10 @@
 import type { LooseRow } from '@/types'
-import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
+import { useState, useCallback, useEffect, useRef, Suspense, lazy, type ReactNode } from 'react'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { useEvent, type AppEvent } from '@/hooks/useEvents'
 import { useEmbed } from '@/hooks/useEmbed'
 import { embedEventPath } from '@/lib/eventHref'
-import { VenueMap } from '@/components/MapView'
 import { CategoryBadges, FacetBadges } from '@/components/CategoryBadge'
 import RelatedEvents from '@/components/RelatedEvents'
 import FeedbackDialog from '@/components/FeedbackDialog'
@@ -41,6 +40,37 @@ import {
 } from '@/lib/eventFormatting'
 import './EventPage.css'
 import { BackIcon, CalIcon, ParkingIcon, PinIcon } from '@/components/icons'
+
+// VenueMap is a NAMED export of MapView.tsx — the .then() shim adapts it to
+// React.lazy's default-export contract. Lazy so this page (eager, on the
+// entry-chunk critical path) doesn't drag the maplibre-gl chunk (~1.05 MB)
+// into every visit; the map fetches only when an event actually has a venue
+// pin to draw.
+const VenueMap = lazy(() => import('@/components/MapView').then((m) => ({ default: m.VenueMap })))
+
+/**
+ * Suspense fallback holding VenueMap's footprint while the maplibre chunk
+ * loads. Inline styles mirroring .venue-map-preview's box (MapView.css ships
+ * inside the lazy chunk, so its classes aren't available yet). VenueMap
+ * renders null when the venue has no coordinates — mirror that here so the
+ * placeholder never appears for a map that will never exist.
+ */
+function VenueMapFallback({ lat, lng }: { lat?: number | string | null; lng?: number | string | null }) {
+  if (lat == null || lng == null) return null
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        width: '100%',
+        height: 200,
+        marginTop: 'var(--space-lg)',
+        background: 'var(--bg-nav)',
+        border: 'var(--border-width-thin) solid var(--border)',
+        borderRadius: 'var(--radius-md)',
+      }}
+    />
+  )
+}
 
 // Banner needs to span the page content area; sub-1120 images become thumbnails.
 const BANNER_MIN_WIDTH = 1120
@@ -321,14 +351,16 @@ export default function EventPage() {
                     internalLink={embed ? null : `/venues/${event.venue.id}`}
                     internalLinkLabel="View venue"
                   />
-                  <VenueMap
-                    lat={event.venue.lat}
-                    lng={event.venue.lng}
-                    venueName={event.venue.name}
-                    venueAddress={[event.venue.address, event.venue.city]
-                      .filter(Boolean).join(', ')}
-                    directionsUrl={venueDirectionsUrl}
-                  />
+                  <Suspense fallback={<VenueMapFallback lat={event.venue.lat as number | null} lng={event.venue.lng as number | null} />}>
+                    <VenueMap
+                      lat={event.venue.lat}
+                      lng={event.venue.lng}
+                      venueName={event.venue.name}
+                      venueAddress={[event.venue.address, event.venue.city]
+                        .filter(Boolean).join(', ')}
+                      directionsUrl={venueDirectionsUrl}
+                    />
+                  </Suspense>
                 </div>
               )}
               <ActionButtons event={event} price={price} />
@@ -390,14 +422,16 @@ export default function EventPage() {
                     internalLink={embed ? null : `/venues/${event.venue.id}`}
                     internalLinkLabel="View venue"
                   />
-                  <VenueMap
-                    lat={event.venue.lat}
-                    lng={event.venue.lng}
-                    venueName={event.venue.name}
-                    venueAddress={[event.venue.address, event.venue.city]
-                      .filter(Boolean).join(', ')}
-                    directionsUrl={venueDirectionsUrl}
-                  />
+                  <Suspense fallback={<VenueMapFallback lat={event.venue.lat as number | null} lng={event.venue.lng as number | null} />}>
+                    <VenueMap
+                      lat={event.venue.lat}
+                      lng={event.venue.lng}
+                      venueName={event.venue.name}
+                      venueAddress={[event.venue.address, event.venue.city]
+                        .filter(Boolean).join(', ')}
+                      directionsUrl={venueDirectionsUrl}
+                    />
+                  </Suspense>
                 </>
               )}
 

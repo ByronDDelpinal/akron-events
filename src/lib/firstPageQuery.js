@@ -30,12 +30,27 @@ export const EVENT_LIST_COLUMNS = `
             price_min, price_max, age_restriction, is_family, is_fundraiser`
 
 /**
+ * Row count of the single baked variant BOTH edge-cached endpoints serve
+ * (api/events-first-page.js and api/events-hub.js). There is exactly one
+ * cached shape — no query params, no per-limit variants — and useEvents
+ * serves any pristine offset-0 request from it: requests for fewer rows
+ * slice the head, requests for more (efficient density / restored scroll
+ * depth) fetch only the tail beyond this boundary live.
+ *
+ * MUST stay >= COMPACT_PAGE_SIZE (src/components/EventsBrowser.tsx): the
+ * efficient-density first page is served entirely from this cached head,
+ * and a smaller bake would silently truncate it. Enforced by
+ * scripts/tests/test-first-page-cache-rows.js.
+ */
+export const FIRST_PAGE_CACHE_ROWS = 48
+
+/**
  * Apply the default first-page query (no user filters, soonest-first,
  * page one) to a supabase client. Must stay behaviorally identical to
  * useEvents' builder with default options — if you change one, change
  * the other.
  */
-export function buildFirstPageQuery(supabase, limit) {
+export function buildFirstPageQuery(supabase, limit = FIRST_PAGE_CACHE_ROWS) {
   return supabase
     .from('events')
     .select(`
@@ -66,7 +81,7 @@ export function buildFirstPageQuery(supabase, limit) {
  * Date-range hubs (This Weekend / Today) are intentionally NOT served from
  * here: their window is time-relative and must not be long-cached.
  */
-export function buildHubFirstPageQuery(supabase, opts, limit) {
+export function buildHubFirstPageQuery(supabase, opts, limit = FIRST_PAGE_CACHE_ROWS) {
   const categories   = Array.isArray(opts.categories) ? opts.categories : []
   const facets       = Array.isArray(opts.facets) ? opts.facets : []
   const cityMatch    = Array.isArray(opts.cityMatch) ? opts.cityMatch : []
