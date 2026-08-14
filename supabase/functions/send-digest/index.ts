@@ -30,6 +30,7 @@ import {
   selectDigestEvents,
   eventPath,
   easternDayKey,
+  isFestivalChildHidden,
 } from './select.ts'
 import { type SendLogEntry, markChunkFailed } from './batch.ts'
 import {
@@ -816,11 +817,23 @@ Deno.serve(async (req) => {
         console.warn('[send-digest] WARNING: events query returned 1000 rows (PostgREST cap) — window truncated')
       }
 
+      // Festival children never enter the digest pool at all — hidden
+      // before any subscriber matching, so no subscriber (including a
+      // keyword match, which bypasses every OTHER subscriber filter) can
+      // pull one in. The umbrella row itself is never hidden. See
+      // docs/umbrella-child-hiding.md and isFestivalChildHidden's header.
+      const rawEvents = events || []
+      const visibleEvents = rawEvents.filter((e: any) => !isFestivalChildHidden(e.tags))
+      const hiddenCount = rawEvents.length - visibleEvents.length
+      if (hiddenCount > 0) {
+        console.log(`[send-digest] festival-child filter: hid ${hiddenCount} row(s) from the digest pool`)
+      }
+
       // Flatten the joined data for easier filtering. _startMs/_dayKey are
       // the CPU rider: parse each start_at and compute its Eastern calendar
       // day ONCE here, instead of per (event × subscriber) in the filter/
       // select/render hot loops (see select.ts's Event interface).
-      flatEvents = (events || []).map((e: any) => {
+      flatEvents = visibleEvents.map((e: any) => {
         const startMs = new Date(e.start_at).getTime()
         return {
           ...e,

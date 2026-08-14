@@ -19,6 +19,16 @@
  *   e. WARN (not fail) when a festival inside its 7-day homepage banner
  *      window has zero non-umbrella rows carrying its tag: the hub would
  *      show its empty state during peak interest.
+ *   f. Every published, upcoming (Eastern date >= today) row carrying a
+ *      registry tag WITHOUT 'festival-umbrella' must fall on that festival's
+ *      dateKey (docs/umbrella-child-hiding.md). Such a row is now hidden
+ *      from the browse grid, the map/calendar, the feed, and the digest by
+ *      src/lib/browseVisibility.js's predicate — a row tagged
+ *      'porchrokr-2026' sitting on an unrelated date is invisible in browse
+ *      on a day nobody would think to look, with no user-visible symptom.
+ *      Before this change such a row was merely odd; after it, it is data
+ *      loss. The single most valuable new check (added 2026-08-14 alongside
+ *      the browse-hiding feature).
  *
  * WHY THIS EXISTS AS A RUNTIME CHECK: the unit suites prove the hub logic
  * and the importer are correct, but tags reach events from paths they do
@@ -128,15 +138,34 @@ export function evaluateFestivalInvariants(rows, registry, todayIso) {
     }
 
     // e. banner-window emptiness (WARN only)
+    const nonUmbrella = tagged.filter((r) => !hasTag(r, UMBRELLA_TAG))
     const diff = easternDateKeyDiffDays(todayIso, f.dateKey)
     if (diff >= 0 && diff <= BANNER_WINDOW_DAYS) {
-      const nonUmbrella = tagged.filter((r) => !hasTag(r, UMBRELLA_TAG))
       if (nonUmbrella.length === 0) {
         findings.push({
           level: 'WARN', check: 'empty-window', festival: f.slug, eventIds: [],
           message: `festival is ${diff} day(s) out (inside the [0, ${BANNER_WINDOW_DAYS}] homepage ` +
             `banner window) but zero non-umbrella rows carry '${f.tag}': the hub shows ` +
             `its empty state during peak interest. Import the lineup.`,
+        })
+      }
+    }
+
+    // f. off-date hidden rows (docs/umbrella-child-hiding.md) — a non-umbrella
+    // row carrying this festival's tag is hidden from browse, and hidden on
+    // the WRONG day is a silent disappearance, not merely odd tagging. Only
+    // "upcoming" rows (Eastern start date >= today) matter: a past-dated row
+    // is already excluded from every browse path by its own start_at >= now
+    // clause, so it was never actually hidden-in-error.
+    for (const r of nonUmbrella) {
+      const rDateKey = easternDateKey(r.start_at)
+      if (rDateKey >= todayIso && rDateKey !== f.dateKey) {
+        findings.push({
+          level: 'FAIL', check: 'off-date-hidden', festival: f.slug, eventIds: [r.id],
+          message: `"${r.title}" (${r.id}) carries '${f.tag}' without '${UMBRELLA_TAG}' but falls ` +
+            `on Eastern date ${rDateKey}, not the registry dateKey ${f.dateKey}. It is invisible ` +
+            `in browse (docs/umbrella-child-hiding.md's src/lib/browseVisibility.js) on a day ` +
+            `nobody would think to look — remove the tag or fix the registry dateKey.`,
         })
       }
     }
@@ -157,6 +186,24 @@ export function evaluateFestivalInvariants(rows, registry, todayIso) {
   }
 
   return findings
+}
+
+/**
+ * Count of one festival's currently-hidden-from-browse children: published
+ * rows carrying its tag, not the umbrella, with an upcoming (Eastern date >=
+ * todayIso) start — the same "children you can still go to" semantics as
+ * the umbrella card's own count query (src/lib/browseVisibility.js /
+ * useFestivalChildCount, docs/umbrella-child-hiding.md §3.2). Pure and
+ * exported so the printed INFO line and the offline test agree on one
+ * definition instead of two.
+ */
+export function countHiddenChildren(rows, festival, todayIso) {
+  const published = (rows ?? []).filter((r) => r.status === 'published')
+  return published.filter((r) =>
+    hasTag(r, festival.tag) &&
+    !hasTag(r, UMBRELLA_TAG) &&
+    easternDateKey(r.start_at) >= todayIso,
+  ).length
 }
 
 /**
@@ -199,16 +246,21 @@ async function main() {
 
   for (const f of FESTIVALS) {
     const mine = findings.filter((x) => x.festival === f.slug)
+    const hidden = countHiddenChildren(rows, f, todayIso)
     if (mine.length === 0) {
       console.log(`  ${GREEN}✓${R} ${f.slug} ${DIM}(tag '${f.tag}', dateKey ${f.dateKey})${R}`)
-      continue
+    } else {
+      console.log(`  ${mine.some((x) => x.level === 'FAIL') ? RED + '✖' : YELLOW + '⚠'}${R} ${f.slug}`)
+      for (const x of mine) {
+        const color = x.level === 'FAIL' ? RED : YELLOW
+        console.log(`      ${color}${x.level}${R} [${x.check}] ${x.message}`)
+        for (const id of x.eventIds) console.log(`        ${DIM}event ${id}${R}`)
+      }
     }
-    console.log(`  ${mine.some((x) => x.level === 'FAIL') ? RED + '✖' : YELLOW + '⚠'}${R} ${f.slug}`)
-    for (const x of mine) {
-      const color = x.level === 'FAIL' ? RED : YELLOW
-      console.log(`      ${color}${x.level}${R} [${x.check}] ${x.message}`)
-      for (const id of x.eventIds) console.log(`        ${DIM}event ${id}${R}`)
-    }
+    // INFO: the count the umbrella card shows (docs/umbrella-child-hiding.md
+    // §3.2, §8.D) — the nightly QA run becomes the audit trail for "the card
+    // says 161", and a companion to check (e)'s WARN for the too-many direction.
+    console.log(`      ${DIM}INFO [hidden-count] ${hidden} row(s) currently hidden from browse${R}`)
   }
 
   const orphans = findings.filter((x) => x.check === 'orphan-umbrella')

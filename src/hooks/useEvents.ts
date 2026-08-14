@@ -2,6 +2,7 @@ import type { LooseRow, LooseQuery } from '@/types'
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { EVENT_LIST_COLUMNS, FIRST_PAGE_CACHE_ROWS } from '@/lib/firstPageQuery'
+import { applyBrowseVisibility } from '@/lib/browseVisibility'
 import { dateRangeBounds } from '@/lib/dateRange'
 import { easternIsoAt } from '@/lib/easternDate'
 import { timeOfDayBounds, type TimeOfDayId } from '@/lib/whenFilter'
@@ -275,6 +276,13 @@ export function useEvents({
           .eq('status', 'published')
           // Drop events the moment their start time passes — no in-progress grace window.
           .gte('start_at', new Date().toISOString())
+
+        // Festival children are hidden from the browse grid; the umbrella
+        // stands in for them and links to the hub. Skipped when a search
+        // term is active — decision 2, search must always find a band name.
+        // See src/lib/browseVisibility.js and docs/umbrella-child-hiding.md.
+        const hasSearch = !!search && search.trim().length > 0
+        if (!hasSearch) query = applyBrowseVisibility(query)
 
         if (neighborhoodSlug) {
           query = query.eq('event_venues.venues.neighborhood_slug', neighborhoodSlug)
@@ -626,7 +634,7 @@ export function useRelatedEvents(
 
   const { data: events, loading, error } = useAsync(async () => {
     if (!eventId || catList.length === 0) return []
-    const { data, error: fetchError } = await supabase
+    let query: LooseQuery = supabase
       .from('events')
       .select(`
         id, title, start_at, end_at, is_family, is_fundraiser,
@@ -641,6 +649,12 @@ export function useRelatedEvents(
       .in('_catfilter.category', catList)
       .neq('id', eventId)
       .gte('start_at', new Date(Date.now() - 3 * 3600_000).toISOString())
+    // "More like this" is a browse surface with the same flood risk: on
+    // festival day every music/free/outdoor event's related block would
+    // otherwise fill with porch sets. No search concept here, so apply
+    // unconditionally. See docs/umbrella-child-hiding.md §2.4.
+    query = applyBrowseVisibility(query)
+    const { data, error: fetchError } = await query
       .order('start_at', { ascending: true })
       .limit(limit)
     if (fetchError) throw fetchError
@@ -747,6 +761,15 @@ export function useMapEvents({
             // Drop events the moment their start time passes — no in-progress grace window.
             .gte('start_at', new Date().toISOString())
             .order('start_at', { ascending: true })
+
+          // Festival children are hidden from the map/calendar too — the
+          // calendar in particular would otherwise show a festival-day cell
+          // with 160+ events, which is unusable. Skipped when a search term
+          // is active, mirroring buildLiveQuery above (the map cannot
+          // diverge from the list under identical filters). See
+          // docs/umbrella-child-hiding.md §2.2.
+          const hasSearch = !!search && search.trim().length > 0
+          if (!hasSearch) query = applyBrowseVisibility(query)
 
           query = applyCategoryFilter(query, categories)
           if (excludedCategories.length > 0) {

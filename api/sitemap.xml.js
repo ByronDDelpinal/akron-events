@@ -13,6 +13,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { eventPath } from '../src/lib/slug.js'
 import { ENABLED_HUB_PATHS } from '../src/lib/seo/categories.js'
+import { FESTIVALS } from '../src/lib/festivalsData.js'
 
 const SITE_ORIGIN = 'https://akronpulse.com'
 
@@ -38,6 +39,15 @@ const STATIC_ROUTES = [
   ...ENABLED_HUB_PATHS.map((path) => ({
     path,
     priority:   0.85,
+    changefreq: 'daily',
+  })),
+  // Festival hub pages (docs/umbrella-child-hiding.md §6): once children are
+  // hidden from the browse grid, /festival/:slug is the only internal-link
+  // hub for their event pages — it must be crawlable on its own, not just
+  // reachable through the (client-rendered) grid.
+  ...FESTIVALS.map((f) => ({
+    path:       `/festival/${f.slug}`,
+    priority:   0.8,
     changefreq: 'daily',
   })),
 ]

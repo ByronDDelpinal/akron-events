@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { CategoryBadges } from './CategoryBadge'
 import AddToPlanButton from './AddToPlanButton'
 import EventLink from './EventLink'
@@ -15,6 +16,8 @@ import {
   type PriceDisplay,
 } from '@/lib/eventFormatting'
 import { getSourceLabel, shouldShowSourceCredit } from '@/lib/sources'
+import { umbrellaFestival } from '@/lib/browseVisibility'
+import { useFestivalChildCount } from '@/hooks/useFestivalChildCount'
 import './EventCard.css'
 import { CalIcon, PinIcon } from '@/components/icons'
 
@@ -29,6 +32,47 @@ function AgeRestrictionPill({ value }: { value?: string | null }) {
   if (!value || value === 'not_specified') return null
   const label = AGE_LABEL[value] ?? value
   return <span className="age-pill">{label}</span>
+}
+
+/** Minimal shape FestivalUmbrellaLine needs — deliberately looser than the
+ *  full `Festival` interface (festivals.ts) so it structurally matches
+ *  whatever browseVisibility.js's plain-JS umbrellaFestival() infers to. */
+interface UmbrellaFestivalLike {
+  slug: string
+  tag: string
+  childLabel?: { singular: string; plural: string }
+}
+
+/**
+ * The umbrella card treatment (docs/umbrella-child-hiding.md §3): the
+ * "N sets on the schedule. See the full lineup." line. Copy states, exactly
+ * per §3.3 — NEVER a bare "0 sets", NEVER a number with no link. Loading and
+ * a failed count both collapse into the same zero-state copy: the link is
+ * always right, the count is the only uncertain part.
+ */
+function FestivalUmbrellaLine({ festival, embed }: { festival: UmbrellaFestivalLike; embed: EmbedConfig | null }) {
+  const { count, loading } = useFestivalChildCount(festival.tag)
+  const label = festival.childLabel ?? { singular: 'event', plural: 'events' }
+  // Embeds hide children too (maintainer ruling, docs/umbrella-child-hiding.md
+  // §3.4): unlike EventPage's festival-hub button (gated behind !embed, the
+  // white-label "never navigate a partner's iframe away" rule), this link
+  // stays but opens in a new tab so the embed is never a dead end.
+  const hubProps = embed ? { target: '_blank' as const, rel: 'noopener' } : {}
+
+  if (loading || count == null || count === 0) {
+    return (
+      <div className="card-umbrella-line">
+        See <Link to={`/festival/${festival.slug}`} {...hubProps}>the festival page</Link> for details and a map.
+      </div>
+    )
+  }
+  const noun = count === 1 ? label.singular : label.plural
+  return (
+    <div className="card-umbrella-line">
+      {count} {noun} on the schedule. See the{' '}
+      <Link to={`/festival/${festival.slug}`} {...hubProps}>full lineup</Link>.
+    </div>
+  )
 }
 
 interface EventCardProps {
@@ -102,6 +146,7 @@ function ComfortableCard({ event, featured, price, embed, planSurface }: CardPro
   const hasImage  = Boolean(imageUrl)
   const showPrice = featureOn(embed, 'price')
   const showTags  = featureOn(embed, 'tags')
+  const umbrella  = umbrellaFestival(event.tags)
 
   return (
     <div className={`card ${featured ? 'featured' : ''}${hasImage ? ' card--has-image' : ''}`}>
@@ -161,6 +206,8 @@ function ComfortableCard({ event, featured, price, embed, planSurface }: CardPro
           )}
         </div>
 
+        {umbrella && <FestivalUmbrellaLine festival={umbrella} embed={embed} />}
+
         {featured && (
           <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
             <EventLink event={event} className="btn-details" decorative>View Details →</EventLink>
@@ -185,6 +232,7 @@ function ComfortableCard({ event, featured, price, embed, planSurface }: CardPro
 function EfficientCard({ event, featured, price, embed, gradient, planSurface, subtitle }: CardProps & { gradient: string; subtitle?: string }) {
   const showPrice = featureOn(embed, 'price')
   const showTags  = featureOn(embed, 'tags')
+  const umbrella  = umbrellaFestival(event.tags)
   return (
     <div className={`card-efficient ${featured ? 'card-efficient--featured' : ''}`}>
       {/* Gradient accent bar — only on non-featured cards; featured uses border-left */}
@@ -194,7 +242,13 @@ function EfficientCard({ event, featured, price, embed, gradient, planSurface, s
       <div className="card-efficient-inner">
         <div className="card-efficient-main">
           <EventLink event={event} className="card-efficient-title card-title-link">{event.title}</EventLink>
-          {subtitle && <div className="card-efficient-subtitle">{subtitle}</div>}
+          {umbrella ? (
+            <div className="card-efficient-subtitle">
+              <FestivalUmbrellaLine festival={umbrella} embed={embed} />
+            </div>
+          ) : subtitle ? (
+            <div className="card-efficient-subtitle">{subtitle}</div>
+          ) : null}
           <div className="card-efficient-meta">
             <div className="card-efficient-meta-row">
               <CalIcon size={13} />

@@ -158,7 +158,8 @@ a.card-title { display: block; }
 /* Anything clickable inside a card must beat the z-index 3 overlay. */
 .card .add-to-plan-btn-wrap,
 .card-efficient .add-to-plan-btn-wrap,
-.btn-details {
+.btn-details,
+.card-umbrella-line {
   position: relative;
   z-index: 4;
 }
@@ -183,6 +184,18 @@ a.card-title { display: block; }
   margin-bottom: var(--space-md);
 }
 .card-meta { display: flex; flex-direction: column; gap: var(--space-xs); margin-top: auto; }
+
+/* Umbrella card treatment (docs/umbrella-child-hiding.md §3): the "N sets on
+ * the schedule. See the full lineup." line, below .card-meta in comfortable
+ * mode. Its link needs the z-index-4 lift above (a real anchor, not inert
+ * text like most of .card-meta). */
+.card-umbrella-line {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: var(--space-sm);
+}
+.card-umbrella-line a { color: var(--amber); text-decoration: underline; }
 .meta-row {
   display: flex;
   align-items: center;

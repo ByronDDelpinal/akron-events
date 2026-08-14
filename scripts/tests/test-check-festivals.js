@@ -10,7 +10,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { evaluateFestivalInvariants, UMBRELLA_TAG } from '../check-festivals.js'
+import { evaluateFestivalInvariants, countHiddenChildren, UMBRELLA_TAG } from '../check-festivals.js'
 
 const PORCHROKR = {
   slug: 'porchrokr-2026',
@@ -209,6 +209,80 @@ describe('check e: banner-window emptiness is a WARN, never a FAIL', () => {
       const findings = evaluateFestivalInvariants([umbrellaRow()], [PORCHROKR], today)
       assert.deepEqual(findings, [], `today=${today}`)
     }
+  })
+})
+
+describe('check f: off-date hidden rows (docs/umbrella-child-hiding.md)', () => {
+  it('a child ON the registry dateKey: no finding', () => {
+    const findings = evaluateFestivalInvariants(
+      [umbrellaRow(), setRow()], [PORCHROKR], QUIET_TODAY,
+    )
+    assert.equal(findings.filter((f) => f.check === 'off-date-hidden').length, 0)
+  })
+
+  it('an upcoming child on an UNRELATED date is a FAIL — invisible in browse on a day nobody would check', () => {
+    const strayChild = setRow({
+      id: 'stray-1',
+      title: 'PorchRokr planning meetup',
+      start_at: '2026-09-04T18:00:00+00:00', // Eastern 2026-09-04, not the 08-15 dateKey
+    })
+    const findings = evaluateFestivalInvariants(
+      [umbrellaRow(), setRow(), strayChild], [PORCHROKR], QUIET_TODAY,
+    )
+    const off = findings.filter((f) => f.check === 'off-date-hidden')
+    assert.equal(off.length, 1)
+    assert.equal(off[0].level, 'FAIL')
+    assert.equal(off[0].festival, 'porchrokr-2026')
+    assert.deepEqual(off[0].eventIds, ['stray-1'])
+    assert.match(off[0].message, /2026-09-04/)
+  })
+
+  it('a PAST-dated stray child is NOT flagged — already excluded from browse by start_at >= now, so it was never hidden in error', () => {
+    const pastStray = setRow({
+      id: 'past-stray',
+      start_at: '2026-01-02T18:00:00+00:00', // before QUIET_TODAY (2026-06-01)
+    })
+    const findings = evaluateFestivalInvariants(
+      [umbrellaRow(), setRow(), pastStray], [PORCHROKR], QUIET_TODAY,
+    )
+    assert.equal(findings.filter((f) => f.check === 'off-date-hidden').length, 0)
+  })
+
+  it('the umbrella row itself is never flagged by this check (it always carries UMBRELLA_TAG)', () => {
+    // A festival whose umbrella is on the wrong date is already caught by
+    // check b (umbrella-date) — off-date-hidden must not double-report it.
+    const findings = evaluateFestivalInvariants(
+      [umbrellaRow({ start_at: '2026-08-16T15:00:00+00:00' })], [PORCHROKR], QUIET_TODAY,
+    )
+    assert.equal(findings.filter((f) => f.check === 'off-date-hidden').length, 0)
+  })
+})
+
+describe('countHiddenChildren — the number the umbrella card shows', () => {
+  it('counts non-umbrella tagged rows on/after today, excludes the umbrella and unrelated events', () => {
+    const child2 = setRow({ id: 'set-2' })
+    const count = countHiddenChildren([umbrellaRow(), setRow(), child2], PORCHROKR, QUIET_TODAY)
+    assert.equal(count, 2)
+  })
+
+  it('excludes a past-dated child (already outside the "children you can still go to" window)', () => {
+    const pastChild = setRow({ id: 'past-set', start_at: '2026-01-01T18:00:00+00:00' })
+    const count = countHiddenChildren([umbrellaRow(), setRow(), pastChild], PORCHROKR, QUIET_TODAY)
+    assert.equal(count, 1)
+  })
+
+  it('is 0 for a festival with only an umbrella and no lineup (Akron Pride today)', () => {
+    const prideUmbrella = umbrellaRow({
+      id: 'pride-umb', tags: ['akron-pride-2026', UMBRELLA_TAG],
+      start_at: '2026-08-22T15:00:00+00:00',
+    })
+    assert.equal(countHiddenChildren([prideUmbrella], PRIDE, QUIET_TODAY), 0)
+  })
+
+  it('ignores non-published rows', () => {
+    const cancelled = setRow({ id: 'set-cancelled', status: 'cancelled' })
+    const count = countHiddenChildren([umbrellaRow(), setRow(), cancelled], PORCHROKR, QUIET_TODAY)
+    assert.equal(count, 1)
   })
 })
 

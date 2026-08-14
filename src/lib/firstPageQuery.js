@@ -9,7 +9,16 @@
  *
  * Plain JS (not TS) so the Vercel function can import it directly,
  * mirroring how api/feed.xml.js imports src/lib/slug.js.
+ *
+ * Both builders below apply src/lib/browseVisibility.js's festival-child
+ * filter (docs/umbrella-child-hiding.md) unconditionally — these are the
+ * PRISTINE first-page queries (no user filters, so there is no search term
+ * to bypass the rule for) and they back the edge-cached endpoints, so the
+ * cached page one and the live page two/3/... must apply the identical
+ * rule or pagination and `total` disagree.
  */
+
+import { applyBrowseVisibility } from './browseVisibility.js'
 
 /**
  * Columns the list surfaces actually render. Deliberately excludes
@@ -51,7 +60,7 @@ export const FIRST_PAGE_CACHE_ROWS = 48
  * the other.
  */
 export function buildFirstPageQuery(supabase, limit = FIRST_PAGE_CACHE_ROWS) {
-  return supabase
+  let query = supabase
     .from('events')
     .select(`
       ${EVENT_LIST_COLUMNS},
@@ -62,6 +71,10 @@ export function buildFirstPageQuery(supabase, limit = FIRST_PAGE_CACHE_ROWS) {
     .eq('status', 'published')
     // Drop events the moment their start time passes — no in-progress grace window.
     .gte('start_at', new Date().toISOString())
+
+  query = applyBrowseVisibility(query)
+
+  return query
     .order('start_at', { ascending: true })
     .range(0, limit - 1)
 }
@@ -109,6 +122,8 @@ export function buildHubFirstPageQuery(supabase, opts, limit = FIRST_PAGE_CACHE_
     `, { count: 'exact' })
     .eq('status', 'published')
     .gte('start_at', new Date().toISOString())
+
+  query = applyBrowseVisibility(query)
 
   if (categories.length > 0)  query = query.in('_catfilter.category', categories)
   if (neighborhood)           query = query.eq('event_venues.venues.neighborhood_slug', neighborhood)

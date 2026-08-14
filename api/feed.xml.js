@@ -19,6 +19,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { eventPath } from '../src/lib/slug.js'
+import { applyBrowseVisibility } from '../src/lib/browseVisibility.js'
 
 const SITE_ORIGIN  = 'https://akronpulse.com'
 const FEED_TITLE   = 'Akron Pulse — Upcoming Events'
@@ -91,7 +92,12 @@ export default async function handler(req, res) {
   // actually want to see at the top.
   const nowMinus3h = new Date(Date.now() - 3 * 3600 * 1000).toISOString()
 
-  const { data, error } = await supabase
+  // Festival children are hidden from the feed too (maintainer ruling,
+  // docs/umbrella-child-hiding.md — the design's own §9 called this out of
+  // scope, overridden 2026-08-14: PorchRokr is ~6 days out and a feed
+  // consumer that already pulled 161 porch sets can't be un-sent). The
+  // umbrella stands in and links to the hub, same as the browse grid.
+  let query = supabase
     .from('events')
     .select(`
       id, title, description,
@@ -101,6 +107,10 @@ export default async function handler(req, res) {
     `)
     .eq('status', 'published')
     .gte('start_at', nowMinus3h)
+
+  query = applyBrowseVisibility(query)
+
+  const { data, error } = await query
     .order('start_at', { ascending: true })
     .limit(FEED_LIMIT)
 

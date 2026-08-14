@@ -1,11 +1,25 @@
 /**
  * festivals.ts
  *
- * Tiny static registry of festival hub pages (/festival/:slug). A festival
- * hub is a per-tag schedule view over ordinary event rows — discovery is by
- * the `tag` below (GIN-indexed events.tags), so adding next year's festival
- * is one entry here plus a new data file for the importer; no schema work.
- * Unknown slugs render not-found (see src/pages/FestivalPage.tsx).
+ * Types and discovery helpers over the FESTIVALS registry. Tiny static
+ * registry of festival hub pages (/festival/:slug). A festival hub is a
+ * per-tag schedule view over ordinary event rows — discovery is by the
+ * `tag` below (GIN-indexed events.tags), so adding next year's festival
+ * is one entry in festivalsData.js plus a new data file for the importer; no
+ * schema work. Unknown slugs render not-found (see src/pages/FestivalPage.tsx).
+ *
+ * The registry DATA lives in ./festivalsData.js (2026-08-14,
+ * docs/umbrella-child-hiding.md §1.4) — a plain-JS, zero-import array so
+ * Vercel functions and other plain-JS modules can read the exact same
+ * array this file types, with no duplicated tag list to drift. Deliberately
+ * NOT named festivals.js: Vite/Rollup resolves a bare `@/lib/festivals`
+ * import to `.js` before `.ts` when both exist, which would silently steer
+ * every TS import of this file (types, discovery helpers) at the data-only
+ * file instead. `tsconfig.json` has `allowJs: true` and `moduleResolution:
+ * bundler`, so importing the .js array here and annotating it `Festival[]`
+ * still fails `npm run typecheck` on a malformed entry. Edit
+ * festivalsData.js to add or change a festival; docs/festival-playbook.md
+ * step 1 points there.
  *
  * mapBounds uses the same [west, south, east, north] BBox shape as
  * planMapPoints.ts / neighborhoodGeo.ts. landmarks feed the (optional) SVG
@@ -24,6 +38,7 @@
 import { easternTodayIso, easternDateKeyDiffDays } from './dayPlanDate.ts'
 import { NEIGHBORHOODS } from './neighborhoods.ts'
 import { CITIES, REGIONS } from './cities.js'
+import { FESTIVALS as RAW_FESTIVALS } from './festivalsData.js'
 
 export type FestivalBBox = [number, number, number, number]
 
@@ -31,6 +46,14 @@ export interface FestivalLandmark {
   name: string
   lat: number
   lng: number
+}
+
+/** Noun for the umbrella card's count line (docs/umbrella-child-hiding.md
+ *  §3.3), e.g. { singular: 'set', plural: 'sets' } for PorchRokr. Omit to
+ *  fall back to the default 'event' / 'events'. */
+export interface FestivalChildLabel {
+  singular: string
+  plural: string
 }
 
 export interface Festival {
@@ -42,7 +65,9 @@ export interface Festival {
   dateKey: string
   /** events.tags value that marks every row belonging to this festival
    *  (per-set events AND the umbrella, which additionally carries
-   *  'festival-umbrella'). */
+   *  'festival-umbrella'). Also the ONLY source for
+   *  src/lib/browseVisibility.js's FESTIVAL_TAGS — never hand-duplicate
+   *  this list anywhere else. */
   tag: string
   mapBounds: FestivalBBox
   landmarks: FestivalLandmark[]
@@ -51,39 +76,14 @@ export interface Festival {
    *  'PorchRokr '), stripped for display by festivalSchedule.ts's
    *  stripVenuePrefix. Omit when the festival's venues carry clean names. */
   venueNamePrefix?: string
+  /** Umbrella card copy noun. Omit for the default 'event' / 'events'. */
+  childLabel?: FestivalChildLabel
 }
 
-export const FESTIVALS: Festival[] = [
-  {
-    slug: 'porchrokr-2026',
-    name: 'PorchRokr Music & Arts Festival',
-    dateKey: '2026-08-15',
-    tag: 'porchrokr-2026',
-    // Highland Square box from the PorchRokr ADR (lat 41.08..41.11,
-    // lng -81.56..-81.51) — mirrors HS_BBOX in scripts/import-porchrokr.js.
-    mapBounds: [-81.56, 41.08, -81.51, 41.11],
-    // Populated once porch coordinates are geocoded and eyeballed; empty on
-    // purpose until then (no invented coordinates).
-    landmarks: [],
-    website: 'https://www.highlandsquareakron.org/',
-    venueNamePrefix: 'PorchRokr ',
-  },
-  {
-    slug: 'akron-pride-2026',
-    // Short display name on purpose: hub title and banner copy read
-    // "{name} is Saturday." The umbrella event keeps the full official
-    // title ("Akron Pride Festival and Equity March 2026").
-    name: 'Akron Pride Festival',
-    dateKey: '2026-08-22',
-    tag: 'akron-pride-2026',
-    // Downtown Akron / Main St corridor seed box (camera fallback only;
-    // pins drive fitBounds once the lineup lands).
-    mapBounds: [-81.532, 41.072, -81.51, 41.09],
-    // Populated once stage coordinates are confirmed; empty on purpose.
-    landmarks: [],
-    website: 'https://akronpridefestival.org/',
-  },
-]
+// The explicit `Festival[]` annotation is load-bearing: it's what makes a
+// malformed entry in festivalsData.js (missing field, wrong shape) fail
+// `npm run typecheck` even though the data itself lives in a plain-JS file.
+export const FESTIVALS: Festival[] = RAW_FESTIVALS
 
 export function festivalBySlug(slug: string | undefined): Festival | null {
   if (!slug) return null

@@ -313,6 +313,41 @@ export function withoutTimeNote(description: string): string {
   return out
 }
 
+// ── Festival-child visibility (docs/umbrella-child-hiding.md) ─────────
+// Maintainer ruling 2026-08-14: the digest is IN SCOPE for the same
+// festival-child-hiding rule as the browse grid (src/lib/browseVisibility.js)
+// — PorchRokr is ~6 days out and an email that already landed with 161 porch
+// sets can't be un-sent, so this is time-critical.
+//
+// select.ts deliberately imports NOTHING (see the file header: it runs
+// identically in the Deno edge function and in a plain Node unit test), so —
+// same reasoning as TIME_NOTES above — the registry's tag list is
+// DUPLICATED here rather than imported across the Deno/src boundary.
+// scripts/tests/test-digest-festival-visibility.js asserts these two values
+// stay byte-identical to src/lib/festivalsData.js's FESTIVALS every test run.
+//
+// ┌───────────────────────────────────────────────────────────────────┐
+// │  A FESTIVAL CHILD IS **NOT** "AN EVENT THAT SHARES A TAG WITH AN   │
+// │  UMBRELLA". The PorchRokr umbrella also carries ordinary tags      │
+// │  (free, akron, music, ...) shared by thousands of unrelated        │
+// │  events — see src/lib/browseVisibility.js's identical comment for  │
+// │  the full 3,479-event false positive this guards against.         │
+// └───────────────────────────────────────────────────────────────────┘
+export const FESTIVAL_UMBRELLA_TAG = 'festival-umbrella'
+export const FESTIVAL_TAGS: readonly string[] = ['porchrokr-2026', 'akron-pride-2026']
+
+/**
+ * True when `tags` marks a festival child that should be hidden from the
+ * digest pool — mirrors src/lib/browseVisibility.js's isHiddenFromBrowse
+ * exactly: carries a registry tag AND does not itself carry
+ * 'festival-umbrella'. The umbrella row itself is never hidden.
+ */
+export function isFestivalChildHidden(tags: string[] | null | undefined): boolean {
+  const list = Array.isArray(tags) ? tags : []
+  if (list.includes(FESTIVAL_UMBRELLA_TAG)) return false
+  return list.some((t) => FESTIVAL_TAGS.includes(t))
+}
+
 export function baseScore(e: Event): number {
   let s = 0
   if (isFree(e)) s += SCORE.free

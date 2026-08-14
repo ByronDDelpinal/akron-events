@@ -214,9 +214,16 @@ export default function EventPage() {
 
   // Festival umbrella → hub cross-link: only when this event IS an umbrella
   // (tagged 'festival-umbrella') AND the static registry knows the festival
-  // (its tag appears in the event's tags). Omitted in the embed (white-label
-  // rule: no internal site navigation).
-  const festivalHub = !embed && (event.tags ?? []).includes('festival-umbrella')
+  // (its tag appears in the event's tags).
+  //
+  // Deliberate divergence from the white-label rule (docs/umbrella-child-hiding.md
+  // §3.4, maintainer ruling): every other embed cross-link is omitted outright
+  // (no internal site navigation from a partner's iframe), but embeds hide
+  // festival children from the browse grid the same as the main site, so
+  // suppressing this link too would make the umbrella a dead end — 161 porch
+  // sets hidden with no route to them. The link stays in the embed but opens
+  // in a new tab so the partner's page is never navigated away.
+  const festivalHub = (event.tags ?? []).includes('festival-umbrella')
     ? FESTIVALS.find((f) => (event.tags ?? []).includes(f.tag)) ?? null
     : null
 
@@ -324,7 +331,11 @@ export default function EventPage() {
                 landing surface; this hands visitors on to the full
                 schedule at /festival/:slug. */}
             {festivalHub && (
-              <Link to={`/festival/${festivalHub.slug}`} className="btn-ticket-family">
+              <Link
+                to={`/festival/${festivalHub.slug}`}
+                className="btn-ticket-family"
+                {...(embed ? { target: '_blank' as const, rel: 'noopener' } : {})}
+              >
                 See the full festival schedule and plan your day
               </Link>
             )}
