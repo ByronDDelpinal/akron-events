@@ -4,13 +4,21 @@
 // EDT. NOTE: a fixed UTC time drifts with daylight saving — 12:30 UTC is 7:30 AM
 // ET during EST (winter). For year-round 8:30 AM ET, gate on the Eastern hour in
 // scheduled mode and widen the cron (see the digest-cron memory / TODO).
+// A second job, `send-daily-digest-sweep` (migration 057), re-fires the same
+// URL at 13:00 UTC as crash recovery — see the chaining notes below.
 //
-// Architecture (cost-optimized):
-//   1. Query WHO is due today (subscribers by frequency + send_day)
+// Architecture (cost-optimized, self-chaining since the 2026-08-13 CPU fault):
+//   1. Query WHO is due today (subscribers by frequency + send_day),
+//      keyset-paginated: ORDER BY id LIMIT 26 (SLICE_SIZE + 1 lookahead)
 //   2. Query ALL published events for next 30 days (ONE query, cached in memory)
 //   3. Filter per subscriber in-memory (no additional DB calls)
-//   4. Batch send via Resend (100 per API call)
+//   4. Batch send via Resend — one chunk per link (25 < 100)
 //   5. Log results to email_sends
+//   6. If the 26th row existed, self-invoke with `{ continue: {...} }` via
+//      EdgeRuntime.waitUntil and return — each link stays well under the
+//      ~2s CPU isolate budget that one 91-subscriber invocation blew.
+// The chain's pure logic (continuation parsing, slice math, chunk keys,
+// runaway guards, Resend-409 classification) lives in ./chain.ts.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Resend } from 'https://esm.sh/resend@4'
@@ -21,8 +29,26 @@ import {
   filterEventsForSubscriber,
   selectDigestEvents,
   eventPath,
+  easternDayKey,
 } from './select.ts'
 import { type SendLogEntry, markChunkFailed } from './batch.ts'
+import {
+  type ContinuationBody,
+  SLICE_SIZE,
+  parseContinuation,
+  buildContinuation,
+  chainGuardError,
+  sliceDue,
+  filterAlreadyLogged,
+  chunkIdempotencyKey,
+  resolveChunkSendError,
+} from './chain.ts'
+
+// Supabase Edge Runtime global — lets a background promise (our continuation
+// self-fetch) outlive the response. Declared here because the runtime injects
+// it; absent under plain `deno test`/older local serves, hence the typeof
+// guard at the call site.
+declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -160,14 +186,31 @@ function imageBlock(e: Event, opts: { width: string; height: string; radius: str
   `
 }
 
+// CPU rider (2026-08-13 incident): module-level cached Intl.DateTimeFormat
+// instances. toLocale*String constructs a fresh timeZone-aware formatter on
+// EVERY call (ICU setup is the expensive part), and these run per event per
+// subscriber. Same locales/options as the calls they replace — output is
+// byte-identical, this is purely a CPU change.
+const DAY_LABEL_FMT = new Intl.DateTimeFormat('en-US', {
+  timeZone: DISPLAY_TZ, weekday: 'long', month: 'short', day: 'numeric',
+})
+const TIME_ONLY_FMT = new Intl.DateTimeFormat('en-US', {
+  timeZone: DISPLAY_TZ, hour: 'numeric', minute: '2-digit',
+})
+const HERO_DATE_FMT = new Intl.DateTimeFormat('en-US', {
+  timeZone: DISPLAY_TZ, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+})
+
 /** Group events by their Eastern-calendar start day. Order preserved. */
 function groupByDay(events: Event[]): { dayKey: string; label: string; events: Event[] }[] {
   const groups = new Map<string, Event[]>()
   for (const e of events) {
     // en-CA gives a YYYY-MM-DD key; computing it in DISPLAY_TZ keeps an
     // 8 PM-Eastern event on its real day rather than rolling it to the
-    // next UTC day.
-    const key = new Date(e.start_at).toLocaleDateString('en-CA', { timeZone: DISPLAY_TZ })
+    // next UTC day. Precomputed once per event in the flatten step
+    // (e._dayKey); the fallback keeps this correct for any caller that
+    // didn't precompute.
+    const key = e._dayKey ?? easternDayKey(new Date(e.start_at))
     if (!groups.has(key)) groups.set(key, [])
     groups.get(key)!.push(e)
   }
@@ -175,15 +218,13 @@ function groupByDay(events: Event[]): { dayKey: string; label: string; events: E
     dayKey,
     // Noon UTC always lands on the same calendar day in Eastern, so it's a
     // safe instant to format the day label from.
-    label: new Date(dayKey + 'T12:00:00Z').toLocaleDateString('en-US', {
-      timeZone: DISPLAY_TZ, weekday: 'long', month: 'short', day: 'numeric',
-    }),
+    label: DAY_LABEL_FMT.format(new Date(dayKey + 'T12:00:00Z')),
     events: evs,
   }))
 }
 
 function formatTimeOnly(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-US', { timeZone: DISPLAY_TZ, hour: 'numeric', minute: '2-digit' })
+  return TIME_ONLY_FMT.format(new Date(iso))
 }
 
 // Short, human category words for the subscription-aware headline,
@@ -291,7 +332,7 @@ function buildDigestHtml(events: Event[], sub: Subscriber, totalMatchCount: numb
   if (hero) {
     const venue = hero.venues[0]
     const heroUrl = withUtm(`${BASE_URL}${eventPath(hero)}`, campaign, 'hero')
-    const heroDate = new Date(hero.start_at).toLocaleDateString('en-US', { timeZone: DISPLAY_TZ, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    const heroDate = HERO_DATE_FMT.format(new Date(hero.start_at))
     const price = priceLabel(hero)
     content += `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px;">
@@ -399,7 +440,7 @@ function buildDigestText(events: Event[], sub: Subscriber, totalMatchCount: numb
 
   if (hero) {
     const venue = hero.venues[0]
-    const heroDate = new Date(hero.start_at).toLocaleDateString('en-US', { timeZone: DISPLAY_TZ, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    const heroDate = HERO_DATE_FMT.format(new Date(hero.start_at))
     lines.push(`FEATURED: ${hero.title}`)
     lines.push(`  ${heroDate}${venue ? ` · ${venue.name}` : ''}`)
     lines.push(`  ${withUtm(`${BASE_URL}${eventPath(hero)}`, campaign, 'hero')}`, '')
@@ -476,6 +517,52 @@ function json(data: unknown, status = 200) {
   })
 }
 
+/**
+ * Fire the next chain link: a self-fetch carrying the continuation body,
+ * handed to EdgeRuntime.waitUntil so it survives this invocation's response
+ * WITHOUT being awaited in the request path (awaiting would nest every
+ * link's wall clock inside link 0's for nothing).
+ *
+ * Auth: the same header shape pg_cron jobid 1 uses per migration 045's
+ * documentation — `apikey` plus `Authorization: Bearer` — with the bearer
+ * preferring CRON_SECRET (this function's own optional gate, above) and
+ * falling back to the service-role key. Both env vars already exist in this
+ * function; no new trust boundary is created — a forged continuation body
+ * can only trigger the sends the daily cron would send anyway, and
+ * idempotency forbids duplicates.
+ */
+function dispatchContinuation(cont: ContinuationBody): void {
+  const selfUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-digest`
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  const bearer = Deno.env.get('CRON_SECRET') ?? serviceRoleKey
+
+  const p = fetch(selfUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': serviceRoleKey,
+      'Authorization': `Bearer ${bearer}`,
+    },
+    body: JSON.stringify({ continue: cont }),
+  }).then(async (res) => {
+    // Non-2xx downstream is a FINDING for the logs, not something this link
+    // can fix — the 13:00 UTC sweep (migration 057) is the recovery net.
+    if (!res.ok) {
+      console.error(`[send-digest] continuation dispatch for link=${cont.link} got HTTP ${res.status}`)
+    }
+    // Drain/release the body so the runtime can close the connection.
+    await res.body?.cancel()
+  }).catch((err) => {
+    console.error(`[send-digest] continuation dispatch for link=${cont.link} failed:`, err)
+  })
+
+  if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime) {
+    EdgeRuntime.waitUntil(p)
+  }
+  // Without EdgeRuntime (local `deno test`, old serves) the promise still
+  // runs; it just isn't guaranteed to outlive the response.
+}
+
 // ── Main handler ──
 Deno.serve(async (req) => {
   // Handle CORS preflight (needed for browser calls from admin dashboard)
@@ -499,36 +586,63 @@ Deno.serve(async (req) => {
   //   { force: true }        → send to ALL active subscribers now (admin trigger)
   //   { only: ["a@b.com"] }  → targeted test: send only to these subscribers,
   //                            regardless of their frequency/scheduled day
-  //   (neither)              → scheduled mode (subscribers due today)
+  //   { continue: {...} }    → a chain link re-invoking itself (see chain.ts);
+  //                            carries pinned date/dow/first + keyset cursor
+  //   (neither)              → scheduled mode (subscribers due today), link 0
   let forceAll = false
   let only: string[] | null = null
+  let continuation: ContinuationBody | null = null
   try {
     const body = await req.json()
-    forceAll = body?.force === true
-    if (Array.isArray(body?.only)) {
-      // Annotate: req.json() is `any`, so without this `new Set(list)`
-      // infers Set<unknown> and the spread below yields unknown[], which
-      // won't assign to string[].
-      const list: string[] = body.only
-        .map((e: unknown) => String(e).trim().toLowerCase())
-        .filter((e: string) => e.includes('@'))
-      if (list.length > 0) only = [...new Set(list)].slice(0, 25) // de-dupe + safety cap
+    if (body?.continue !== undefined) {
+      continuation = parseContinuation(body.continue)
+      if (!continuation) {
+        console.error('[send-digest] FATAL: invalid continuation body — aborting chain link')
+        return json({ error: 'Invalid continuation body' }, 400)
+      }
+    } else {
+      forceAll = body?.force === true
+      if (Array.isArray(body?.only)) {
+        // Annotate: req.json() is `any`, so without this `new Set(list)`
+        // infers Set<unknown> and the spread below yields unknown[], which
+        // won't assign to string[].
+        const list: string[] = body.only
+          .map((e: unknown) => String(e).trim().toLowerCase())
+          .filter((e: string) => e.includes('@'))
+        if (list.length > 0) only = [...new Set(list)].slice(0, 25) // de-dupe + safety cap
+      }
     }
   } catch {
     // No body or invalid JSON — that's fine, default to scheduled mode
   }
 
   const now = new Date()
-  const todayDow = now.getDay() // 0=Sun..6=Sat
-  const isFirstOfMonth = now.getDate() === 1
-  const dateStr = now.toISOString().slice(0, 10)
+  const todayUtc = now.toISOString().slice(0, 10)
+
+  // Runaway guards: a chain that has out-lived its day (or its link budget)
+  // must die, not keep firing — its due-ness and every idempotency key were
+  // computed for a day that is over. FATAL is greppable on purpose.
+  if (continuation) {
+    const guardErr = chainGuardError(continuation, todayUtc)
+    if (guardErr) {
+      console.error(`[send-digest] FATAL: ${guardErr}`)
+      return json({ error: guardErr }, 400)
+    }
+  }
+
+  // Run parameters. A continuation link PINS date/dow/first from link 0 so
+  // every link of one chain agrees on who is due and what the key date is,
+  // even if links straddle midnight UTC or the 1st of the month.
+  const dateStr = continuation ? continuation.date : todayUtc
+  const todayDow = continuation ? continuation.dow : now.getDay() // 0=Sun..6=Sat
+  const isFirstOfMonth = continuation ? continuation.first : now.getDate() === 1
 
   // Idempotency session tag.
   //
   // Scheduled cron should stay idempotent for a given day — if pg_cron
-  // fires twice for the 2026-06-01 run, both attempts produce the same
-  // key and Resend / the email_sends upsert silently dedupes. That's
-  // the safety net we want.
+  // fires twice for the 2026-06-01 run (or the 13:00 UTC sweep re-fires a
+  // completed chain), both attempts produce the same keys and Resend / the
+  // email_sends upsert silently dedupe. That's the safety net we want.
   //
   // Force mode (manual admin trigger, curl tests, template iteration)
   // intentionally bypasses that safety: every invocation must produce
@@ -536,15 +650,33 @@ Deno.serve(async (req) => {
   // returns 409 invalid_idempotent_request the second time you click
   // "Send digest now" with a new template (which is exactly what we
   // hit when redeploying the email layout). Date.now() per request is
-  // sufficient — within a single force run, the chunk index keeps the
-  // batches distinct.
+  // sufficient — within a single force run, the membership-derived chunk
+  // key keeps the batches distinct, and continuation links CARRY the
+  // force-<ts> tag through the body so keys stay consistent across the
+  // whole run.
   const ephemeral = forceAll || !!only
-  const sessionTag = ephemeral ? `force-${Date.now()}` : 'scheduled'
+  const sessionTag = continuation ? continuation.sessionTag : (ephemeral ? `force-${Date.now()}` : 'scheduled')
+  const isForceChain = sessionTag.startsWith('force-') && !only
+  const link = continuation ? continuation.link : 0
+  // Scheduled and force runs both chain; `only` (≤ 25 subscribers, the
+  // slice size, by its safety cap) never needs to and never does.
+  const chainMode = !only
 
-  console.log(`[send-digest] Starting for ${dateStr}, DOW=${todayDow}, 1st=${isFirstOfMonth}, force=${forceAll}, only=${only ? only.length : 0}, session=${sessionTag}`)
+  console.log(`[send-digest] Starting for ${dateStr}, DOW=${todayDow}, 1st=${isFirstOfMonth}, force=${forceAll}, only=${only ? only.length : 0}, session=${sessionTag}, link=${link}, cursor=${continuation ? continuation.cursor : 'start'}`)
 
   try {
     // ── Step 1: WHO gets emailed? ──
+    // Due-ness conditions, shared by the page query and the advisory count
+    // below. Scheduled mode only — force emails every active subscriber.
+    // Daily subscribers: always due
+    // Weekly subscribers: due if send_day matches today (PINNED dow)
+    // Monthly subscribers: due on the 1st only (PINNED first-of-month)
+    const dueConditions = [
+      `frequency.eq.daily`,
+      `and(frequency.eq.weekly,send_day.eq.${todayDow})`,
+    ]
+    if (isFirstOfMonth) dueConditions.push(`frequency.eq.monthly`)
+
     let query = supabase
       .from('subscribers')
       .select('id, email, frequency, lookahead_days, preferences, token')
@@ -555,17 +687,34 @@ Deno.serve(async (req) => {
       // Targeted test send: just these subscribers, ignoring schedule.
       // Still gated to confirmed + not-unsubscribed above.
       query = query.in('email', only)
-    } else if (!forceAll) {
-      // Scheduled mode: only subscribers due today
-      // Daily subscribers: always due
-      // Weekly subscribers: due if send_day matches today
-      // Monthly subscribers: due on the 1st only
-      const conditions = [`frequency.eq.daily`]
-      conditions.push(`and(frequency.eq.weekly,send_day.eq.${todayDow})`)
-      if (isFirstOfMonth) {
-        conditions.push(`frequency.eq.monthly`)
+    } else {
+      if (!isForceChain) query = query.or(dueConditions.join(','))
+      // Keyset page: deterministic id order, SLICE_SIZE + 1 lookahead — the
+      // presence of a 26th row is the "more remain" signal (see chain.ts).
+      if (continuation) query = query.gt('id', continuation.cursor)
+      query = query.order('id', { ascending: true }).limit(SLICE_SIZE + 1)
+    }
+
+    // Advisory remaining-count for the observability lines (chain modes
+    // only). HEAD + count=exact: no rows move, no CPU spent parsing them.
+    // Logging-only — hasMore from the 26-row lookahead is the authoritative
+    // "does the chain continue" signal, so a race with a new signup can at
+    // worst make a log number stale, never fork the chain.
+    let dueRemaining: number | null = null
+    if (chainMode) {
+      let countQuery = supabase
+        .from('subscribers')
+        .select('id', { count: 'exact', head: true })
+        .eq('confirmed', true)
+        .is('unsubscribed_at', null)
+      if (!isForceChain) countQuery = countQuery.or(dueConditions.join(','))
+      if (continuation) countQuery = countQuery.gt('id', continuation.cursor)
+      const { count, error: countErr } = await countQuery
+      if (countErr) {
+        console.error('[send-digest] Subscriber count error (logs will show remaining_after=?):', countErr)
+      } else {
+        dueRemaining = count
       }
-      query = query.or(conditions.join(','))
     }
 
     const { data: subscribers, error: subErr } = await query
@@ -575,46 +724,118 @@ Deno.serve(async (req) => {
       return json({ error: 'Subscriber query failed' }, 500)
     }
 
-    if (!subscribers || subscribers.length === 0) {
-      console.log('[send-digest] No subscribers due today')
+    const fetched = (subscribers ?? []) as Subscriber[]
+
+    if (!chainMode && fetched.length === 0) {
+      console.log('[send-digest] No subscribers matched the only: filter')
       return json({ ok: true, sent: 0, skipped: 0 })
     }
 
-    console.log(`[send-digest] ${subscribers.length} subscribers due`)
+    // Slice math — `only` mode processes everything it fetched (≤ 25 by the
+    // safety cap) and never chains.
+    const { slice, hasMore, nextCursor } = chainMode
+      ? sliceDue(fetched)
+      : { slice: fetched, hasMore: false, nextCursor: null }
 
-    // ── Step 2: WHAT events exist? (ONE query) ──
-    const windowEnd = new Date(now.getTime() + 30 * 86400000).toISOString()
-
-    const { data: events, error: evtErr } = await supabase
-      .from('events')
-      .select(`
-        id, title, description, start_at, end_at, tags,
-        price_min, price_max, age_restriction, image_url, ticket_url, featured,
-        event_categories ( category ),
-        event_venues!inner ( venues!inner ( id, name, address, lat, lng, image_url ) ),
-        event_organizations ( organizations ( id, name, image_url ) )
-      `)
-      .eq('status', 'published')
-      .gte('start_at', now.toISOString())
-      .lte('start_at', windowEnd)
-      .order('start_at', { ascending: true })
-
-    if (evtErr) {
-      console.error('[send-digest] Events query error:', evtErr)
-      return json({ error: 'Events query failed' }, 500)
+    // Already-logged pre-filter (scheduled chain only): subscribers with ANY
+    // email_sends row for today's scheduled session were already decided
+    // (sent, skipped, or failed) — a sweep re-fire or crash-resume must not
+    // re-send them. Force runs skip this: their force-<ts> keys are
+    // ephemeral and never collide with a prior run's rows.
+    //
+    // Paged read: PostgREST caps a single response at 1000 rows, so we page
+    // with .range(). Offset pagination is only stable under a deterministic
+    // total order — without .order(), Postgres may return pages in any order,
+    // skipping or repeating rows across page boundaries. A skipped row here
+    // means a sweep re-composes (and re-sends) an already-delivered digest,
+    // so we order by the unique primary key `id` to make the walk complete.
+    const loggedIds = new Set<string>()
+    if (chainMode && !isForceChain) {
+      const PAGE = 1000
+      for (let from = 0; ; from += PAGE) {
+        const { data: page, error: logReadErr } = await supabase
+          .from('email_sends')
+          .select('subscriber_id')
+          .like('idempotency_key', `digest-${dateStr}/%/scheduled`)
+          .order('id')
+          .range(from, from + PAGE - 1)
+        if (logReadErr) {
+          // Fail CLOSED: proceeding without the pre-filter could double-send
+          // on a sweep re-fire. The next sweep (or a manual re-POST) retries.
+          console.error('[send-digest] email_sends pre-filter read error:', logReadErr)
+          return json({ error: 'Pre-filter query failed' }, 500)
+        }
+        for (const r of page ?? []) loggedIds.add(r.subscriber_id as string)
+        if (!page || page.length < PAGE) break
+      }
     }
 
-    // Flatten the joined data for easier filtering
-    const flatEvents: Event[] = (events || []).map((e: any) => ({
-      ...e,
-      categories: (e.event_categories || []).map((ec: any) => ec.category).filter(Boolean),
-      // Primary-category shim so gradient/label helpers keep working.
-      category: (e.event_categories || [])[0]?.category ?? 'other',
-      venues: (e.event_venues || []).map((ev: any) => ev.venues).filter(Boolean),
-      organizations: (e.event_organizations || []).map((eo: any) => eo.organizations).filter(Boolean),
-    }))
+    const subsToProcess = chainMode ? filterAlreadyLogged(slice, loggedIds) : slice
 
-    console.log(`[send-digest] ${flatEvents.length} events in 30-day window`)
+    if (chainMode && link === 0) {
+      const dueTotal = dueRemaining ?? fetched.length
+      console.log(`[send-digest] chain start date=${dateStr} due_total=${dueTotal} already_logged=${loggedIds.size} remaining=${Math.max(0, dueTotal - loggedIds.size)}`)
+    }
+
+    console.log(`[send-digest] ${subsToProcess.length} subscribers to process this invocation`)
+
+    // ── Step 2: WHAT events exist? (ONE query) ──
+    // Skipped entirely when this link has nothing to compose (every
+    // subscriber in the slice was already logged — the sweep-after-complete
+    // path). That keeps a no-op sweep walk down to subscriber queries only:
+    // zero event parsing, zero rendering, zero Resend calls.
+    let flatEvents: Event[] = []
+    if (subsToProcess.length > 0) {
+      const windowEnd = new Date(now.getTime() + 30 * 86400000).toISOString()
+
+      const { data: events, error: evtErr } = await supabase
+        .from('events')
+        .select(`
+          id, title, description, start_at, end_at, tags,
+          price_min, price_max, age_restriction, image_url, ticket_url, featured,
+          event_categories ( category ),
+          event_venues!inner ( venues!inner ( id, name, address, lat, lng, image_url ) ),
+          event_organizations ( organizations ( id, name, image_url ) )
+        `)
+        .eq('status', 'published')
+        .gte('start_at', now.toISOString())
+        .lte('start_at', windowEnd)
+        .order('start_at', { ascending: true })
+
+      if (evtErr) {
+        console.error('[send-digest] Events query error:', evtErr)
+        return json({ error: 'Events query failed' }, 500)
+      }
+
+      // Exactly 1000 rows = PostgREST's default per-request cap, which means
+      // the 30-day window was almost certainly TRUNCATED and late-window
+      // events are silently missing from every digest this link renders.
+      // Deliberately a WARNING, not a fix: range-paginating the events query
+      // has its own CPU implications and is tracked as its own change.
+      if ((events || []).length === 1000) {
+        console.warn('[send-digest] WARNING: events query returned 1000 rows (PostgREST cap) — window truncated')
+      }
+
+      // Flatten the joined data for easier filtering. _startMs/_dayKey are
+      // the CPU rider: parse each start_at and compute its Eastern calendar
+      // day ONCE here, instead of per (event × subscriber) in the filter/
+      // select/render hot loops (see select.ts's Event interface).
+      flatEvents = (events || []).map((e: any) => {
+        const startMs = new Date(e.start_at).getTime()
+        return {
+          ...e,
+          categories: (e.event_categories || []).map((ec: any) => ec.category).filter(Boolean),
+          // Primary-category shim so gradient/label helpers keep working.
+          category: (e.event_categories || [])[0]?.category ?? 'other',
+          venues: (e.event_venues || []).map((ev: any) => ev.venues).filter(Boolean),
+          organizations: (e.event_organizations || []).map((eo: any) => eo.organizations).filter(Boolean),
+          _startMs: startMs,
+          _dayKey: easternDayKey(new Date(startMs)),
+        }
+      })
+
+      console.log(`[send-digest] ${flatEvents.length} events in 30-day window`)
+    }
 
     // ── Step 3+4+5: Filter → Render → Batch send ──
     // Typed from the SDK rather than hand-rolled. A hand-written shape here
@@ -632,7 +853,7 @@ Deno.serve(async (req) => {
     // position from the chunk's offset into emailBatch. See batch.ts.
     const batchLogIndex: number[] = []
 
-    for (const sub of subscribers as Subscriber[]) {
+    for (const sub of subsToProcess) {
       try {
         // Match ALL events in the window (allMatching.length is the true
         // "N events" count, and drives the "see all N" CTA), then pick the
@@ -677,7 +898,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Send in chunks of BATCH_SIZE
+    // Send in chunks of BATCH_SIZE. With chaining, a link's slice (25) is
+    // always a single chunk (< 100); the loop stays for `only:` mode and as
+    // a guard if the constants ever diverge.
     let sentCount = 0
     for (let i = 0; i < emailBatch.length; i += BATCH_SIZE) {
       const chunk = emailBatch.slice(i, i + BATCH_SIZE)
@@ -687,21 +910,44 @@ Deno.serve(async (req) => {
       // (and used to) attribute a failure to the wrong subscribers the
       // moment any subscriber upstream was skipped.
       const chunkLogIndexes = batchLogIndex.slice(i, i + BATCH_SIZE)
-      const chunkIndex = Math.floor(i / BATCH_SIZE)
+      // Membership-deterministic idempotency key: named by the FIRST
+      // subscriber whose email is actually in this chunk (looked up through
+      // batchLogIndex, same correspondence as above), NOT a positional
+      // chunk-<i> — a resumed run starting from a different cursor would
+      // renumber positions, but the same slice always re-forms the same
+      // membership and therefore the same key. See chain.ts.
+      const chunkKey = chunkIdempotencyKey(dateStr, sendLog[chunkLogIndexes[0]].subscriber_id, sessionTag)
 
       try {
         const { error: sendErr } = await resend.batch.send(chunk, {
-          idempotencyKey: `digest-${dateStr}/chunk-${chunkIndex}/${sessionTag}`,
+          idempotencyKey: chunkKey,
         })
 
         if (sendErr) {
-          console.error(`[send-digest] Batch chunk ${chunkIndex} error:`, sendErr)
-          markChunkFailed(sendLog, chunkLogIndexes, sendErr.message || 'Batch send failed')
+          if (resolveChunkSendError(sendErr) === 'replayed') {
+            // Idempotency-key conflict (409): the only way this key exists
+            // at Resend is a PRIOR ACCEPTED send of this same deterministic
+            // chunk — the crash-after-Resend-before-upsert window, or a
+            // double-fired link whose payload drifted (`now` moved between
+            // renders). The emails were delivered; record the rows as sent
+            // with a note. Deliberately NOT routed through markChunkFailed:
+            // marking delivered mail 'failed' would invite a manual re-send
+            // and a duplicate email.
+            console.log(`[send-digest] chunk replay key=${chunkKey} — Resend already accepted this chunk, recording as sent`)
+            for (const logIndex of chunkLogIndexes) {
+              const entry = sendLog[logIndex]
+              if (entry) entry.error_message = 'resend idempotency conflict (409): prior send accepted, recorded as sent'
+            }
+            sentCount += chunk.length
+          } else {
+            console.error(`[send-digest] Batch chunk ${chunkKey} error:`, sendErr)
+            markChunkFailed(sendLog, chunkLogIndexes, sendErr.message || 'Batch send failed')
+          }
         } else {
           sentCount += chunk.length
         }
       } catch (err) {
-        console.error(`[send-digest] Batch chunk ${chunkIndex} exception:`, err)
+        console.error(`[send-digest] Batch chunk ${chunkKey} exception:`, err)
         // A thrown exception (network failure, timeout, response-parse error)
         // means delivery is genuinely UNKNOWN here — the request may have
         // reached Resend and even succeeded, with only our handling of the
@@ -709,7 +955,8 @@ Deno.serve(async (req) => {
         // a certain one. It is still strictly better than leaving these
         // sendLog entries at 'sent': that would silently claim delivery for
         // subscribers who were never confirmed handed off, hiding the very
-        // possibility we can't rule out.
+        // possibility we can't rule out. (If the send DID reach Resend, the
+        // retry hits the 409-replay branch above and corrects the record.)
         markChunkFailed(sendLog, chunkLogIndexes, err instanceof Error ? err.message : String(err))
       }
     }
@@ -730,13 +977,45 @@ Deno.serve(async (req) => {
       }
     }
 
+    const skippedCount = sendLog.filter(l => l.status === 'skipped').length
+    const failedCount = sendLog.filter(l => l.status === 'failed').length
+
+    // ── Step 7: chain bookkeeping ──
+    // One greppable line per link; `chain start` (link 0, above) without a
+    // matching `chain complete` = a partial run, and email_sends rows show
+    // exactly how far it got. remaining_after counts due subscribers beyond
+    // this link's keyset window (advisory — from the HEAD count above).
+    if (chainMode) {
+      const remainingAfter = dueRemaining !== null
+        ? Math.max(0, dueRemaining - slice.length)
+        : (hasMore ? '?' : 0)
+      console.log(`[send-digest] link=${link} cursor=${continuation ? continuation.cursor : 'start'} processed=${subsToProcess.length} sent=${sentCount} skipped=${skippedCount} failed=${failedCount} remaining_after=${remainingAfter}`)
+
+      if (hasMore && nextCursor) {
+        console.log(`[send-digest] link=${link} dispatching continuation cursor=${nextCursor}`)
+        dispatchContinuation(buildContinuation(
+          { date: dateStr, dow: todayDow, first: isFirstOfMonth, sessionTag, link },
+          nextCursor,
+        ))
+      } else {
+        console.log(`[send-digest] chain complete date=${dateStr} links=${link + 1}`)
+      }
+    }
+
     const summary = {
       ok: true,
       date: dateStr,
-      subscribers_due: subscribers.length,
+      link,
+      has_more: hasMore,
+      // subscribers_due: kept for the admin EmailPage's result message
+      // ("sent N of M"). For a chain link 0 this is the WHOLE cohort (the
+      // advisory count), while emails_sent covers only this link's slice —
+      // has_more tells the caller the rest is continuing in the background.
+      subscribers_due: dueRemaining ?? subsToProcess.length,
+      subscribers_processed: subsToProcess.length,
       emails_sent: sentCount,
-      skipped: sendLog.filter(l => l.status === 'skipped').length,
-      failed: sendLog.filter(l => l.status === 'failed').length,
+      skipped: skippedCount,
+      failed: failedCount,
     }
 
     console.log('[send-digest] Complete:', summary)

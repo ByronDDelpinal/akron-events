@@ -29,6 +29,16 @@ export interface Event {
   // walk event → venue → organizer when the event has no image of its own.
   venues: { name: string; address: string | null; lat: number | null; lng: number | null; image_url: string | null }[]
   organizations: { id: string; name: string; image_url: string | null }[]
+  // CPU rider (2026-08-13 "CPU Time exceeded" incident): optional fields the
+  // edge function precomputes ONCE per event when flattening the query
+  // result, so the per-subscriber hot loops below don't re-parse start_at
+  // (new Date(iso)) or re-run a timeZone-aware toLocaleDateString for every
+  // (event × subscriber) pair — the measured hotspots. Everything here reads
+  // them through startMsOf()/dayKeyOf(), which fall back to computing from
+  // start_at, so behavior is IDENTICAL with or without them (Node unit tests
+  // pass plain events and never notice).
+  _startMs?: number
+  _dayKey?: string
 }
 
 export interface Subscriber {
@@ -101,6 +111,12 @@ function lastDayOfMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate()
 }
 
+// Epoch ms of an event's start — precomputed by the edge function when
+// available (see Event._startMs), else parsed on the fly. Date-vs-Date
+// comparisons coerce through valueOf(), so comparing these numbers is
+// exactly equivalent to the `new Date(a) < new Date(b)` code it replaces.
+const startMsOf = (e: Event): number => e._startMs ?? new Date(e.start_at).getTime()
+
 // ── Matcher ──────────────────────────────────────────────────────────
 // Returns EVERY event in the subscriber's window that matches their
 // preferences (or keywords), de-duped and ordered by start time. No cap:
@@ -117,14 +133,19 @@ export function filterEventsForSubscriber(allEvents: Event[], sub: Subscriber, n
     endWindow = new Date(now.getTime() + sub.lookahead_days * 86400000)
   }
 
+  // Window bounds as epoch ms, once per subscriber — the per-event compare
+  // below then costs a number compare instead of a Date allocation + parse.
+  const startWindowMs = startWindow.getTime()
+  const endWindowMs = endWindow.getTime()
+
   const preferenceMatched = allEvents.filter(event => {
-    const eventStart = new Date(event.start_at)
+    const eventStartMs = startMsOf(event)
 
     // Date window
-    if (eventStart < startWindow || eventStart > endWindow) return false
+    if (eventStartMs < startWindowMs || eventStartMs > endWindowMs) return false
 
     // Event day-of-week filter
-    const eventDay = eventStart.getDay()
+    const eventDay = new Date(eventStartMs).getDay()
     if (!prefs.event_days.includes(eventDay)) return false
 
     // Intents/categories (skip if "all"). Match if ANY content category overlaps.
@@ -188,8 +209,8 @@ export function filterEventsForSubscriber(allEvents: Event[], sub: Subscriber, n
   const keywordMatched: Event[] = []
   if (prefs.keywords.length > 0) {
     for (const event of allEvents) {
-      const eventStart = new Date(event.start_at)
-      if (eventStart < startWindow || eventStart > endWindow) continue
+      const eventStartMs = startMsOf(event)
+      if (eventStartMs < startWindowMs || eventStartMs > endWindowMs) continue
       if (preferenceMatched.some(pe => pe.id === event.id)) continue
 
       for (const keyword of prefs.keywords) {
@@ -209,7 +230,7 @@ export function filterEventsForSubscriber(allEvents: Event[], sub: Subscriber, n
     seen.add(e.id)
     combined.push(e)
   }
-  combined.sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
+  combined.sort((a, b) => startMsOf(a) - startMsOf(b))
   return combined
 }
 
@@ -361,8 +382,25 @@ function evenSample<T>(arr: T[], n: number): T[] {
 // Bucket by the Eastern calendar day (en-CA → YYYY-MM-DD), matching how the
 // digest groups events for display. A UTC slice would file an 8 PM-Eastern
 // event under the next day and skew the per-day spread.
-const dayKeyOf = (iso: string): string =>
-  new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+//
+// CPU rider: one module-level cached Intl.DateTimeFormat instead of
+// toLocaleDateString per call — constructing a timeZone-aware formatter is
+// the expensive part (ICU setup), and toLocaleDateString rebuilds it every
+// time. en-CA with numeric year/month/day formats as YYYY-MM-DD, identical
+// to the toLocaleDateString output this replaces (options spelled out
+// rather than relying on locale defaults, so the key format can't drift).
+const EASTERN_DAY_FMT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
+})
+
+/** YYYY-MM-DD calendar day of an instant in Eastern time (cached formatter). */
+export function easternDayKey(d: Date): string {
+  return EASTERN_DAY_FMT.format(d)
+}
+
+// Event-aware day key: precomputed by the edge function when available
+// (see Event._dayKey), else derived via the cached formatter.
+const dayKeyOf = (e: Event): string => e._dayKey ?? easternDayKey(new Date(startMsOf(e)))
 
 export interface DigestSelection {
   picks: Event[]   // the rich-card events (≤ MAX_EVENTS_PER_EMAIL), chronological
@@ -401,7 +439,7 @@ export function selectDigestEvents(matched: Event[], sub: Subscriber, now: Date)
   // is eligible, picks comes back empty and the caller skips the send.
   const cardEligible = matched.filter(hasImage)
 
-  const seedBase = hashSeed(`${sub.id}:${dayKeyOf(now.toISOString())}`)
+  const seedBase = hashSeed(`${sub.id}:${easternDayKey(now)}`)
   const score = (e: Event): number => baseScore(e) + jitter(seedBase, e.id) * SCORE.jitter
 
   const picks: Event[] = []
@@ -429,7 +467,7 @@ export function selectDigestEvents(matched: Event[], sub: Subscriber, now: Date)
   const byDay = new Map<string, Event[]>()
   for (const e of cardEligible) {
     if (used.has(e.id)) continue
-    const key = dayKeyOf(e.start_at)
+    const key = dayKeyOf(e)
     if (!byDay.has(key)) byDay.set(key, [])
     byDay.get(key)!.push(e)
   }
@@ -473,7 +511,7 @@ export function selectDigestEvents(matched: Event[], sub: Subscriber, now: Date)
   }
 
   // Chronological order for the day-grouped layout.
-  picks.sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
+  picks.sort((a, b) => startMsOf(a) - startMsOf(b))
 
   return { picks }
 }
