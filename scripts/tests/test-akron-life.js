@@ -224,6 +224,18 @@ describe('Akron Life — findCoveringScraper', async () => {
     assert.equal(findCoveringScraper({ title: 'X', venue: { name: 'PNC Plaza at The Civic' }, original_links: {} }), 'akron_civic')
   })
 
+  it('suppresses a Bandsintown-linked Cascade Locks event by its venue (Mustill Store / Cascade Locks Park)', () => {
+    // Free Lunch Friday reaches Evvnt via Bandsintown — no cascadelocks.org link,
+    // performer as organiser — so only the venue name gives it away.
+    assert.equal(findCoveringScraper({
+      title: 'Josee McGee: Free Lunch Friday | Cascade Locks Park Association',
+      organiser_name: 'Josee McGee',
+      original_links: { ticket: 'https://www.bandsintown.com/t/108703458' },
+      venue: { name: 'Mustill Store Museum & Trailhead' },
+    }), 'cascade_locks')
+    assert.equal(findCoveringScraper({ title: 'Mr. Jeff', venue: { name: 'Cascade Locks Park Association' }, original_links: {} }), 'cascade_locks')
+  })
+
   it('still matches by link host', () => {
     assert.equal(findCoveringScraper({ title: 'X', original_links: { w: 'https://akronlibrary.org/e/1' }, venue: { name: 'Somewhere' } }), 'akron_library')
   })
