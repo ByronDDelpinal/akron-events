@@ -118,7 +118,7 @@ async function fetchIcsViaBrowser() {
       failures.push(`${url} → ${text.error || 'non-iCalendar body'}`)
     }
     throw new Error(`Browser-context fetch failed for all candidates:\n  ${failures.join('\n  ')}`)
-  })
+  }, { useProxy: true })
 }
 
 async function getIcsText() {

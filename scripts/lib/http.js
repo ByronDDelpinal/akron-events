@@ -17,15 +17,19 @@
  *   • exponential backoff with jitter, retrying transient network errors and
  *     the retryable status codes (408/425/429/500/502/503/504 — plus 403, which
  *     on these WAFs is often a soft, retry-recoverable challenge),
- *   • an optional undici proxy dispatcher sourced from SCRAPER_PROXY_URL, so the
- *     sources that genuinely need different egress (Cloudflare "Just a moment"
- *     pages) can be recovered by setting ONE env var — no code change.
+ *   • an optional undici proxy dispatcher sourced from SCRAPER_PROXY_URL. Proxy
+ *     egress is OPT-IN per scraper via `useProxy: true` — the budget is a 5 GB
+ *     residential plan, so only the sources that genuinely need different egress
+ *     (Cloudflare "Just a moment" pages, IP-reputation blocks) should opt in.
+ *     Everything else egresses direct, exactly as before.
  *
  * What it deliberately does NOT do: solve a real Cloudflare JS challenge (needs a
  * headless browser or residential proxy) or replicate a site's bespoke
  * cookie/CSRF handshake (e.g. the Eventbrite internal API — leave that scraper
  * alone). Those stay the operator's egress decision; this module just makes the
- * fixable majority fixable and gives the rest a single proxy seam.
+ * fixable majority fixable and gives the rest a single proxy seam. If Cloudflare
+ * still loops a source through a ROTATING proxy, the operator-side fix is a
+ * sticky-session port/credential in SCRAPER_PROXY_URL — no code change.
  *
  * The live `fetch`, the sleep, and the RNG are all injectable so the retry/UA/
  * timeout logic is unit-testable without a network.
@@ -71,6 +75,10 @@ export function backoffDelay(attempt, { baseDelayMs = 500, maxDelayMs = 8_000, r
   return Math.round(raw * (0.5 + rng() * 0.5))
 }
 
+// Memoized ProxyAgent per proxy url — one connection pool per proxy, not one
+// per request.
+const _proxyAgents = new Map()
+
 /**
  * Build an undici ProxyAgent dispatcher from SCRAPER_PROXY_URL (or the passed
  * url), or return null when unset / unavailable. Guarded so a missing undici or
@@ -78,11 +86,37 @@ export function backoffDelay(attempt, { baseDelayMs = 500, maxDelayMs = 8_000, r
  */
 export async function proxyDispatcherFromEnv(url = process.env.SCRAPER_PROXY_URL) {
   if (!url) return null
+  if (_proxyAgents.has(url)) return _proxyAgents.get(url)
   try {
     const { ProxyAgent } = await import('undici')
-    return new ProxyAgent(url)
+    const agent = new ProxyAgent(url)
+    _proxyAgents.set(url, agent)
+    return agent
   } catch (err) {
     console.warn(`  ⚠ SCRAPER_PROXY_URL set but proxy dispatcher unavailable (${err.message}) — continuing without proxy`)
+    return null
+  }
+}
+
+/**
+ * Parse SCRAPER_PROXY_URL (or the passed url) into the pieces consumers that
+ * can't take an undici dispatcher need (e.g. Chromium's --proxy-server flag +
+ * page.authenticate). Pure and synchronous.
+ *
+ * Returns null when the url is unset, unparseable, or has no explicit port;
+ * otherwise { server, username, password } with credentials percent-decoded.
+ */
+export function proxyConfigFromUrl(url = process.env.SCRAPER_PROXY_URL) {
+  if (!url) return null
+  try {
+    const u = new URL(url)
+    if (!u.port) return null
+    return {
+      server: `${u.protocol}//${u.hostname}:${u.port}`,
+      username: decodeURIComponent(u.username || ''),
+      password: decodeURIComponent(u.password || ''),
+    }
+  } catch {
     return null
   }
 }
@@ -105,7 +139,8 @@ export async function proxyDispatcherFromEnv(url = process.env.SCRAPER_PROXY_URL
  * @param {string}  [opts.userAgent]        pin a UA (default: random per attempt)
  * @param {boolean} [opts.treatBotChallengeAsRetryable=false] peek the body of an
  *                  otherwise-ok response and retry if it's a challenge page
- * @param {*}       [opts.dispatcher]       undici dispatcher (proxy); default env
+ * @param {boolean} [opts.useProxy=false]   opt in to SCRAPER_PROXY_URL egress
+ * @param {*}       [opts.dispatcher]       undici dispatcher; explicit value always wins
  * @param {function}[opts.fetchImpl]        injectable fetch (tests)
  * @param {function}[opts.sleep]            injectable sleep (tests)
  * @param {function}[opts.rng]              injectable RNG (tests)
@@ -122,6 +157,7 @@ export async function fetchWithRetry(url, opts = {}) {
     headers = {},
     userAgent,
     treatBotChallengeAsRetryable = false,
+    useProxy = false,
     dispatcher,
     fetchImpl = globalThis.fetch,
     sleep = defaultSleep,
@@ -130,7 +166,7 @@ export async function fetchWithRetry(url, opts = {}) {
     ...rest
   } = opts
 
-  const agent = dispatcher !== undefined ? dispatcher : await proxyDispatcherFromEnv()
+  const agent = dispatcher !== undefined ? dispatcher : (useProxy ? await proxyDispatcherFromEnv() : null)
   let lastError
 
   for (let attempt = 0; attempt <= retries; attempt++) {

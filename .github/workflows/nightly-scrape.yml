@@ -261,6 +261,11 @@ jobs:
           TICKETMASTER_API_KEY: ${{ secrets.TICKETMASTER_API_KEY }}
           DICE_API_KEY:         ${{ secrets.DICE_API_KEY }}
 
+          # Residential proxy (DataImpulse, 5 GB budget) for the handful of
+          # scrapers that opt in via useProxy — CF-challenged sources only.
+          # Absent = every scraper egresses direct, exactly as before.
+          SCRAPER_PROXY_URL: ${{ secrets.SCRAPER_PROXY_URL }}
+
           # Content moderation blocklist (base64). Absent = no blocklist applied.
           MODERATION_TERMS_B64: ${{ secrets.MODERATION_TERMS_B64 }}
 

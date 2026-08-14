@@ -481,6 +481,7 @@ async function fetchAllPosts() {
 
     const res = await fetchWithRetry(url.toString(), {
       headers: { Accept: 'application/json' },
+      useProxy: true,
     })
     if (!res.ok) {
       const body = await res.text()

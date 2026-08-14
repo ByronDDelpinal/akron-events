@@ -58,10 +58,22 @@ import {
   ensureOrganization,
 } from './lib/normalize.js'
 import { isSelfCredit } from './lib/source-tiers.js'
+import { proxyDispatcherFromEnv } from './lib/http.js'
 
 const DEBUG      = process.argv.includes('--debug')
 const FORCE      = process.argv.includes('--force')
 const NO_DETAILS = process.argv.includes('--no-details')
+
+// ── Egress ───────────────────────────────────────────────────────────────────
+// All Eventbrite egress goes through this one wrapper so the session cookie is
+// minted and replayed from the same egress IP (via SCRAPER_PROXY_URL when set).
+// The 405s Eventbrite serves from GitHub Actions are IP-reputation blocks —
+// splitting the cookie handshake across egress IPs would re-trigger them.
+let _dispatcher
+async function ebFetch(url, opts = {}) {
+  if (_dispatcher === undefined) _dispatcher = await proxyDispatcherFromEnv()
+  return fetch(url, { ...opts, ...(_dispatcher ? { dispatcher: _dispatcher } : {}) })
+}
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -165,7 +177,7 @@ async function getSession() {
   if (_session) return _session
 
   console.log('  Fetching session cookies from Eventbrite…')
-  const res = await fetch(SEARCH_PAGE, { headers: htmlHeaders(), redirect: 'follow' })
+  const res = await ebFetch(SEARCH_PAGE, { headers: htmlHeaders(), redirect: 'follow' })
 
   if (!res.ok) throw new BlockedError(`Session page returned HTTP ${res.status}`)
 
@@ -492,7 +504,7 @@ async function tryInternalPostApi(page, cookie, csrfToken) {
     if (DEBUG) console.log('  [debug] POST body:', JSON.stringify(variant).slice(0, 200))
 
     try {
-      const res = await fetch(INTERNAL_API, {
+      const res = await ebFetch(INTERNAL_API, {
         method:  'POST',
         headers: apiHeaders(cookie, csrfToken, SEARCH_PAGE),
         body:    JSON.stringify(variant),
@@ -980,7 +992,7 @@ async function fetchAllEvents() {
     } else {
       try {
         await jitter()
-        const res = await fetch(feedUrl, { headers: htmlHeaders(feedUrl), redirect: 'follow' })
+        const res = await ebFetch(feedUrl, { headers: htmlHeaders(feedUrl), redirect: 'follow' })
         if (res.ok) feedHtml = await res.text()
       } catch (e) {
         console.warn(`  ⚠ Could not fetch page 1 HTML for /${feedLabel}/: ${e.message}`)
@@ -1040,7 +1052,7 @@ async function fetchAllEvents() {
       if (pageEvents.length === 0) {
         try {
           const url = `${feedUrl}?page=${page}`
-          const res = await fetch(url, { headers: htmlHeaders(feedUrl), redirect: 'follow' })
+          const res = await ebFetch(url, { headers: htmlHeaders(feedUrl), redirect: 'follow' })
           if (res.ok) {
             const html = await res.text()
             const result = extractFromHtml(html, `${feedLabel} page ${page}`)
@@ -1092,7 +1104,7 @@ async function fetchEventDetail(url, cookie) {
     const controller = new AbortController()
     const tid = setTimeout(() => controller.abort(), DETAIL_TIMEOUT_MS)
 
-    const res = await fetch(url, {
+    const res = await ebFetch(url, {
       headers: {
         ...htmlHeaders(SEARCH_PAGE),
         ...(cookie ? { Cookie: cookie } : {}),
@@ -1226,7 +1238,7 @@ async function fetchEventDetail(url, cookie) {
       try {
         const scCtrl = new AbortController()
         const scTid  = setTimeout(() => scCtrl.abort(), DETAIL_TIMEOUT_MS)
-        const scRes  = await fetch(scUrl, {
+        const scRes  = await ebFetch(scUrl, {
           headers: apiHeaders(cookie, null, url),
           redirect: 'follow',
           signal:   scCtrl.signal,
@@ -1265,7 +1277,7 @@ async function fetchEventDetail(url, cookie) {
       try {
         const evCtrl = new AbortController()
         const evTid  = setTimeout(() => evCtrl.abort(), DETAIL_TIMEOUT_MS)
-        const evRes  = await fetch(evUrl, {
+        const evRes  = await ebFetch(evUrl, {
           headers: apiHeaders(cookie, null, url),
           redirect: 'follow',
           signal:   evCtrl.signal,

@@ -42,6 +42,7 @@ import {
   parseCostFromTribe, parseTagsFromTribe,
   easternTodayIso, easternToIso,
 } from './lib/normalize.js'
+import { fetchWithRetry } from './lib/http.js'
 
 export const SOURCE_KEY = 'wine_mill'
 const BASE_URL   = 'https://www.thewinemill.com/wp-json/tribe/events/v1/events'
@@ -154,9 +155,11 @@ async function fetchAllPages() {
     url.searchParams.set('end_date',   endDate)
     url.searchParams.set('status',     'publish')
 
-    const res = await fetch(url.toString(), {
-      headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; AkronPulse-bot/1.0; +https://akronpulse.com)' },
+    const res = await fetchWithRetry(url.toString(), {
+      headers: { Accept: 'application/json' },
       redirect: 'follow',
+      useProxy: true,
+      treatBotChallengeAsRetryable: true,
     })
     if (!res.ok) throw new Error(`Wine Mill API error ${res.status}: ${(await res.text()).slice(0, 200)}`)
 

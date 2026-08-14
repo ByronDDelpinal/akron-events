@@ -18,6 +18,7 @@ import {
   BROWSER_USER_AGENTS,
   RETRYABLE_STATUS,
   proxyDispatcherFromEnv,
+  proxyConfigFromUrl,
 } from '../lib/http.js'
 
 // A minimal Response-like stub with a working clone()/text().
@@ -190,5 +191,90 @@ describe('proxyDispatcherFromEnv', () => {
   it('returns null when no proxy url is set', async () => {
     assert.equal(await proxyDispatcherFromEnv(undefined), null)
     assert.equal(await proxyDispatcherFromEnv(''), null)
+  })
+
+  it('memoizes the ProxyAgent per url (same instance across calls)', async () => {
+    const url = 'http://user:pass@proxy.test:8080'
+    const a = await proxyDispatcherFromEnv(url)
+    const b = await proxyDispatcherFromEnv(url)
+    assert.ok(a, 'expected a dispatcher (is undici installed?)')
+    assert.equal(a, b)
+  })
+})
+
+// ── fetchWithRetry: proxy opt-in ─────────────────────────────────────────────
+
+describe('fetchWithRetry — proxy opt-in (useProxy)', () => {
+  const PROXY_URL = 'http://user:pass@proxy.test:8080'
+
+  async function withProxyEnv(value, fn) {
+    const prev = process.env.SCRAPER_PROXY_URL
+    if (value === undefined) delete process.env.SCRAPER_PROXY_URL
+    else process.env.SCRAPER_PROXY_URL = value
+    try {
+      return await fn()
+    } finally {
+      if (prev === undefined) delete process.env.SCRAPER_PROXY_URL
+      else process.env.SCRAPER_PROXY_URL = prev
+    }
+  }
+
+  it('ignores SCRAPER_PROXY_URL unless the caller opts in', async () => {
+    await withProxyEnv(PROXY_URL, async () => {
+      let seen
+      const fetchImpl = async (_url, init) => { seen = init; return resp(200) }
+      await fetchWithRetry('https://x.test', { fetchImpl, sleep: noSleep })
+      assert.equal('dispatcher' in seen, false)
+    })
+  })
+
+  it('attaches the env-derived dispatcher when useProxy is set', async () => {
+    await withProxyEnv(PROXY_URL, async () => {
+      let seen
+      const fetchImpl = async (_url, init) => { seen = init; return resp(200) }
+      await fetchWithRetry('https://x.test', { fetchImpl, sleep: noSleep, useProxy: true })
+      assert.ok(seen.dispatcher)
+    })
+  })
+
+  it('useProxy with no SCRAPER_PROXY_URL set is a no-op', async () => {
+    await withProxyEnv(undefined, async () => {
+      let seen
+      const fetchImpl = async (_url, init) => { seen = init; return resp(200) }
+      await fetchWithRetry('https://x.test', { fetchImpl, sleep: noSleep, useProxy: true })
+      assert.equal('dispatcher' in seen, false)
+    })
+  })
+
+  it('an explicit dispatcher always wins over useProxy', async () => {
+    await withProxyEnv(PROXY_URL, async () => {
+      const sentinel = { sentinel: true }
+      let seen
+      const fetchImpl = async (_url, init) => { seen = init; return resp(200) }
+      await fetchWithRetry('https://x.test', {
+        fetchImpl, sleep: noSleep, useProxy: true, dispatcher: sentinel,
+      })
+      assert.equal(seen.dispatcher, sentinel)
+    })
+  })
+})
+
+// ── proxyConfigFromUrl ───────────────────────────────────────────────────────
+
+describe('proxyConfigFromUrl', () => {
+  it('parses server + percent-encoded credentials', () => {
+    const cfg = proxyConfigFromUrl('http://user%40acct:p%40ss%3Aword@gw.dataimpulse.com:823')
+    assert.deepEqual(cfg, {
+      server: 'http://gw.dataimpulse.com:823',
+      username: 'user@acct',
+      password: 'p@ss:word',
+    })
+  })
+
+  it('returns null for unset, garbage, or port-less urls', () => {
+    assert.equal(proxyConfigFromUrl(undefined), null)
+    assert.equal(proxyConfigFromUrl(''), null)
+    assert.equal(proxyConfigFromUrl('not a url'), null)
+    assert.equal(proxyConfigFromUrl('http://proxy.test'), null)
   })
 })

@@ -339,7 +339,7 @@ async function main() {
           skipped++
         }
       }
-    })
+    }, { useProxy: true })
 
     await logUpsertResult(SOURCE_KEY, inserted, 0, skipped, {
       eventsFound: found,

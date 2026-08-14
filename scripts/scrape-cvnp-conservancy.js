@@ -29,6 +29,7 @@ import {
   parseCostFromTribe, parseTagsFromTribe, ensureOrganization, easternTodayIso,
 } from './lib/normalize.js'
 import { preloadSummitCountyBoundary, classifySummitLocation } from './lib/summit-county.js'
+import { fetchWithRetry } from './lib/http.js'
 
 const BASE_URL   = 'https://www.conservancyforcvnp.org/wp-json/tribe/events/v1/events'
 const PER_PAGE   = 50
@@ -127,11 +128,10 @@ async function fetchAllPages() {
     url.searchParams.set('end_date',   endDate)
     url.searchParams.set('status',     'publish')
 
-    const res = await fetch(url.toString(), {
-      headers: {
-        Accept:       'application/json',
-        'User-Agent': 'Mozilla/5.0 (compatible; The330-bot/1.0)',
-      },
+    const res = await fetchWithRetry(url.toString(), {
+      headers: { Accept: 'application/json' },
+      useProxy: true,
+      treatBotChallengeAsRetryable: true,
     })
 
     if (!res.ok) throw new Error(`CVNP Conservancy API error ${res.status}: ${await res.text()}`)

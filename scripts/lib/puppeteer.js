@@ -28,6 +28,12 @@
 
 import puppeteer from 'puppeteer'
 
+import { proxyConfigFromUrl } from './http.js'
+
+// Private key for stashing the parsed proxy config on a Browser instance so
+// newConfiguredPage can pick it up without changing its signature.
+const PROXY = Symbol('proxyConfig')
+
 // Realistic Chrome-on-Mac fingerprint — sites that fingerprint headless
 // browsers often check UA + viewport + a few common features. This trio is
 // the minimum to look "normal" without going full puppeteer-extra-stealth.
@@ -57,10 +63,23 @@ const LAUNCH_OPTS = {
  * Launch a browser, run `fn(browser)`, and always close — even on error.
  * Returns whatever `fn` returns.
  *
+ * Options:
+ *   useProxy — opt in to SCRAPER_PROXY_URL egress (residential proxy, 5 GB
+ *              budget: CF-challenged sources only). When set and the env var
+ *              parses, Chromium launches with --proxy-server and pages from
+ *              newConfiguredPage authenticate + block heavy resource types.
+ *              Absent/unset env = launch exactly as before.
+ *
  * Prefer the higher-level helpers below for common cases.
  */
-export async function withBrowser(fn) {
-  const browser = await puppeteer.launch(LAUNCH_OPTS)
+export async function withBrowser(fn, { useProxy = false } = {}) {
+  const proxy = useProxy ? proxyConfigFromUrl() : null
+  const browser = await puppeteer.launch(
+    proxy
+      ? { ...LAUNCH_OPTS, args: [...LAUNCH_OPTS.args, `--proxy-server=${proxy.server}`] }
+      : LAUNCH_OPTS,
+  )
+  if (proxy) browser[PROXY] = proxy
   try {
     return await fn(browser)
   } finally {
@@ -87,6 +106,25 @@ export async function newConfiguredPage(browser, {
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined })
   })
   page.setDefaultNavigationTimeout(DEFAULT_NAV_TIMEOUT_MS)
+  const proxy = browser[PROXY]
+  if (proxy) {
+    // Order matters: authenticate BEFORE enabling interception. Proxy auth
+    // makes Chromium re-issue requests (407 → retry with credentials), and an
+    // intercepted request can already be handled by the time our listener
+    // runs — abort()/continue() then reject with "Request is already
+    // handled". Swallow that race instead of crashing the scrape.
+    if (proxy.username) {
+      await page.authenticate({ username: proxy.username, password: proxy.password })
+    }
+    // Every byte through the residential proxy is metered — drop the heavy
+    // resource types the scrapers never read.
+    await page.setRequestInterception(true)
+    page.on('request', (req) => {
+      const t = req.resourceType()
+      const p = (t === 'image' || t === 'media' || t === 'font') ? req.abort() : req.continue()
+      p.catch(() => {})
+    })
+  }
   return page
 }
 
@@ -100,12 +138,14 @@ export async function newConfiguredPage(browser, {
  *                        Default: true if no waitForSelector given.
  *   timeoutMs       — Combined navigation + wait timeout. Default: 30s.
  *   userAgent       — Override UA.
+ *   useProxy        — Opt in to SCRAPER_PROXY_URL egress (see withBrowser).
  */
 export async function fetchRenderedHtml(url, {
   waitForSelector   = null,
   waitForNetworkIdle = !waitForSelector,
   timeoutMs         = DEFAULT_NAV_TIMEOUT_MS,
   userAgent,
+  useProxy          = false,
 } = {}) {
   return withBrowser(async (browser) => {
     const page = await newConfiguredPage(browser, { userAgent })
@@ -117,7 +157,7 @@ export async function fetchRenderedHtml(url, {
       await page.waitForSelector(waitForSelector, { timeout: timeoutMs })
     }
     return page.content()
-  })
+  }, { useProxy })
 }
 
 /**
@@ -132,6 +172,7 @@ export async function fetchRenderedHtml(url, {
 export async function fetchJsonViaBrowser(url, {
   timeoutMs = DEFAULT_NAV_TIMEOUT_MS,
   userAgent,
+  useProxy  = false,
 } = {}) {
   return withBrowser(async (browser) => {
     const page = await newConfiguredPage(browser, { userAgent })
@@ -142,7 +183,7 @@ export async function fetchJsonViaBrowser(url, {
       return pre ? pre.textContent : document.body.textContent
     })
     return JSON.parse(text)
-  })
+  }, { useProxy })
 }
 
 /**
@@ -155,6 +196,7 @@ export async function evaluateOnPage(url, evalFn, args = [], {
   waitForSelector = null,
   timeoutMs       = DEFAULT_NAV_TIMEOUT_MS,
   userAgent,
+  useProxy        = false,
 } = {}) {
   return withBrowser(async (browser) => {
     const page = await newConfiguredPage(browser, { userAgent })
@@ -163,5 +205,5 @@ export async function evaluateOnPage(url, evalFn, args = [], {
       await page.waitForSelector(waitForSelector, { timeout: timeoutMs })
     }
     return page.evaluate(evalFn, ...args)
-  })
+  }, { useProxy })
 }

@@ -150,7 +150,7 @@ async function fetchIcsViaBrowser() {
       throw new Error('Browser-context fetch returned non-iCalendar body')
     }
     return text
-  })
+  }, { useProxy: true })
 }
 
 async function getIcsText() {
