@@ -1,0 +1,87 @@
+[
+  {
+    "id": "69cd528f062b5c7b600000c4",
+    "title": "Renter’s Rights Workshop",
+    "startDate": 1787691600745,
+    "endDate": 1787698800745,
+    "fullUrl": "/events/august-2026-renters-rights-workshop",
+    "excerpt": "Join us at The Well CDC on August 25th from 5-7 pm for our next installment of FREE Workshops. For more information, please call: (330) 376-6191",
+    "location": {
+      "addressTitle": "The Well CDC",
+      "addressLine1": "647 East Market Street",
+      "addressLine2": "Akron, OH, 44304",
+      "mapLat": 41.077516,
+      "mapLng": -81.4970967,
+      "markerLat": 40.7207559,
+      "markerLng": -74.0007613
+    }
+  },
+  {
+    "id": "69cd534ed8c0dd7e100b80ed",
+    "title": "Landlord Workshop",
+    "startDate": 1790110800139,
+    "endDate": 1790118000139,
+    "fullUrl": "/events/landlord-workshop",
+    "excerpt": "Join us at The Well CDC on September 22nd from 5-7 pm for our next installment of FREE Workshops. For more information, please call: (330) 376-6191",
+    "location": {
+      "addressTitle": "The Well CDC",
+      "addressLine1": "647 East Market Street",
+      "addressLine2": "Akron, OH, 44304",
+      "mapLat": 41.077516,
+      "mapLng": -81.4970967,
+      "markerLat": 40.7207559,
+      "markerLng": -74.0007613
+    }
+  },
+  {
+    "id": "6a70a9cee5219907953c9e14",
+    "title": "Kent Renter's Rights Workshop",
+    "startDate": 1790283600167,
+    "endDate": 1790290800167,
+    "fullUrl": "/events/kent-renters-rights-workshop",
+    "excerpt": "Join us on September 24th from 5-7pm in the Kent Free Library's Bumphrey Room to learn more about your rights and responsibilities as a renter. There will be a brief presentation with time for individuals to speak with our staff.",
+    "location": {
+      "addressTitle": "",
+      "addressLine1": "",
+      "addressLine2": "",
+      "mapLat": 40.7207559,
+      "mapLng": -74.0007613,
+      "markerLat": 40.7207559,
+      "markerLng": -74.0007613
+    }
+  },
+  {
+    "id": "69cd53a3b6c54a0a4bb2be99",
+    "title": "Renter's Rights Workshop",
+    "startDate": 1792530000331,
+    "endDate": 1792537200331,
+    "fullUrl": "/events/october-2026-renters-rights-workshop",
+    "excerpt": "Join us at The Well CDC on October 20th from 5-7 pm for our next installment of FREE Workshops. For more information, please call: (330) 376-6191",
+    "location": {
+      "addressTitle": "The Well CDC",
+      "addressLine1": "647 East Market Street",
+      "addressLine2": "Akron, OH, 44304",
+      "mapLat": 41.077516,
+      "mapLng": -81.4970967,
+      "markerLat": 40.7207559,
+      "markerLng": -74.0007613
+    }
+  },
+  {
+    "id": "6a28203150261f5d4d9d88a9",
+    "title": "FHCS Annual Event",
+    "startDate": 1792792800239,
+    "endDate": 1792803600239,
+    "fullUrl": "/events/fhcs-annual-event",
+    "excerpt": "Save the date and check this page for updates as they become available! Register HERE!",
+    "location": {
+      "addressTitle": "",
+      "addressLine1": "",
+      "addressLine2": "",
+      "mapLat": 40.7207559,
+      "mapLng": -74.0007613,
+      "markerLat": 40.7207559,
+      "markerLng": -74.0007613
+    }
+  }
+]

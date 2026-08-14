@@ -96,6 +96,7 @@ export const SCRAPERS = [
   { key: 'village_of_mogadore',  script: 'scripts/scrape-village-of-mogadore.js',     label: 'Village of Mogadore',          group: 'ics',            active: true  },
   { key: 'village_of_peninsula', script: 'scripts/scrape-village-of-peninsula.js',    label: 'Village of Peninsula',         group: 'html',           active: true  },
   { key: 'music_western_reserve', script: 'scripts/scrape-music-western-reserve.js',  label: 'Music from The Western Reserve', group: 'html',          active: true, defaultCategory: 'music' },
+  { key: 'fair_housing_akron',   script: 'scripts/scrape-fair-housing-akron.js',      label: 'Fair Housing Contact Service', group: 'squarespace',    active: true, defaultCategory: 'civic' },
   { key: 'habitat_summit',       script: 'scripts/scrape-habitat-summit.js',          label: 'Habitat for Humanity Summit',  group: 'html',           active: true, defaultCategory: 'civic' },
   { key: 'ohio_festivals',       script: 'scripts/scrape-ohio-festivals.js',          label: 'Ohio Festivals',               group: 'html',           active: true, defaultCategory: 'festival' },
   { key: 'summit_county_fairgrounds', script: 'scripts/scrape-summit-county-fairgrounds.js', label: 'Summit County Fairgrounds', group: 'html',      active: true  },

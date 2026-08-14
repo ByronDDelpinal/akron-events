@@ -602,6 +602,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'fair_housing_akron',
+    method:      'Squarespace Events',
+    methodDetail:'fairhousingakron.org/events — Squarespace native Events collection (?format=json&view=upcoming) via lib/squarespace.js. Per-event Summit gate: the markerLat/markerLng is a bogus NY site-wide default (ignored), so coords come from an Ohio-validated mapLat/mapLng; location-less events (Kent, the annual event) are gated from title/description text (NOT_SUMMIT city → out, Summit city → in, neither → pending_review).',
+    venue:       'Varies — The Well CDC (647 E Market St) + Akron branch libraries; location-less events publish without a venue',
+    notes:       'Fair Housing Contact Service runs free Renter\'s Rights and Landlord workshops plus an annual event. Most are Akron (Summit); the series also travels to Kent (Portage County) which is dropped out-of-county from its text. Free workshops get price 0; the "save the date" annual event has no location yet and lands in pending_review until details are posted. Category civic; low but steady monthly volume.',
+    status:      'active',
+  },
+  {
     key:         'music_western_reserve',
     method:      'HTML scrape',
     methodDetail:'musicwr.org homepage (Wix site, NOT Wix Events) — the season is a hand-rendered list of <h1><a href="/tickets"> concert headings whose text Wix fragments across nested spans + <br>. Parsed from the flattened page text (htmlToText) rather than the brittle markup; the season\'s start year is read from the "2026–2027" range and Sep–Dec map to it while Jan–Aug map to the next year.',
@@ -1736,6 +1744,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   slovene_center:          'html',
   explore_hudson:          'api',
   leos_italian_social:     'squarespace',
+  fair_housing_akron:      'squarespace',
   peninsula_library:       'html',
   lalas_in_the_lakes:      'api',
   city_of_macedonia:       'html',
