@@ -463,6 +463,26 @@ h6 { font-size: var(--text-h6); }
   padding: 3px 8px;
   border-radius: var(--radius-xs);
 }
+/* A LINKED category badge (CategoryBadges renders an <a>; the singular
+   CategoryBadge stays a <span>). Strip the UA anchor treatment so a linked
+   pill is pixel-identical to an inert one.
+   `:where()` on the class is deliberate and load-bearing: it zeroes the
+   selector's specificity to a bare element (0,0,1), which still beats the UA
+   stylesheet but LOSES to the per-category palette rules below (.tag-music
+   et al., 0,1,0). Written as `a.event-tag` (0,1,1) instead, `color: inherit`
+   would outrank every one of those and flatten all fourteen badge colors. */
+a:where(.event-tag) {
+  color: inherit;
+  text-decoration: none;
+}
+/* .event-tag has no focus treatment of its own, and the card's focus ring
+   belongs to .card-title-link:focus-visible::after (the stretched overlay),
+   so a badge anchor needs its own visible ring. The outline follows the
+   pill's existing border-radius. */
+a.event-tag:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
 .event-tag svg {
   flex-shrink: 0;
   /* Inherit current color so the glyph picks up each category's text color */

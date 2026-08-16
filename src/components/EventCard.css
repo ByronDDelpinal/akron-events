@@ -155,13 +155,44 @@ a.card-title { display: block; }
   border-radius: var(--radius-md);
 }
 
-/* Anything clickable inside a card must beat the z-index 3 overlay. */
+/* Anything clickable inside a card must beat the z-index 3 overlay.
+ *
+ * `.event-tag` (a category badge — see CategoryBadge.tsx) is on this list for
+ * exactly that reason and is NOT optional: badges were inert <span>s until they
+ * became anchors, and neither container that holds them (.card-tags in
+ * comfortable mode, .card-efficient-end in efficient mode) declares a z-index
+ * or establishes a stacking context. Drop this rule and every badge click in a
+ * card is swallowed by the stretched-link overlay and silently opens the event
+ * detail page instead of filtering. Do NOT "fix" it by giving the badge row its
+ * own stacking context (the trap documented in EventCard.tsx) and do NOT reach
+ * for stopPropagation — the overlay wins at HIT-TESTING time, so the event
+ * never reaches the badge to be stopped.
+ *
+ * The selector is deliberately NOT qualified to `a.event-tag`. An INERT pill
+ * (the no-op / non-filterable / embed-locked cases) is a <span>, and a <span>
+ * left at z-index:auto falls straight through the overlay to the card link —
+ * so on /?categories=music the "Music" pill would open the event while the
+ * pill beside it filters, with zero visual difference between them. Lifting
+ * the span too makes an inert pill ABSORB the click and do nothing, which is
+ * what "inert" is supposed to mean. Facet pills never render inside a card
+ * (FacetBadges is event-page only), so this only ever matches category pills. */
 .card .add-to-plan-btn-wrap,
 .card-efficient .add-to-plan-btn-wrap,
+.card .event-tag,
+.card-efficient .event-tag,
 .btn-details,
 .card-umbrella-line {
   position: relative;
   z-index: 4;
+}
+/* An inert pill absorbs the click but has nowhere to go, so it must not
+   inherit .card's cursor:pointer and advertise one. Scoped to cards on
+   purpose: on the event page the cursor is already default, and on the
+   venue/organization rows the badge sits inside a genuinely clickable
+   `role="button"` row where pointer is honest. */
+.card span.event-tag,
+.card-efficient span.event-tag {
+  cursor: default;
 }
 
 .card-organizer {

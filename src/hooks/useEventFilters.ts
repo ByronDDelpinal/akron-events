@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { INTENTS } from '@/lib/intents'
+import { FILTER_PARAM_KEYS } from '@/lib/filterParams'
 import { trackEvent, EVENTS } from '@/lib/analytics'
 import type { WhenAction, TimeOfDayId } from '@/lib/whenFilter'
 
@@ -76,12 +77,12 @@ export interface EffectiveQuery {
   venueCities: string[]
 }
 
-// All filter-owned query keys. clearFilters only ever touches these, so
-// non-filter params (embed theme/features/target/view/density) survive a
-// "Clear filters" untouched. `tod` (time of day) was added alongside the
-// "When" section — omitting it here would leave a stale bucket filter behind
-// after "Clear filters".
-export const FILTER_PARAM_KEYS = ['intent', 'date', 'from', 'to', 'categories', 'exclude', 'price', 'sort', 'q', 'audience', 'tod']
+// FILTER_PARAM_KEYS moved to lib/filterParams.ts (a zero-import module) so the
+// React-free, node-testable lib/categoryHref.ts can share the exact same list
+// instead of duplicating it. Imported (clearFilters below needs the local
+// binding) and re-exported so this hook's public export surface is unchanged
+// for every existing importer.
+export { FILTER_PARAM_KEYS }
 
 type ParamValue = string | string[] | null | undefined
 

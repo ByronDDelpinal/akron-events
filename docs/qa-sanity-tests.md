@@ -440,6 +440,51 @@ Manual regression tests to run after **every** site change, no matter how small.
 
 ---
 
+## Test 22 — Clickable category badges
+
+**Goal:** Confirm a category pill navigates to the browse grid filtered to that ONE category, that Back returns the visitor to the filters they had, and that the click is not stolen by the card's stretched-link overlay. (Risk context: the card title anchor's `::after` covers the whole card at z-index 3; badges only receive clicks because `a.event-tag` is lifted to z-index 4 in `EventCard.css`. If that rule is lost, every badge click silently opens the event detail page instead — the failure looks like "the feature was never built", not like an error. Only a real browser catches it.)
+
+**Variant A — grid card click, both densities**
+1. On `/`, open Filter & Sort and set several filters at once — a search term, a date preset, a sort, and an *exclusion* of some category (e.g. exclude Music). Scroll a few screens down into the grid.
+2. Click the **Music** pill on any card. Confirm the URL becomes `/?categories=music` — nothing else — and the grid re-filters **in place**. Confirm you did **not** land on an event detail page.
+3. Confirm the page scrolled back to the top of the grid rather than staying mid-list.
+4. Confirm the previously *excluded* category is now the *included* one (no leftover `exclude=` in the URL, no "excluded" chip in the tray).
+5. Switch the card view mode to **efficient** (Test 5) and repeat steps 1–2 on an efficient card, where the pill sits in the bottom row. Confirm the same result — filters, does not open the event.
+6. On a card with two pills, click the **second (de-emphasized)** pill; confirm it filters to that second category, not the first.
+7. Press browser **Back**. Confirm the URL and the filter tray return to the multi-filter state from step 1 (search term, date, sort, exclusion all restored). Repeat with the hardware/trackpad back gesture and, on Android, the hardware back button.
+8. Confirm no red console errors throughout.
+
+**Variant B — non-grid surfaces and the no-op state**
+1. Open any event detail page. Click a category pill next to the title; confirm it goes to `/?categories=<slug>` (the grid), not to an SEO hub page.
+2. On an event with a banner image, confirm the pills over the banner are clickable too and behave identically.
+3. Load `/?categories=music` directly, then click a **Music** pill on any card. Confirm nothing happens: no navigation, no new history entry, no scroll jump. Inspect the element and confirm it is a `<span>` (not an `<a>`) carrying `aria-current="true"`.
+4. On the same page click a **different** category's pill (e.g. Comedy) and confirm it *does* navigate to `/?categories=comedy`.
+5. Find a card whose pill reads **Other**; confirm it is a plain `<span>` with no href and does nothing when clicked.
+6. **On the main site**, find a festival umbrella card (a row with the `festival-umbrella` tag, e.g. the PorchRokr or Akron Pride umbrella) and click its **Festivals** pill; confirm it opens `/festival/<slug>`. On an ordinary event carrying the Festivals category, confirm the same pill goes to `/?categories=festival`. (This hub shortcut is site-only — the embed case is Variant D step 8.)
+7. Open a **venue** detail page and an **organization** detail page. Confirm the single category badge on each event row is still a non-clickable `<span>` and that clicking the row (or the badge) navigates exactly once, to the event — no double navigation, no flicker.
+
+**Variant C — keyboard, modifier clicks, and appearance**
+1. From the top of a card, press Tab repeatedly. Confirm the order is badge(s) → title → add-to-plan → details, that each badge shows a clearly visible focus ring, and that the ring hugs the pill (not the whole card).
+2. With a badge focused, press **Enter**. Confirm it filters exactly as a mouse click does, including the scroll to top.
+3. **Cmd/Ctrl-click** a badge. Confirm it opens the filtered grid in a **new tab** and that the original tab does **not** scroll or change.
+4. **Middle-click** a badge. Confirm the same new-tab behavior with no change to the current tab.
+5. Right-click a badge; confirm "Open link in new tab" / "Copy link address" are offered and the copied URL is the filtered grid URL.
+6. Confirm the pills look unchanged from before this feature: no underline, no browser blue/purple link color, each category keeping its own palette color (compare a Music pill against a Comedy pill), correct in both light and dark themes and at mobile width.
+7. Confirm no red console errors.
+
+**Variant D — embed (`/embed`)**
+1. Build an embed URL with a full config and a locked category set, e.g. `/embed?theme=mint&place=highland-square&price=free&categories=music,visual-art&view=list&density=comfortable&title=Test`.
+2. Click a **Music** pill on a card. Confirm the iframe URL stays under `/embed`, becomes `…&categories=music`, and that **every** config param survives: `theme`, `place`, `title`, `view`, `density`, and the locked `price=free`.
+3. Confirm the embed's chrome is intact afterward (same theme, same heading) — i.e. it did not navigate out to the main site.
+4. Confirm a pill for a category **outside** the locked set (e.g. Food, on a card that slipped in via a second category) is a plain non-clickable `<span>`.
+5. Load the same embed with `&features=map,tags` (filtering deliberately off, tags on). Confirm the "Filter & Sort" button is absent **and** that every category pill is now inert — a visitor must never be handed a filter they have no UI to undo.
+6. Load with `&features=filter` (tags off) and confirm no pills render at all.
+7. Load an embed whose locked set includes `festival` (e.g. `&categories=festival,music`) on a day when a festival umbrella card is in the grid. Click its **Festivals** pill and confirm the iframe **stays under `/embed`** and simply filters to `categories=festival` — it must **never** navigate to `/festival/<slug>`, which would throw the visitor out of the partner's embed and drop the theme, chrome and locks. Confirm the theme and heading are still intact after the click.
+8. Load an embed whose locked set **excludes** `festival` and click the same umbrella card's Festivals pill; confirm it is inert (a `<span>`), not a hub link.
+9. Confirm no red console errors in the iframe.
+
+---
+
 ## Sign-off checklist (per change)
 
 When all tests pass, the tester records:
