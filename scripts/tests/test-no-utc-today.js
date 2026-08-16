@@ -45,11 +45,11 @@
  * Reviewed-benign cases live in ALLOWLIST below, each with a one-line reason.
  * Anything not listed is a failure: switch it to `easternTodayIso()`.
  *
- * NOTE: FOUR allowlisted cases — and only those four — depend on the workflow
+ * NOTE: THREE allowlisted cases — and only those three — depend on the workflow
  * setting `TZ: America/New_York` on the runner (see
  * .github/workflows/nightly-scrape.yml). They are grouped together and labelled
  * in ALLOWLIST below: scrape-akron-art-museum.js `dateParam`,
- * scrape-city-of-cuyahoga-falls.js `ym`, scrape-downtown-akron.js `month`, and
+ * scrape-downtown-akron.js `month`, and
  * scrape-visit-akron-cvb.js `easternMidnightUtcIso`. If that env var ever
  * disappears, the "local midnight == Eastern midnight" assumption behind them
  * breaks. Every other entry is TZ-independent for the reason given on its line.
@@ -187,7 +187,10 @@ const ALLOWLIST = [
   //    TZ: America/New_York, which makes the runner's local date == the ET date.
   //    These are the entries that break if that env var ever disappears.
   { file: 'scrape-akron-art-museum.js',       match: 'const dateParam',               reason: 'month-bucket URL param from a LOCAL Date; local midnight == ET under the job TZ' },
-  { file: 'scrape-city-of-cuyahoga-falls.js', match: 'const ym =',                    reason: 'monthUrls(): a YYYYMM bucket, so a one-day skew can only matter on a month boundary; local == ET under the job TZ' },
+  // scrape-city-of-cuyahoga-falls.js `const ym =` was here: monthUrls() built a
+  // YYYYMM bucket from a LOCAL Date. The month grid it fed is retired (it
+  // rendered every event one day early), and the replacement year/day-view path
+  // is eastern-anchored through easternTodayIso(), so the entry is gone with it.
   { file: 'scrape-downtown-akron.js',         match: 'const month =',                 reason: 'getMonthUrls(): a YYYY-MM bucket, same month-boundary-only blast radius; local == ET under the job TZ' },
   { file: 'scrape-visit-akron-cvb.js',        match: 'pad(offsetHrs)',                reason: 'easternMidnightUtcIso() reads the LOCAL calendar date of the Date it is handed; callers pass a local-midnight Date and local == ET under the job TZ' },
 
