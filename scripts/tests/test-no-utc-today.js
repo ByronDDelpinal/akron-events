@@ -237,10 +237,6 @@ const ALLOWLIST = [
     reason: 'month-view header display label ("August 2026") built from `cursor`, the calendar\'s own navigation state, not the clock',
   },
   {
-    root: 'src', file: 'components/EventsBrowser.tsx', match: 'return d.toISOString().slice(0, 10)',
-    reason: 'calendarHorizon: a deliberately generous ~13-month-out upper bound so the calendar fetch is not restricted; a one-day UTC skew on a 13-month horizon is immaterial (same reasoning as the scripts/ TRIBE far-horizon endDate allowance)',
-  },
-  {
     root: 'src', file: 'lib/ics.js', match: 'const fallback = new Date().toISOString().slice(0, 10)',
     reason: 'decorative filename fallback for a .ics export (planIcsFilename), not a filter/business-logic date — see the comment above this line',
   },

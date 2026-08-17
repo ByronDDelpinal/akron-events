@@ -67,7 +67,7 @@ describe('src/hooks/useEvents.ts — buildLiveQuery, buildQuery (useMapEvents), 
   })
 
   it('useMapEvents\' buildQuery calls applyBrowseVisibility', () => {
-    const body = region(src, 'const buildQuery = (): LooseQuery => {', 'return query\n        }')
+    const body = region(src, 'const buildQuery = (', 'return query\n        }')
     assert.match(body, /applyBrowseVisibility\(query\)/)
   })
 })
