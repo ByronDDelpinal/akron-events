@@ -17,7 +17,7 @@ import { format } from 'date-fns'
 import { useEventNavigator } from '@/hooks/useEventNavigator'
 import { formatPrice } from '@/lib/eventFormatting'
 import { loadNeighborhoodGeo, type NeighborhoodGeo, type BBox } from '@/lib/neighborhoodGeo'
-import { AKRON_CENTER, MAP_STYLE, DEFAULT_ZOOM } from '@/lib/mapConfig'
+import { AKRON_CENTER, DEFAULT_ZOOM, resolveMapStyle } from '@/lib/mapConfig'
 import { googleDirectionsUrl } from '@/lib/directions'
 import Modal from '@/components/Modal'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -77,6 +77,10 @@ function zoomForBbox(b: BBox): number {
 
 export default function MapView({ events, onBackToList, neighborhoodSlug = null }: MapViewProps) {
   const goToEvent = useEventNavigator()
+  // Light basemap on light themes, dark on dark — resolved once per mount
+  // from the page's computed background (see mapConfig.resolveMapStyle).
+  // A mid-session theme switch picks the new style up on the next mount.
+  const mapStyle = useMemo(() => resolveMapStyle(), [])
   const mapRef = useRef<MapRef | null>(null)
   const sectionRef = useRef<HTMLDivElement | null>(null)
   const [popupVenueId, setPopupVenueId] = useState<string | null>(null)
@@ -201,7 +205,7 @@ export default function MapView({ events, onBackToList, neighborhoodSlug = null 
           onMove={(e: { viewState: typeof viewState }) => setViewState(e.viewState)}
           onLoad={() => setMapLoaded(true)}
           style={{ width: '100%', height: '100%' }}
-          mapStyle={MAP_STYLE}
+          mapStyle={mapStyle}
           scrollZoom={mapActive}
           onClick={() => setPopupVenueId(null)}
         >
@@ -425,6 +429,7 @@ interface VenueMapProps {
 
 export function VenueMap({ lat, lng, venueName, venueAddress, directionsUrl }: VenueMapProps) {
   const [expanded, setExpanded] = useState(false)
+  const mapStyle = useMemo(() => resolveMapStyle(), [])
 
   if (lat == null || lng == null) return null
 
@@ -445,7 +450,7 @@ export function VenueMap({ lat, lng, venueName, venueAddress, directionsUrl }: V
             zoom:      15,
           }}
           style={{ width: '100%', height: '100%' }}
-          mapStyle={MAP_STYLE}
+          mapStyle={mapStyle}
           interactive={false}
           attributionControl={false}
         >
@@ -480,6 +485,7 @@ export function VenueMap({ lat, lng, venueName, venueAddress, directionsUrl }: V
 
 function InteractiveVenueMap({ lat, lng, venueName, venueAddress, directionsUrl }: VenueMapProps) {
   const [popupOpen, setPopupOpen] = useState(true)
+  const mapStyle = useMemo(() => resolveMapStyle(), [])
 
   return (
     <div className="venue-map-modal">
@@ -496,7 +502,7 @@ function InteractiveVenueMap({ lat, lng, venueName, venueAddress, directionsUrl 
             zoom:      15,
           }}
           style={{ width: '100%', height: '100%' }}
-          mapStyle={MAP_STYLE}
+          mapStyle={mapStyle}
         >
           <NavigationControl position="top-right" showCompass={false} />
           <Marker

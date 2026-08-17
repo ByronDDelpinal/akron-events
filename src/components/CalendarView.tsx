@@ -1,7 +1,7 @@
 import type { LooseRow } from '@/types'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { eventPath } from '@/lib/slug'
+import { useEventHref } from '@/hooks/useEventHref'
 import { gradientForEvent, treatmentCategory } from '@/lib/categories.js'
 import { categoryGlyph } from '@/lib/categoryGlyphs'
 import './CalendarView.css'
@@ -45,10 +45,10 @@ function shortTime(iso: string): string {
 }
 
 /** Seed the calendar's mode + focus from any date-range filter already active.
- * Note: the calendar still ignores the date filter for FETCHING
- * (EventsBrowser.tsx's calendar fetch has no dateFrom/dateTo/dateRange) —
- * this only decides which day/week/month it opens on. Time of day does not
- * seed or filter the calendar in v1 (docs/when-filter.md §9). */
+ * Note: the calendar still ignores the date FILTER for fetching — this only
+ * decides which day/week/month it opens on. What IS fetched is the visible
+ * grid itself, reported to EventsBrowser via onVisibleRangeChange. Time of
+ * day does not seed or filter the calendar in v1 (docs/when-filter.md §9). */
 function initialState(range: string | null, from: string | null, to: string | null): { mode: Mode; cursor: Date } {
   const today = new Date()
   if (range === 'today') return { mode: 'day', cursor: today }
@@ -76,6 +76,12 @@ interface CalendarViewProps {
   initialRange?: string | null
   initialFrom?: string | null
   initialTo?: string | null
+  /**
+   * Reports the YYYY-MM-DD range of the grid currently on screen (inclusive),
+   * on mount and on every navigation. The caller uses it to bound the data
+   * fetch to what is actually visible instead of a multi-month horizon.
+   */
+  onVisibleRangeChange?: (from: string, to: string) => void
 }
 
 /**
@@ -89,7 +95,14 @@ export default function CalendarView({
   initialRange = null,
   initialFrom = null,
   initialTo = null,
+  onVisibleRangeChange,
 }: CalendarViewProps) {
+  // Embed-aware click-through: inside the white-label iframe an event click
+  // must stay under /embed (or open a new tab, per the partner's `target`
+  // config). Linking straight to eventPath() here escaped the iframe into the
+  // full site — SiteChrome and all — on the partner's page (Everyday Akron
+  // report, 2026-08-16). Same resolver EventCard and MapView already use.
+  const hrefFor = useEventHref()
   const today = useMemo(() => new Date(), [])
   const todayKey = ymd(today)
 
@@ -201,6 +214,19 @@ export default function CalendarView({
     })
   }, [mode, cursor])
 
+  // Report the visible window (inclusive YYYY-MM-DD bounds) so the caller can
+  // fetch exactly the days on screen. Month mode reports the full grid —
+  // including the adjacent-month spill cells, which render chips too.
+  useEffect(() => {
+    if (!onVisibleRangeChange) return
+    if (mode === 'day') {
+      const k = ymd(cursor)
+      onVisibleRangeChange(k, k)
+    } else if (gridCells.length > 0) {
+      onVisibleRangeChange(gridCells[0].key, gridCells[gridCells.length - 1].key)
+    }
+  }, [mode, cursor, gridCells, onVisibleRangeChange])
+
   // Open a day by default so the grid→list interaction is self-evident: prefer
   // the focused day (today), else the first upcoming day in view that has
   // events. Only fills an empty selection, so it never fights a manual pick.
@@ -274,18 +300,38 @@ export default function CalendarView({
                 <span className="cal-daynum">{date.getDate()}</span>
                 {evs.length > 0 && <span className="cal-daycount" aria-hidden="true">{evs.length}</span>}
                 <div className="cal-chips">
-                  {evs.slice(0, maxChips).map((ev) => (
-                    <Link
-                      key={ev.id}
-                      to={eventPath(ev)}
-                      className={`cal-chip ${gradientForEvent(ev)}`}
-                      onClick={(e) => e.stopPropagation()}
-                      title={ev.title}
-                    >
-                      <span className="cal-chip-time">{shortTime(ev.start_at)}</span>
-                      <span className="cal-chip-title">{ev.title}</span>
-                    </Link>
-                  ))}
+                  {evs.slice(0, maxChips).map((ev) => {
+                    const href = hrefFor(ev)
+                    const body = (
+                      <>
+                        <span className="cal-chip-time">{shortTime(ev.start_at)}</span>
+                        <span className="cal-chip-title">{ev.title}</span>
+                      </>
+                    )
+                    return href.kind === 'internal' ? (
+                      <Link
+                        key={ev.id}
+                        to={href.href}
+                        className={`cal-chip ${gradientForEvent(ev)}`}
+                        onClick={(e) => e.stopPropagation()}
+                        title={ev.title}
+                      >
+                        {body}
+                      </Link>
+                    ) : (
+                      <a
+                        key={ev.id}
+                        href={href.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`cal-chip ${gradientForEvent(ev)}`}
+                        onClick={(e) => e.stopPropagation()}
+                        title={ev.title}
+                      >
+                        {body}
+                      </a>
+                    )
+                  })}
                   {evs.length > maxChips && (
                     <button type="button" className="cal-more" onClick={(e) => { e.stopPropagation(); setSelected(key) }}>
                       +{evs.length - maxChips} more
@@ -313,7 +359,12 @@ export default function CalendarView({
         </section>
       )}
 
-      {loading && events.length === 0 && <p className="cal-empty">Loading events…</p>}
+      {/* `loading` alone (not gated on an empty list): with the fetch bounded
+          to the visible window, stepping to a new week/month briefly holds the
+          PREVIOUS window's events — whose day keys draw no chips here — so an
+          empty-looking grid needs the loading line even when events.length > 0.
+          Cache hits resolve synchronously and never show it. */}
+      {loading && <p className="cal-empty">Loading events…</p>}
       {!loading && events.length === 0 && <p className="cal-empty">No events match your filters.</p>}
     </div>
   )
@@ -321,6 +372,8 @@ export default function CalendarView({
 
 /** A list of events as gradient cards (shared by day mode + the selected-day panel). */
 function DayAgenda({ events, empty }: { events: Row[]; empty?: string }) {
+  // Same embed-aware resolver as the grid chips — see the note in CalendarView.
+  const hrefFor = useEventHref()
   if (events.length === 0) {
     return empty ? <p className="cal-empty">{empty}</p> : null
   }
@@ -328,24 +381,41 @@ function DayAgenda({ events, empty }: { events: Row[]; empty?: string }) {
     <ul className="cal-day-list">
       {events.map((ev) => {
         const glyph = categoryGlyph(treatmentCategory(ev))
+        const href = hrefFor(ev)
+        const body = (
+          <>
+            <span className="cal-day-time">{shortTime(ev.start_at)}</span>
+            <span className="cal-day-info">
+              <span className="cal-day-name">{ev.title}</span>
+              {ev.venue?.name && <span className="cal-day-venue">{ev.venue.name}</span>}
+            </span>
+            <span className="cal-day-end" aria-hidden="true">
+              {glyph && (
+                <span
+                  className="cal-day-glyph"
+                  style={{ WebkitMaskImage: `url(${glyph})`, maskImage: `url(${glyph})` }}
+                />
+              )}
+              <span className="cal-day-arrow">→</span>
+            </span>
+          </>
+        )
         return (
           <li key={ev.id}>
-            <Link to={eventPath(ev)} className={`cal-day-row ${gradientForEvent(ev)}`}>
-              <span className="cal-day-time">{shortTime(ev.start_at)}</span>
-              <span className="cal-day-info">
-                <span className="cal-day-name">{ev.title}</span>
-                {ev.venue?.name && <span className="cal-day-venue">{ev.venue.name}</span>}
-              </span>
-              <span className="cal-day-end" aria-hidden="true">
-                {glyph && (
-                  <span
-                    className="cal-day-glyph"
-                    style={{ WebkitMaskImage: `url(${glyph})`, maskImage: `url(${glyph})` }}
-                  />
-                )}
-                <span className="cal-day-arrow">→</span>
-              </span>
-            </Link>
+            {href.kind === 'internal' ? (
+              <Link to={href.href} className={`cal-day-row ${gradientForEvent(ev)}`}>
+                {body}
+              </Link>
+            ) : (
+              <a
+                href={href.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`cal-day-row ${gradientForEvent(ev)}`}
+              >
+                {body}
+              </a>
+            )}
           </li>
         )
       })}

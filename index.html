@@ -68,8 +68,27 @@
          loads of the homepage. The video that fades in over it is
          lazy-attached after the first events page lands (see
          HomePage.jsx) so the video network fetch does not contend
-         with the LCP image. -->
-    <link rel="preload" as="image" href="/video/akron-pulse-banner-poster.jpg" fetchpriority="high" />
+         with the LCP image.
+
+         Script-inserted, NOT a static <link>: the /embed white-label
+         surface never renders the hero, and the static preload was
+         shipping 131 KB at fetchpriority=high on every partner-iframe
+         load, contending with the embed's own critical requests
+         (Everyday Akron review, 2026-08-16). The script runs inline in
+         <head>, so on the homepage the request still starts during HTML
+         parse — only marginally later than the preload scanner would
+         have started it. -->
+    <script>
+      (function () {
+        if (location.pathname.indexOf('/embed') === 0) return;
+        var l = document.createElement('link');
+        l.rel = 'preload';
+        l.as = 'image';
+        l.href = '/video/akron-pulse-banner-poster.jpg';
+        l.fetchPriority = 'high';
+        document.head.appendChild(l);
+      })();
+    </script>
     <!--
       Theme-aware Google Fonts. The id="theme-fonts" link is the single
       stylesheet element the lazy loader (hooks/useTheme.jsx) updates

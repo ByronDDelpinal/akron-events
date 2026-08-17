@@ -141,13 +141,17 @@ export default function EventsBrowser({
   })
 
   // Calendar fetch — same filters EXCEPT the date range: the calendar owns the
-  // date dimension (it pages by day/week/month), so it shouldn't be limited to
-  // the active preset. The preset still seeds the calendar's starting view. A
-  // ~13-month upper horizon bounds the payload without restricting navigation.
-  const calendarHorizon = useMemo(() => {
-    const d = new Date()
-    d.setMonth(d.getMonth() + 13)
-    return d.toISOString().slice(0, 10)
+  // date dimension (it pages by day/week/month), so the active preset is not a
+  // fetch bound (it still seeds the calendar's starting view). The fetch is
+  // bounded to the grid the calendar is actually SHOWING, which CalendarView
+  // reports via onVisibleRangeChange. This replaced a fetch-13-months-up-front
+  // horizon that pulled 5,000+ rows across six serial requests to paint a
+  // one-week view (the dominant cost on partner embeds, 2026-08-16); each
+  // navigated-to window is one bounded fetch, cached in useMapEvents so
+  // stepping back and forth is free.
+  const [calRange, setCalRange] = useState<{ from: string; to: string } | null>(null)
+  const handleCalendarRange = useCallback((from: string, to: string) => {
+    setCalRange((prev) => (prev && prev.from === from && prev.to === to ? prev : { from, to }))
   }, [])
   const { events: calendarEvents, loading: calendarLoading } = useMapEvents({
     categories: effective.categories,
@@ -160,8 +164,11 @@ export default function EventsBrowser({
     priceMax: effective.priceMax,
     neighborhoodSlug: effective.neighborhoodSlug,
     venueCities: effective.venueCities,
-    dateTo: calendarHorizon,
-    enabled: effectiveView === 'calendar',
+    dateFrom: calRange?.from ?? null,
+    dateTo: calRange?.to ?? null,
+    // Wait for the calendar to report its window; an unbounded fetch here
+    // would re-create exactly the full-corpus download this replaced.
+    enabled: effectiveView === 'calendar' && calRange !== null,
   })
 
   // Home + embed search reporting. CategoryPage is a separate fork of this
@@ -316,6 +323,7 @@ export default function EventsBrowser({
             initialRange={effective.dateRange}
             initialFrom={effective.dateFrom}
             initialTo={effective.dateTo}
+            onVisibleRangeChange={handleCalendarRange}
           />
         </Suspense>
       )}

@@ -11,7 +11,14 @@ initAnalytics()
 
 // Register the service worker and start polling for new deploys (see
 // registerPwa for why the browser's default update check isn't enough).
-registerPwa()
+// NOT inside the white-label embed: a partner iframe is not an install
+// candidate (EventPage already treats it that way), and registering a
+// worker there both spends the partner page's bandwidth on our PWA
+// machinery and installs an origin-scoped worker on visitors who never
+// chose to visit us. Everyday Akron embed review, 2026-08-16.
+if (!window.location.pathname.startsWith('/embed')) {
+  registerPwa()
+}
 
 // Count one standalone (installed-app) launch per session. This is the
 // reliable signal that someone installed the PWA — and the ONLY signal on

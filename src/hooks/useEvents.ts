@@ -664,6 +664,42 @@ export function useRelatedEvents(
   return { events, loading, error }
 }
 
+// ── Full-result cache for the map/calendar fetch ─────────────────────────────
+// The Map and Calendar views are gated with `enabled` (EventsBrowser mounts
+// one hook instance per view), and both can ask for the same filter set.
+// Before this cache, every view switch re-downloaded the entire result set —
+// measured on the live Everyday Akron embed at 6 SERIAL requests / 5,026 rows /
+// ~2.4 MB / ~4.4 s of summed TTFB per switch (2026-08-16). Entries are keyed
+// by the full filter signature, deduped while in flight (map + calendar
+// asking for the same key share one fetch), and expire after MAP_CACHE_TTL_MS
+// so a long-lived tab still refreshes. Module scope on purpose: the cache must
+// survive the hook unmounting on a view switch.
+interface MapFetchResult { rows: RawRow[]; total: number }
+interface MapCacheEntry extends MapFetchResult { at: number }
+const mapCache = new Map<string, MapCacheEntry>()
+const mapCacheInflight = new Map<string, Promise<MapFetchResult>>()
+const MAP_CACHE_TTL_MS = 5 * 60_000
+const MAP_CACHE_MAX_ENTRIES = 24
+
+function mapCacheGet(key: string): MapCacheEntry | null {
+  const hit = mapCache.get(key)
+  if (!hit) return null
+  if (Date.now() - hit.at > MAP_CACHE_TTL_MS) {
+    mapCache.delete(key)
+    return null
+  }
+  return hit
+}
+
+function mapCachePut(key: string, value: MapFetchResult): void {
+  if (mapCache.size >= MAP_CACHE_MAX_ENTRIES) {
+    // Evict the oldest entry — Map preserves insertion order.
+    const oldest = mapCache.keys().next().value
+    if (oldest !== undefined) mapCache.delete(oldest)
+  }
+  mapCache.set(key, { ...value, at: Date.now() })
+}
+
 export interface UseMapEventsOptions {
   categories?: string[]
   excludedCategories?: string[]
@@ -730,17 +766,33 @@ export function useMapEvents({
     const categories = categoriesStable, excludedCategories = excludedCatsStable, hiddenSources = hiddenSourcesStable, venueCities = venueCitiesStable
 
     if (!enabled) {
-      setLoading(false)
-      setEvents([])
-      setTotal(0)
+      // Leaving the view is not a reason to forget its data: the old
+      // wipe-on-disable (setEvents([]) here) is what forced a full re-download
+      // on every List → Map → List round trip. Hold the last result; the
+      // cache below serves a fresh copy the moment the view returns.
       return
     }
 
-    async function fetchMapEvents() {
-      setLoading(true)
-      setError(null)
+    // Full filter signature. The `gte(start_at, now())` floor is deliberately
+    // NOT part of the key — it moves every second. The TTL bounds the
+    // staleness of that floor (and of the data) to a few minutes, which is no
+    // worse than what a visitor sitting on an open map view already sees.
+    const cacheKey = JSON.stringify([
+      categories, excludedCategories, family, excludeFamily, fundraiser,
+      dateRange, dateFrom, dateTo, timeOfDay, search, freeOnly, priceMax,
+      hiddenSources, neighborhoodSlug, venueCities,
+    ])
 
-      try {
+    const cached = mapCacheGet(cacheKey)
+    if (cached) {
+      setEvents(cached.rows)
+      setTotal(cached.total)
+      setError(null)
+      setLoading(false)
+      return
+    }
+
+    async function fetchAllPages(): Promise<MapFetchResult> {
         // Geo scope forces an inner join so events without a matching venue
         // drop out (mirrors useEvents / the hub pages).
         const useInnerVenue = !!neighborhoodSlug || venueCities.length > 0
@@ -749,14 +801,16 @@ export function useMapEvents({
 
         // Rebuilt fresh per page — a Supabase query builder can't be re-awaited
         // once it has resolved, so each .range() call needs its own instance.
-        const buildQuery = (): LooseQuery => {
+        // The exact count is only requested on page 0; re-counting the same
+        // filtered set on every parallel page is pure planner overhead.
+        const buildQuery = (withCount: boolean): LooseQuery => {
           let query: LooseQuery = supabase
             .from('events')
             .select(`
               id, title, start_at, price_min, price_max, is_family, is_fundraiser,
               ${categorySelectFragment(categories)}
               ${venueJoin} ( venue:${venueTbl} ( id, name, address, city, lat, lng, neighborhood_slug ) )
-            `, { count: 'exact' })
+            `, withCount ? { count: 'exact' as const } : undefined)
             .eq('status', 'published')
             // Drop events the moment their start time passes — no in-progress grace window.
             .gte('start_at', new Date().toISOString())
@@ -822,43 +876,79 @@ export function useMapEvents({
           return query
         }
 
-        // PostgREST caps any single response at ~1000 rows. This view is meant to
-        // return *all* matching events (the Calendar lays them across a month and
-        // a busy month here exceeds 1000), so page through until the table is
-        // exhausted. MAX_ROWS is a safety stop against a runaway query.
+        // PostgREST caps any single response at ~1000 rows, and this fetch
+        // must return *all* matching events (the Calendar lays them across its
+        // visible grid; the map draws every pin). Page 0 carries the exact
+        // count, so every remaining page is known up front and fetched IN
+        // PARALLEL: the previous do…while awaited each 1000-row page before
+        // asking for the next — six serial round trips on the full corpus,
+        // which was the dominant cost on partner embeds. MAX_ROWS stays as the
+        // safety stop against a runaway query.
         const CHUNK = 1000
         const MAX_ROWS = 20000
-        const allRows: RawRow[] = []
-        let totalCount = 0
-        let pageStart = 0
-        let pageLen = 0
-        do {
-          const { data, error: fetchError, count } = await buildQuery().range(pageStart, pageStart + CHUNK - 1)
-          if (fetchError) throw fetchError
-          if (cancelled) return
-          totalCount = count ?? totalCount
-          const rows = (data ?? []) as RawRow[]
-          allRows.push(...rows)
-          pageLen = rows.length
-          pageStart += CHUNK
-        } while (pageLen === CHUNK && pageStart < MAX_ROWS)
-
-        if (!cancelled) {
-          const mapped = allRows.map((e) => {
-            const venues = ((e.event_venues ?? []) as RawRow[]).map((ev) => ev.venue).filter(Boolean)
-            const cats = ((e.event_categories ?? []) as RawRow[]).map((ec) => ec.category).filter(Boolean)
-            return {
-              ...e,
-              categories: cats,
-              category: cats[0] ?? 'other',
-              venue: venues[0] ?? null,
-              venues,
-              event_venues: undefined,
-              event_categories: undefined,
+        const first = await buildQuery(true).range(0, CHUNK - 1)
+        if (first.error) throw first.error
+        const total = (first.count as number | null) ?? (first.data?.length ?? 0)
+        const allRows: RawRow[] = [...((first.data ?? []) as RawRow[])]
+        const target = Math.min(total, MAX_ROWS)
+        if (allRows.length === CHUNK && allRows.length < target) {
+          const starts: number[] = []
+          for (let s = CHUNK; s < target; s += CHUNK) starts.push(s)
+          // Bare builders are lazy thenables; Promise.all assimilates them,
+          // firing every page request concurrently.
+          const pages = await Promise.all(
+            starts.map((s) => buildQuery(false).range(s, s + CHUNK - 1)),
+          )
+          // Rows can shift between parallel pages if the table changes
+          // mid-flight; dedupe by id so a shifted row can't appear twice.
+          // (The old serial loop had the same race, without the dedupe.)
+          const seen = new Set(allRows.map((r) => r.id))
+          for (const page of pages) {
+            if (page.error) throw page.error
+            for (const row of (page.data ?? []) as RawRow[]) {
+              if (!seen.has(row.id)) {
+                seen.add(row.id)
+                allRows.push(row)
+              }
             }
-          })
-          setEvents(mapped)
-          setTotal(totalCount)
+          }
+        }
+
+        const mapped = allRows.map((e) => {
+          const venues = ((e.event_venues ?? []) as RawRow[]).map((ev) => ev.venue).filter(Boolean)
+          const cats = ((e.event_categories ?? []) as RawRow[]).map((ec) => ec.category).filter(Boolean)
+          return {
+            ...e,
+            categories: cats,
+            category: cats[0] ?? 'other',
+            venue: venues[0] ?? null,
+            venues,
+            event_venues: undefined,
+            event_categories: undefined,
+          }
+        })
+        return { rows: mapped, total }
+    }
+
+    async function run() {
+      setLoading(true)
+      setError(null)
+      try {
+        // In-flight dedupe: when the map and calendar instances (or a rapid
+        // view flip) ask for the same key, they share ONE network fetch.
+        let promise = mapCacheInflight.get(cacheKey)
+        if (!promise) {
+          promise = fetchAllPages()
+          mapCacheInflight.set(cacheKey, promise)
+          promise
+            .then((result) => mapCachePut(cacheKey, result))
+            .catch(() => { /* surfaced to each awaiting subscriber below */ })
+            .finally(() => mapCacheInflight.delete(cacheKey))
+        }
+        const result = await promise
+        if (!cancelled) {
+          setEvents(result.rows)
+          setTotal(result.total)
         }
       } catch (err) {
         if (!cancelled) setError(errorMessage(err, 'Failed to load map events.'))
@@ -867,7 +957,7 @@ export function useMapEvents({
       }
     }
 
-    fetchMapEvents()
+    run()
     return () => { cancelled = true }
   }, [enabled, categoriesStable, excludedCatsStable, family, excludeFamily, fundraiser, dateRange, dateFrom, dateTo, timeOfDay, search, freeOnly, priceMax, hiddenSourcesStable, neighborhoodSlug, venueCitiesStable])
 
