@@ -18,7 +18,13 @@
  */
 
 import 'dotenv/config'
-import { parseIcs, fetchIcsFeed, icsDateToIso } from './lib/ics.js'
+import {
+  parseIcs,
+  fetchIcsFeed,
+  icsDateToIso,
+  icsDateOnlyToNoonIso,
+  withDateOnlyTimeNote,
+} from './lib/ics.js'
 import {
   logUpsertResult,
   logScraperError,
@@ -89,11 +95,32 @@ export function parseZipsGame(ev, now = new Date()) {
   const inAkron = /akron,\s*(ohio|oh)\b/i.test(location)
   if (!isVs || !inAkron) return null
 
-  const startAt = ev.DTSTART ? icsDateToIso(ev.DTSTART.value, ev.DTSTART.params) : null
+  let startAt = ev.DTSTART ? icsDateToIso(ev.DTSTART.value, ev.DTSTART.params) : null
   if (!startAt) return null
+
+  // SANCTIONED-DEFAULT-TIME — see icsDateOnlyToNoonIso in lib/ics.js. This
+  // scraper parses VEVENTs itself instead of going through normaliseIcsEvent,
+  // so it has to apply the same noon default: a bare-date DTSTART yields
+  // 00:00 ET from icsDateToIso, and every feed filters `start_at >= now()`
+  // with no grace window, so the row disappears on the morning it happens.
+  // Gate on the RAW value via icsDateOnlyToNoonIso's "null unless bare date"
+  // contract, not on the VALUE=DATE param: a VALUE=DATE property that
+  // nonetheless carries a real clock time has a time we must not overwrite.
+  // Applied before the past-game filter so the comparison sees the stored
+  // start, not the midnight we are about to discard.
+  const noonIso = icsDateOnlyToNoonIso(ev.DTSTART.value)
+  const timeSynthesized = noonIso !== null
+  if (timeSynthesized) startAt = noonIso
+
   if (new Date(startAt) < now) return null // past game
 
-  const endAt = ev.DTEND ? icsDateToIso(ev.DTEND.value, ev.DTEND.params) : null
+  let endAt = ev.DTEND ? icsDateToIso(ev.DTEND.value, ev.DTEND.params) : null
+
+  // Pushing the start forward 12 hours can invert the interval — a same-day
+  // DTEND, or the RFC's exclusive next-day date-only DTEND read as midnight,
+  // would now end before it begins. Drop the end rather than store a negative
+  // duration. NaN <= n is false, so a malformed end falls through untouched.
+  if (timeSynthesized && endAt && Date.parse(endAt) <= Date.parse(startAt)) endAt = null
 
   // "University of Akron <Sport> vs <Opponent>" → sport + opponent
   const m = summary.match(/^University of Akron\s+(.+?)\s+vs\.?\s+(.+)$/i)
@@ -113,11 +140,15 @@ export function parseZipsGame(ev, now = new Date()) {
   if (slug) tags.push(slug)
 
   const rawDesc = stripHtml(ev.DESCRIPTION || '').trim()
-  const description = rawDesc
+  let description = rawDesc
     ? rawDesc.slice(0, 5000)
     : `University of Akron Zips ${sport} home game${venueName ? ` at ${venueName}` : ''}.`
 
-  return { title, description, startAt, endAt, venueName, sourceId, sport, tags }
+  // The invented noon must never be silent. Appended LAST, after the fallback
+  // prose: the boilerplate must not feed category/tag inference downstream.
+  if (timeSynthesized) description = withDateOnlyTimeNote(description)
+
+  return { title, description, startAt, endAt, venueName, sourceId, sport, tags, timeSynthesized }
 }
 
 // ── Venue / Organizer ────────────────────────────────────────────────────────
@@ -160,6 +191,10 @@ async function processGames(games, organizerId) {
         source_id:       g.sourceId,
         status:          'published',
         featured:        false,
+        // Noon was invented (see SANCTIONED-DEFAULT-TIME above): flag for the
+        // review queue, the only audit trail we have for an invented time.
+        // needs_review does not change `status`, so the row stays published.
+        ...(g.timeSynthesized ? { needs_review: true } : {}),
       }
 
       const enrichedRow = await enrichWithImageDimensions(row)
