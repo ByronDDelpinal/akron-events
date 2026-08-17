@@ -27,6 +27,15 @@ const CalendarView = lazy(() => import('@/components/CalendarView'))
 const COMPACT_PAGE_SIZE = 48
 const PREFETCH_PX = 400
 
+// Embed page sizes — deliberately smaller than the site's. The embed iframe is
+// auto-height on the partner's page (no scrollport of its own), so every card
+// in the list adds to the PARTNER page's length: 24 comfortable cards ≈ 2,600px
+// on desktop and far more single-column on a phone, which made Everyday Akron's
+// guide page enormous (partner report, 2026-08-17). Growth past the first page
+// is reader-initiated via the Show-more button below.
+const EMBED_PAGE_SIZE = 12
+const EMBED_COMPACT_PAGE_SIZE = 24
+
 interface Features {
   filter: boolean
   map: boolean
@@ -90,7 +99,9 @@ export default function EventsBrowser({
     (view === 'calendar' && features.calendar)
   const effectiveView = viewAllowed ? view : 'list'
   const isEfficient = density === 'efficient'
-  const activePageSize = isEfficient ? COMPACT_PAGE_SIZE : PAGE_SIZE
+  const activePageSize = embed
+    ? (isEfficient ? EMBED_COMPACT_PAGE_SIZE : EMBED_PAGE_SIZE)
+    : (isEfficient ? COMPACT_PAGE_SIZE : PAGE_SIZE)
 
   // ── Pagination state ──────────────────────────────────────────────────
   // offset/limit come from the history entry: a back navigation resumes at the
@@ -433,17 +444,38 @@ export default function EventsBrowser({
           {/* End-of-grid promo — only when there's enough content to earn it */}
           {renderPromoEnd && allEvents.length >= getMidPromoThreshold(isEfficient) && !hasMore && renderPromoEnd()}
 
-          {/* Infinite-scroll sentinel + end-of-list marker. */}
+          {/* Infinite-scroll sentinel + end-of-list marker.
+
+              In the EMBED this is an explicit button instead, for two reasons
+              (both verified live on the Everyday Akron page, 2026-08-17):
+              1. The auto-height iframe has no scrollport, so every auto-loaded
+                 page grows the PARTNER's page — pagination there must be
+                 reader-initiated, not scroll-triggered.
+              2. Browsers clip IntersectionObserver in a cross-origin iframe to
+                 the parent-visible band, and the sentinel never fired at all —
+                 embed visitors got a permanently spinning loader and could
+                 never see past page one. */}
           {allEvents.length > 0 && (
             <div className="load-more">
               {hasMore ? (
-                <>
-                  <div ref={attachSentinel} aria-hidden="true" className="load-more-sentinel" />
-                  <p className="load-more-loading" aria-live="polite">
-                    <span className="load-more-spinner" aria-hidden="true" />
-                    <span className="sr-only">Loading more events…</span>
-                  </p>
-                </>
+                embed ? (
+                  <button
+                    type="button"
+                    className="load-more-btn"
+                    onClick={loadMore}
+                    disabled={loading}
+                  >
+                    {loading ? 'Loading…' : 'Show more events'}
+                  </button>
+                ) : (
+                  <>
+                    <div ref={attachSentinel} aria-hidden="true" className="load-more-sentinel" />
+                    <p className="load-more-loading" aria-live="polite">
+                      <span className="load-more-spinner" aria-hidden="true" />
+                      <span className="sr-only">Loading more events…</span>
+                    </p>
+                  </>
+                )
               ) : (
                 <p className="load-more-end">
                   Showing all {total} {total === 1 ? 'event' : 'events'}

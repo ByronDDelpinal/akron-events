@@ -530,6 +530,30 @@
   font-size: var(--text-sm);
 }
 
+/* Explicit pagination button — embed only. Inside the auto-height partner
+   iframe, growth past page one must be reader-initiated (see the comment at
+   the render site in EventsBrowser.tsx). Styled to match .btn-clear. */
+.load-more-btn {
+  background: transparent;
+  border: var(--border-width-medium) solid var(--border-mid);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  padding: var(--space-sm) var(--space-xl);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-medium);
+}
+.load-more-btn:hover:not(:disabled) {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+.load-more-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 /* ── EMPTY STATE ── */
 .empty-state {
   text-align: center;
