@@ -20,13 +20,15 @@
     {
       "source": "/embed",
       "headers": [
-        { "key": "Content-Security-Policy", "value": "frame-ancestors *" }
+        { "key": "Content-Security-Policy", "value": "frame-ancestors *" },
+        { "key": "X-Robots-Tag", "value": "noindex" }
       ]
     },
     {
       "source": "/embed/:path*",
       "headers": [
-        { "key": "Content-Security-Policy", "value": "frame-ancestors *" }
+        { "key": "Content-Security-Policy", "value": "frame-ancestors *" },
+        { "key": "X-Robots-Tag", "value": "noindex" }
       ]
     },
     {

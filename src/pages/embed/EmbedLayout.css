@@ -104,3 +104,26 @@
 .embed-mode .modal-container {
   max-height: var(--embed-vp-height, 88vh);
 }
+
+/* ──────────────────────────────────────────────────────────────────
+   vh is poison inside an auto-height iframe: 100vh equals the iframe's
+   OWN height, which is itself set from our content height — so any
+   in-flow element sized with vh creates a resize feedback loop (content
+   height → posted height → iframe height → vh → content height…) that
+   walks the frame down (or up) one ResizeObserver tick at a time. Give
+   those surfaces fixed / visible-band-derived heights in the embed.
+   ────────────────────────────────────────────────────────────────── */
+/* Map view: site CSS sizes it to the viewport minus site chrome
+   (calc(100vh - …) in MapView.css, both breakpoints). */
+.embed-mode .map-wrap {
+  height: 520px;
+  min-height: 0;
+}
+/* Venue map modal: its phone breakpoint leans into 100vh. Derive from
+   the relayed visible band instead (fixed-position, so no loop — just
+   absurdly tall without this). */
+.embed-mode .venue-map-modal {
+  height: min(560px, calc(var(--embed-vp-height, 640px) - 96px));
+  max-height: none;
+  min-height: 320px;
+}

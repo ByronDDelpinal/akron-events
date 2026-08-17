@@ -72,11 +72,19 @@ export default function EmbedLayout() {
   // list opened an event "below the fold" of the partner page and had to
   // scroll up to find it. Hosts running an older helper simply ignore the
   // unknown message type.
+  const firstNavRef = useRef(true)
   useEffect(() => {
     try {
       window.parent?.postMessage({ type: HEIGHT_MESSAGE_TYPE, height: measureHeight() }, '*')
-      window.parent?.postMessage({ type: SCROLLTOP_MESSAGE_TYPE }, '*')
+      // Not on first mount: the iframe is loading=lazy, so this effect's
+      // initial run can happen while the reader is scrolling PAST the frame —
+      // scrolling the host page then would yank them back. Only real in-embed
+      // navigations ask the host to surface the frame.
+      if (!firstNavRef.current) {
+        window.parent?.postMessage({ type: SCROLLTOP_MESSAGE_TYPE }, '*')
+      }
     } catch { /* ignore */ }
+    firstNavRef.current = false
   }, [location.pathname])
 
   // ── Visible-viewport relay (fixes modals in a tall iframe) ────────────
