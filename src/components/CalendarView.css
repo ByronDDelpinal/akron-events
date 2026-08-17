@@ -150,6 +150,15 @@
 }
 .cal-chip-time { font-weight: 700; flex-shrink: 0; opacity: 0.92; }
 .cal-chip-title { overflow: hidden; text-overflow: ellipsis; }
+/* Same suppression .cal-day-row applies below: the shared .gradient-* classes
+   tile the category glyph across the element via an ::after strip. That works
+   as a watermark on a full-size EventCard; over a chip's single line of tiny
+   text it tiles straight through the label and makes the week/month grid
+   unreadable. The gradient background alone carries the category color. */
+.cal-chip::after { display: none; }
+/* "Other" fallback: drop .gradient-default's background-image dot scatter too
+   (it lives in background-image, not ::after) — mirrors .cal-day-row below. */
+.cal-chip.gradient-default { background-image: var(--gradient-default); }
 .cal-more {
   background: none;
   border: none;
