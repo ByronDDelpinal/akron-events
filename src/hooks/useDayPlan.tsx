@@ -82,6 +82,19 @@ interface DayPlanContextValue {
   announce: (message: string) => void
 }
 
+/**
+ * True when a mutation RPC failed because the plan row no longer exists.
+ * All three day-plan mutation RPCs raise `'no day plan found for that code'`
+ * with errcode check_violation (SQLSTATE 23514) for this case — see
+ * migrations/052 §11. The message match matters: the 30-item cap raise uses
+ * the SAME sqlstate, and treating a cap hit as "plan gone" would silently
+ * discard a live shared plan.
+ */
+function isPlanGoneError(err: unknown): boolean {
+  const e = err as { code?: string; message?: string } | null
+  return e?.code === '23514' && /no day plan found/i.test(e?.message ?? '')
+}
+
 const DayPlanContext = createContext<DayPlanContextValue | null>(null)
 
 export function DayPlanProvider({ children }: { children: ReactNode }) {
@@ -127,6 +140,22 @@ export function DayPlanProvider({ children }: { children: ReactNode }) {
       if (!code) return
       const call = op === 'add' ? addEventToPlan(code, eventId) : removeEventFromPlan(code, eventId)
       call.catch((err) => {
+        // The plan being GONE — expired and reaped, or a stale code from an
+        // earlier session — is NOT a transient failure, and reverting for it
+        // bricks the whole feature on this device: the code never gets
+        // cleared, so EVERY future add lights up, fails the mirror the same
+        // way, and reverts again ("the button lights up, then goes away",
+        // 2026-08-17, reproduced against a purged code). Drop the dead code
+        // and KEEP the optimistic change instead — with no active plan, the
+        // local draft is legitimately the source of truth again, which is
+        // exactly the pre-share state this device started in.
+        if (isPlanGoneError(err)) {
+          clearActivePlanCodeStorage()
+          setActivePlanCodeState(null)
+          announce('That shared plan has expired — your changes are saved to a new draft here.')
+          trackEvent(EVENTS.PLAN_SYNC_FAILED, { op, reason: 'plan_gone' })
+          return
+        }
         console.warn(`[day plan] ${op} did not reach the shared plan`, err)
         revert()
         announce("That didn't save. Try again.")

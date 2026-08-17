@@ -247,7 +247,9 @@ export interface EventParams {
   plan_exported:       { format: PlanExportFormat; item_count: number }
   plan_cap_reached:      { plan_surface: PlanSurface }
   plan_draft_reconciled: { removed: number; item_count: number }
-  plan_sync_failed:      { op: PlanSyncOp }
+  /** `reason` present only when the failure was terminal (the plan row is
+   *  gone) and the client dropped its active code instead of reverting. */
+  plan_sync_failed:      { op: PlanSyncOp; reason?: 'plan_gone' }
   plan_share_failed:     Record<string, never>
   // No identifier of any kind on purpose -- see SharedPlanPage.tsx's
   // handleCopyLink. `role` mirrors plan_opened's split.
