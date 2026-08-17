@@ -67,6 +67,11 @@ const ROUTES = [
   '/submit',
   '/subscribe',
   '/embed-builder',
+  // Advertised in api/sitemap.xml.js STATIC_ROUTES, so it must be prerendered
+  // too — a sitemap entry that serves the empty #root shell is exactly the
+  // problem this script exists to fix. The pair is asserted by
+  // scripts/tests/test-financials-page-guards.js.
+  '/financials',
   ...ENABLED_HUB_PATHS,
   // Festival hub pages (docs/umbrella-child-hiding.md §6): the schedule body
   // is client-fetched, so prerender captures the title/meta/canonical

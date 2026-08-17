@@ -10,7 +10,7 @@
     "build:spa-only": "vite build && SKIP_PRERENDER=1 node scripts/prerender.js",
     "prerender": "node scripts/prerender.js",
     "preview": "vite preview",
-    "lint": "eslint scripts/ --max-warnings 0",
+    "lint": "eslint scripts/ api/ middleware.js --max-warnings 0",
     "lint:src": "eslint src/ --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "typecheck:functions": "deno check --frozen $(find supabase/functions -name '*.ts')",

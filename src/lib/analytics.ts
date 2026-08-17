@@ -196,6 +196,7 @@ function contentGroup(path: string): string {
   if (p === '/about') return 'About'
   if (p === '/organizers') return 'Organizers'
   if (p === '/technical') return 'Technical'
+  if (p === '/financials') return 'Financials'
   if (p === '/day' || p.startsWith('/d/')) return 'Day Plan'
   return 'Other'
 }

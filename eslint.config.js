@@ -2,8 +2,13 @@
  * ESLint 9 flat config for Akron Pulse.
  *
  * Replaces .eslintrc.cjs (ESLint 8). Two lint surfaces, two scripts:
- *   npm run lint      — scripts/ (Node scrapers + tooling)
+ *   npm run lint      — scripts/, api/, middleware.js (Node + Vercel functions)
  *   npm run lint:src  — src/ (React + TypeScript)
+ *
+ * The Node block below has always covered api/ and middleware.js, but until
+ * 2026-08-14 no script passed them to eslint, so serverless handlers were
+ * config-covered and CI-unlinted. Keep the `lint` script's paths in step with
+ * that block's `files` glob.
  *
  * Both run with --max-warnings 0: the codebase is warning-clean, so any new
  * warning fails CI. Deliberate exceptions are inline eslint-disable comments

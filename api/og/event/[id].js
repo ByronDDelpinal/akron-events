@@ -230,7 +230,10 @@ export default async function handler(req) {
         },
       },
     )
-  } catch (err) {
+  } catch {
+    // Binding dropped, not renamed: the fallback is unconditional, so the
+    // error was never read. (Surfaced when `npm run lint` started covering
+    // api/ on 2026-08-14.)
     return fallbackImage()
   }
 }

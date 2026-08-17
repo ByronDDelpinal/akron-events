@@ -32,6 +32,7 @@ const STATIC_ROUTES = [
   { path: '/venues/submit',  priority: 0.4, changefreq: 'monthly' },
   { path: '/organizations/submit', priority: 0.4, changefreq: 'monthly' },
   { path: '/subscribe',      priority: 0.5, changefreq: 'monthly' },
+  { path: '/financials',     priority: 0.5, changefreq: 'monthly' },
   // Category & neighborhood hub pages. High priority because these
   // are the keyword-targeted landing pages most likely to win on
   // local-intent queries ("free events in Akron", "downtown Akron

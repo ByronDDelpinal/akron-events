@@ -24,6 +24,7 @@ const SubmitPage = lazy(() => import('@/pages/SubmitPage'))
 const AboutPage     = lazy(() => import('@/pages/AboutPage'))
 const OrganizersPage = lazy(() => import('@/pages/OrganizersPage'))
 const TechnicalPage = lazy(() => import('@/pages/TechnicalPage'))
+const FinancialsPage = lazy(() => import('@/pages/FinancialsPage'))
 const VenuesPage      = lazy(() => import('@/pages/VenuesPage'))
 const VenueDetailPage = lazy(() => import('@/pages/VenueDetailPage'))
 const VenueSubmitPage = lazy(() => import('@/pages/VenueSubmitPage'))
@@ -238,6 +239,7 @@ function AppInner() {
           <Route path="/about"               element={<AboutPage />} />
           <Route path="/organizers"          element={<OrganizersPage />} />
           <Route path="/technical"           element={<TechnicalPage />} />
+          <Route path="/financials"          element={<FinancialsPage />} />
           <Route path="/venues"              element={<VenuesPage />} />
           <Route path="/venues/submit"       element={<VenueSubmitPage />} />
           <Route path="/venues/:id"          element={<VenueDetailPage />} />
