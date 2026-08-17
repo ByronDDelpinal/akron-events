@@ -30,9 +30,10 @@
 (function () {
   'use strict'
 
-  var HEIGHT_TYPE   = 'akron-pulse-embed:height'    // iframe → parent
-  var VIEWPORT_TYPE = 'akron-pulse-embed:viewport'  // parent → iframe
-  var REQUEST_TYPE  = 'akron-pulse-embed:request'   // iframe → parent
+  var HEIGHT_TYPE    = 'akron-pulse-embed:height'    // iframe → parent
+  var VIEWPORT_TYPE  = 'akron-pulse-embed:viewport'  // parent → iframe
+  var REQUEST_TYPE   = 'akron-pulse-embed:request'   // iframe → parent
+  var SCROLLTOP_TYPE = 'akron-pulse-embed:scrolltop' // iframe → parent
 
   function embedFrames() {
     return Array.prototype.slice.call(
@@ -84,6 +85,25 @@
       for (var j = 0; j < fs.length; j++) {
         if (fs[j].contentWindow === event.source) {
           postViewport(fs[j])
+          break
+        }
+      }
+      return
+    }
+
+    // The embed navigated (list → event detail, back to list). The iframe has
+    // no scroll of its own, so the embed can't surface its new page to a
+    // reader who was scrolled deep into the old one — only this page can.
+    // Bring the iframe's top edge back into view, but only when it's actually
+    // above the viewport (never yank the page when the top is already
+    // visible, e.g. a navigation from an unscrolled state).
+    if (data.type === SCROLLTOP_TYPE) {
+      var frs = embedFrames()
+      for (var k = 0; k < frs.length; k++) {
+        if (frs[k].contentWindow === event.source) {
+          var top = frs[k].getBoundingClientRect().top
+          if (top < 0) window.scrollBy(0, top - 8)
+          postViewport(frs[k])
           break
         }
       }

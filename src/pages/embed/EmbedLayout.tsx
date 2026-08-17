@@ -5,9 +5,10 @@ import { parseEmbedConfig } from '@/lib/embedConfig'
 import './EmbedLayout.css'
 
 // postMessage channels shared with the host page's resizer script.
-const HEIGHT_MESSAGE_TYPE   = 'akron-pulse-embed:height'   // iframe → parent
-const VIEWPORT_MESSAGE_TYPE = 'akron-pulse-embed:viewport' // parent → iframe
-const REQUEST_MESSAGE_TYPE  = 'akron-pulse-embed:request'  // iframe → parent
+const HEIGHT_MESSAGE_TYPE   = 'akron-pulse-embed:height'    // iframe → parent
+const VIEWPORT_MESSAGE_TYPE = 'akron-pulse-embed:viewport'  // parent → iframe
+const REQUEST_MESSAGE_TYPE  = 'akron-pulse-embed:request'   // iframe → parent
+const SCROLLTOP_MESSAGE_TYPE = 'akron-pulse-embed:scrolltop' // iframe → parent
 
 /**
  * EmbedLayout — the white-label shell. Renders no site chrome; it parses the
@@ -27,11 +28,26 @@ export default function EmbedLayout() {
   const rootRef = useRef<HTMLDivElement>(null)
 
   // ── Auto-height: tell the parent how tall we are ──────────────────────
+  // Measure the CONTENT (the embed root's bottom edge), never
+  // documentElement.scrollHeight: scrollHeight floors at the iframe's current
+  // viewport height, and inside an auto-height iframe the viewport IS the last
+  // height we asked for — so heights could only ever ratchet UP. Navigating
+  // from a tall, paged-out list to a short event detail left the iframe at the
+  // list's height with a huge dead zone below (Everyday Akron, 2026-08-17).
+  const measureHeight = () => {
+    const root = rootRef.current
+    if (root) {
+      // rect.bottom = content bottom relative to the (unscrollable) iframe
+      // viewport top, so it includes any body margin/padding above the root.
+      return Math.ceil(root.getBoundingClientRect().bottom)
+    }
+    return Math.ceil(document.documentElement.scrollHeight)
+  }
+
   useEffect(() => {
     const postHeight = () => {
-      const h = Math.ceil(document.documentElement.scrollHeight)
       try {
-        window.parent?.postMessage({ type: HEIGHT_MESSAGE_TYPE, height: h }, '*')
+        window.parent?.postMessage({ type: HEIGHT_MESSAGE_TYPE, height: measureHeight() }, '*')
       } catch { /* cross-origin parent without a listener — ignore */ }
     }
 
@@ -49,11 +65,17 @@ export default function EmbedLayout() {
     }
   }, [])
 
-  // Re-post on navigation between the grid and a detail page.
+  // Re-post on navigation between the grid and a detail page, and ask the
+  // host to bring the iframe's top back into view: the iframe has no
+  // scrollport of its own, so window.scrollTo here is a no-op — only the
+  // PARENT can scroll, and without this a reader who paged deep into the
+  // list opened an event "below the fold" of the partner page and had to
+  // scroll up to find it. Hosts running an older helper simply ignore the
+  // unknown message type.
   useEffect(() => {
-    const h = Math.ceil(document.documentElement.scrollHeight)
     try {
-      window.parent?.postMessage({ type: HEIGHT_MESSAGE_TYPE, height: h }, '*')
+      window.parent?.postMessage({ type: HEIGHT_MESSAGE_TYPE, height: measureHeight() }, '*')
+      window.parent?.postMessage({ type: SCROLLTOP_MESSAGE_TYPE }, '*')
     } catch { /* ignore */ }
   }, [location.pathname])
 
