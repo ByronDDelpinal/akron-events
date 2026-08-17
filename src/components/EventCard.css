@@ -244,6 +244,10 @@ a.card-title { display: block; }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* Uniform breathing room between every footer neighbor — the age pill was
+     sitting flush against the plan chip (there was no pill↔chip spacing at
+     all; only chip↔Details had a margin, now retired in favour of this). */
+  gap: var(--space-sm);
 }
 .age-pill {
   font-family: var(--font-display);
@@ -282,12 +286,9 @@ a.card-title { display: block; }
  * margin-auto trick wins over justify-content for a lone child. */
 .card-footer .btn-details { margin-left: auto; }
 
-/* The chip grows from the old icon-only 28px to roughly 60px with its
- * label. This footer's only other possible child is the optional age pill,
- * and margin-left:auto on Details (above) absorbs the width difference on
- * its own -- this just keeps the chip from touching Details when no age
- * pill renders in between. */
-.card-footer .add-to-plan-btn--chip { margin-right: var(--space-sm); }
+/* Chip↔Details spacing now comes from .card-footer's flex gap (which also
+ * spaces the age pill off the chip — the margin-right that used to live here
+ * covered only the chip↔Details pair and left pill↔chip touching). */
 
 /* Featured card — full-width row with a heavier accent and larger title.
  * Horizontal thumb layout was removed alongside thumbs; differentiation
