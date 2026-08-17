@@ -65,6 +65,20 @@
 }
 
 /* ── Cost table ── */
+/* Scroll container for every .fin-table. A financial table has a hard floor
+   on how narrow it can get (four columns, one of them prose), so on a phone
+   SOMETHING has to give. Containing the overflow here means the table scrolls
+   on its own while the page does not: without this the entire document
+   scrolled sideways on mobile, slicing the sticky header and leaving amount
+   columns stranded with their row labels off-screen (reported 2026-08-17).
+   overscroll-behavior-inline stops a sideways flick inside the table from
+   chaining out to the page. */
+.fin-table-scroll {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 .fin-table {
   width: 100%;
   border-collapse: collapse;
@@ -178,8 +192,25 @@
 @media (max-width: 760px) {
   /* The site-wide mobile rule hides the description column, which is fine
      for vendor rows (their labels are self-explanatory) but for one-offs the
-     description IS the content — keep it. */
-  .fin-oneoffs-body .fin-table__desc { display: table-cell; }
+     description IS the content -- keep it.
+
+     BUT it must not force the table wider than the phone. Before this, the
+     one-off rows rendered date + description + BOTH amount columns on a
+     360px screen, the table overflowed, and because nothing clipped it the
+     WHOLE PAGE scrolled sideways: the sticky header slid off and the amounts
+     sat in a column of their own with no visible label. Letting the
+     description wrap (it is prose, it should) plus the scroll container on
+     .fin-table-scroll keeps the overflow inside the table where it belongs. */
+  .fin-oneoffs-body .fin-table__desc {
+    display: table-cell;
+    white-space: normal;
+    min-width: 0;
+    word-break: break-word;
+  }
+  /* NOTE: do NOT hide the empty "Today" cell on one-off rows to save width.
+     One-offs share the same <table> as the vendor rows, so dropping a cell
+     from only those rows shifts their amounts into the wrong column. Column
+     count has to stay uniform; the scroll container is what handles width. */
 }
 
 /* Tier-picker styles removed 2026-08-17 with the toggle itself — the table

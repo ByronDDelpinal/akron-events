@@ -215,8 +215,9 @@ export default function FinancialsPage() {
             strategy. Prices verified {PRICES_VERIFIED}.
           </p>
 
-          <table className="fin-table">
-            <thead>
+          <div className="fin-table-scroll">
+            <table className="fin-table">
+              <thead>
               <tr>
                 <th scope="col">Line item</th>
                 <th scope="col" className="fin-table__desc">What it covers</th>
@@ -230,8 +231,8 @@ export default function FinancialsPage() {
                   <span className="fin-table__col-note">{TIERS[AT_SCALE_INDEX].traffic}</span>
                 </th>
               </tr>
-            </thead>
-            <tbody>
+              </thead>
+              <tbody>
               {COST_LINES.map(line => {
                 const today = line.monthly[TODAY_INDEX]
                 const modeled = line.monthly[AT_SCALE_INDEX]
@@ -272,8 +273,8 @@ export default function FinancialsPage() {
                 <td className="fin-table__amount">{money(TIER_TOTALS[TODAY_INDEX] * 12)}</td>
                 <td className="fin-table__amount">{money(TIER_TOTALS[AT_SCALE_INDEX] * 12)}</td>
               </tr>
-            </tbody>
-            {/* One-off expenses live INSIDE the cost table as a second body
+              </tbody>
+              {/* One-off expenses live INSIDE the cost table as a second body
                 (Byron, 2026-08-17): the amounts must line up under the same
                 last column as every other figure, and two separate tables
                 with auto-sized columns can never promise that. Row shape is
@@ -281,7 +282,7 @@ export default function FinancialsPage() {
                 amount inherits the exact column and .fin-table__amount
                 treatment the bill uses. Annual scope, so these stay OUT of
                 the monthly and per-year totals above. */}
-            {ONE_OFF_EXPENSES.length > 0 && (
+              {ONE_OFF_EXPENSES.length > 0 && (
               <tbody className="fin-oneoffs-body">
                 <tr>
                   <th scope="colgroup" colSpan={4} className="fin-oneoffs__heading">
@@ -306,8 +307,9 @@ export default function FinancialsPage() {
                   <td className="fin-table__amount">{money(oneOffTotalForYear())}</td>
                 </tr>
               </tbody>
-            )}
-          </table>
+              )}
+            </table>
+          </div>
           {/* No spend-cap promise sits here on purpose. The previous copy
               guaranteed that caps on "every metered service" meant a spike
               could "never produce a surprise bill" — an absolute claim about
