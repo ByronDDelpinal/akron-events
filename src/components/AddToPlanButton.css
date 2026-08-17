@@ -27,7 +27,26 @@
   background: var(--bg-card);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all var(--transition-medium);
+  /* Named list, not `transition: all`. Two reasons.
+   * 1. This button carries globals.css's `.pressable`, whose :active scale is
+   *    a 0.06s snap; under `all var(--transition-medium)` that press would
+   *    ease over 150ms and read as mush instead of a press.
+   * 2. `.pressable`'s own transition is written `:where(.pressable)` (zero
+   *    specificity) precisely so this rule keeps ownership — which means the
+   *    press properties have to be listed HERE or they get no transition at
+   *    all. `transform`/`opacity` at the press duration; the toggle's colour
+   *    change (outline plus -> filled amber check) stays at the slower medium
+   *    so the state flip is legible rather than instant.
+   * A TRANSITION, never a @keyframes on `.in-plan`: keyframes replay on
+   * mount, and EventsBrowser rebuilds every card on every filter change and
+   * density switch, so a keyframe would pop every in-plan button grid-wide.
+   * Transitions do not fire on first render. */
+  transition:
+    transform 0.06s,
+    opacity 0.06s,
+    background var(--transition-medium),
+    border-color var(--transition-medium),
+    color var(--transition-medium);
 }
 
 /* Pill: glyph + short label ("+ Plan" / check "In plan"). Height stays 28px

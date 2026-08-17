@@ -20,6 +20,7 @@ import {
   itemListSchema,
 } from '@/lib/seo'
 import { eventPath } from '@/lib/slug'
+import { BROWSE_RESULTS_ID } from '@/lib/categoryHref'
 import './HomePage.css'
 
 // Hero headline cycles through Akron, its neighborhoods, and the other Summit
@@ -380,7 +381,14 @@ export default function HomePage() {
           grid gets no empty promo cell. The end slot mirrors the GridPromo
           rule: comfortable-only, nothing in efficient — the banner appears
           once, in the mid slot. */}
-      <div ref={resultsRef}>
+      {/* The stable browse anchor. `resultsRef` serves this page's own
+          search-commit scroll; the id serves CategoryBadge, which has no ref
+          to reach across components with. Both land on the SAME element and
+          share one `scroll-margin-top` (HomePage.css), so a badge click and a
+          committed search come to rest identically. Deliberately not a
+          `.cards-grid`: EventsBrowser renders one of those per date group and
+          rebuilds them all on every filter change. */}
+      <div ref={resultsRef} id={BROWSE_RESULTS_ID}>
         <EventsBrowser
           filters={filters}
           view={view}            onView={setView}

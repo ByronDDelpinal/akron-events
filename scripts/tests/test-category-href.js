@@ -10,7 +10,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { resolveCategoryBadgeHref } from '../../src/lib/categoryHref.ts'
+import { resolveCategoryBadgeHref, shouldScrollToGrid } from '../../src/lib/categoryHref.ts'
 import { FESTIVALS } from '../../src/lib/festivalsData.js'
 import { FESTIVAL_UMBRELLA_TAG } from '../../src/lib/browseVisibility.js'
 
@@ -333,5 +333,63 @@ describe('resolveCategoryBadgeHref: festival umbrella', () => {
       resolveCategoryBadgeHref('festival', site('', `/festival/${FEST.slug}`, UMBRELLA_TAGS)),
       INERT_CURRENT,
     )
+  })
+})
+
+// ── shouldScrollToGrid ──────────────────────────────────────────────────
+// "Does activating this badge leave the visitor on a page that HAS the browse
+// grid on it, in a way App.tsx will not already handle?" App.tsx's
+// scroll-to-top effect keys on location.pathname ALONE, so the one case it
+// misses — and the only case worth scrolling for — is a search-only PUSH on
+// the same pathname.
+describe('shouldScrollToGrid', () => {
+  const FEST = FESTIVALS[0]
+  const UMBRELLA_TAGS = [FESTIVAL_UMBRELLA_TAG, FEST.tag]
+
+  /** Resolve and evaluate against the same ctx, exactly as CategoryBadges does. */
+  function check(slug, ctx) {
+    return shouldScrollToGrid(resolveCategoryBadgeHref(slug, ctx), ctx)
+  }
+
+  it('same-pathname site navigation (the grid filtering itself) → true', () => {
+    assert.equal(check('music', site('?q=jazz')), true)
+    assert.equal(check('music', site('')), true)
+    assert.equal(check('music', site('?view=map&categories=music,food')), true)
+  })
+
+  it('from an EVENT PAGE the pathname changes → false (App.tsx scrolls it)', () => {
+    assert.equal(check('film', site('', '/events/some-slug/abc-123')), false)
+  })
+
+  it('from a CATEGORY HUB the pathname changes → false', () => {
+    assert.equal(check('music', site('?sort=latest', '/events/music')), false)
+  })
+
+  it('a festival-hub target is a different pathname → false', () => {
+    const ctx = site('?q=jazz', '/', UMBRELLA_TAGS)
+    // Sanity: this really is the hub branch, not the grid.
+    assert.equal(resolveCategoryBadgeHref('festival', ctx).href, `/festival/${FEST.slug}`)
+    assert.equal(shouldScrollToGrid(resolveCategoryBadgeHref('festival', ctx), ctx), false)
+  })
+
+  // EXPLICIT, not a presumed no-op: scrollIntoView is specified to scroll
+  // ancestor scrolling boxes, which in principle includes the parent frame,
+  // and the embed is auto-height so there is nothing of ours to scroll.
+  // Yanking a partner's page is what the white-label contract forbids.
+  it('inside an embed → false even though the pathname matches', () => {
+    const ctx = embedCtx('?theme=mint')
+    assert.equal(resolveCategoryBadgeHref('music', ctx).kind, 'link')
+    assert.equal(shouldScrollToGrid(resolveCategoryBadgeHref('music', ctx), ctx), false)
+    // Including the embed's own detail pathname, where the target IS /embed.
+    const deep = embedCtx('?theme=mint', {}, '/embed/events/x/1')
+    assert.equal(shouldScrollToGrid(resolveCategoryBadgeHref('music', deep), deep), false)
+  })
+
+  it('every inert target → false (nothing navigates, nothing scrolls)', () => {
+    assert.equal(check('not-a-category', site('')), false)          // 1 unknown
+    assert.equal(check('other', site('')), false)                    // 2 not filterable
+    assert.equal(check('food', embedCtx('?theme=mint')), false)      // 3 not permitted
+    assert.equal(check('music', embedCtx('?theme=mint', { filter: false })), false) // 4
+    assert.equal(check('music', site('?categories=music')), false)   // 5 already current
   })
 })

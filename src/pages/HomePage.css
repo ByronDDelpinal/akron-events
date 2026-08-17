@@ -419,6 +419,30 @@
   }
 }
 
+/* ── BROWSE RESULTS ANCHOR ── */
+/* The scroll target for BOTH "visitor committed a search" (this page's
+   scrollToResults) and "visitor clicked a category badge" (CategoryBadge).
+   The id string is BROWSE_RESULTS_ID in src/lib/categoryHref.ts — keep them
+   in step.
+
+   64px is `.header-inner`'s height (Header.css), and the env() term matches
+   `.site-header`'s own `padding-top: env(safe-area-inset-top, 0px)`, so the
+   anchor clears the sticky header on iOS standalone too. Same mechanism and
+   the same env() idiom as `.festival-slot` in FestivalPage.css.
+
+   Header-only ON PURPOSE, with no allowance for the filter bar: FilterBar
+   renders INSIDE this wrapper, so the wrapper's top IS the bar's static
+   position — landing here puts the bar exactly where it sticks, with the
+   first date heading and card row below it. A measured filter-bar offset
+   would also have to measure a height that does not exist yet, since the
+   active-filter pill row appears BECAUSE of the click being scrolled for.
+
+   This also repairs the pre-existing search-commit landing, which had no
+   scroll-margin at all and parked the wrapper under the header. */
+#browse-results {
+  scroll-margin-top: calc(64px + env(safe-area-inset-top, 0px));
+}
+
 /* ── CONTENT TRANSITION ── */
 /* Dim old content while a new filter result is loading.
    We keep the old cards in the DOM so there's no height collapse. */

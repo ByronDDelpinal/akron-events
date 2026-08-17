@@ -302,6 +302,18 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 16px; scroll-behavior: smooth; }
+/* Reduced motion honours the root smooth-scroll opt-in.
+ * Load-bearing beyond the obvious: per CSSOM-View, `behavior: 'auto'` in a
+ * scrollIntoView/scrollTo call means "use the scrolling box's COMPUTED
+ * scroll-behavior", which the rule above makes `smooth`. Several call sites
+ * pass `prefersReducedMotion() ? 'auto' : 'smooth'`, which therefore animates
+ * in BOTH branches (HomePage's scrollToResults, DayPlanBoard, FestivalPage,
+ * EmbedRequestForm). Flipping the computed value here repairs every one of
+ * them, plus native anchor jumps, without touching six call sites. Code that
+ * passes 'instant' explicitly (CategoryBadge) is unaffected either way. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
 body {
   font-family: var(--font-body);
   background: var(--bg-page);
@@ -310,6 +322,54 @@ body {
 }
 a { color: inherit; }
 button { font-family: inherit; }
+
+/* ════════════════════════════════
+   PRESSABLE
+   Shared press affordance for controls whose click navigates or toggles
+   state, so the visitor sees the ACTIVATION itself rather than guessing from
+   what happens next. Used by the linked category badge (CategoryBadge) and
+   the day-plan button (AddToPlanButton).
+
+   Deliberately `:active` and nothing else — no JS class toggle, no timer.
+   A category badge click filters the grid to that one category, which makes
+   the badge's own href the current URL, which turns the pill inert: React
+   unmounts the very node that was pressed in the same commit as the
+   navigation. Any post-click animation on it would be unobservable. The
+   press (pointerdown → hold → release) happens BEFORE that and always shows.
+
+   Values (0.06s / scale(0.97)) are lifted from the existing press vocabulary
+   in SummitCountyMap.css and NeighborhoodMap.css so the app has one feel.
+   Compositor-only on purpose: transform + opacity, no box-shadow, no filter
+   and NO `will-change` — a grid renders dozens of these and will-change buys
+   a permanent per-node layer for a 60ms effect.
+════════════════════════════════ */
+/* `:where()` zeroes this rule's specificity to (0,0,0), the same deliberate
+   trick (and the same reason) as `a:where(.event-tag)` further down. App.tsx
+   imports globals.css AFTER every component, so an unwrapped `.pressable`
+   would tie every component's own (0,1,0) `transition` and win on source
+   order — silently deleting, say, the day-plan button's colour transition the
+   moment it opted into the press. Zeroed, this is a DEFAULT: a control with
+   no transition of its own (the badge anchor) gets one; a control that owns
+   its transition (AddToPlanButton) keeps it and must list `transform` at the
+   press duration itself. `opacity` rides along for the badge-sized override
+   below and the reduced-motion substitute. */
+:where(.pressable) {
+  transition: transform 0.06s, opacity 0.06s;
+}
+.pressable:active {
+  transform: scale(0.97);
+}
+/* Reduced motion degrades to a DIFFERENT signal, not to nothing: the press
+   still has to be legible. Same approach as FeedbackDialog.css's popover
+   block — swap the motion for an opacity change rather than dropping the
+   affordance. No transition override needed: `opacity` is already in the
+   list above and `transform` simply never changes here. */
+@media (prefers-reduced-motion: reduce) {
+  .pressable:active {
+    transform: none;
+    opacity: 0.7;
+  }
+}
 
 /* ════════════════════════════════
    HEADINGS
@@ -482,6 +542,32 @@ a:where(.event-tag) {
 a.event-tag:focus-visible {
   outline: 2px solid var(--amber);
   outline-offset: 2px;
+}
+/* Badge-sized press. `.pressable`'s shared scale(0.97) is tuned for a 28px
+   control (the day-plan chip); on a ~20px pill (--text-tiny, padding 3px 8px)
+   it is a sub-pixel-to-2px delta that is technically present and practically
+   invisible. Scale harder and add a small opacity dip so the press reads at
+   this size. ONE utility with an override, not a second utility — the button
+   and the badge share the rule and the 0.06s timing, which is what "the same
+   animation on both" means.
+   Written `a.event-tag.pressable` (0,3,1) so it can only ever match the LINKED
+   branch: CategoryBadge only puts `.pressable` on the <Link>, and an inert
+   <span> pill must never depress — EventCard.css gives it `cursor: default`
+   precisely so it stops promising interactivity it does not have.
+   No paint-order risk: EventCard.css already gives `.card .event-tag`
+   position: relative + z-index 4 to clear the stretched title overlay, and a
+   transform on an already-positioned z-indexed element does not restack it. */
+a.event-tag.pressable:active {
+  transform: scale(0.93);
+  opacity: 0.82;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Re-state at this selector's specificity, or the override above would win
+     over the shared reduced-motion rule and animate anyway. Opacity only. */
+  a.event-tag.pressable:active {
+    transform: none;
+    opacity: 0.7;
+  }
 }
 .event-tag svg {
   flex-shrink: 0;

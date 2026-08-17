@@ -170,6 +170,62 @@ function gridHref(slug: string, ctx: CategoryHrefContext): string {
   return `${basePath(ctx.embed)}${qs ? `?${qs}` : ''}`
 }
 
+/**
+ * The id on HomePage's browse-region wrapper — the element a badge click
+ * scrolls to. Exported from here so the producer (the predicate below) and
+ * the consumers (HomePage's `<div id>` and CategoryBadge's getElementById)
+ * cannot drift.
+ *
+ * It is the WRAPPER, not a grid: EventsBrowser renders one `.cards-grid` per
+ * date group, each keyed by the results key, so every one of them is
+ * destroyed and rebuilt by the very navigation being scrolled for. The
+ * wrapper survives, and it also contains FilterBar, so its top doubles as the
+ * filter bar's static position.
+ */
+export const BROWSE_RESULTS_ID = 'browse-results'
+
+/**
+ * shouldScrollToGrid — "does activating this badge leave the visitor on a
+ * page that HAS the browse grid on it, in a way App.tsx will not already
+ * handle?" Pure, additive, and deliberately separate from
+ * resolveCategoryBadgeHref: the resolver's contract and its 337-line suite
+ * describe WHERE a badge goes, not what the page does afterwards.
+ *
+ * Two rules cover every surface with no per-surface branching:
+ *
+ *   • Never inside an embed. This guard is EXPLICIT, not left to be a
+ *     harmless no-op the way `window.scrollTo(0)` was. scrollIntoView is
+ *     specified to scroll ANCESTOR scrolling boxes, which in principle
+ *     includes the parent frame; the embed is auto-height, so there is
+ *     nothing here to scroll and everything to lose. Cross-origin blocks it
+ *     today, but a same-origin partner page is not something to rest on
+ *     frame-scroll semantics — yanking a partner's page is exactly what the
+ *     white-label contract forbids.
+ *
+ *   • Only when the target pathname equals the current one. That is the
+ *     single case App.tsx's scroll-to-top effect misses, because it keys on
+ *     `location.pathname` alone: a badge click on the grid is a search-only
+ *     PUSH on the SAME pathname. Every cross-pathname target — EventPage and
+ *     CategoryPage badges (which land on '/'), and the festival-hub branch —
+ *     changes the pathname, so App.tsx scrolls the new page to top and there
+ *     is no grid here to look for.
+ *
+ * An inert target never navigates, so it never scrolls.
+ */
+export function shouldScrollToGrid(
+  target: CategoryBadgeHref,
+  ctx: CategoryHrefContext,
+): boolean {
+  if (ctx.embed) return false
+  if (target.kind !== 'link') return false
+  return hrefPathname(target.href) === ctx.pathname
+}
+
+/** '/x?a=b#c' → '/x'. Targets are always app-relative (basePath + query). */
+function hrefPathname(href: string): string {
+  return href.split(/[?#]/)[0]
+}
+
 /** '' | '?a=b' | 'a=b' → '' | '?a=b'. */
 function normalizeSearch(search: string | null | undefined): string {
   if (!search) return ''

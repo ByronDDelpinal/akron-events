@@ -134,7 +134,12 @@ export default function AddToPlanButton({ event, surface, variant = 'chip', clas
     <span className={`add-to-plan-btn-wrap add-to-plan-btn-wrap--${variant}`}>
       <button
         type="button"
-        className={`add-to-plan-btn add-to-plan-btn--${variant}${inPlan ? ' in-plan' : ''} ${className}`.trim()}
+        // `pressable` (globals.css) is the SAME press rule the category badge
+        // uses — that is what "the same animation on both" means. It is the
+        // press only; the active state itself is `in-plan` below, which
+        // already flips the icon, the label, aria-pressed and the fill, and
+        // which must stay a CSS transition (see AddToPlanButton.css).
+        className={`add-to-plan-btn pressable add-to-plan-btn--${variant}${inPlan ? ' in-plan' : ''} ${className}`.trim()}
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         aria-pressed={inPlan}
