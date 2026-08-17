@@ -14,6 +14,7 @@ import {
   isJunkClassType, passesNamesGate,
   isNameCandidate, venueIdsWithUpcomingEvents, summarizeNamesRun,
   createRateLimiter,
+  chunkIds, narrowAndLimit, VENUE_ID_CHUNK_SIZE,
 } from '../geocode-venues.js'
 
 // ── default (address) mode ─────────────────────────────────────────────
@@ -342,5 +343,78 @@ describe('names mode: summarizeNamesRun (blocked-capability detection)', () => {
   it('reports ok (not blocked) even when every query came back with zero results — that is a real "no match" run, not a policy block', () => {
     const candidates = [{ id: 'v1' }, { id: 'v2' }, { id: 'v3' }]
     assert.equal(summarizeNamesRun(candidates, false), 'ok')
+  })
+})
+
+// ── default mode: candidate narrowing (chunking, merging, limit order) ──
+
+describe('default mode: chunkIds', () => {
+  it('splits 683 ids into 14 chunks of at most 50, losing none', () => {
+    const ids = Array.from({ length: 683 }, (_, i) => `v${i}`)
+    const chunks = chunkIds(ids)
+    assert.equal(VENUE_ID_CHUNK_SIZE, 50)
+    assert.equal(chunks.length, 14)
+    assert.ok(chunks.every((c) => c.length <= 50))
+    assert.equal(chunks.at(-1).length, 683 - 13 * 50) // 33
+    assert.deepEqual(chunks.flat(), ids)
+  })
+  it('returns no chunks at all for an empty or missing list — never one empty chunk (which would be a pointless query)', () => {
+    assert.deepEqual(chunkIds([]), [])
+    assert.deepEqual(chunkIds(undefined), [])
+  })
+  it('does not emit a trailing empty chunk when the count divides evenly', () => {
+    const chunks = chunkIds(Array.from({ length: 100 }, (_, i) => i))
+    assert.equal(chunks.length, 2)
+  })
+})
+
+describe('default mode: merging venueIdsWithUpcomingEvents across pages and chunks', () => {
+  it('unions every page/chunk without duplicating a venue that spans them', () => {
+    // v1 has link rows on both pages of chunk A and again in chunk B's page:
+    // the paginated loop must union, and must not double-count.
+    const pages = [
+      [{ venue_id: 'v1', events: { id: 'e1' } }, { venue_id: 'v2', events: { id: 'e2' } }],
+      [{ venue_id: 'v1', events: { id: 'e3' } }, { venue_id: 'v3', events: { id: 'e4' } }],
+      [{ venue_id: 'v1', events: { id: 'e5' } }, { venue_id: 'v4', events: { id: 'e6' } }],
+    ]
+    const merged = new Set()
+    for (const page of pages) for (const id of venueIdsWithUpcomingEvents(page)) merged.add(id)
+    assert.deepEqual([...merged].sort(), ['v1', 'v2', 'v3', 'v4'])
+    assert.equal(merged.size, 4)
+  })
+  it('an empty final page contributes nothing (the short-page terminator case)', () => {
+    const merged = new Set(['v1'])
+    for (const id of venueIdsWithUpcomingEvents([])) merged.add(id)
+    assert.deepEqual([...merged], ['v1'])
+  })
+})
+
+describe('default mode: narrowAndLimit', () => {
+  const venues = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }, { id: 'e' }]
+
+  it('applies --limit AFTER narrowing, so N means "N venues actually geocoded"', () => {
+    // Only c/d/e have upcoming events. Slicing FIRST with limit 2 would yield
+    // [a, b] -> 0 geocodable venues: the exact wasted-lookup bug.
+    const upcoming = new Set(['c', 'd', 'e'])
+    const out = narrowAndLimit(venues, upcoming, 2)
+    assert.deepEqual(out.map((v) => v.id), ['c', 'd'])
+    assert.equal(out.length, 2)
+  })
+  it('narrows with no limit', () => {
+    assert.deepEqual(narrowAndLimit(venues, new Set(['b', 'e']), null).map((v) => v.id), ['b', 'e'])
+  })
+  it('an empty upcoming set narrows to nothing — it is not treated as "no filter"', () => {
+    assert.deepEqual(narrowAndLimit(venues, new Set(), null), [])
+    assert.deepEqual(narrowAndLimit(venues, new Set(), 3), [])
+  })
+  it('null upcomingIds means --all: no narrowing, limit still honoured', () => {
+    assert.equal(narrowAndLimit(venues, null, null).length, 5)
+    assert.deepEqual(narrowAndLimit(venues, null, 2).map((v) => v.id), ['a', 'b'])
+  })
+  it('a limit larger than the narrowed set is a no-op', () => {
+    assert.equal(narrowAndLimit(venues, new Set(['a']), 99).length, 1)
+  })
+  it('tolerates a missing venue list', () => {
+    assert.deepEqual(narrowAndLimit(undefined, new Set(['a']), 2), [])
   })
 })

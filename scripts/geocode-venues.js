@@ -18,14 +18,29 @@
  *     falls inside the Summit County bbox
  * Anything failing a gate is listed for manual review, not written.
  *
+ * Candidate selection (default mode): venues with an address but no
+ * coordinates, narrowed to those with >=1 upcoming published event — a venue
+ * nobody is about to visit isn't worth a 1.1s-throttled API call. Before this
+ * narrowing a typical night spent 20 lookups to make 1 useful write. Pass
+ * --all to opt out.
+ *
  * Env:
  *   VITE_SUPABASE_URL          — Supabase project URL
  *   SUPABASE_SERVICE_ROLE_KEY  — service role (bypasses RLS to update venues)
  *
  * Flags:
  *   --dry-run     geocode + report, but write nothing
- *   --limit N     only process the first N candidate venues
+ *   --limit N     only geocode the first N candidate venues. In default mode
+ *                 this is applied AFTER the upcoming-event narrowing below
+ *                 (same semantics as --names): N is "venues actually
+ *                 geocoded", not "rows fetched from the venues table".
  *   --recheck     also re-geocode venues that already have coordinates
+ *   --all         DEFAULT MODE ONLY: skip the upcoming-event narrowing and
+ *                 geocode every addressed venue missing coordinates,
+ *                 including ones nobody is about to visit. The old
+ *                 (pre-narrowing) behaviour, kept for deliberate full
+ *                 backfills. Ignored in --names mode, which has always
+ *                 filtered on upcoming events.
  *
  *   --names       ALTERNATE MODE: geocode by venue NAME instead of street
  *                 address, for venues that have NO lat, NO lng, AND NO
@@ -41,7 +56,7 @@
  *                 If --dry-run is also passed, --dry-run wins (no writes) —
  *                 the explicit safety flag beats the explicit danger flag.
  *
- * Usage:  node scripts/geocode-venues.js [--dry-run] [--limit 50]
+ * Usage:  node scripts/geocode-venues.js [--dry-run] [--limit 50] [--all]
  *         node scripts/geocode-venues.js --names [--write] [--limit 50]
  */
 import 'dotenv/config'
@@ -92,6 +107,8 @@ const args = process.argv.slice(2)
 const DRY_RUN = args.includes('--dry-run')
 const RECHECK = args.includes('--recheck')
 const NAMES_MODE = args.includes('--names')
+// Default mode only: opt out of the upcoming-event narrowing in main().
+const GEO_ALL = args.includes('--all')
 // --dry-run wins over --write in --names mode: the explicit safety flag
 // beats the explicit danger flag if both are somehow passed together.
 const NAMES_WRITE = args.includes('--write') && !DRY_RUN
@@ -363,6 +380,40 @@ export function venueIdsWithUpcomingEvents(links) {
 }
 
 /**
+ * PostgREST caps `.in()` filter lists (they travel in the URL) and caps any
+ * single page at 1000 rows, so the event_venues lookup has to be both chunked
+ * by venue id and paginated within each chunk. 50 keeps the URL short.
+ */
+export const VENUE_ID_CHUNK_SIZE = 50
+
+/** PostgREST's hard per-page cap. Fetch exactly this much, then page again. */
+const EVENT_LINK_PAGE_SIZE = 1000
+
+/** Split a list of venue ids into chunks of at most `size`. */
+export function chunkIds(ids, size = VENUE_ID_CHUNK_SIZE) {
+  const list = ids || []
+  const out = []
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size))
+  return out
+}
+
+/**
+ * Apply the two candidate-narrowing steps in the ONLY correct order: filter
+ * to venues with an upcoming event FIRST, then take `limit`. Slicing first
+ * would make --limit N mean "look at N rows and geocode however few of them
+ * qualify" — which is how the default mode used to burn 19 of 20 lookups on
+ * venues it then had no reason to geocode.
+ *
+ * `upcomingIds === null` means "no narrowing" (--all); an empty Set still
+ * means "nothing qualified" and must narrow to nothing.
+ */
+export function narrowAndLimit(venues, upcomingIds, limit) {
+  const list = venues || []
+  const narrowed = upcomingIds ? list.filter((v) => upcomingIds.has(v.id)) : list
+  return limit ? narrowed.slice(0, limit) : narrowed
+}
+
+/**
  * Classify a --names run's overall outcome. Blocked-capability detection is
  * driven by the caller telling us whether it observed a policy block
  * (NominatimBlockedError — HTTP 403/429 twice in a row), NOT by scanning
@@ -549,6 +600,41 @@ async function runNamesMode() {
   }
 }
 
+/**
+ * The set of venue ids (out of `venueIds`) with >=1 upcoming published event.
+ *
+ * Chunked AND paginated, both mandatory. One venue already carries 247
+ * upcoming link rows, and PostgREST silently truncates a page at 1000 with no
+ * error and no flag — an unchunked/unpaginated join would quietly drop
+ * venues, which is the same class of bug this narrowing exists to fix. The
+ * (event_id, venue_id) primary key gives the ordering below a total order, so
+ * range-based paging can't skip or repeat a row.
+ *
+ * A query error THROWS. Never fall back to the unfiltered set: silently
+ * geocoding everything is exactly the failure mode being removed.
+ */
+async function fetchVenueIdsWithUpcomingEvents(venueIds, nowIso) {
+  const upcoming = new Set()
+  for (const chunk of chunkIds(venueIds)) {
+    for (let from = 0; ; from += EVENT_LINK_PAGE_SIZE) {
+      const { data: links, error } = await supabaseAdmin
+        .from('event_venues')
+        .select('venue_id, events!inner(id, status, start_at)')
+        .in('venue_id', chunk)
+        .eq('events.status', 'published')
+        .gte('events.start_at', nowIso)
+        .order('venue_id', { ascending: true })
+        .order('event_id', { ascending: true })
+        .range(from, from + EVENT_LINK_PAGE_SIZE - 1)
+      if (error) throw new Error(`loading events: ${error.message}`)
+      const page = links || []
+      for (const id of venueIdsWithUpcomingEvents(page)) upcoming.add(id)
+      if (page.length < EVENT_LINK_PAGE_SIZE) break // short page = last page
+    }
+  }
+  return upcoming
+}
+
 async function main() {
   if (NAMES_MODE) return runNamesMode()
 
@@ -558,12 +644,29 @@ async function main() {
     .not('address', 'is', null)
     .order('name', { ascending: true })
   if (!RECHECK) query = query.or('lat.is.null,lng.is.null')
-  if (LIMIT) query = query.limit(LIMIT)
 
-  const { data: venues, error } = await query
+  const { data: rawVenues, error } = await query
   if (error) throw new Error(`loading venues: ${error.message}`)
+  const baseline = rawVenues || []
 
-  console.log(`📍  ${venues.length} venue(s) to geocode${DRY_RUN ? ' (dry run)' : ''}…\n`)
+  // Instant-in-time cutoff for "upcoming" — not a calendar-day boundary, so
+  // this is not the toISOString() "today" footgun; it mirrors the .gte
+  // pattern runNamesMode and the scrapers already use to bound future events.
+  const nowIso = new Date().toISOString()
+  const upcomingVenueIds = GEO_ALL
+    ? null
+    : await fetchVenueIdsWithUpcomingEvents(baseline.map((v) => v.id), nowIso)
+
+  // --limit is applied LAST, after narrowing (see narrowAndLimit).
+  const narrowed = narrowAndLimit(baseline, upcomingVenueIds, null)
+  const venues = narrowAndLimit(baseline, upcomingVenueIds, LIMIT)
+
+  const baseLabel = RECHECK ? 'addressed venue(s)' : 'addressed venue(s) missing coordinates'
+  const reason = GEO_ALL
+    ? ' (--all: no upcoming-event filter)'
+    : ` with an upcoming published event (${baseline.length - narrowed.length} skipped: no upcoming events)`
+  const limitNote = venues.length < narrowed.length ? ` — capped at ${venues.length} by --limit` : ''
+  console.log(`📍  ${baseline.length} ${baseLabel} → ${narrowed.length}${reason}${limitNote}${DRY_RUN ? ' (dry run)' : ''}…\n`)
 
   let updated = 0
   const skipped = []
