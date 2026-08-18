@@ -3,9 +3,69 @@
 /* Header standardized via the shared <PageHero> component (PageHero.css). */
 
 .fin-body {
+  /* Positioned so .fin-pulse-spine (absolute, left gutter) measures its
+     offset from THIS box's edge, never from the page root - see that
+     rule's own comment for the arithmetic. */
+  position: relative;
   max-width: 960px;
   margin: 0 auto;
   padding: var(--space-4xl) var(--space-xl) 96px;
+}
+
+/* ── Pulse spine ("living pulse" redesign, 2026-08-17) ──
+   A continuous vertical EKG line in the left gutter, threading every
+   section from just under the hero to the footer. The waveform is the
+   site's actual brand mark (public/favicon.svg's blip path, re-plotted
+   top-to-bottom) - see PulseSpine's own comment in FinancialsPage.tsx for
+   the coordinate derivation. Tiled via an SVG <pattern> so the "flat, then
+   a beat, repeat" cadence holds for any page length with no JS height math.
+
+   Hidden below 1200px on purpose. .fin-body's own gutter (each side) is
+   (viewport - 960) / 2; the spine sits at left:-64px, width 48px, so its
+   left edge needs that gutter to exceed 64px just to stay clear of the
+   viewport's own edge - viewport > 960 + 2*64 = 1088px. 1200px is not that
+   bare minimum: it's a deliberate buffer above it (about 56px of clearance
+   from the viewport edge, 16px from the content column at the threshold
+   itself), verified across 1200-1400px so the 960px column plus its
+   gutters is never squeezed. */
+.fin-pulse-spine {
+  display: none;
+  position: absolute;
+  top: 0;
+  /* height, NOT `bottom: 0`: an absolutely positioned SVG is a replaced
+     element, so top+bottom does not stretch it - it keeps its intrinsic
+     150px default and quietly renders as a stub (shipped exactly that way
+     first). Explicit percentage height is the working form. */
+  height: 100%;
+  left: -64px;
+  width: 48px;
+  pointer-events: none;
+  animation: fin-pulse-glow var(--pulse-duration, 2.2s) ease-in-out infinite;
+}
+@media (min-width: 1200px) {
+  .fin-pulse-spine { display: block; }
+}
+.fin-pulse-spine path {
+  fill: none;
+  stroke: var(--amber);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The whole line brightens rhythmically rather than any one blip animating
+   in place - simpler, and avoids relying on browsers to run a CSS animation
+   on content that lives inside an SVG <pattern> (inconsistently supported).
+   --pulse-scale / --pulse-duration are set from React, once per slider
+   move (FinancialsPage.tsx's PulseSpine) - never per animation frame. */
+@keyframes fin-pulse-glow {
+  0%, 100% { opacity: 0.35; filter: none; }
+  48%, 58% {
+    opacity: calc(0.35 + 0.5 * var(--pulse-scale, 0.6));
+    filter: drop-shadow(0 0 calc(3px * var(--pulse-scale, 0.6)) var(--amber));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fin-pulse-spine { animation: none; opacity: 0.5; }
 }
 
 /* ── Summary stats ── */
@@ -13,6 +73,8 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: var(--space-md);
+  /* Same gap below the stats as between sections - the stats row is a
+     sibling of the sections and shares their rhythm. */
   margin-bottom: var(--space-4xl);
 }
 .fin-stat {
@@ -50,18 +112,165 @@
 }
 
 /* ── Sections ── */
+/* ONE vertical rhythm for the whole page (2026-08-17 cohesion pass): the gap
+   between sections is --space-4xl (tightened from 5xl the same day - Byron:
+   "too much spacing between sections") and comes from the section alone.
+   Every section's last element zeroes its own bottom margin, so no section's
+   gap depends on which component happens to sit last inside it - that was
+   exactly how the page ended up with a different gap above every heading. */
 .fin-section {
-  margin-bottom: var(--space-5xl);
+  margin-bottom: var(--space-4xl);
+}
+.fin-section > :last-child {
+  margin-bottom: 0;
 }
 .fin-section__title {
   font-size: var(--text-h4);
   margin-bottom: var(--space-sm);
 }
+/* Full width on purpose: prose that stopped short of the card and table
+   edges read as a layout mistake next to them (Byron, 2026-08-17). */
 .fin-section__desc {
   color: var(--text-muted);
   font-size: var(--text-sm);
   margin-bottom: var(--space-xl);
-  max-width: 640px;
+}
+
+/* ── What it's worth: the adoption calculator ──
+   One slider, one live figure, sourced preset chips. Everything wraps and
+   nothing has a fixed width, so it cannot reproduce the mobile overflow bug
+   fixed 2026-08-17 (.fin-table-scroll): there is no table shape here at all. */
+.fin-calc {
+  background: var(--bg-card);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-xl) var(--space-lg);
+  margin-bottom: var(--space-xl);
+}
+.fin-calc__slider-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+.fin-calc__label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.fin-calc__slider {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--amber);
+}
+.fin-calc__pct {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  min-width: 3.5ch;
+  text-align: right;
+}
+.fin-calc__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+}
+.fin-calc__preset {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: var(--space-2xs) var(--space-md);
+  cursor: pointer;
+}
+.fin-calc__preset:hover {
+  border-color: var(--amber);
+  color: var(--text-primary);
+}
+.fin-calc__preset[aria-pressed='true'] {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+.fin-calc__result {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+  margin: var(--space-xl) 0 0;
+}
+.fin-calc__num {
+  font-family: var(--font-display);
+  font-size: var(--text-h2);
+  font-weight: 700;
+  color: var(--amber);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.fin-calc__unit {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.fin-calc__badge {
+  display: inline-block;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 600;
+  color: var(--amber);
+  border: var(--border-width-thin) solid var(--amber-tint-25, var(--amber));
+  border-radius: var(--radius-pill);
+  padding: var(--space-2xs) var(--space-sm);
+}
+.fin-calc__math {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin: var(--space-xs) 0 0;
+}
+.fin-calc__cost {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin: var(--space-lg) 0 0;
+  padding-top: var(--space-md);
+  border-top: var(--border-width-thin) solid var(--border);
+}
+.fin-calc__mult {
+  color: var(--amber);
+  font-weight: 700;
+}
+.fin-calc__sources {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin: var(--space-lg) 0 0;
+}
+
+/* ── Live-figure acknowledgment ("living pulse" redesign, 2026-08-17) ──
+   A brief amber fade on any figure that just re-evaluated from a slider
+   move: the calculator's outputs, the cost table's live column, its live
+   totals. CSS only - a fresh `key` on the element (set from the value
+   itself, at each call site) forces React to remount the node, and the
+   animation runs once because it starts on mount; there is no listener and
+   no per-tick state anywhere in this. NEVER applied to a measured figure
+   (the stat cards, the table's Today column) - that split between what's
+   measured and what the slider just modeled is the whole honesty story
+   this page tells, and it would collapse if both flashed the same way. */
+.fin-flash {
+  animation: fin-flash 400ms ease-out;
+  border-radius: var(--radius-xs);
+}
+@keyframes fin-flash {
+  0% { background-color: var(--amber-tint-50); }
+  100% { background-color: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fin-flash { animation: none; }
+}
+
+.fin-impact-today {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin-bottom: var(--space-xl);
 }
 
 /* ── Cost table ── */
@@ -100,9 +309,9 @@
   vertical-align: top;
 }
 /* Line-item cells are <th scope="row"> so a screen reader can say WHICH
-   vendor an amount belongs to (the description column is display:none on
-   mobile). They must still read as body text, not as a column head, so the
-   uppercase/muted column-header treatment above is undone here. */
+   vendor an amount belongs to. They must still read as body text, not as a
+   column head, so the uppercase/muted column-header treatment above is
+   undone here. */
 .fin-table tbody th {
   text-align: left;
   font-weight: 400;
@@ -114,7 +323,69 @@
   border-bottom: var(--border-width-thin) solid var(--border);
   vertical-align: top;
 }
-.fin-table__desc { color: var(--text-muted); }
+/* Merged line-item column (2026-08-17): each bill line renders as a pair of
+   rows - name + amounts, then the description spanning the full table width
+   beneath. The hairline moves to the description row so the pair reads as
+   one visual row; the name row's cells drop their border and tighten their
+   bottom padding to pull the description up under the title. */
+/* NOTE on selector prefixes: the base `.fin-table tbody th` rule is
+   specificity (0,1,2), so every override on a row-class must carry a
+   `.fin-table` prefix (0,2,1) or it silently loses - that exact bug shipped
+   dangling underlines under every vendor name and a misaligned annual total
+   before 2026-08-17's cohesion pass. */
+.fin-table .fin-table__line th,
+.fin-table .fin-table__line td {
+  border-bottom: none;
+  padding-bottom: var(--space-2xs);
+}
+.fin-table__what td {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  padding: 0 var(--space-md) var(--space-md) 0;
+  border-bottom: var(--border-width-thin) solid var(--border);
+}
+/* When a step strip follows the description, the row hairline hands off to
+   the strip row so the name + description + steps still read as ONE visual
+   row (same trick the name row plays with the description row above). */
+.fin-table .fin-table__what--open td {
+  border-bottom: none;
+  padding-bottom: var(--space-xs);
+}
+.fin-table__steps td {
+  padding: 0 var(--space-md) var(--space-md) 0;
+  border-bottom: var(--border-width-thin) solid var(--border);
+}
+.fin-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+.fin-steps__chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2xs);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: var(--space-2xs) var(--space-sm);
+}
+.fin-steps__chip--active {
+  color: var(--amber);
+  border-color: var(--amber-tint-25, var(--amber));
+}
+.fin-steps__bound {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.fin-steps__chip--active .fin-steps__bound {
+  color: var(--amber);
+}
+.fin-oneoffs__label { color: var(--text-muted); }
 /* Centered, matching the centered column heads below: right-aligned amounts
    hugged the wide At-scale column's far edge and drifted away from their own
    header (the long traffic note sets that column's width). */
@@ -147,8 +418,8 @@
   letter-spacing: 0;
   color: var(--text-muted);
 }
-.fin-table__total td,
-.fin-table__total th {
+.fin-table .fin-table__total td,
+.fin-table .fin-table__total th {
   font-weight: 700;
   border-bottom: none;
   padding-top: var(--space-lg);
@@ -157,8 +428,8 @@
    the number funders budget against, not a footnote), tighter spacing so the
    two totals read as one block, and an accent color to separate it from the
    twelve monthly lines above. */
-.fin-table__total--annual td,
-.fin-table__total--annual th {
+.fin-table .fin-table__total--annual td,
+.fin-table .fin-table__total--annual th {
   padding-top: var(--space-2xs);
   color: var(--amber);
 }
@@ -185,32 +456,36 @@
   padding-top: var(--space-xl);
   border-bottom: var(--border-width-thin) solid var(--border);
 }
+/* Priority-group heading rows inside the bill (core technologies / nice to
+   have / marketing / people): same treatment as the one-offs heading, plus
+   the uppercase-muted column-head styling so they read as structure, not as
+   another vendor line. */
+.fin-table tbody th.fin-group__heading {
+  font-weight: 600;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-top: var(--space-xl);
+  border-bottom: var(--border-width-thin) solid var(--border);
+}
 .fin-table tbody th.fin-oneoffs__date {
   color: var(--text-muted);
   white-space: nowrap;
 }
 @media (max-width: 760px) {
-  /* The site-wide mobile rule hides the description column, which is fine
-     for vendor rows (their labels are self-explanatory) but for one-offs the
-     description IS the content -- keep it.
-
-     BUT it must not force the table wider than the phone. Before this, the
-     one-off rows rendered date + description + BOTH amount columns on a
-     360px screen, the table overflowed, and because nothing clipped it the
-     WHOLE PAGE scrolled sideways: the sticky header slid off and the amounts
-     sat in a column of their own with no visible label. Letting the
-     description wrap (it is prose, it should) plus the scroll container on
-     .fin-table-scroll keeps the overflow inside the table where it belongs. */
-  .fin-oneoffs-body .fin-table__desc {
-    display: table-cell;
+  /* One-off labels are prose and must wrap rather than force the table wider
+     than the phone: before this, a non-wrapping description overflowed the
+     table, nothing clipped it, and the WHOLE PAGE scrolled sideways (sticky
+     header slid off, amounts stranded). Wrapping plus the scroll container
+     on .fin-table-scroll keeps any overflow inside the table. The one-off
+     label uses colSpan to keep the column count uniform with the bill rows -
+     dropping cells from only some rows shifts amounts into the wrong column. */
+  .fin-oneoffs__label {
     white-space: normal;
     min-width: 0;
     word-break: break-word;
   }
-  /* NOTE: do NOT hide the empty "Today" cell on one-off rows to save width.
-     One-offs share the same <table> as the vendor rows, so dropping a cell
-     from only those rows shifts their amounts into the wrong column. Column
-     count has to stay uniform; the scroll container is what handles width. */
 }
 
 /* Tier-picker styles removed 2026-08-17 with the toggle itself — the table
@@ -340,9 +615,85 @@
 
 /* Footnote styles removed 2026-08-17 with the assumptions footnote itself. */
 
+/* ── Docked adoption control ("living pulse" redesign, 2026-08-17) ──
+   Bottom-right pill on desktop; a full-width bottom bar on mobile (see the
+   640px query below). z-index 95 matches FestivalPage.css's own floating
+   plan pill: above ordinary content, below Header.css's sticky 100 header.
+   bottom offset (84px) mirrors InstallPrompt.css's .install-pill, which
+   documents the same "clears the slim footer bar" arithmetic against
+   Footer.css's .footer-slim-bar (fixed, z-index 60, present on every page)
+   - reusing its number instead of re-deriving one keeps every fixed
+   bottom-of-viewport affordance on this site clear of that bar the same
+   way. safe-area-inset padding keeps it clear of iOS home indicators. */
+.fin-dock {
+  position: fixed;
+  z-index: 95;
+  right: calc(var(--space-lg) + env(safe-area-inset-right, 0px));
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  width: 300px;
+  max-width: calc(100vw - 2 * var(--space-lg));
+  background: var(--bg-card);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 28px var(--overlay-dark-30);
+  padding: var(--space-md) var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.fin-dock__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.fin-dock__label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.fin-dock__slider {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--amber);
+}
+.fin-dock__pct {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  min-width: 3ch;
+  text-align: right;
+}
+.fin-dock__figures {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.fin-dock__figure strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  color: var(--amber);
+  line-height: 1.2;
+}
+
+/* No dock on small screens (2026-08-17 polish pass, Byron: the mobile bar
+   "seems hacky in conjunction with the footer"). The first version rendered
+   a full-width bottom bar here, which stacked a second piece of fixed
+   chrome on top of Footer.css's slim bar - two competing bars on a phone.
+   The in-section slider is one scroll away; on a small screen persistent
+   chrome costs more than it gives. 900px keeps the floating pill to
+   viewports with real spare room beside the content column. */
+@media (max-width: 900px) {
+  .fin-dock { display: none; }
+}
+
 /* ── Responsive ── */
 @media (max-width: 760px) {
   .fin-stats { grid-template-columns: repeat(2, 1fr); }
   .fin-cards { grid-template-columns: 1fr; }
-  .fin-table__desc { display: none; }
+  /* No description hiding: since the column merge (2026-08-17) descriptions
+     render on a full-width row under each line, which costs no width. */
 }

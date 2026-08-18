@@ -1,11 +1,17 @@
 /**
  * /api/pageviews — public traffic stats for the /financials page.
  *
- * Returns 30-day pageviews and the list of embed partner sites with
- * SUSTAINED traffic (not one-time referrals), read from the GA4 Data API:
+ * Returns 30-day active users, 30-day pageviews, and the list of embed
+ * partner sites with SUSTAINED traffic (not one-time referrals), read from
+ * the GA4 Data API:
  *
- *   { available: true, pageviews30d: 10400,
+ *   { available: true, totalUsers30d: 2859, pageviews30d: 10400,
  *     embedHosts: [{ host: 'betterkenmore.org', views: 412 }] }
+ *
+ * totalUsers30d is the PRIMARY public metric as of the 2026-08-17
+ * users-first refactor (see src/lib/financials.ts's TODAY_MONTHLY_ACTIVE_USERS)
+ * - pageviews30d stays in the response, backward compatible, for anything
+ * that still wants the internal traffic unit.
  *
  * Sustained = at least MIN_VIEWS views spread across at least MIN_WEEKS
  * distinct ISO weeks inside the trailing WINDOW_DAYS. Those three constants
@@ -152,12 +158,16 @@ export default async function handler(req, res) {
     const token = await getAccessToken(clientEmail, privateKey)
     const dateRanges = [{ startDate: `${WINDOW_DAYS}daysAgo`, endDate: 'today' }]
 
-    // Report 1: total pageviews, trailing 30 days, all surfaces.
+    // Report 1: total active users and total pageviews, trailing 30 days,
+    // all surfaces. One report, two metrics — totalUsers is the primary
+    // public figure (users-first, 2026-08-17); screenPageViews stays the
+    // internal unit the cost model's traffic driver evaluates against.
     const totals = await runReport(propertyId, token, {
       dateRanges,
-      metrics: [{ name: 'screenPageViews' }],
+      metrics: [{ name: 'totalUsers' }, { name: 'screenPageViews' }],
     })
-    const pageviews30d = Number(totals.rows?.[0]?.metricValues?.[0]?.value ?? 0)
+    const totalUsers30d = Number(totals.rows?.[0]?.metricValues?.[0]?.value ?? 0)
+    const pageviews30d = Number(totals.rows?.[0]?.metricValues?.[1]?.value ?? 0)
 
     // Report 2: embed views by host and day. embed_host is an event-scoped
     // custom dimension (set as a default gtag param in src/lib/analytics.ts);
@@ -182,7 +192,7 @@ export default async function handler(req, res) {
     }
 
     res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
-    res.status(200).json({ available: true, pageviews30d, embedHosts })
+    res.status(200).json({ available: true, totalUsers30d, pageviews30d, embedHosts })
   } catch (err) {
     console.error('pageviews:', err.message)
     res.setHeader('Cache-Control', 's-maxage=300')

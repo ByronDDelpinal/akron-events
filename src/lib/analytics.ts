@@ -37,6 +37,11 @@ const NO_NEIGHBORHOOD = '(none)'
 // surface to decide whether user-preference dimensions apply at all.
 let currentSurface: Surface = 'site'
 
+// True when this document is an in-house embed PREVIEW (the embed builder's
+// live-preview iframe, which loads /embed on our own origin). Such a document
+// is not real partner traffic and is silenced entirely — see initAnalytics.
+let suppressed = false
+
 /**
  * Which surface this document is: the main site, or a partner embed. A given
  * document is exactly one surface for its whole life (the embed is always the
@@ -116,19 +121,35 @@ export function initAnalytics(): void {
   if (!enabled || !MEASUREMENT_ID) return
   const surface = detectSurface()
   currentSurface = surface
-  // Neither dimension is meaningful inside an embed. The theme there is the
-  // PARTNER's white-label choice, not a user preference, so including it would
-  // let one busy partner site running the Postcard theme masquerade as a
-  // popular user choice. localStorage in a third-party iframe is partitioned
-  // or blocked, so the hub read would be empty noise besides.
-  const gtagOptions: Record<string, string | boolean> =
-    surface === 'embed'
-      ? { surface, embed_host: detectEmbedHost() }
-      : {
-          surface,
-          theme: readInitialTheme(),
-          neighborhood: getMyHubSlug() ?? NO_NEIGHBORHOOD,
-        }
+  // A real partner embed loads `/embed` in an iframe on the PARTNER's origin.
+  // But the embed builder ALSO loads `/embed` in an iframe for its live
+  // preview — on OUR OWN origin. That preview is not partner traffic:
+  // ancestorOrigins/referrer resolve to our own hostname, so it would report
+  // embed_host as our own domain and inflate embed metrics with in-house
+  // previews. That self-referential noise is precisely the "embed source looks
+  // wrong" symptom. Detect it (embed host == our hostname) and suppress
+  // analytics entirely for that document — no init, no hits.
+  let gtagOptions: Record<string, string | boolean>
+  if (surface === 'embed') {
+    const host = detectEmbedHost()
+    if (host === window.location.hostname) {
+      suppressed = true
+      return
+    }
+    // Neither theme nor neighborhood is meaningful inside a partner embed. The
+    // theme there is the PARTNER's white-label choice, not a user preference,
+    // so including it would let one busy partner site running the Postcard
+    // theme masquerade as a popular user choice. localStorage in a third-party
+    // iframe is partitioned or blocked, so the hub read would be empty noise
+    // besides. Send only surface + embed_host.
+    gtagOptions = { surface, embed_host: host }
+  } else {
+    gtagOptions = {
+      surface,
+      theme: readInitialTheme(),
+      neighborhood: getMyHubSlug() ?? NO_NEIGHBORHOOD,
+    }
+  }
   // send_page_view: false is NON-NEGOTIABLE — see this file's header and
   // planPathRedaction.ts. react-ga4 spreads gtagOptions straight into the
   // `gtag('config', MEASUREMENT_ID, {...})` call it issues here (see
@@ -211,6 +232,7 @@ export function trackPageView(path: string, title?: string): void {
   // Redact a day-plan bearer code BEFORE it can reach GA4 — see redactPath's
   // own docstring. This must stay the very first thing this function does;
   // every other line below reads `safePath`, never the raw `path` argument.
+  if (suppressed) return
   const safePath = redactPath(path)
   // Set content_group first so it attaches to the page_view (and to custom
   // events fired on this page until the next route change re-sets it).
@@ -251,7 +273,7 @@ export function trackEvent<E extends EventName>(
   name: E,
   ...args: EventParams[E] extends Record<string, never> ? [] : [params: EventParams[E]]
 ): void {
-  if (!enabled) return
+  if (!enabled || suppressed) return
   const params = (args[0] ?? {}) as Record<string, unknown>
   ReactGA.event(name, params)
 }

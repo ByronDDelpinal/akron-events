@@ -119,6 +119,13 @@ export type PlanMapSelectionSource = 'list' | 'marker' | 'popup'
 export type PlanSyncOp = 'add' | 'remove'
 
 /**
+ * Which control moved the /financials adoption calculator: the slider itself
+ * or one of the sourced preset chips. Preset engagement vs. free exploration
+ * is the only read on whether the sourced anchors matter to readers.
+ */
+export type ImpactCalcVia = 'slider' | 'preset'
+
+/**
  * Event-name constants. The string VALUES are what GA4 receives; the keys are
  * just ergonomic call-site references. Keep values in sync with EventParams.
  */
@@ -169,6 +176,7 @@ export const EVENTS = {
   PLAN_LINK_COPIED:      'plan_link_copied',
   PLAN_MAP_TOGGLED:      'plan_map_toggled',
   PLAN_MAP_SELECTION:    'plan_map_selection',
+  IMPACT_CALC_ADJUSTED:  'impact_calc_adjusted',
 } as const
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS]
@@ -256,4 +264,9 @@ export interface EventParams {
   plan_link_copied:      { role: 'owner' | 'visitor' }
   plan_map_toggled:      { state: PlanMapToggleState }
   plan_map_selection:    { from: PlanMapSelectionSource }
+  // percent: the RESULTING adoption share (0-100) after the interaction, so
+  // any single hit is self-describing, mirroring when_filter's resulting-state
+  // rule. Slider fires debounced on settle, never per-tick — a drag is one
+  // exploration, not forty.
+  impact_calc_adjusted:  { percent: number; via: ImpactCalcVia }
 }

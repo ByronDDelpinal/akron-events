@@ -1,5 +1,5 @@
 /**
- * test-financials-page-guards.js — cheap guards on the /financials page itself.
+ * test-financials-page-guards.js - cheap guards on the /financials page itself.
  *
  * Three things about this page are easy to break in an ordinary edit and
  * invisible when you look at the rendered result:
@@ -10,7 +10,7 @@
  *      which is exactly the boundary src/lib/sponsors.ts exists to hold.
  *   2. A hardcoded dollar figure in the copy. Every amount on this page must
  *      be interpolated from src/lib/financials.ts, or the pitch drifts away
- *      from the real bill the moment a price changes — on the one page whose
+ *      from the real bill the moment a price changes - on the one page whose
  *      entire premise is that its numbers are true.
  *   3. The route dropping out of the sitemap OR out of the prerender list.
  *      /financials is a page we WANT crawled; this is the inverse of the /day
@@ -19,7 +19,7 @@
  *      prerender entry is worse than no entry at all: it invites Googlebot to
  *      a URL that serves the empty #root shell (scripts/prerender.js §why).
  *
- * All checks are textual — no bundler, no DOM.
+ * All checks are textual - no bundler, no DOM.
  */
 
 import { describe, it } from 'node:test'
@@ -57,7 +57,7 @@ describe('sponsor links are disclosed, not sold', () => {
     const anchors = [...page.matchAll(/<a\s[^>]*>/g)].map((m) => m[0])
     // Anchors that point at a supporter's own site: either the sponsor chip
     // itself or anything reading a field off a sponsor record. The mailto CTA
-    // is deliberately excluded — it goes to us, not out to a sponsor.
+    // is deliberately excluded - it goes to us, not out to a sponsor.
     const sponsorAnchors = anchors.filter(
       (a) => /className="fin-sponsor"/.test(a) || /href=\{sponsor\./.test(a),
     )
@@ -71,7 +71,7 @@ describe('sponsor links are disclosed, not sold', () => {
       assert.ok(relAttr, `sponsor anchor has no rel attribute: ${a}`)
       if (relAttr.startsWith('{')) {
         // Resolving ANY expression to SPONSOR_LINK_REL's value would pass
-        // `rel={SOME_OTHER_REL}` — the constant this test can actually read
+        // `rel={SOME_OTHER_REL}` - the constant this test can actually read
         // has to be the one the JSX names.
         assert.equal(
           relAttr,
@@ -103,7 +103,7 @@ const ALLOWED_DOLLAR_LITERALS = new Set(['$0'])
 
 describe('every dollar figure comes from the financials module', () => {
   it('the page contains no hardcoded dollar amount', () => {
-    // \$\d[\d,]* — NOT \$\d{2,}. The page renders amounts through
+    // \$\d[\d,]* - NOT \$\d{2,}. The page renders amounts through
     // toLocaleString(), so its own format for the top tier total is "$1,725",
     // which \$\d{2,} does not match at all: a human copy-pasting a stale
     // figure would paste exactly the string this guard used to ignore. The
@@ -115,7 +115,7 @@ describe('every dollar figure comes from the financials module', () => {
       literals,
       [],
       `${PAGE_REL} hardcodes ${literals.join(', ')}. Interpolate from src/lib/financials.ts ` +
-        '(MONTHLY_TOTAL, SERVICES_TOTAL, FORK_INFRA_MONTHLY, ...) instead — a literal here goes ' +
+        '(MONTHLY_TOTAL, SERVICES_TOTAL, FORK_INFRA_MONTHLY, ...) instead - a literal here goes ' +
         'stale the next time a price moves and nobody notices, because the page still renders.',
     )
   })
@@ -137,11 +137,11 @@ describe('/financials is crawlable', () => {
     const match = src.match(/const STATIC_ROUTES = \[[\s\S]*?\n\]/)
     assert.ok(
       match,
-      'could not locate the STATIC_ROUTES array in api/sitemap.xml.js — guard test needs updating, not deleting',
+      'could not locate the STATIC_ROUTES array in api/sitemap.xml.js - guard test needs updating, not deleting',
     )
     assert.ok(
       /['"]\/financials['"]/.test(match[0]),
-      'STATIC_ROUTES must contain "/financials" — the open-books page is one we want indexed',
+      'STATIC_ROUTES must contain "/financials" - the open-books page is one we want indexed',
     )
   })
 
@@ -150,14 +150,14 @@ describe('/financials is crawlable', () => {
     const match = src.match(/const ROUTES = \[[\s\S]*?\n\]/)
     assert.ok(
       match,
-      'could not locate the ROUTES array in scripts/prerender.js — guard test needs updating, not deleting',
+      'could not locate the ROUTES array in scripts/prerender.js - guard test needs updating, not deleting',
     )
     assert.ok(
       /['"]\/financials['"]/.test(match[0]),
       'ROUTES must contain "/financials". The sitemap advertises this URL to Google; without a ' +
         'prerender entry the crawler gets the empty #root shell with one generic <title>, which ' +
         'is the exact failure scripts/prerender.js exists to prevent. Sitemap and prerender are ' +
-        'a pair — adding a route to one without the other is worse than adding it to neither.',
+        'a pair - adding a route to one without the other is worse than adding it to neither.',
     )
   })
 })
