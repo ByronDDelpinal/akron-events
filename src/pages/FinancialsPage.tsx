@@ -46,7 +46,8 @@ import {
   TODAY_INDEX,
   ACTIVE_SOURCE_COUNT,
   SUMMIT_COUNTY_ADULTS,
-  NEXTDOOR_ADOPTION_SHARE,
+  TODAY_ADOPTION_SHARE,
+  CENSUS_SOURCE,
   IMPACT_LADDER,
   AEP6_LOCAL_SPEND_PER_OUTING,
   AEP6_SOURCE,
@@ -109,21 +110,29 @@ const trackedYear = easternTodayIso().slice(0, 4)
 // so putting it on the same slider would misstate it.
 const IMPACT_TODAY = IMPACT_LADDER.find((s) => s.key === 'today') ?? IMPACT_LADDER[0]
 
-// The calculator's sourced preset chips: every modeled scenario, i.e. every
-// row that carries an adoption share. Percent is the chip's slider position.
+// The calculator's preset chips (named levels, Byron 2026-08-17): every
+// scenario that carries an adoption share, Today included. Percent is the
+// chip's slider position, clamped to at least 1 so a tiny measured Today
+// share can never round a chip down to an unreachable 0%.
 const IMPACT_PRESETS = IMPACT_LADDER
   .filter((s) => s.shareOfAdults != null)
   .map((s) => ({
     key: s.key,
-    percent: Math.round((s.shareOfAdults ?? 0) * 100),
+    percent: Math.max(1, Math.round((s.shareOfAdults ?? 0) * 100)),
     label: s.label,
     isCeiling: s.isCeiling === true,
-    source: s.usersSource,
   }))
 
-// Starting slider position: the most conservative sourced preset, never a
-// flattering one - the reader moves it up themselves or not at all.
-const DEFAULT_ADOPTION_PERCENT = Math.round(NEXTDOOR_ADOPTION_SHARE * 100)
+// The slider FLOOR is Today (Byron, 2026-08-17): 0% is not a scenario this
+// page entertains, and nobody can model less adoption than the site has
+// already measured. Derived from the measured share, so the floor climbs as
+// the site grows; clamped to 1 because the range input is integer-stepped.
+const SLIDER_MIN_PERCENT = Math.max(1, Math.round(TODAY_ADOPTION_SHARE * 100))
+
+// Starting slider position: Today - the page opens where the site actually
+// is, the most conservative position that exists, and the reader moves it
+// up themselves or not at all.
+const DEFAULT_ADOPTION_PERCENT = SLIDER_MIN_PERCENT
 
 // One analytics hit per settled slider position, not one per tick of a drag.
 const SLIDER_SETTLE_MS = 800
@@ -842,7 +851,7 @@ const ImpactCalculator = forwardRef<HTMLDivElement, {
           id="fin-calc-adoption"
           className="fin-calc__slider"
           type="range"
-          min={1}
+          min={SLIDER_MIN_PERCENT}
           max={100}
           step={1}
           value={percent}
@@ -916,20 +925,13 @@ const ImpactCalculator = forwardRef<HTMLDivElement, {
         </strong>{' '}
         the cost in local spending.
       </p>
+      {/* Named levels carry no external comparison (Byron, 2026-08-17), so
+          this line states what is measured versus assumed instead of citing
+          a source per chip. The slider cannot go below Today on purpose. */}
       <p className="fin-calc__sources">
-        The presets are sourced comparisons, not forecasts:{' '}
-        {IMPACT_PRESETS.map((p, i) => (
-          <span key={p.key}>
-            {i > 0 && '; '}
-            {p.label.toLowerCase()} from{' '}
-            {p.source ? (
-              <a href={p.source.url} target="_blank" rel="noopener noreferrer">{p.source.label}</a>
-            ) : (
-              'our own model'
-            )}
-          </span>
-        ))}
-        .
+        The levels are named assumptions, not forecasts; only Today is measured, and the slider
+        cannot go below it. The adult count comes from{' '}
+        <a href={CENSUS_SOURCE.url} target="_blank" rel="noopener noreferrer">{CENSUS_SOURCE.label}</a>.
       </p>
     </div>
   )
@@ -1023,7 +1025,7 @@ function AdoptionDock({
           id="fin-dock-adoption"
           className="fin-dock__slider"
           type="range"
-          min={1}
+          min={SLIDER_MIN_PERCENT}
           max={100}
           step={1}
           value={percent}

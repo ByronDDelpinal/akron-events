@@ -442,12 +442,12 @@ describe('users-first refactor (2026-08-17) changed the vocabulary, not the doll
   // to adoptersAtShare / trafficViewsPerMonth / CEILING_VIEWS_PER_USER_MONTH
   // that reorders the arithmetic (even one that is algebraically equivalent)
   // gets caught here rather than shipping a page that quietly renders a
-  // different dollar figure than the committed model. NEXTDOOR_ADOPTION_SHARE
-  // (0.15) and LIBRARY_ADOPTION_SHARE (0.48) are the calculator's two
-  // non-ceiling presets - both were verified by hand against the pre-refactor
-  // build before this test was written; see the commit's PR description for
-  // the esbuild-bundled before/after grid diff (0 differences across every
-  // integer adoption share from 1% to 100%).
+  // different dollar figure than the committed model. 0.15 and 0.48 were the
+  // calculator's original preset shares when these pins were verified by hand
+  // against the pre-refactor build; the presets have since moved to civic
+  // anchors (58/66/78%, 2026-08-17) but these stay as arbitrary sample
+  // points - the pin is about the evaluator's arithmetic, not about which
+  // chips happen to sit on the slider.
   it('Today totals exactly $173/mo', () => {
     assert.equal(todayTotal(), 173, `Today's total is $${todayTotal()}, expected $173`)
   })
@@ -456,11 +456,11 @@ describe('users-first refactor (2026-08-17) changed the vocabulary, not the doll
   // deliberate model change, not drift): +$5 at 15% (Small), +$50 at 48%
   // (Medium), +$100 at 100% (Large), each net of Pro's $10 compute credit.
   // Pre-step values were 701 / 1917 / 3926.
-  it('s = 0.15 (Nextdoor-level adoption) totals exactly $706/mo', () => {
+  it('s = 0.15 totals exactly $706/mo', () => {
     assert.equal(totalAtShare(0.15), 706, `total at s=0.15 is $${totalAtShare(0.15)}, expected $706`)
   })
 
-  it('s = 0.48 (library-level adoption) totals exactly $1,967/mo', () => {
+  it('s = 0.48 totals exactly $1,967/mo', () => {
     assert.equal(totalAtShare(0.48), 1967, `total at s=0.48 is $${totalAtShare(0.48)}, expected $1,967`)
   })
 

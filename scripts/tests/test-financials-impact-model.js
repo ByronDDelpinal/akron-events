@@ -60,8 +60,10 @@ const SUMMIT_COUNTY_ADULT_SHARE = num('SUMMIT_COUNTY_ADULT_SHARE')
 const OUTING_CONVERSION = num('OUTING_CONVERSION')
 const SPEND_PER_OUTING = num('SPEND_PER_OUTING')
 const AEP6_LOCAL_SPEND_PER_OUTING = num('AEP6_LOCAL_SPEND_PER_OUTING')
-const NEXTDOOR_ADOPTION_SHARE = num('NEXTDOOR_ADOPTION_SHARE')
-const LIBRARY_ADOPTION_SHARE = num('LIBRARY_ADOPTION_SHARE')
+const SMALL_ADOPTION_SHARE = num('SMALL_ADOPTION_SHARE')
+const MEDIUM_ADOPTION_SHARE = num('MEDIUM_ADOPTION_SHARE')
+const LARGE_ADOPTION_SHARE = num('LARGE_ADOPTION_SHARE')
+const OPTIMISTIC_ADOPTION_SHARE = num('OPTIMISTIC_ADOPTION_SHARE')
 const ADOPTION_OUTINGS_PER_USER = num('ADOPTION_OUTINGS_PER_USER')
 
 const REACH_MEASURED_THROUGH = src.match(/export const REACH_MEASURED_THROUGH = '([^']+)'/)?.[1]
@@ -69,6 +71,9 @@ const REACH_MEASURED_THROUGH = src.match(/export const REACH_MEASURED_THROUGH = 
 // SUMMIT_COUNTY_ADULTS is `Math.round(SUMMIT_COUNTY_POPULATION * SUMMIT_COUNTY_ADULT_SHARE)` in the
 // source, not a literal - recompute it the same way rather than relaxing num() to match expressions.
 const SUMMIT_COUNTY_ADULTS = Math.round(SUMMIT_COUNTY_POPULATION * SUMMIT_COUNTY_ADULT_SHARE)
+// TODAY_ADOPTION_SHARE is `ANNUAL_UNIQUE_USERS / SUMMIT_COUNTY_ADULTS` in the source (derived so the
+// slider floor climbs with measured reach) - recompute it the same way rather than relaxing num().
+const TODAY_ADOPTION_SHARE = ANNUAL_UNIQUE_USERS / SUMMIT_COUNTY_ADULTS
 
 // LAST_30D_USERS is `TODAY_MONTHLY_ACTIVE_USERS` in the source (2026-08-17
 // users-first refactor) - the same GA4 measurement kept under a second name
@@ -115,8 +120,11 @@ const KNOWN = {
   OUTING_CONVERSION,
   SPEND_PER_OUTING,
   AEP6_LOCAL_SPEND_PER_OUTING,
-  NEXTDOOR_ADOPTION_SHARE,
-  LIBRARY_ADOPTION_SHARE,
+  SMALL_ADOPTION_SHARE,
+  MEDIUM_ADOPTION_SHARE,
+  LARGE_ADOPTION_SHARE,
+  OPTIMISTIC_ADOPTION_SHARE,
+  TODAY_ADOPTION_SHARE,
   ADOPTION_OUTINGS_PER_USER,
 }
 function resolve(token) {
@@ -154,8 +162,11 @@ describe('adoption ladder inputs', () => {
       OUTING_CONVERSION,
       SPEND_PER_OUTING,
       AEP6_LOCAL_SPEND_PER_OUTING,
-      NEXTDOOR_ADOPTION_SHARE,
-      LIBRARY_ADOPTION_SHARE,
+      SMALL_ADOPTION_SHARE,
+      MEDIUM_ADOPTION_SHARE,
+      LARGE_ADOPTION_SHARE,
+      OPTIMISTIC_ADOPTION_SHARE,
+      TODAY_ADOPTION_SHARE,
       ADOPTION_OUTINGS_PER_USER,
     })) {
       assert.ok(Number.isFinite(value), `${name} did not parse as a number in ${FINANCIALS_REL}`)
@@ -180,8 +191,11 @@ describe('adoption ladder inputs', () => {
   it('the adoption-share inputs are plausible shares, not raw percentages', () => {
     for (const [name, value] of Object.entries({
       SUMMIT_COUNTY_ADULT_SHARE,
-      NEXTDOOR_ADOPTION_SHARE,
-      LIBRARY_ADOPTION_SHARE,
+      SMALL_ADOPTION_SHARE,
+      MEDIUM_ADOPTION_SHARE,
+      LARGE_ADOPTION_SHARE,
+      OPTIMISTIC_ADOPTION_SHARE,
+      TODAY_ADOPTION_SHARE,
     })) {
       assert.ok(value > 0 && value <= 1, `${name} is ${value}, expected a fraction between 0 and 1`)
     }

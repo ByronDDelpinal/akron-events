@@ -679,15 +679,30 @@
   line-height: 1.2;
 }
 
-/* No dock on small screens (2026-08-17 polish pass, Byron: the mobile bar
-   "seems hacky in conjunction with the footer"). The first version rendered
-   a full-width bottom bar here, which stacked a second piece of fixed
-   chrome on top of Footer.css's slim bar - two competing bars on a phone.
-   The in-section slider is one scroll away; on a small screen persistent
-   chrome costs more than it gives. 900px keeps the floating pill to
-   viewports with real spare room beside the content column. */
+/* Mobile: a full-width bottom bar again (Byron, 2026-08-17: "there's no
+   floating bar on mobile anymore for the slider, I liked that" - restored
+   after a brief removal). What made the first version read as hacky was
+   TWO competing pieces of chrome: a floating rounded bar hovering above
+   Footer.css's slim bar with a visible gap. The fix is integration, not
+   deletion: edge to edge, zero gap (bottom sits exactly on the slim bar's
+   84px clearance, the same constant InstallPrompt.css documents), no
+   radius, no drop shadow of its own, one hairline on top - so the dock and
+   the slim bar stack as one continuous piece of bottom chrome. */
 @media (max-width: 900px) {
-  .fin-dock { display: none; }
+  .fin-dock {
+    left: 0;
+    right: 0;
+    width: auto;
+    max-width: none;
+    bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    box-shadow: none;
+    padding: var(--space-sm) calc(var(--space-lg) + env(safe-area-inset-right, 0px))
+             var(--space-sm) calc(var(--space-lg) + env(safe-area-inset-left, 0px));
+  }
 }
 
 /* ── Responsive ── */

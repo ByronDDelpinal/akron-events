@@ -1003,20 +1003,30 @@ export const SPEND_PER_OUTING = 25
  */
 export const AEP6_LOCAL_SPEND_PER_OUTING = 29.77
 
-/**
- * MODELED. Nextdoor's share of US adults - the closest analog to a free
- * neighborhood information utility. Pew Research, Social Media Use in 2021
- * - see NEXTDOOR_SOURCE.
- */
-export const NEXTDOOR_ADOPTION_SHARE = 0.15
+// Preset levels rewritten AGAIN 2026-08-17 (Byron, superseding both the
+// Nextdoor/library comparisons and the civic-habit anchors that replaced
+// them for a few hours): the chips are now PLAIN NAMED LEVELS - Today
+// (measured, derived, moves as the site grows), then Small 15%, Medium 30%,
+// Large 50%, Optimistic 75%, Everyone 100%. No external-brand comparison to
+// defend or go stale; the only sourced inputs left in the calculator are
+// the adult count (Census) and the spend figure (AEP6). The slider's FLOOR
+// is Today - 0% cannot be reached ("no adoption" is not a scenario this
+// page entertains), and nobody can scroll below where the site already is.
 
 /**
- * MODELED. Share of US adults who visited a public library at least once in
- * 12 months - the best-case comparable for a beloved free civic utility.
- * Pew Research, Library usage and engagement, 2016 (dated, pre-pandemic; the
- * page says so) - see LIBRARY_SOURCE.
+ * DERIVED, from measurement. Today's actual adoption share: measured annual
+ * unique users over Summit County's adults (~0.7% at the 2026-08-17
+ * measurement). This is the slider's floor and the Today chip's position,
+ * and it MOVES: re-measure ANNUAL_UNIQUE_USERS and today's floor climbs
+ * with it, so the page always shows where the site actually is.
  */
-export const LIBRARY_ADOPTION_SHARE = 0.48
+export const TODAY_ADOPTION_SHARE = ANNUAL_UNIQUE_USERS / SUMMIT_COUNTY_ADULTS
+
+/** ASSUMED. Named adoption levels (Byron, 2026-08-17): round, plainly stated, no external comparison. */
+export const SMALL_ADOPTION_SHARE = 0.15
+export const MEDIUM_ADOPTION_SHARE = 0.30
+export const LARGE_ADOPTION_SHARE = 0.50
+export const OPTIMISTIC_ADOPTION_SHARE = 0.75
 
 /**
  * ASSUMED. Outings per user per year for every adoption-ladder rung above
@@ -1036,14 +1046,10 @@ export const CENSUS_SOURCE: ImpactSource = {
   label: 'Census QuickFacts, Summit County, OH',
   url: 'https://www.census.gov/quickfacts/fact/table/summitcountyohio/PST045225',
 }
-export const NEXTDOOR_SOURCE: ImpactSource = {
-  label: 'Pew Research, Social Media Use in 2021',
-  url: 'https://www.pewresearch.org/internet/2021/04/07/social-media-use-in-2021/',
-}
-export const LIBRARY_SOURCE: ImpactSource = {
-  label: 'Pew Research, Library usage and engagement (2016)',
-  url: 'https://www.pewresearch.org/internet/2016/09/09/library-usage-and-engagement/',
-}
+// (The preset-anchor sources that briefly lived here - Nextdoor/library,
+// then Edison podcasts / Pew local news / Pew broadband - left with their
+// scenarios on 2026-08-17. The named levels carry no external comparison,
+// so CENSUS_SOURCE and AEP6_SOURCE are the calculator's only citations.)
 export const AEP6_SOURCE: ImpactSource = {
   label: 'Americans for the Arts, AEP6 study findings',
   url: 'https://aep6.americansforthearts.org/study-findings',
@@ -1086,6 +1092,14 @@ export const IMPACT_SCENARIOS: ImpactScenario[] = [
     key: 'today',
     label: 'Today',
     measuredUsers: ANNUAL_UNIQUE_USERS,
+    // shareOfAdults ALSO set (2026-08-17): Today is a slider chip now, and
+    // the slider's floor - see TODAY_ADOPTION_SHARE. The ladder row still
+    // computes from measuredUsers with the deliberately low Today
+    // assumptions below; the chip snaps the slider to the same share, where
+    // the calculator applies its own (1 outing x AEP6) model. Both are
+    // honest: one is what we measure, the other is what the model says
+    // about the same number of people.
+    shareOfAdults: TODAY_ADOPTION_SHARE,
     usersProvenance: 'measured',
     usersNote: `Google Analytics, trailing 365 days through ${REACH_MEASURED_THROUGH}.`,
     outingsPerUser: OUTING_CONVERSION,
@@ -1095,14 +1109,13 @@ export const IMPACT_SCENARIOS: ImpactScenario[] = [
     spendNote: 'Parking and something small. Not a ticket price, not a night out. Picked low on purpose.',
   },
   {
-    key: 'nextdoor',
-    label: 'Nextdoor-level adoption',
-    shareOfAdults: NEXTDOOR_ADOPTION_SHARE,
-    usersProvenance: 'modeled',
+    key: 'small',
+    label: 'Small',
+    shareOfAdults: SMALL_ADOPTION_SHARE,
+    usersProvenance: 'assumed',
     usersNote:
-      `${Math.round(NEXTDOOR_ADOPTION_SHARE * 100)}% of Summit County's adults use Akron Pulse at ` +
-      'least once a year, the same share Nextdoor reaches nationally.',
-    usersSource: NEXTDOOR_SOURCE,
+      `${Math.round(SMALL_ADOPTION_SHARE * 100)}% of Summit County's adults use Akron Pulse at ` +
+      'least once a year. A named level, stated plainly, not a comparison to anything.',
     outingsPerUser: ADOPTION_OUTINGS_PER_USER,
     outingsProvenance: 'assumed',
     spendPerOuting: AEP6_LOCAL_SPEND_PER_OUTING,
@@ -1111,14 +1124,43 @@ export const IMPACT_SCENARIOS: ImpactScenario[] = [
     spendSource: AEP6_SOURCE,
   },
   {
-    key: 'library',
-    label: 'Library-level adoption',
-    shareOfAdults: LIBRARY_ADOPTION_SHARE,
-    usersProvenance: 'modeled',
+    key: 'medium',
+    label: 'Medium',
+    shareOfAdults: MEDIUM_ADOPTION_SHARE,
+    usersProvenance: 'assumed',
     usersNote:
-      `${Math.round(LIBRARY_ADOPTION_SHARE * 100)}% of Summit County's adults use Akron Pulse at ` +
-      'least once a year, the same share who visit a public library at least once a year.',
-    usersSource: LIBRARY_SOURCE,
+      `${Math.round(MEDIUM_ADOPTION_SHARE * 100)}% of Summit County's adults use Akron Pulse at ` +
+      'least once a year. A named level, stated plainly, not a comparison to anything.',
+    outingsPerUser: ADOPTION_OUTINGS_PER_USER,
+    outingsProvenance: 'assumed',
+    spendPerOuting: AEP6_LOCAL_SPEND_PER_OUTING,
+    spendProvenance: 'modeled',
+    spendNote: 'Local-attendee spending per outing, excluding admission.',
+    spendSource: AEP6_SOURCE,
+  },
+  {
+    key: 'large',
+    label: 'Large',
+    shareOfAdults: LARGE_ADOPTION_SHARE,
+    usersProvenance: 'assumed',
+    usersNote:
+      `${Math.round(LARGE_ADOPTION_SHARE * 100)}% of Summit County's adults use Akron Pulse at ` +
+      'least once a year. A named level, stated plainly, not a comparison to anything.',
+    outingsPerUser: ADOPTION_OUTINGS_PER_USER,
+    outingsProvenance: 'assumed',
+    spendPerOuting: AEP6_LOCAL_SPEND_PER_OUTING,
+    spendProvenance: 'modeled',
+    spendNote: 'Local-attendee spending per outing, excluding admission.',
+    spendSource: AEP6_SOURCE,
+  },
+  {
+    key: 'optimistic',
+    label: 'Optimistic',
+    shareOfAdults: OPTIMISTIC_ADOPTION_SHARE,
+    usersProvenance: 'assumed',
+    usersNote:
+      `${Math.round(OPTIMISTIC_ADOPTION_SHARE * 100)}% of Summit County's adults use Akron Pulse at ` +
+      'least once a year. The name says what it is.',
     outingsPerUser: ADOPTION_OUTINGS_PER_USER,
     outingsProvenance: 'assumed',
     spendPerOuting: AEP6_LOCAL_SPEND_PER_OUTING,
@@ -1128,7 +1170,7 @@ export const IMPACT_SCENARIOS: ImpactScenario[] = [
   },
   {
     key: 'ceiling',
-    label: 'Every adult in Summit County',
+    label: 'Everyone',
     isCeiling: true,
     shareOfAdults: 1,
     usersProvenance: 'derived',
@@ -1233,7 +1275,7 @@ export const ASSUMPTIONS: string[] = [
   'Local spending facilitated is a model, not a measurement, and none of that money comes to Akron Pulse.',
   "Today's outing rate (one in ten annual users attending an outing they would otherwise have missed) and its $25 local spend are both assumed, not measured; they are the load-bearing inputs in the Today rung and the numbers most worth arguing with.",
   'Every rung above Today assumes $29.77 in local spending per person per outing, excluding admission, the local-attendee figure from Americans for the Arts\' AEP6 study. No AEP6 study region exists for Akron or Summit County specifically, so this is a national published figure applied locally.',
-  'The Nextdoor-level and library-level adoption shares (15% and 48% of Summit County adults) come from Pew Research national surveys, not from anything measured about Akron Pulse; county-level adoption of any comparable utility is unmeasured.',
+  'The preset adoption levels (Small 15%, Medium 30%, Large 50%, Optimistic 75%) are named assumptions, stated plainly, compared to nothing; only Today is measured, and it doubles as the slider floor, so the calculator cannot model a world with less adoption than the site already has.',
   'The ceiling rung assumes every adult in Summit County uses Akron Pulse and attends one outing a year they would otherwise have missed. It is a ceiling, not a forecast.',
   'The measured reach figure is young and spiky: about 91% of the trailing year of traffic arrived in the last 30 days behind one referral (news5cleveland.com) that is already decaying.',
 ]
