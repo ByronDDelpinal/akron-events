@@ -4,6 +4,7 @@
  * Unit tests for the shared CivicPlus library — covering:
  *   • isPublicCivicPlusEvent — drops meetings, holidays, cancellations
  *   • cleanLocationName      — strips trailing address fragments
+ *   • parseCivicPlusLocation — cleanLocationName's {name, address} superset
  *
  * Run:
  *   node --test scripts/tests/test-civicplus.js
@@ -16,7 +17,7 @@ process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         ||
 process.env.SUPABASE_SERVICE_ROLE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY  || 'dummy-key'
 
 import {
-  isPublicCivicPlusEvent, cleanLocationName, civicPlusEventUrl, isDateOnlyIcsEvent,
+  isPublicCivicPlusEvent, cleanLocationName, parseCivicPlusLocation, civicPlusEventUrl, isDateOnlyIcsEvent,
 } from '../lib/civicplus.js'
 import { normaliseIcsEvent } from '../lib/ics.js'
 
@@ -282,5 +283,129 @@ describe('cleanLocationName rejects schedule prose (Springfield Twp fix 2026-07-
   it('still accepts real venue names with plain numbers', () => {
     assert.equal(cleanLocationName('Fire Station 2'), 'Fire Station 2')
     assert.equal(cleanLocationName('Townhall'), 'Townhall')
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// parseCivicPlusLocation — cleanLocationName's {name, address} superset
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('parseCivicPlusLocation', () => {
+  it('splits a plain "Name - Street  City ST ZIP" LOCATION into name + address', () => {
+    assert.deepEqual(
+      parseCivicPlusLocation('Tallmadge Circle Park - 10 Tallmadge Circle  Tallmadge OH 44278'),
+      { name: 'Tallmadge Circle Park', address: '10 Tallmadge Circle' },
+    )
+  })
+
+  it('splits a "Building > Room - Street  City ST ZIP" LOCATION into name + address', () => {
+    assert.deepEqual(
+      parseCivicPlusLocation('Stow City Hall > Council Chambers - 3760 Darrow Road  Stow OH 44224'),
+      { name: 'Stow City Hall - Council Chambers', address: '3760 Darrow Road' },
+    )
+  })
+
+  it('populates address on an em-dash LOCATION with no City/ST/ZIP tail', () => {
+    const { name, address } = parseCivicPlusLocation('Eastwood Preserve — 4712 W. Streetsboro Rd')
+    assert.equal(name, 'Eastwood Preserve')
+    assert.equal(address, '4712 W. Streetsboro Rd')
+  })
+
+  it('leaves address null for multi-block HTML LOCATION (Richfield name/address <p> split)', () => {
+    // The address lives in a SEPARATE block from the venue name — a different,
+    // unrelated shape that this function does not attempt to parse (only the
+    // first block is ever inspected for a dash boundary).
+    assert.deepEqual(
+      parseCivicPlusLocation(
+        '<p><span style="color: rgb(0, 0, 0)">Village Green Pavilion</span></p><p>Corner of Route 303 &amp; Broadview Rd</p>',
+      ),
+      { name: 'Village Green Pavilion', address: null },
+    )
+  })
+
+  it('leaves address null when LOCATION has no dash boundary', () => {
+    assert.deepEqual(
+      parseCivicPlusLocation('Hudson Green'),
+      { name: 'Hudson Green', address: null },
+    )
+  })
+
+  it('name matches cleanLocationName for every pre-existing case', () => {
+    for (const raw of [
+      'Tallmadge Circle Park - 10 Tallmadge Circle  Tallmadge OH 44278',
+      'Stow City Hall > Council Chambers - 3760 Darrow Road  Stow OH 44224',
+      'The AMP - 1680 Norton Rd.  Stow OH 44224',
+      '<p>First &amp; Main Green</p> - First Street  Hudson OH 44236',
+      'Kent - Ravenna Community Room',
+      ' -   Stow OH 44224',
+      'Eastwood Preserve — 4712 W. Streetsboro Rd',
+      'Jan Weber Social Center (Formerly Richfield Senior Center)',
+      'Village Hall - 4410 W. Streetsboro Road Richfield OH 44286',
+      'Beginners 10AM then it advances from 10:30 Am on to 1:30 PM',
+      'Fire Station 2',
+      null,
+      undefined,
+      '',
+    ]) {
+      assert.equal(parseCivicPlusLocation(raw).name, cleanLocationName(raw), raw)
+    }
+  })
+
+  it('returns {name: null, address: null} for a rejected LOCATION', () => {
+    assert.deepEqual(parseCivicPlusLocation(' -   Stow OH 44224'), { name: null, address: null })
+    assert.deepEqual(parseCivicPlusLocation(null), { name: null, address: null })
+  })
+
+  // ── Review gaps (2026-08-18) ────────────────────────────────────────────
+
+  it('decodes HTML entities in the recovered address instead of storing them raw', () => {
+    // sPreserved is tag-stripped only (see the comment above its two
+    // assignments); skipping decodeEntities on that path would leak
+    // "&amp;"/"&#39;" straight into the stored address — the same
+    // HTML-in-stored-data defect this project already fixed for venue names.
+    assert.deepEqual(
+      parseCivicPlusLocation('First Church - 500 Main St &amp; 5th Ave  Akron OH 44301'),
+      { name: 'First Church', address: '500 Main St & 5th Ave' },
+    )
+    assert.deepEqual(
+      parseCivicPlusLocation("First Church - 500 O&#39;Brien Ave  Akron OH 44301"),
+      { name: 'First Church', address: "500 O'Brien Ave" },
+    )
+  })
+
+  it('strips an "&nbsp;"-separated City/ST/ZIP tail instead of storing it as part of the address', () => {
+    // This project's NAMED_ENTITIES table maps nbsp to a plain ASCII space
+    // (normalize.js), so decoding "&nbsp;&nbsp;" lands on the same
+    // double-space boundary a literal "  " separator would — the tail-strip
+    // below sees it and cuts there, rather than storing the whole
+    // "<street>&nbsp;&nbsp;<city> <state> <zip>" tail as prose-shaped junk
+    // the geocoder's precision gate would never catch.
+    assert.deepEqual(
+      parseCivicPlusLocation('Village Hall - 4410 W. Streetsboro Road&nbsp;&nbsp;Richfield OH 44286'),
+      { name: 'Village Hall', address: '4410 W. Streetsboro Road' },
+    )
+  })
+
+  it('returns a null address (never a best-effort string) when the tail cannot be confidently stripped', () => {
+    // No double space and no "&nbsp;" boundary before "Richfield" — the
+    // fallback City/ST/ZIP stripper over-matches and leaves an unusably
+    // short fragment. ensureVenue overwrites `address` unconditionally on
+    // every re-scrape of an existing venue, so a wrong address here would
+    // silently clobber a previously-correct one; null is the only safe
+    // output when the parse is this uncertain.
+    const { address } = parseCivicPlusLocation('Village Hall - 4410 W. Streetsboro Road Richfield OH 44286')
+    assert.equal(address, null)
+  })
+
+  it('splits at the dash that precedes the street address, not the first dash in a venue name', () => {
+    // The venue name itself carries a dash ("Stow City Hall - North
+    // Annex"). `name` still cuts at the FIRST dash — cleanLocationName's
+    // output for this input must stay byte-identical to today's behavior —
+    // but the address must NOT inherit that same boundary, or it picks up
+    // "North Annex" as if it were part of the street address.
+    assert.deepEqual(
+      parseCivicPlusLocation('Stow City Hall - North Annex - 3760 Darrow Road  Stow OH 44224'),
+      { name: 'Stow City Hall', address: '3760 Darrow Road' },
+    )
   })
 })

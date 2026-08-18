@@ -41,6 +41,7 @@ import {
   logUpsertResult,
   logScraperError,
   stripHtml,
+  decodeEntities,
   enrichWithImageDimensions,
   upsertEventSafe,
   linkEventVenue,
@@ -282,14 +283,17 @@ export async function runCivicPlusScraper(config) {
         }
 
         // CivicPlus LOCATION often arrives as "Venue Name - 123 St  City OH 44000"
-        // (and sometimes wrapped in an HTML <p>). Clean it into a venue name.
+        // (and sometimes wrapped in an HTML <p>). Clean it into a venue name,
+        // and — when the LOCATION carried a street address — pass it through
+        // to ensureVenue so a first-seen venue starts with a real address
+        // instead of geo-input the Nominatim gate can never resolve.
         let venueId = defaultVenueId
-        const locName = cleanLocationName(ev.LOCATION)
+        const { name: locName, address: locAddress } = parseCivicPlusLocation(ev.LOCATION)
         if (locName) {
           if (venueCache.has(locName)) {
             venueId = venueCache.get(locName)
           } else {
-            venueId = await ensureVenue(locName, { city: cityLabel, state: stateLabel })
+            venueId = await ensureVenue(locName, { city: cityLabel, state: stateLabel, address: locAddress })
             venueCache.set(locName, venueId)
           }
           // A location name was present but rejected as junk at mint time
@@ -328,13 +332,6 @@ export async function runCivicPlusScraper(config) {
 }
 
 /**
- * Turn a CivicPlus LOCATION string into a clean venue name.
- *   "Tallmadge Circle Park - 10 Tallmadge Circle  Tallmadge OH 44278" → "Tallmadge Circle Park"
- *   "Stow City Hall > Council Chambers - 3760 Darrow Road  Stow OH 44224" → "Stow City Hall - Council Chambers"
- *   "<p>7:30 AM - Holy Family Church...</p> - 3179 Kent Rd. ..." → stripped + first segment
- * Returns null when nothing usable remains.
- */
-/**
  * Build the canonical CivicPlus event-detail URL from a VEVENT.
  *
  * CivicPlus iCalendar feeds ship a *broken* per-event URL field: every
@@ -355,9 +352,63 @@ export function civicPlusEventUrl(ev, origin) {
   return `${origin.replace(/\/$/, '')}/calendar.aspx?EID=${uid}`
 }
 
-export function cleanLocationName(raw) {
-  if (!raw) return null
+/**
+ * Gate for the street address recovered by parseCivicPlusLocation. Unlike
+ * `name`, which only ever augments a fresh venue, `address` is written on
+ * EVERY re-scrape of an existing venue (ensureVenue's update branch has no
+ * "don't overwrite a good value with a worse one" check) — so one bad parse
+ * in a single feed run can clobber a previously-correct address. A wrong
+ * address is worse than a missing one (it produces a confident wrong map
+ * point), so this gate is deliberately conservative: anything that doesn't
+ * clearly look like a real street address returns null rather than a
+ * best-effort string.
+ */
+function isPlausibleStreetAddress(addr) {
+  if (!addr) return false
+  // A raw HTML entity surviving into the candidate means decodeEntities
+  // didn't fully resolve this segment — never store it. An address full of
+  // "&amp;" is the same "HTML leaked into stored data" defect class this
+  // project already fixed for venue names.
+  if (/&#?\w+;/i.test(addr)) return false
+  // A real street address opens with a house number ("4410 W. Streetsboro
+  // Road"). No leading digit means the tail-strip missed the true name/
+  // address boundary and we're holding a city name or venue-name fragment,
+  // not an address — return null rather than guess.
+  if (!/^\d+[A-Za-z]?\s+\S/.test(addr)) return false
+  // Reasonable length bound. Real street addresses are short; too long
+  // means a City/ST/ZIP tail (or unrelated prose) rode along with it.
+  if (addr.length < 6 || addr.length > 60) return false
+  // A surviving "XX 12345" fragment means the tail-strip failed — the
+  // "address" is still address+city+state+zip glued together, which is
+  // prose-shaped junk the geocoder's precision gate will not catch.
+  if (/\b[A-Za-z]{2}\s+\d{5}(-\d{4})?\b/.test(addr)) return false
+  return true
+}
+
+export function parseCivicPlusLocation(raw) {
+  if (!raw) return { name: null, address: null }
   let s
+  // A whitespace-PRESERVING twin of `s`, used only to recover the street
+  // address. stripHtml() collapses every run of whitespace to a single
+  // space (see normalize.js), which destroys the double-space City/ST/ZIP
+  // tail separator CivicPlus feeds rely on ("<Street>  <City> <ST> <ZIP>")
+  // before the dash-detection below ever runs on `s`. sPreserved goes
+  // through the identical block-selection as `s` — just tag-stripped
+  // instead of fully normalised — so the address split below can still see
+  // that boundary. It never affects `name`, which is derived from `s` alone,
+  // unchanged.
+  //
+  // sPreserved IS still run through decodeEntities (just not the whitespace
+  // collapse stripHtml also does): without that, "500 Main St &amp; 5th
+  // Ave" would store the literal "&amp;" in the address — the same
+  // HTML-leak defect this project already fixed once for venue names. As a
+  // side effect, decoding also fixes the "&nbsp;&nbsp;" tail separator seen
+  // on some feeds: this project's NAMED_ENTITIES table maps nbsp to a plain
+  // ASCII space (see normalize.js), so a doubled "&nbsp;&nbsp;" decodes to
+  // a real double space and lands on the exact same City/ST/ZIP boundary a
+  // literal "  " would — no separate whitespace-normalisation pass needed,
+  // and none is added, so the double-space signal stays intact.
+  let sPreserved
   const rawStr = String(raw)
   // Some sites (Richfield, 2026-07-09) store LOCATION as rich-text HTML with
   // the venue name and its street address in SEPARATE block elements, e.g.
@@ -369,19 +420,22 @@ export function cleanLocationName(raw) {
   // boundaries FIRST and keep only the first non-empty block — the venue-name
   // slot; later blocks are address/detail lines the address-tail logic below
   // can't see. Single-block HTML (name and address on one line) falls through
-  // to the normal dash-splitting path unchanged.
+  // to the normal dash-splitting path unchanged. Because only the first block
+  // survives, the multi-block address line (a separate, unrelated shape) never
+  // reaches the dash-split logic below, so `address` stays null for it —
+  // intentionally out of scope here.
   if (/<\/(?:p|div)>|<br\s*\/?>/i.test(rawStr)) {
-    s = rawStr
-      .split(/<\/(?:p|div)>|<br\s*\/?>/i)
-      .map(part => stripHtml(part))
-      .find(part => part) || ''
+    const blocks = rawStr.split(/<\/(?:p|div)>|<br\s*\/?>/i)
+    s = blocks.map(part => stripHtml(part)).find(part => part) || ''
+    sPreserved = blocks.map(part => decodeEntities(part.replace(/<[^>]*>/g, ' ')).trim()).find(part => part) || ''
   } else {
     s = stripHtml(rawStr).trim()
+    sPreserved = decodeEntities(rawStr.replace(/<[^>]*>/g, ' ')).trim()
   }
-  if (!s) return null
+  if (!s) return { name: null, address: null }
   // A leading "-" means the venue-name slot was empty: the feed emitted
   // " - <street>  City ST ZIP" with no name. Nothing usable → fall back.
-  if (/^[-–—]/.test(s)) return null
+  if (/^[-–—]/.test(s)) return { name: null, address: null }
   // CivicPlus uses " - " to separate the venue name from its street address,
   // formatted "<Name> - <Street>  <City> <ST> <ZIP>". At this point the raw
   // string has no other " - " (the "Building > Room" hierarchy is still ">",
@@ -394,10 +448,47 @@ export function cleanLocationName(raw) {
   // "Eastwood Preserve — 4712 W. Streetsboro Rd" (em dash, 2026-07-09), which
   // a hyphen/en-dash-only class left glued to the venue name.
   const dashIdx = s.search(/\s[-–—]\s/)
+  let address = null
   if (dashIdx !== -1) {
     const after = s.slice(dashIdx)
     if (/^\s[-–—]\s+\d/.test(after) || /\b[A-Za-z]{2}\s+\d{5}\b/.test(after)) {
       s = s.slice(0, dashIdx)
+      // Recover the address from sPreserved (not the collapsed `s`) so the
+      // double-space City/ST/ZIP boundary survives. Anchor on the LAST
+      // spaced dash, not the first: a venue name can carry its own internal
+      // dash ("Stow City Hall - North Annex - 3760 Darrow Road"), where the
+      // FIRST dash (used above for `name`, to keep cleanLocationName's
+      // output byte-identical) is the venue's own hierarchy separator, not
+      // the address boundary. The real street address always sits in the
+      // final segment, immediately before the City/ST/ZIP tail, so the
+      // rightmost dash is the one that actually precedes it.
+      const preservedDashMatches = [...sPreserved.matchAll(/\s[-–—]\s/g)]
+      const preservedDashIdx = preservedDashMatches.length
+        ? preservedDashMatches[preservedDashMatches.length - 1].index
+        : -1
+      if (preservedDashIdx !== -1) {
+        const preservedAfter = sPreserved.slice(preservedDashIdx)
+        if (/^\s[-–—]\s+\d/.test(preservedAfter) || /\b[A-Za-z]{2}\s+\d{5}\b/.test(preservedAfter)) {
+          // The tail is "<street>  City ST ZIP" (double-space separated) —
+          // cut there when present. A handful of feeds carry no city/state/
+          // zip tail at all ("Eastwood Preserve — 4712 W. Streetsboro Rd"),
+          // so fall back to stripping a trailing "City OH ZIP" fragment
+          // when the double-space boundary isn't there.
+          let addr = preservedAfter.replace(/^\s*[-–—]\s*/, '')
+          const tailIdx = addr.search(/\s{2,}/)
+          if (tailIdx !== -1) {
+            addr = addr.slice(0, tailIdx)
+          } else {
+            addr = addr.replace(/\s+[A-Za-z][A-Za-z .]*\s+OH\s+\d{5}.*$/i, '')
+          }
+          addr = addr.trim()
+          // Conservative gate: an address that doesn't clearly look like a
+          // street address (leading house number, sane length, no leftover
+          // City/ST/ZIP or entity residue) is worse than no address — a
+          // wrong address is a confident wrong map point. Return null.
+          address = isPlausibleStreetAddress(addr) ? addr : null
+        }
+      }
     }
   }
   // "Building > Room" hierarchy → "Building - Room"
@@ -405,16 +496,31 @@ export function cleanLocationName(raw) {
   // Drop a trailing bare state/zip fragment if it slipped through.
   s = s.replace(/\s+OH\s+\d{5}.*$/i, '').trim()
   // Reject pure addresses, time fragments, and empties.
-  if (!s || /^\d/.test(s) || !/[a-z]/i.test(s) || s.length < 3) return null
+  if (!s || /^\d/.test(s) || !/[a-z]/i.test(s) || s.length < 3) return { name: null, address: null }
   // A clock time ANYWHERE marks schedule prose, not a place — Springfield
   // Township stuffed "Beginners 10AM then it advances from 10:30 Am on to
   // 1:30 PM" into LOCATION (2026-07-08), short enough to pass the length
   // guard below. No real venue name contains a time of day.
-  if (/\b\d{1,2}(:\d{2})?\s*[ap]\.?m\.?\b/i.test(s)) return null
+  if (/\b\d{1,2}(:\d{2})?\s*[ap]\.?m\.?\b/i.test(s)) return { name: null, address: null }
   // Reject a LOCATION field stuffed with a full event description (a CMS
   // data-entry error — e.g. Copley crammed a paragraph into LOCATION). A real
   // venue name is short; anything sentence-length is not a venue, so fall back
   // to the default venue rather than minting a paragraph-named row.
-  if (s.length > 80) return null
-  return s
+  if (s.length > 80) return { name: null, address: null }
+  return { name: s, address }
+}
+
+/**
+ * Turn a CivicPlus LOCATION string into a clean venue name.
+ *   "Tallmadge Circle Park - 10 Tallmadge Circle  Tallmadge OH 44278" → "Tallmadge Circle Park"
+ *   "Stow City Hall > Council Chambers - 3760 Darrow Road  Stow OH 44224" → "Stow City Hall - Council Chambers"
+ *   "<p>7:30 AM - Holy Family Church...</p> - 3179 Kent Rd. ..." → stripped + first segment
+ * Returns null when nothing usable remains.
+ *
+ * Thin wrapper over parseCivicPlusLocation() for callers that only need the
+ * name (the address companion lives on the parsed object for callers that
+ * want it — see runCivicPlusScraper).
+ */
+export function cleanLocationName(raw) {
+  return parseCivicPlusLocation(raw).name
 }
