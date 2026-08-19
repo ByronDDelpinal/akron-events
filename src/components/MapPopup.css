@@ -8,9 +8,10 @@
  * default white box. Imported by both MapView.tsx and PlanMap.tsx; Vite
  * dedupes the double import, so this costs zero extra bytes.
  *
- * Content specific to ONE consumer (MapView's venue/event-list popup body,
- * PlanMap's numbered-stop popup body) stays in that component's own CSS
- * file -- only the shell is shared here.
+ * The header text rules (`.map-popup-header-text`, `.map-popup-venue`) are
+ * shared too -- MapView, PlanMap, and FestivalMap all render them. Content
+ * specific to ONE consumer (MapView's event-list popup body, PlanMap's
+ * numbered-stop popup body) stays in that component's own CSS file.
  */
 
 /* Override the GL popup chrome (MapLibre emits maplibregl-*; the mapboxgl-*
@@ -66,6 +67,19 @@
 .map-popup-close:hover {
   background: var(--overlay-light-12);
   color: var(--white);
+}
+.map-popup-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  min-width: 0;
+}
+.map-popup-venue {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--white);
+  line-height: 1.3;
 }
 
 /* ── Popup footer (directions) ── */

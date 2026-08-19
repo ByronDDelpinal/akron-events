@@ -226,23 +226,11 @@
 
 /* ── Popup ───────────────────────────────────────────────────────────── */
 /* Shell rules (.map-popup, .map-popup-header, .map-popup-close,
-   .map-popup-directions, and the GL popup-content/tip overrides) live in
-   MapPopup.css now -- shared with PlanMap.tsx. Only this venue-popup's own
-   body content (header text, event list, price) stays here. */
+   .map-popup-directions, the header text, and the GL popup-content/tip
+   overrides) live in MapPopup.css now -- shared with PlanMap.tsx and
+   FestivalMap.tsx. Only this venue-popup's own body content (event count,
+   event list, price) stays here. */
 
-.map-popup-header-text {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2xs);
-  min-width: 0;
-}
-.map-popup-venue {
-  font-family: var(--font-display);
-  font-size: var(--text-base);
-  font-weight: 600;
-  color: var(--white);
-  line-height: 1.3;
-}
 .map-popup-event-count {
   font-size: var(--text-tag);
   font-weight: 500;
