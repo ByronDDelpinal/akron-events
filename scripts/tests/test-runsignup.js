@@ -94,12 +94,12 @@ describe('runSignupStartIso + runSignupPriceRange', () => {
 })
 
 describe('parseRunSignupRace with events', () => {
-  it('includes startIso + price + unlisted bare-address venue', () => {
+  it('includes startIso + price + bare-address flag', () => {
     const r = parseRunSignupRace(DETAIL)
     assert.equal(r.startIso, new Date('2026-07-18T14:00:00Z').toISOString())
     assert.equal(r.priceMin, 20)
     assert.equal(r.priceMax, 35)
-    assert.equal(r.bareAddress, true)            // "57 West North Street"
+    assert.equal(r.bareAddress, true)            // "57 West North Street" → ensureVenue's address guard
     assert.equal(r.venueDetails.address, '57 West North Street')
   })
 })
@@ -163,7 +163,7 @@ describe('parseRunSignupRace', () => {
     assert.equal(r.logo, 'https://cdn.example.com/logo.png')
   })
 
-  it('flags a bare street address (caller mints it unlisted)', () => {
+  it('flags a bare street address (resolved via ensureVenue address guard, never minted)', () => {
     const r = parseRunSignupRace({ address: { street: '1307 E. Market St.', city: 'Akron', state: 'OH', zipcode: '44305' } })
     assert.equal(r.venueName, '1307 E. Market St.')
     assert.equal(r.venueDetails.address, '1307 E. Market St.')

@@ -19,8 +19,10 @@
  * in the dedupe priority so the bespoke source wins a merge.
  *
  * Venues: RunSignup's address.street is freeform — a real place name becomes a
- * normal venue; a bare street address is minted UNLISTED (hidden from the venues
- * index, still navigable) via ensureVenue's allowAddressName/listed options.
+ * normal venue; a bare street address goes through ensureVenue's address-name
+ * guard, which resolves it to an existing venue carrying that address or
+ * returns null (venue-less event, with a warn). We never mint address-named
+ * venues here.
  *
  * Usage:   node scripts/scrape-runsignup.js
  * Env:     VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
@@ -139,8 +141,7 @@ async function main() {
           if (venueCache.has(parsed.venueName)) {
             venueId = venueCache.get(parsed.venueName)
           } else {
-            const opts = parsed.bareAddress ? { allowAddressName: true, listed: false } : {}
-            venueId = await ensureVenue(parsed.venueName, parsed.venueDetails, opts)
+            venueId = await ensureVenue(parsed.venueName, parsed.venueDetails)
             venueCache.set(parsed.venueName, venueId)
           }
         }
