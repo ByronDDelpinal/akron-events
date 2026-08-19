@@ -71,6 +71,20 @@ function parseCategory(classList = []) {
   return 'music'  // Jilly's is primarily a live music venue
 }
 
+/**
+ * Detect closure notices that Jilly's publishes as EventON posts
+ * ("CLOSED FOR PRIVATE EVENT", "NO BRUNCH SERVICE", "BRUNCH SUSPENDED", ...).
+ * These are venue announcements, not events, and must not be ingested.
+ * Anchored so titles that merely mention "closed"/"closing" elsewhere
+ * (e.g. "OPEN FOR BRUNCH | CLOSING AT 3PM") are NOT treated as closures.
+ */
+export function isClosureTitle(title) {
+  if (typeof title !== 'string') return false
+  const t = title.trim()
+  if (!t) return false
+  return /^(?:closed\b|no\s+brunch\b|private\s+brunch\b)|brunch\s+suspended/i.test(t)
+}
+
 /** Extract human-readable tags from WP taxonomy term objects */
 function parseTags(termArrays = []) {
   const tags = []
@@ -197,7 +211,7 @@ async function fetchAllRestData(ids) {
 // ── Step 3: Process and upsert ────────────────────────────────────────────
 
 async function processEvents(ajaxEvents, restById, venueId, organizerId) {
-  let inserted = 0, skipped = 0
+  let inserted = 0, skipped = 0, closureSkipped = 0
 
   for (const ev of ajaxEvents) {
     try {
@@ -234,6 +248,14 @@ async function processEvents(ajaxEvents, restById, venueId, organizerId) {
         // Taxonomy terms (skip first array which is post_tags, usually empty)
         const wpTerms = restPost._embedded?.['wp:term'] ?? []
         termArrays = wpTerms.slice(1)  // skip post_tag, keep event_type + event_type_2
+      }
+
+      // Closure notices are announcements, not events. Skip here — before
+      // the fetchSchemaDescription fallback — so skips cost no network.
+      if (isClosureTitle(title)) {
+        console.log(`  \u23ed  Skipping closure notice: "${title}" (post ${postId})`)
+        closureSkipped++
+        continue
       }
 
       // When the WordPress post body is empty (Jilly's frequently
@@ -291,7 +313,7 @@ async function processEvents(ajaxEvents, restById, venueId, organizerId) {
     }
   }
 
-  return { inserted, skipped }
+  return { inserted, skipped: skipped + closureSkipped }
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────

@@ -28,6 +28,10 @@ import {
   ALL_FIXTURES,
 } from './fixtures/jillys-events.js'
 
+// Closure guard is imported from the REAL module (main() is guarded, so this
+// is import-safe) — never re-implement it here.
+const { isClosureTitle } = await import('../scrape-jillys.js')
+
 // Re-implement parsing logic from scraper
 function extractTicketUrl(html = '', permalink = '') {
   const ticketPatterns = [
@@ -338,5 +342,43 @@ describe('Jilly\'s: Batch Processing', () => {
         assert.ok(!/<[a-zA-Z]/.test(row.description))
       }
     }
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════
+// TESTS: Closure Title Guard (real module)
+// ════════════════════════════════════════════════════════════════════════
+
+describe("Jilly's: Closure Title Guard", () => {
+  it('flags closure notice titles', () => {
+    const CLOSURES = [
+      'CLOSED FOR PRIVATE EVENT',
+      'CLOSED FOR HOLIDAY',
+      'CLOSED',
+      'CLOSED: SHOW POSTPONED',
+      'Closed for Thanksgiving',
+      'NO BRUNCH SERVICE',
+      'No Brunch this Sunday',
+      'BRUNCH SUSPENDED UNTIL FURTHER NOTICE',
+      'PRIVATE BRUNCH EVENT',
+    ]
+    for (const title of CLOSURES) {
+      assert.equal(isClosureTitle(title), true, `expected closure: ${title}`)
+    }
+  })
+
+  it('does not flag titles that merely mention closed/closing', () => {
+    assert.equal(isClosureTitle('OPEN FOR BRUNCH | CLOSING AT 3PM'), false)
+    assert.equal(isClosureTitle('The Doors Are Closed (Tribute)'), false)
+  })
+
+  it('does not flag normal show titles', () => {
+    assert.equal(isClosureTitle('Motown Tribute Band'), false)
+  })
+
+  it('returns false for null and empty input', () => {
+    assert.equal(isClosureTitle(null), false)
+    assert.equal(isClosureTitle(''), false)
+    assert.equal(isClosureTitle(undefined), false)
   })
 })
