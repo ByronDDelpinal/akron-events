@@ -362,7 +362,10 @@ Deno.serve(async (req) => {
       } else if (parsed.event === 'feedback') {
         const { data: fb, error: fbErr } = await supabase
           .from('feedback_posts')
-          .select('id, body, page_path, created_at')
+          // email (migration 058): optional reply-to address the submitter
+          // may have left. Added to this hardcoded allowlist deliberately —
+          // same policy note as the embed_request branch below.
+          .select('id, body, page_path, created_at, email')
           .eq('id', parsed.id)
           .maybeSingle()
 

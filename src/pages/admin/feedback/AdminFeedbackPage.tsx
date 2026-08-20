@@ -7,9 +7,10 @@ import { ConfirmDialog, Pagination } from '@/components/admin'
 /**
  * Lean, read-only-ish admin view of feedback-orb notes (plan §6). The
  * public /feedback board is gone — this replaces it with just enough to
- * triage orb submissions: body, page it came from, when, and delete.
- * No category chips, votes, or images (the orb doesn't collect them; all
- * orb rows are `category = 'orb'` and `is_private = true`).
+ * triage orb submissions: body, page it came from, email (if the
+ * submitter left one), when, and delete. No category chips, votes, or
+ * images (the orb doesn't collect them; all orb rows are `category =
+ * 'orb'` and `is_private = true`).
  *
  * Reads/deletes run under the existing authenticated "full access"
  * feedback_posts policy (038) — no new RLS.
@@ -67,6 +68,7 @@ export default function AdminFeedbackPage() {
               <tr>
                 <th>Note</th>
                 <th>Page</th>
+                <th>Email</th>
                 <th>Sent</th>
                 <th>Actions</th>
               </tr>
@@ -76,6 +78,16 @@ export default function AdminFeedbackPage() {
                 <tr key={r.id}>
                   <td className="admin-td-title">{r.body}</td>
                   <td>{r.page_path ? <a href={r.page_path} target="_blank" rel="noreferrer">{r.page_path}</a> : '—'}</td>
+                  {/* email is untrusted, submitter-controlled input with no
+                      server-side format check (migration 058 only caps
+                      length). encodeURIComponent before building the
+                      mailto: href so mailto-reserved characters (?, &, =,
+                      ,) in a crafted value can't inject extra recipients
+                      (cc/bcc) or a pre-filled subject/body into whatever
+                      the admin's mail client opens — the visible link text
+                      still shows the raw value so the admin sees exactly
+                      what was submitted. */}
+                  <td>{r.email ? <a href={`mailto:${encodeURIComponent(r.email)}`}>{r.email}</a> : '—'}</td>
                   <td className="admin-td-nowrap">{r.created_at ? format(new Date(r.created_at), 'MMM d, h:mm a') : '—'}</td>
                   <td className="admin-td-actions">
                     <button className="btn-admin-sm btn-admin-sm-danger" onClick={() => setDeleting(r)}>Del</button>
@@ -84,7 +96,7 @@ export default function AdminFeedbackPage() {
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="admin-loading">No feedback yet.</td>
+                  <td colSpan={5} className="admin-loading">No feedback yet.</td>
                 </tr>
               )}
             </tbody>

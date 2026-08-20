@@ -18,7 +18,11 @@
 --      severity term is seeded so this holds regardless of whether the real
 --      (env-var) term list is loaded locally — mirrors how
 --      content_moderation.test.sql seeds its own sample list.
---   6. The 043 velocity-cap trigger rejects the 21st insert within a
+--   6. The 058 email length bound: null and a 254-char value accepted,
+--      255 chars and the empty string rejected. Ordered BEFORE the
+--      velocity cap, which would otherwise reject them for an
+--      unrelated reason.
+--   7. The 043 velocity-cap trigger rejects the 21st insert within a
 --      one-minute window.
 --
 -- Self-contained: runs inside a transaction and ROLLS BACK so nothing
@@ -139,7 +143,42 @@ begin
 end $$;
 set local role anon;
 
--- ── 6. Velocity cap (043) ────────────────────────────────────────────────────
+-- ── 6. Email length bound (058) ──────────────────────────────────────────────
+-- ORDER MATTERS: this block must stay ABOVE the velocity-cap block below.
+-- That block deliberately fills the one-minute window to 20 rows and never
+-- unwinds them (the whole file is a single transaction), so any insert that
+-- runs after it -- including these -- raises check_violation from the cap
+-- trigger instead of exercising the email bound under test.
+do $$
+begin
+  -- null email is fine
+  insert into feedback_posts (category, body, is_private, page_path, email)
+  values ('orb', 'email null test', true, '/events/x', null);
+
+  -- exactly 254 chars is fine (the boundary)
+  insert into feedback_posts (category, body, is_private, page_path, email)
+  values ('orb', 'email 254 test', true, '/events/x', repeat('a', 249) || '@a.co');
+
+  begin
+    -- 255 chars is rejected
+    insert into feedback_posts (category, body, is_private, page_path, email)
+    values ('orb', 'email 255 test', true, '/events/x', repeat('a', 250) || '@a.co');
+    raise exception 'anon insert with a 255-char email should have been rejected';
+  exception when insufficient_privilege then null;
+  end;
+
+  begin
+    -- empty string is rejected (must be null, not '')
+    insert into feedback_posts (category, body, is_private, page_path, email)
+    values ('orb', 'email empty test', true, '/events/x', '');
+    raise exception 'anon insert with an empty-string email should have been rejected';
+  exception when insufficient_privilege then null;
+  end;
+
+  raise notice '  ✓ email length bound enforced (null ok, 254 ok, 255 rejected, empty-string rejected)';
+end $$;
+
+-- ── 7. Velocity cap (043) ────────────────────────────────────────────────────
 do $$
 declare
   recent_count int;

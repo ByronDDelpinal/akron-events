@@ -480,6 +480,7 @@ export type Database = {
           body: string
           category: string
           created_at: string
+          email: string | null
           id: number
           image_url: string | null
           is_private: boolean
@@ -493,6 +494,7 @@ export type Database = {
           body: string
           category: string
           created_at?: string
+          email?: string | null
           id?: never
           image_url?: string | null
           is_private?: boolean
@@ -506,6 +508,7 @@ export type Database = {
           body?: string
           category?: string
           created_at?: string
+          email?: string | null
           id?: never
           image_url?: string | null
           is_private?: boolean

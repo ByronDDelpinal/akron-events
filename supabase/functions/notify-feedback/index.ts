@@ -1,6 +1,6 @@
 // notify-feedback — operator notification for feedback-orb submissions.
 //
-// POST-only. Body: { body: string, page_path?: string }
+// POST-only. Body: { body: string, page_path?: string, email?: string }
 //
 // Fired from src/components/FeedbackDialog.tsx immediately after a successful insert into
 // feedback_posts. Unlike notify-pending-event (which is handed an event_id
@@ -25,6 +25,21 @@
 // error).
 //
 // No publish links, no HMAC tokens — this function only sends mail.
+//
+// `email` (added alongside migration 058): optional reply-to address the
+// submitter left in the widget. Trimmed and length-capped, then only
+// promoted to the Resend `replyTo` header when it also passes a permissive
+// shape check — malformed input never reaches that header, but is still
+// rendered (HTML-escaped, via the same escapeHtml used for `body`) into the
+// notification's "Email" row so an admin can see exactly what was typed.
+// Absent/invalid/empty falls back to the fixed THEME.replyTo, same as
+// before this field existed. The shape regex excludes all whitespace (`\s`,
+// which covers CR/LF) AND the address-list separators `,` and `;` -- the
+// whitespace class alone stops header injection, but a comma would still
+// have produced a malformed multi-address replyTo that Resend rejects with
+// a 422, and since this send is fire-and-forget that would have silently
+// dropped the whole operator notification. Resend's own JSON-body handling
+// is a second independent barrier for the injection case.
 
 import { Resend } from 'https://esm.sh/resend@4'
 import { THEME, escapeHtml, button, renderEmailShell } from '../_shared/email.ts'
@@ -59,6 +74,21 @@ const ADMIN_NOTIFY_EMAIL = (Deno.env.get('ADMIN_NOTIFY_EMAIL') || '')
 // rendered email never carries more than what the DB itself would accept.
 const FEEDBACK_BODY_MAX_LEN = 1000
 
+// Mirrors EMAIL_MAX_LEN in src/lib/feedback.ts and the
+// `char_length(email) between 1 and 254` clause on the feedback_posts anon
+// insert policy (migration 058) — same duplication rationale as above.
+const FEEDBACK_EMAIL_MAX_LEN = 254
+
+// Permissive email-shape check — UX/safety gate for the replyTo header
+// only, never a source of truth. Deliberately loose (matches
+// isPlausibleEmail in src/lib/feedback.ts).
+// `,` and `;` are excluded on purpose, not just whitespace: both are
+// address-list separators. Resend rejects a replyTo containing one with
+// a 422, and because notify-feedback's send is fire-and-forget that
+// failure silently drops the ENTIRE operator notification, not just the
+// header. They are also mailto: recipient separators (AdminFeedbackPage).
+const EMAIL_SHAPE_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -91,12 +121,25 @@ function escapeAndPreserveBreaks(s: string): string {
   return escapeHtml(s).replace(/\r\n|\r|\n/g, '<br>')
 }
 
+/** Trims and length-caps; returns null for anything that isn't a non-empty string. */
+function sanitizeEmail(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  const trimmed = raw.trim().slice(0, FEEDBACK_EMAIL_MAX_LEN)
+  return trimmed || null
+}
+
 interface FeedbackPayload {
   body: string
   page_path?: string
+  email?: string
 }
 
-function buildNotificationHtml(body: string, pagePath: string | null, submittedAt: Date): string {
+function buildNotificationHtml(
+  body: string,
+  pagePath: string | null,
+  submittedAt: Date,
+  email: string | null,
+): string {
   const c = THEME.colors
   const f = THEME.fonts
 
@@ -128,6 +171,11 @@ function buildNotificationHtml(body: string, pagePath: string | null, submittedA
             : 'Unknown'}
         </td>
       </tr>
+      ${email ? `
+      <tr>
+        <td style="padding:6px 0;color:${c.textMuted};vertical-align:top;">Email</td>
+        <td style="padding:6px 0;color:${c.textPrimary};word-break:break-all;">${escapeHtml(email)}</td>
+      </tr>` : ''}
       <tr>
         <td style="padding:6px 0;color:${c.textMuted};vertical-align:top;">Sent</td>
         <td style="padding:6px 0;color:${c.textPrimary};">${escapeHtml(fmtDateTime(submittedAt))}</td>
@@ -170,18 +218,25 @@ Deno.serve(async (req) => {
       ? payload.page_path
       : null
 
+    // Shown in the email body regardless of shape (sanitized: trimmed +
+    // length-capped only); only used as the replyTo header when it also
+    // passes the permissive shape check, so malformed input never lands in
+    // that header even though we still surface it to the admin as text.
+    const email = sanitizeEmail(payload?.email)
+    const replyToEmail = email && EMAIL_SHAPE_RE.test(email) ? email : null
+
     if (ADMIN_NOTIFY_EMAIL.length === 0) {
       console.warn('[notify-feedback] ADMIN_NOTIFY_EMAIL not configured; skipping send')
       return json({ ok: true, skipped: 'no operator email configured' })
     }
 
     const submittedAt = new Date()
-    const emailHtml = buildNotificationHtml(rawBody, pagePath, submittedAt)
+    const emailHtml = buildNotificationHtml(rawBody, pagePath, submittedAt, email)
 
     const response = await resend.emails.send({
       from: THEME.from,
       to: ADMIN_NOTIFY_EMAIL,
-      replyTo: THEME.replyTo,
+      replyTo: replyToEmail ?? THEME.replyTo,
       subject: `New feedback from akronpulse.com`,
       html: emailHtml,
     })

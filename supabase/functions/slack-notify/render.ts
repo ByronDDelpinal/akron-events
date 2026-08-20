@@ -54,6 +54,12 @@ export interface FeedbackRow {
   body: string
   page_path: string | null
   created_at: string
+  // Optional reply-to address (migration 058). Free-text, caller-supplied,
+  // no DB format check — rendered with the same clampLabel + escapeSlackText
+  // treatment as page_path, see renderFeedback below. Declared optional
+  // (not just nullable) so existing test literals built before this field
+  // existed keep typechecking without every one needing an `email: null`.
+  email?: string | null
 }
 
 export interface SignupSubscriber {
@@ -500,13 +506,21 @@ export function renderFeedback(feedback: FeedbackRow): string {
   // this closed). Routed through the same clampLabel every other free-text
   // field uses, before escaping.
   const page = feedback.page_path ? escapeSlackText(clampLabel(feedback.page_path)) : 'Unknown'
-  return capMessage([
+  const lines = [
     'New feedback from akronpulse.com',
     '',
     blockquote(feedback.body),
     '',
     `Page: ${page}  ·  ${fmtDateTimeET(feedback.created_at)}`,
-  ].join('\n'))
+  ]
+  // email is optional (058_feedback_email.sql adds the column with no DB
+  // format check) — same free-text, caller-supplied treatment as page_path
+  // above. Only added as a line when present so the common no-email case
+  // renders identically to before this field existed.
+  if (feedback.email) {
+    lines.push(`Email: ${escapeSlackText(clampLabel(feedback.email))}`)
+  }
+  return capMessage(lines.join('\n'))
 }
 
 // ── Signup ─────────────────────────────────────────────────────────────

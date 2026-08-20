@@ -124,6 +124,39 @@
   color: var(--text-muted);
 }
 
+/* ── Email (optional) ───────────────────────────────────────────────────
+ * Single-line sibling of .feedback-menu-textarea — same visual language
+ * (page background, thin border, same radius), just shorter. */
+.feedback-menu-email-label {
+  display: block;
+  margin: var(--space-md) 0 4px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.feedback-menu-email {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  background: var(--bg-page);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-md);
+  box-sizing: border-box;
+}
+
+.feedback-menu-email:focus-visible {
+  outline: none;
+  border-color: var(--amber);
+  box-shadow: var(--shadow-focus);
+}
+
+.feedback-menu-email.has-error {
+  border-color: var(--coral);
+  box-shadow: 0 0 0 3px var(--coral-tint-25);
+}
+
 .feedback-menu-footer-row {
   display: flex;
   align-items: center;
