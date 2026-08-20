@@ -92,9 +92,17 @@
 }
 
 /* ── Venue map: lazy-mounted (FestivalPage.tsx gates the MOUNT on
- * useMatchMedia at >=900px, or on the mobile "Show map" tap; never
- * display:none, so mobile fetches no maplibre chunk and no tiles until
- * asked; this rule is layout, not the gate). ── */
+ * useMatchMedia at >=900px, or on the section's first intersection via
+ * useInViewOnce on mobile; never display:none, so a phone that never reaches
+ * the section fetches no maplibre chunk and no tiles; these rules are layout,
+ * not the gate).
+ *
+ * LOAD-BEARING: the 360px height on .festival-map-section is the page's
+ * anti-CLS reservation, not decoration. The wrapper renders while the schedule
+ * query is in flight and for as long as there are pins, and the
+ * pre-intersection placeholder, the Suspense fallback and the mounted map are
+ * all the same 360px box, so mounting shifts nothing below it. It must never
+ * gain a mobile height override. ── */
 
 .festival-map-section {
   height: 360px;
@@ -109,39 +117,6 @@
   height: 100%;
   background: var(--bg-nav);
 }
-
-/* ── Mobile "Show map" tap-to-load card: same slot as the map, same card
- * treatment as .festival-header (border/radius/surface). The MOUNT gate
- * lives in FestivalPage.tsx (isDesktop || mapRequested); this is only the
- * card's look. ── */
-
-.festival-map-cta {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  padding: 16px;
-  margin-bottom: 20px;
-  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.25));
-  border-radius: 12px;
-  background: var(--surface, transparent);
-  color: inherit;
-  font-family: var(--font-body);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color var(--transition-medium);
-}
-
-.festival-map-cta:hover,
-.festival-map-cta:focus-visible {
-  border-color: var(--amber);
-  outline: none;
-}
-
-.festival-map-cta-glyph { flex-shrink: 0; color: var(--amber); }
-.festival-map-cta-text { display: flex; flex-direction: column; gap: 2px; }
-.festival-map-cta-title { font-weight: 600; font-size: 0.95rem; }
-.festival-map-cta-hint { color: var(--text-muted); font-size: 0.85rem; }
 
 /* ── Slot-jump bar: sticky time chips under the 64px site header
  * (Header.css; FilterBar.css makes the same 64px assumption). Chip anatomy

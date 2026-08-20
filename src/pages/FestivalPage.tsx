@@ -22,12 +22,20 @@
  * is hardcoded in this file.
  *
  * Venue map: FestivalMap is React.lazy'd and mount-gated, never hidden with
- * CSS. Desktop (min-width: 900px) mounts it automatically; mobile renders a
- * light "Show map" card in the same slot and mounts the map only after a tap
- * (mapRequested), so an uninterested phone fetches neither the maplibre
- * chunk nor a single tile. Once tapped the map stays mounted (no hide toggle
- * in v1), including across a breakpoint crossing: the render condition is
- * isDesktop || mapRequested.
+ * CSS. Desktop (min-width: 900px) mounts it automatically; mobile mounts it
+ * on the map section's first intersection (useInViewOnce, 200px lead,
+ * latched once and then the observer disconnects), and a framed document or
+ * a browser with no IntersectionObserver fails open to mounting. The 360px
+ * .festival-map-section wrapper renders from first paint, before the schedule
+ * query resolves, and reserves the height, so swapping the placeholder for
+ * the map shifts nothing.
+ *
+ * Honest accounting on the deferral: it no longer saves an uninterested
+ * phone the maplibre chunk the way the old tap card did, because the section
+ * sits near the top of the page and an ordinary scroll reaches it in a
+ * moment. What it still buys is the day-of visitor, whose auto-scroll jumps
+ * straight past the map to the live slot and who therefore never pays for
+ * tiles at all.
  */
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
@@ -51,6 +59,7 @@ import { easternTodayIso } from '@/lib/dayPlanDate'
 import { prefersReducedMotion } from '@/lib/feedback'
 import { useAsync } from '@/hooks/useAsync'
 import { useDayPlan } from '@/hooks/useDayPlan'
+import { useInViewOnce } from '@/hooks/useInViewOnce'
 import { useMatchMedia } from '@/hooks/useMatchMedia'
 import EventCard from '@/components/EventCard'
 import type { AppEvent } from '@/hooks/useEvents'
@@ -58,8 +67,8 @@ import './HomePage.css'
 import './FestivalPage.css'
 
 // Lazy: the maplibre stack never enters the static graph until the map
-// section actually mounts (desktop match, or a mobile "Show map" tap).
-// Same pattern and rationale as DayPlanBoard.tsx's lazy PlanMap.
+// actually mounts (desktop match, or the map section scrolling into view on
+// mobile). Same pattern and rationale as DayPlanBoard.tsx's lazy PlanMap.
 const FestivalMap = lazy(() => import('@/components/FestivalMap'))
 
 // Matches DayPlanBoard's MOBILE_QUERY split (899/900) so "desktop" means
@@ -134,9 +143,6 @@ export default function FestivalPage() {
   const festival = festivalBySlug(slug)
   const { draft } = useDayPlan()
   const isDesktop = useMatchMedia(DESKTOP_QUERY)
-  // Mobile tap-to-load gate: false until the visitor asks for the map.
-  // One-way in v1 (no hide toggle); desktop auto-mounts and ignores it.
-  const [mapRequested, setMapRequested] = useState(false)
 
   const { data: rows, loading, error } = useAsync<FestivalEventRow[]>(
     async () => {
@@ -175,6 +181,22 @@ export default function FestivalPage() {
   )
   const draftEventIds = useMemo(() => new Set(draft.items.map((i) => i.event_id)), [draft.items])
   const plannedIds = useMemo(() => plannedVenueIds(schedule, draftEventIds), [schedule, draftEventIds])
+
+  // Map mount gate. Desktop mounts synchronously off the media query AND
+  // passes force, which latches the hook without observing. Leaving a live
+  // desktop observer to do the latching was wrong: both App.tsx's POP scroll
+  // restore (a rAF jump, and rAF runs before intersection observations are
+  // updated) and the festival-day auto-scroll under reduced motion can move
+  // the section out of view before the first record is delivered. With force,
+  // a visitor who crosses the 900px breakpoint downward can never have an
+  // already-mounted map yanked out from under them.
+  const mapSectionRef = useRef<HTMLDivElement | null>(null)
+  const mapInView = useInViewOnce(mapSectionRef, {
+    rootMargin: '200px 0px',
+    enabled: pins.length > 0,
+    force: isDesktop,
+  })
+  const showMap = pins.length > 0 && (isDesktop || mapInView)
 
   // Slot sections register themselves here (keyed by slot startAt) for the
   // jump bar and the day-of auto-scroll below.
@@ -258,52 +280,48 @@ export default function FestivalPage() {
       </header>
 
       {/* ── Venue map: lazy, mount-gated (never display:none). Desktop
-          auto-mounts; mobile mounts only after the "Show map" tap below,
-          so a phone fetches no maplibre chunk and no tiles until asked ── */}
-      {pins.length > 0 && (isDesktop || mapRequested) && (
-        <div className="festival-map-section">
-          <Suspense fallback={<div className="festival-map-skeleton" aria-hidden="true" />}>
-            <FestivalMap
-              pins={pins}
-              bounds={festival.mapBounds}
-              plannedVenueIds={plannedIds}
-              festivalName={festival.name}
-            />
-          </Suspense>
+          auto-mounts; mobile mounts on the section's first intersection.
+          The wrapper renders from FIRST PAINT, while the schedule query is
+          still in flight, so its 360px height is reserved before the rows
+          land and neither the query resolving nor the map mounting shifts
+          anything below it. Gating this on pins alone (the obvious reading)
+          inverts that: it inserts ~380px the moment the query resolves.
+          Residual, accepted: a festival with no geocoded venue, or a failed
+          schedule fetch (useAsync leaves data at its [] initial on rejection,
+          so pins is empty there too), drops the wrapper on resolve (one
+          upward shift on a page that is already showing "the schedule
+          hasn't been published yet" or the error line). Reserving it
+          permanently instead would leave an empty dark box on those pages,
+          which DayPlanBoard's own rule already rejects. ── */}
+      {(loading || pins.length > 0) && (
+        <div className="festival-map-section" ref={mapSectionRef}>
+          {/* Heading-navigable name for the section. Also the mobile escape
+              hatch: the tap card that used to be the only focusable thing in
+              this slot is gone, and jumping to this heading scrolls the
+              section into view, which is what fires the observer. .sr-only is
+              globals.css's app-wide utility: absolute + clip, so it adds no
+              height and the 360px reservation is untouched. Borrowed from
+              CategoryPage's hub-events heading, but only the hiding, not the
+              wiring: that heading is an aria-labelledby target naming a
+              landmark section, while this one names nothing on purpose and is
+              purely a heading-navigation target. Do NOT "restore" an
+              aria-labelledby here. It would turn the wrapper into a landmark
+              that duplicates the label FestivalMap already supplies (role
+              group + aria-label) once mounted. */}
+          <h2 className="sr-only">Venue map</h2>
+          {showMap ? (
+            <Suspense fallback={<div className="festival-map-skeleton" aria-hidden="true" />}>
+              <FestivalMap
+                pins={pins}
+                bounds={festival.mapBounds}
+                plannedVenueIds={plannedIds}
+                festivalName={festival.name}
+              />
+            </Suspense>
+          ) : (
+            <div className="festival-map-skeleton" aria-hidden="true" />
+          )}
         </div>
-      )}
-
-      {/* ── Mobile tap-to-load card: same slot as the map. One-way (no hide
-          toggle in v1); crossing to desktop after tapping keeps the map
-          mounted via isDesktop || mapRequested above. ── */}
-      {pins.length > 0 && !isDesktop && !mapRequested && (
-        <button
-          type="button"
-          className="festival-map-cta"
-          aria-label="Show festival map"
-          onClick={() => setMapRequested(true)}
-        >
-          <svg
-            className="festival-map-cta-glyph"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M9 3 3 5v16l6-2 6 2 6-2V3l-6 2-6-2z" />
-            <path d="M9 3v16" />
-            <path d="M15 5v16" />
-          </svg>
-          <span className="festival-map-cta-text">
-            <span className="festival-map-cta-title">Show map</span>
-            <span className="festival-map-cta-hint">Loads the venue map</span>
-          </span>
-        </button>
       )}
 
       {/* ── Day-plan call-out — the hub's whole point is building a day.

@@ -753,6 +753,28 @@
   color: var(--white, #fff);
 }
 
+/* The banner's CTA. --amber is each theme's DARK-on-light accent and lands at
+ * 1.1-2.8:1 on this banner; --amber-on-dark is calibrated for --bg-nav, where
+ * it only ever buys 4.52-9.84:1 (11 of 16 palettes sit under 5:1), so it has
+ * no headroom left for a lighter surface. Worst case here is a blown-out photo
+ * region under the 0.62 scrim, which composites to #616161: against that,
+ * --amber-on-dark reaches 4.5:1 in 0 of 16 palettes and clears even the 3:1 UI
+ * floor in only 3 (violet-hour 1.54:1). So the banner CTA goes
+ * white-on-transparent (6.19:1 at that worst case, 8.86:1 over a mid-tone
+ * region) and inverts to a white fill with the theme accent on hover (--amber
+ * on white is >=4.93:1 in every theme -- the same pair the base button already
+ * relies on). Byron 2026-08-20. */
+.grid-promo--festival .grid-promo-btn {
+  border-color: var(--white, #fff);
+  color: var(--white, #fff);
+}
+.grid-promo--festival .grid-promo-btn:hover,
+.grid-promo--festival .grid-promo-btn:focus-visible {
+  background: var(--white, #fff);
+  color: var(--amber);
+  border-color: var(--white, #fff);
+}
+
 /* Tighter on desktop: the default .grid-promo-col padding is sized for the
  * three-column evergreen promo; the single-column banner reads better short. */
 @media (min-width: 640px) {
