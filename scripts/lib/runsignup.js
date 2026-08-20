@@ -23,9 +23,11 @@
  * Venue note: RunSignup's `address.street` is freeform — sometimes a real venue
  * NAME ("Kohl Family YMCA"), sometimes a bare street address ("1307 E. Market
  * St."). parseRunSignupRace() flags the bare-address case (`bareAddress: true`)
- * so the caller can mint it UNLISTED via ensureVenue(name, details, {
- * allowAddressName: true, listed: false }) instead of cluttering the venues
- * directory with address-named rows.
+ * for informational purposes only: callers pass the name straight to
+ * ensureVenue(name, details) with NO options. The address-name guard then
+ * resolves it to an existing venue carrying that address (resolveVenueByAddress)
+ * or returns null — a venue-less event, with a warn. Never mint address-named
+ * venues (no allowAddressName opt-out).
  */
 
 import { htmlToText, looksLikeStreetAddress, easternToIso } from './normalize.js'
@@ -111,7 +113,7 @@ export function parseRunSignupRace(race) {
   let venueName = null, venueDetails = null, bareAddress = false
   if (street) {
     if (looksLikeStreetAddress(street)) {
-      // Bare street address, no formal venue name → mint UNLISTED via the caller.
+      // Bare street address, no formal venue name → routed to ensureVenue's address guard (resolve-by-address or venue-less).
       venueName = street
       venueDetails = { address: street, city, state, zip }
       bareAddress = true

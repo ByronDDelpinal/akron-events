@@ -186,15 +186,16 @@ async function main() {
         const startIso = rs?.startIso || race.startIso
 
         // Resolve the venue from RunSignup's address. Real place names become
-        // normal (listed) venues; bare street addresses are minted UNLISTED so
-        // the event has a navigable location without cluttering the directory.
+        // normal (listed) venues; bare street addresses go through ensureVenue's
+        // address-name guard, which resolves them to an existing venue carrying
+        // that address or yields a venue-less event (with a warn). We never mint
+        // address-named venues here.
         let venueId = null
         if (rs?.venueName) {
           if (venueCache.has(rs.venueName)) {
             venueId = venueCache.get(rs.venueName)
           } else {
-            const venueOpts = rs.bareAddress ? { allowAddressName: true, listed: false } : {}
-            venueId = await ensureVenue(rs.venueName, rs.venueDetails, venueOpts)
+            venueId = await ensureVenue(rs.venueName, rs.venueDetails)
             venueCache.set(rs.venueName, venueId)
           }
         }
