@@ -194,8 +194,16 @@ export function extractDescription(region) {
   return joined ? joined.slice(0, 3000) : null
 }
 
-/** Map the venue <h6> text to one of the Civic's distinct venue records. */
-export function venueForName(name) {
+/**
+ * Map the venue <h6> text to one of the Civic's distinct venue records.
+ *
+ * Title override: the free "Party on the Plaza" summer series happens on the
+ * outdoor PNC Plaza, but the Civic's own ticketing pages label those shows as
+ * "The Knight Stage" (an indoor room) — so a Party-on-the-Plaza title forces PNC
+ * Plaza regardless of the wrong source venue text (visitor feedback #46, 2026-08-20).
+ */
+export function venueForName(name, title = '') {
+  if (/party on the plaza/i.test(title || '')) return CIVIC_VENUES.pnc_plaza
   const n = (name || '').toLowerCase()
   if (n.includes('pnc plaza'))   return CIVIC_VENUES.pnc_plaza
   if (n.includes('knight stage')) return CIVIC_VENUES.knight_stage
@@ -229,7 +237,7 @@ export function parseDetail(html, pageUrl) {
   const description = extractDescription(region)
   const imageUrl    = extractImage(html)   // poster sits before the first <h6>, so scan the whole page
   const isFree      = description ? FREE_RE.test(description) : false
-  const venue       = venueForName(venueName)
+  const venue       = venueForName(venueName, title)
 
   return { title, startIso, description, imageUrl, isFree, venue, pageUrl }
 }

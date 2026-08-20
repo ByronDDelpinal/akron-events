@@ -139,6 +139,15 @@ describe('venueForName', () => {
     assert.equal(venueForName('Akron Civic Theatre').name, 'Akron Civic Theatre')
     assert.equal(venueForName('').name, 'Akron Civic Theatre')
   })
+
+  it('forces PNC Plaza for a Party on the Plaza title even when the source mislabels the venue (feedback #46)', () => {
+    // The Civic's ticketing pages tag these outdoor plaza concerts "The Knight
+    // Stage"; the title override corrects it.
+    assert.equal(venueForName('The Knight Stage', 'Party on the Plaza: Afi Scruggs').name, 'PNC Plaza at The Civic')
+    assert.equal(venueForName('Akron Civic Theatre - Knight Stage', 'Party on the Plaza Jeri Lee Sapronetti').name, 'PNC Plaza at The Civic')
+    // A real Knight Stage show (non-plaza title) still routes to Knight Stage.
+    assert.equal(venueForName('The Knight Stage', 'Some Comedy Night').name, 'The Knight Stage')
+  })
 })
 
 describe('parseDetail (integration of the pure parsers)', () => {
