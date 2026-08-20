@@ -202,6 +202,9 @@ describe('canonicalVenueName', () => {
     assert.equal(canonicalVenueName('The University of Akron: The National Museum of Psychology'), 'Cummings Center for the History of Psychology')
     assert.equal(canonicalVenueName('National Museum of Psychology'), 'Cummings Center for the History of Psychology')
     assert.equal(canonicalVenueName('The National Museum of Psychology'), 'Cummings Center for the History of Psychology')
+    // Knight Stage — donor name + building-prefixed variant fold onto the canonical (feedback #46).
+    assert.equal(canonicalVenueName('John, James and Clara Knight Stage'), 'The Knight Stage')
+    assert.equal(canonicalVenueName('Akron Civic Theatre - Knight Stage'), 'The Knight Stage')
   })
   it('returns the input unchanged for unknown names', () => {
     assert.equal(canonicalVenueName('Akron Civic Theatre'), 'Akron Civic Theatre')

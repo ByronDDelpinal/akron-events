@@ -1144,6 +1144,13 @@ const VENUE_NAME_ALIASES = new Map([
   ['the university of akron: the national museum of psychology', 'Cummings Center for the History of Psychology'],
   ['national museum of psychology',                            'Cummings Center for the History of Psychology'],
   ['the national museum of psychology',                        'Cummings Center for the History of Psychology'],
+  // The Knight Stage inside the Akron Civic Theatre split into 3 rows — the
+  // scraper emits "The Knight Stage", but other feeds/older runs named it after
+  // its donors ("John, James and Clara Knight Stage") or prefixed the building
+  // ("Akron Civic Theatre - Knight Stage"). Merged 2026-08-20 (visitor feedback
+  // #46); fold both spellings onto the canonical so the split can't reappear.
+  ['john, james and clara knight stage',                       'The Knight Stage'],
+  ['akron civic theatre - knight stage',                       'The Knight Stage'],
 ])
 
 /**
