@@ -84,36 +84,94 @@ begin
     returning status into s;
   assert s = 'pending_review', 'anon offensive org downgraded, got ' || coalesce(s,'<null>');
 
-  insert into events (title, start_at, category, status)
-    values ('child porn meetup', now(), 'community', 'published')
+  -- NOTE: `events.category` was dropped by 029_taxonomy_v2_faceted; these two
+  -- inserts named it until 059's test pass and failed with "column category of
+  -- relation events does not exist" before reaching section 3 below.
+  insert into events (title, start_at, status)
+    values ('child porn meetup', now(), 'published')
     returning status into s;
   assert s = 'cancelled', 'anon extreme event auto-rejected, got ' || coalesce(s,'<null>');
 
-  insert into events (title, start_at, category, status)
-    values ('Free Jazz in the Park', now(), 'music', 'published')
+  insert into events (title, start_at, status)
+    values ('Free Jazz in the Park', now(), 'published')
     returning status into s;
   assert s = 'published', 'anon clean event stays published, got ' || coalesce(s,'<null>');
 
   raise notice '  ✓ anon submissions screened';
 end $$;
 
--- ── 3. Trigger: non-anon (admin / scraper) callers are NOT screened ──────────
+-- ── 3. Trigger: who is exempt, and who is not ────────────────────────────────
+-- REWRITTEN FOR MIGRATION 059. 030 gated on
+-- `moderation_request_role() is distinct from 'anon'`, so this section used to
+-- assert that ANY signed-in caller bypassed the screen. That was the bug --
+-- the same one 054 fixed for embed_request_force_intake_defaults and 055 for
+-- moderation_screen_day_plan. 059 narrows the exemption to three principals
+-- and screens everyone else, so the third assertion below now says the
+-- opposite of what it said before, on purpose.
+--
+--   • service_role -- scrapers, already screened in Node (049:18-21)
+--   • ANY admin    -- an admin's UPDATEs to the screened columns ARE the
+--                     triage; re-screening them would revert their own
+--                     decisions. 059 seeds TWO administrators and the roster
+--                     is data, so the block below loops over admin_users
+--                     instead of naming a uuid: every row on the roster must
+--                     bypass, however many rows it has.
+--   • a direct database connection with no request JWT -- psql, migrations,
+--                     and the Supabase SQL editor, which 051:126-130
+--                     documents as the real triage path for tables with no
+--                     admin UI. Verified 2026-08-21: in the SQL editor
+--                     request.jwt.claims is NULL, so is_admin() is false
+--                     there and the admin exemption alone would not cover it.
+--   • everyone else, INCLUDING a signed-in non-admin, is screened.
 do $$
-declare s text;
+declare s text; v_admin uuid; v_seen int := 0;
 begin
+  assert exists (select 1 from admin_users),
+    'admin_users is empty -- migration 059 must seed the administrators before any policy references is_admin()';
+
   -- service_role (scrapers — already screened in Node) bypasses the DB trigger
   perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
   insert into feedback_posts (category, body) values ('general', 'Proud Boys via service role')
     returning status into s;
   assert s = 'published', 'service_role not screened by trigger, got ' || coalesce(s,'<null>');
 
-  -- authenticated (admin) bypasses too (public-submissions-only scope)
-  perform set_config('request.jwt.claims', '{"role":"authenticated"}', true);
-  insert into feedback_posts (category, body) values ('general', 'faggot (admin entry)')
-    returning status into s;
-  assert s = 'published', 'authenticated admin not screened, got ' || coalesce(s,'<null>');
+  -- EVERY admin bypasses too: a JWT whose `sub` is in admin_users. Walking the
+  -- table rather than picking one row is what makes this hold for the second
+  -- administrator 059 seeds, and for any added afterwards by hand.
+  for v_admin in select user_id from admin_users order by email loop
+    perform set_config('request.jwt.claims',
+      '{"role":"authenticated","sub":"' || v_admin || '"}', true);
+    insert into feedback_posts (category, body)
+    values ('general', 'faggot (admin entry ' || v_admin || ')')
+      returning status into s;
+    assert s = 'published',
+      'admin ' || v_admin || ' must not be screened -- an admin''s edits are the triage, got ' || coalesce(s,'<null>');
+    v_seen := v_seen + 1;
+  end loop;
 
-  raise notice '  ✓ admin/scraper paths bypass screening';
+  assert v_seen >= 2,
+    '059 seeds TWO administrators; only ' || v_seen || ' row(s) on the roster were exercised -- check the section 2 seed';
+
+  -- a direct database connection (no request JWT at all) bypasses too
+  perform set_config('request.jwt.claims', '', true);
+  insert into feedback_posts (category, body) values ('general', 'faggot (SQL editor entry)')
+    returning status into s;
+  assert s = 'published', 'a direct database connection must not be screened, got ' || coalesce(s,'<null>');
+
+  -- but a SIGNED-IN NON-ADMIN is screened. Before 059 this row published
+  -- unscreened, which is the whole reason 059 touches these four functions.
+  -- The uuid is synthetic and must stay off the roster, or this assertion is
+  -- vacuous -- both real auth users are administrators.
+  assert not exists (select 1 from admin_users where user_id = '00000000-0000-4000-8000-000000000000'),
+    'the non-admin fixture is on the admin roster -- pick a uuid that is not';
+  perform set_config('request.jwt.claims',
+    '{"role":"authenticated","sub":"00000000-0000-4000-8000-000000000000"}', true);
+  insert into feedback_posts (category, body) values ('general', 'faggot (signed-in stranger)')
+    returning status into s;
+  assert s = 'pending_review',
+    'a signed-in NON-admin must be screened -- migration 059; got ' || coalesce(s,'<null>');
+
+  raise notice '  ✓ service_role / every seeded admin / direct-DB bypass screening; a signed-in non-admin does not';
 end $$;
 
 -- ── 4. Trigger: editing clean text to offensive (anon UPDATE) re-screens ─────
