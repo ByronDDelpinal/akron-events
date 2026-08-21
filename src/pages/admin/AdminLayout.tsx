@@ -92,7 +92,11 @@ function useReviewCount() {
     supabase
       .from('events')
       .select('id', { count: 'exact', head: true })
+      // MUST match ReviewQueuePage's `categorize` predicate exactly. A badge
+      // that counts rows the page does not show is bug 4 from the 08-18 review;
+      // if one of these two changes, the other changes in the same commit.
       .eq('needs_review', true)
+      .is('reviewed_at', null)
       .then(({ count: c, error }) => {
         if (!error) setCount(c ?? 0)
       })

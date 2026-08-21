@@ -32,6 +32,21 @@ export default function ReviewQueuePage() {
   // Per-row saving state
   const [saving, setSaving] = useState<Record<string, boolean>>({})
 
+  // The signed-in administrator, stamped onto every triage decision so the
+  // queue has an audit trail. Null until the session resolves, and null is an
+  // acceptable value to write — `reviewed_at` is what the queue predicate keys
+  // on, `reviewed_by` is attribution.
+  const [reviewerId, setReviewerId] = useState<string | null>(null)
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setReviewerId(data.user?.id ?? null))
+  }, [])
+
+  // Every triage action records WHO decided and WHEN. Clearing `needs_review`
+  // alone does NOT stick: the nightly scrape recomputes that column, so an
+  // approval without a `reviewed_at` is undone before morning (migration 060).
+  const triageStamp = () =>
+    ({ reviewed_at: new Date().toISOString(), reviewed_by: reviewerId }) as TablesUpdate<'events'>
+
   const fetchQueue = useCallback(async () => {
     setLoading(true)
     const from = page * PAGE_SIZE
@@ -49,7 +64,13 @@ export default function ReviewQueuePage() {
 
     query =
       tab === 'categorize'
-        ? query.eq('needs_review', true)
+        // `needs_review` is the SCRAPER's per-run confidence signal and is
+        // recomputed on every run (scripts/lib/normalize.js:1803). `reviewed_at`
+        // is the HUMAN decision, and no scraper payload ever contains it. The
+        // queue is the intersection: flagged, and not yet adjudicated. Without
+        // the second clause every approval reappears after the nightly scrape.
+        // See the migration 060 header for the full reasoning.
+        ? query.eq('needs_review', true).is('reviewed_at', null)
         : query.eq('status', 'pending_review')
 
     const { data, count, error } = await query
@@ -104,7 +125,7 @@ export default function ReviewQueuePage() {
     if (!error) {
       const res = await supabase
         .from('events')
-        .update({ manual_overrides: updatedOverrides, needs_review: false } as TablesUpdate<'events'>)
+        .update({ ...triageStamp(), manual_overrides: updatedOverrides, needs_review: false } as TablesUpdate<'events'>)
         .eq('id', ev.id)
       error = res.error
     }
@@ -117,7 +138,7 @@ export default function ReviewQueuePage() {
     setSaving((s) => ({ ...s, [ev.id]: true }))
     const { error } = await supabase
       .from('events')
-      .update({ needs_review: false })
+      .update({ ...triageStamp(), needs_review: false } as TablesUpdate<'events'>)
       .eq('id', ev.id)
 
     setSaving((s) => ({ ...s, [ev.id]: false }))
@@ -130,7 +151,7 @@ export default function ReviewQueuePage() {
     setSaving((s) => ({ ...s, [ev.id]: true }))
     const { error } = await supabase
       .from('events')
-      .update({ status: 'published', needs_review: false } as TablesUpdate<'events'>)
+      .update({ ...triageStamp(), status: 'published', needs_review: false } as TablesUpdate<'events'>)
       .eq('id', ev.id)
 
     setSaving((s) => ({ ...s, [ev.id]: false }))

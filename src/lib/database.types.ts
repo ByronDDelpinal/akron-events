@@ -387,6 +387,8 @@ export type Database = {
           needs_review: boolean
           price_max: number | null
           price_min: number | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           slug: string | null
           source: string
           source_id: string | null
@@ -423,6 +425,8 @@ export type Database = {
           needs_review?: boolean
           price_max?: number | null
           price_min?: number | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           slug?: string | null
           source?: string
           source_id?: string | null
@@ -459,6 +463,8 @@ export type Database = {
           needs_review?: boolean
           price_max?: number | null
           price_min?: number | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           slug?: string | null
           source?: string
           source_id?: string | null
