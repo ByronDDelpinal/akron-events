@@ -147,6 +147,24 @@ async function undiciFetch() {
 }
 
 /**
+ * The ONLY safe way to issue a fetch with an undici dispatcher.
+ *
+ * Any call site that does `fetch(url, { dispatcher })` against the global fetch
+ * is broken whenever the installed undici major differs from Node's bundled one
+ * — see undiciFetch() above. `fetchWithRetry` handles this internally; this
+ * export exists for the scrapers that legitimately can't use fetchWithRetry
+ * (e.g. Eventbrite, whose cookie handshake needs bespoke sequencing) so they
+ * don't have to re-derive the rule and get it wrong.
+ *
+ * Passing a null/undefined dispatcher is a plain global fetch, unchanged.
+ */
+export async function dispatchedFetch(url, opts = {}, dispatcher = null) {
+  if (!dispatcher) return globalThis.fetch(url, opts)
+  const f = (await undiciFetch()) ?? globalThis.fetch
+  return f(url, { ...opts, dispatcher })
+}
+
+/**
  * Parse SCRAPER_PROXY_URL (or the passed url) into the pieces consumers that
  * can't take an undici dispatcher need (e.g. Chromium's --proxy-server flag +
  * page.authenticate). Pure and synchronous.

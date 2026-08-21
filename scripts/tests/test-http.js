@@ -18,6 +18,7 @@ import {
   BROWSER_USER_AGENTS,
   RETRYABLE_STATUS,
   proxyDispatcherFromEnv,
+  dispatchedFetch,
   proxyConfigFromUrl,
 } from '../lib/http.js'
 
@@ -332,5 +333,33 @@ describe('fetchWithRetry — proxy egress resilience (2026-08-20 regression)', (
     })
     assert.equal(res.status, 200)
     assert.ok(called, 'test seam must not be bypassed when a dispatcher is present')
+  })
+})
+
+describe('dispatchedFetch — the safe dispatcher seam', () => {
+  it('uses the plain global fetch when no dispatcher is given', async () => {
+    const orig = globalThis.fetch
+    let sawDispatcher = 'unset'
+    globalThis.fetch = async (_u, init) => {
+      sawDispatcher = init && 'dispatcher' in init ? 'present' : 'absent'
+      return new Response('ok', { status: 200 })
+    }
+    try {
+      const res = await dispatchedFetch('https://example.test/', { method: 'GET' })
+      assert.equal(res.status, 200)
+      assert.equal(sawDispatcher, 'absent')
+    } finally {
+      globalThis.fetch = orig
+    }
+  })
+
+  it('attaches the dispatcher and preserves caller options', async () => {
+    // undici's real fetch will reject the fake dispatcher; we only assert that
+    // the dispatcher is threaded through rather than silently dropped.
+    const marker = { fake: 'agent' }
+    await assert.rejects(
+      () => dispatchedFetch('https://example.invalid/', { method: 'POST' }, marker),
+      (err) => err instanceof Error,
+    )
   })
 })

@@ -58,7 +58,7 @@ import {
   ensureOrganization,
 } from './lib/normalize.js'
 import { isSelfCredit } from './lib/source-tiers.js'
-import { proxyDispatcherFromEnv } from './lib/http.js'
+import { proxyDispatcherFromEnv, dispatchedFetch, describeError } from './lib/http.js'
 
 const DEBUG      = process.argv.includes('--debug')
 const FORCE      = process.argv.includes('--force')
@@ -69,10 +69,17 @@ const NO_DETAILS = process.argv.includes('--no-details')
 // minted and replayed from the same egress IP (via SCRAPER_PROXY_URL when set).
 // The 405s Eventbrite serves from GitHub Actions are IP-reputation blocks —
 // splitting the cookie handshake across egress IPs would re-trigger them.
+//
+// Routed through dispatchedFetch, NOT the global fetch: Node's global fetch is
+// backed by Node's *bundled* undici, and handing it a ProxyAgent from the
+// separately-installed undici throws `TypeError: fetch failed` before a socket
+// opens. That is the 2026-08-20 outage; this call site was missed by the first
+// pass of the fix because it deliberately bypasses fetchWithRetry (the cookie
+// handshake needs its own sequencing) and so bypassed the fix living there too.
 let _dispatcher
 async function ebFetch(url, opts = {}) {
   if (_dispatcher === undefined) _dispatcher = await proxyDispatcherFromEnv()
-  return fetch(url, { ...opts, ...(_dispatcher ? { dispatcher: _dispatcher } : {}) })
+  return dispatchedFetch(url, opts, _dispatcher)
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -969,7 +976,7 @@ async function fetchAllEvents() {
     session = await getSession()
   } catch (err) {
     if (err instanceof BlockedError) throw err
-    throw new Error(`Could not establish Eventbrite session: ${err.message}`)
+    throw new Error(`Could not establish Eventbrite session: ${describeError(err)}`)
   }
 
   console.log(`\n🔍  Fetching Eventbrite events for Akron, OH (${SEARCH_PAGES.length} feeds)…`)
