@@ -233,6 +233,7 @@ jobs:
         env:
           VITE_SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SCRAPER_PROXY_URL:         ${{ secrets.SCRAPER_PROXY_URL }}
         run: |
           missing=()
           [ -n "$VITE_SUPABASE_URL" ]         || missing+=("VITE_SUPABASE_URL")
@@ -242,7 +243,25 @@ jobs:
             echo "Add them under Settings → Secrets and variables → Actions."
             exit 1
           fi
+          # Optional, but its absence silently downgrades every useProxy scraper
+          # to datacenter egress — which is exactly the bot-challenge condition
+          # the proxy exists to avoid. Warn loudly rather than fail.
+          if [ -z "$SCRAPER_PROXY_URL" ]; then
+            echo "::warning::SCRAPER_PROXY_URL is not set — useProxy scrapers will egress direct and may be bot-challenged."
+          fi
           echo "Required secrets present. Runner timezone: $(date +'%Z %z')"
+
+      # Proxy preflight. The 2026-08-20 outage ran for six nights because a
+      # broken proxy only ever surfaced as a per-scraper `fetch failed` buried
+      # in the run log. This puts proxy health at the TOP of every run as its
+      # own pass/fail line, with the cause chain decoded into an operator
+      # action. continue-on-error: a dead proxy degrades the run (scrapers fall
+      # back to direct egress), it does not justify skipping the scrape.
+      - name: Proxy preflight
+        continue-on-error: true
+        env:
+          SCRAPER_PROXY_URL: ${{ secrets.SCRAPER_PROXY_URL }}
+        run: node scripts/check-proxy.js
 
       - name: Run all scrapers
         id: scrape

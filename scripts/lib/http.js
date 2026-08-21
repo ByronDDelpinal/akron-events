@@ -115,6 +115,25 @@ export async function proxyDispatcherFromEnv(url = process.env.SCRAPER_PROXY_URL
  * Pairing the dispatcher with its own package's fetch makes this version-proof:
  * whatever undici major is installed, both halves come from it.
  */
+/**
+ * Flatten an Error's `cause` chain into one line.
+ *
+ * WHY: Node's fetch reports every transport failure as the useless
+ * `TypeError: fetch failed`. The actual reason only lives in `err.cause`
+ * (often nested two deep) — e.g. `Proxy response (407) !== 200 when HTTP
+ * Tunneling` for a bad proxy credential vs `ConnectTimeoutError` for an
+ * unreachable gateway. Those demand opposite fixes, and logging only the
+ * top-level message is what made the 2026-08-20 proxy outage take six nights
+ * and a bisect to characterise. Always log this, never `err.message` alone.
+ */
+export function describeError(err) {
+  const parts = []
+  for (let e = err, depth = 0; e && depth < 5; e = e.cause, depth++) {
+    parts.push(`${e.name ?? 'Error'}: ${e.message}${e.code ? ` (${e.code})` : ''}`)
+  }
+  return parts.join(' <= ')
+}
+
 let _undiciFetch
 async function undiciFetch() {
   if (_undiciFetch !== undefined) return _undiciFetch
@@ -265,7 +284,8 @@ export async function fetchWithRetry(url, opts = {}) {
   // keeps a proxy outage from silently zeroing every opted-in scraper the way
   // the 2026-08-20 incident did.
   if (agent && allFailuresWereNetwork && lastError) {
-    console.warn(`  ⚠ proxy egress failed for ${url} (${lastError.message}) — retrying once direct`)
+    console.warn(`  ⚠ proxy egress failed for ${url} — retrying once direct`)
+    console.warn(`     cause: ${describeError(lastError)}`)
     const controller = rest.signal ? null : new AbortController()
     const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null
     try {
