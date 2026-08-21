@@ -99,6 +99,35 @@ export async function proxyDispatcherFromEnv(url = process.env.SCRAPER_PROXY_URL
 }
 
 /**
+ * The `fetch` that belongs to the SAME undici build as `proxyDispatcherFromEnv`'s
+ * ProxyAgent.
+ *
+ * WHY THIS EXISTS (2026-08-20 incident): `globalThis.fetch` is backed by the
+ * undici that ships *inside* Node (6.28.0 on Node 22), while this repo installs
+ * undici ^8 from npm. Handing a v8 ProxyAgent to the v6-backed global fetch
+ * throws `TypeError: fetch failed` with cause `invalid onRequestStart method` —
+ * the dispatcher handler API changed between majors. It fails BEFORE any socket
+ * is opened, so no proxy credential, balance or gateway problem is involved and
+ * nothing shows up in the proxy's logs. That is what took eventbrite,
+ * cvnp_conservancy, wine_mill and village_of_reminderville from "403 bot
+ * challenge" to "fetch failed" the night the proxy landed.
+ *
+ * Pairing the dispatcher with its own package's fetch makes this version-proof:
+ * whatever undici major is installed, both halves come from it.
+ */
+let _undiciFetch
+async function undiciFetch() {
+  if (_undiciFetch !== undefined) return _undiciFetch
+  try {
+    const { fetch: f } = await import('undici')
+    _undiciFetch = typeof f === 'function' ? f : null
+  } catch {
+    _undiciFetch = null
+  }
+  return _undiciFetch
+}
+
+/**
  * Parse SCRAPER_PROXY_URL (or the passed url) into the pieces consumers that
  * can't take an undici dispatcher need (e.g. Chromium's --proxy-server flag +
  * page.authenticate). Pure and synchronous.
@@ -159,21 +188,37 @@ export async function fetchWithRetry(url, opts = {}) {
     treatBotChallengeAsRetryable = false,
     useProxy = false,
     dispatcher,
-    fetchImpl = globalThis.fetch,
+    fetchImpl,
     sleep = defaultSleep,
     rng = Math.random,
     onRetry,
     ...rest
   } = opts
 
-  const agent = dispatcher !== undefined ? dispatcher : (useProxy ? await proxyDispatcherFromEnv() : null)
+  let agent = dispatcher !== undefined ? dispatcher : (useProxy ? await proxyDispatcherFromEnv() : null)
+
+  // A proxy dispatcher must be driven by its own package's fetch — see
+  // undiciFetch() above. If undici can't be loaded we drop the dispatcher
+  // rather than hand it to an incompatible fetch and fail every attempt.
+  let doFetch = fetchImpl ?? globalThis.fetch
+  if (agent && !fetchImpl) {
+    const uf = await undiciFetch()
+    if (uf) {
+      doFetch = uf
+    } else {
+      console.warn('  ⚠ proxy dispatcher requested but undici fetch unavailable — falling back to direct egress')
+      agent = null
+    }
+  }
+
   let lastError
+  let allFailuresWereNetwork = true
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = rest.signal ? null : new AbortController()
     const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null
     try {
-      const res = await fetchImpl(url, {
+      const res = await doFetch(url, {
         ...rest,
         signal: rest.signal ?? controller?.signal,
         ...(agent ? { dispatcher: agent } : {}),
@@ -199,11 +244,12 @@ export async function fetchWithRetry(url, opts = {}) {
 
       if (res.ok || !retryStatuses.has(res.status) || attempt >= retries) return res
 
+      allFailuresWereNetwork = false
       onRetry?.({ attempt, reason: 'status', status: res.status })
       await sleep(backoffDelay(attempt, { baseDelayMs, maxDelayMs, rng }))
     } catch (err) {
       lastError = err
-      if (attempt >= retries) throw err
+      if (attempt >= retries) break
       onRetry?.({ attempt, reason: 'network', status: null })
       await sleep(backoffDelay(attempt, { baseDelayMs, maxDelayMs, rng }))
     } finally {
@@ -211,6 +257,33 @@ export async function fetchWithRetry(url, opts = {}) {
     }
   }
 
-  // Unreachable in practice (the loop returns or throws), but satisfy the type.
+  // DIRECT-EGRESS FALLBACK. If we were proxying and every single attempt died at
+  // the network layer, the proxy itself is the most likely suspect (dead
+  // gateway, bad credential, exhausted balance, incompatible dispatcher). A
+  // degraded source that still reaches the origin — even to be bot-challenged —
+  // is strictly more useful than a source that reports nothing at all, and it
+  // keeps a proxy outage from silently zeroing every opted-in scraper the way
+  // the 2026-08-20 incident did.
+  if (agent && allFailuresWereNetwork && lastError) {
+    console.warn(`  ⚠ proxy egress failed for ${url} (${lastError.message}) — retrying once direct`)
+    const controller = rest.signal ? null : new AbortController()
+    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null
+    try {
+      return await (fetchImpl ?? globalThis.fetch)(url, {
+        ...rest,
+        signal: rest.signal ?? controller?.signal,
+        headers: {
+          'User-Agent': userAgent ?? randomUserAgent(rng),
+          ...DEFAULT_HEADERS,
+          ...headers,
+        },
+      })
+    } catch (err) {
+      lastError = err
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
+
   throw lastError ?? new Error(`fetchWithRetry: exhausted retries for ${url}`)
 }

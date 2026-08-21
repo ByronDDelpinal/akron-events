@@ -278,3 +278,59 @@ describe('proxyConfigFromUrl', () => {
     assert.equal(proxyConfigFromUrl('http://proxy.test'), null)
   })
 })
+
+// ── 2026-08-20 incident regressions ──────────────────────────────────────────
+//
+// A v8 ProxyAgent handed to Node's v6-backed globalThis.fetch throws
+// "invalid onRequestStart method" before opening a socket, which silently
+// zeroed every proxy-opted-in scraper for six nights. These lock in the two
+// behaviours that stop that from recurring.
+
+describe('fetchWithRetry — proxy egress resilience (2026-08-20 regression)', () => {
+  it('falls back to direct egress when every proxied attempt dies at the network layer', async () => {
+    const seen = []
+    const fetchImpl = async (_url, init) => {
+      seen.push(init.dispatcher ? 'proxied' : 'direct')
+      if (init.dispatcher) throw new TypeError('fetch failed')
+      return new Response('ok', { status: 200 })
+    }
+    const res = await fetchWithRetry('https://example.test/', {
+      useProxy: true,
+      dispatcher: { marker: 'proxy-agent' },
+      retries: 1,
+      fetchImpl,
+      sleep: async () => {},
+    })
+    assert.equal(res.status, 200, 'should recover via the direct-egress fallback')
+    assert.deepEqual(seen, ['proxied', 'proxied', 'direct'])
+  })
+
+  it('does NOT fall back when the proxied attempts got real HTTP responses', async () => {
+    // A 403 means we reached the origin: that is a bot challenge, not a proxy
+    // outage, so burning a direct request would leak the datacenter IP.
+    const seen = []
+    const fetchImpl = async (_url, init) => {
+      seen.push(init.dispatcher ? 'proxied' : 'direct')
+      return new Response('blocked', { status: 403 })
+    }
+    const res = await fetchWithRetry('https://example.test/', {
+      useProxy: true,
+      dispatcher: { marker: 'proxy-agent' },
+      retries: 1,
+      fetchImpl,
+      sleep: async () => {},
+    })
+    assert.equal(res.status, 403)
+    assert.ok(!seen.includes('direct'), 'must not add a direct attempt after a real HTTP response')
+  })
+
+  it('an injected fetchImpl still wins over the undici pairing', async () => {
+    let called = false
+    const fetchImpl = async () => { called = true; return new Response('x', { status: 200 }) }
+    const res = await fetchWithRetry('https://example.test/', {
+      useProxy: true, dispatcher: { marker: 'p' }, retries: 0, fetchImpl, sleep: async () => {},
+    })
+    assert.equal(res.status, 200)
+    assert.ok(called, 'test seam must not be bypassed when a dispatcher is present')
+  })
+})
