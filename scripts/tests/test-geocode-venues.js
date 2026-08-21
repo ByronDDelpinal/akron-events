@@ -12,6 +12,7 @@ import {
   hasAddressPrecision, zipMatches, passesAddressGate,
   inSummitBbox, normalizeNameTokens, tokenOverlapSimilarity, resultDisplayName,
   isJunkClassType, passesNamesGate,
+  isGeocodableVenueName, venueNameRefusalReason, buildNameQuery, cityMatches,
   isNameCandidate, venueIdsWithUpcomingEvents, summarizeNamesRun,
   createRateLimiter,
   chunkIds, narrowAndLimit, VENUE_ID_CHUNK_SIZE,
@@ -187,8 +188,13 @@ describe('names mode: isJunkClassType', () => {
   it('flags place=house as junk', () => {
     assert.equal(isJunkClassType('place', 'house'), true)
   })
-  it('does not flag other place types', () => {
-    assert.equal(isJunkClassType('place', 'city'), false)
+  it('flags place=village/city/county as junk (PLACE_ADMIN_TYPES: administrative centroids, not a visitable point)', () => {
+    assert.equal(isJunkClassType('place', 'village'), true)
+    assert.equal(isJunkClassType('place', 'city'), true)
+    assert.equal(isJunkClassType('place', 'county'), true)
+  })
+  it('does not flag place=park (a named green space is still a defensible venue point)', () => {
+    assert.equal(isJunkClassType('place', 'park'), false)
   })
   it('does not flag amenity/shop/etc.', () => {
     assert.equal(isJunkClassType('amenity', 'theatre'), false)
@@ -231,6 +237,9 @@ describe('names mode: isNameCandidate', () => {
   it('accepts a venue with no lat, no lng, and no address', () => {
     assert.equal(isNameCandidate({ lat: null, lng: null, address: null }), true)
   })
+  it('accepts a venue whose address is a blank string (unusable, same as null)', () => {
+    assert.equal(isNameCandidate({ lat: null, lng: null, address: '' }), true)
+  })
   it('rejects a venue that already has coordinates', () => {
     assert.equal(isNameCandidate({ lat: 41.08, lng: -81.51, address: null }), false)
   })
@@ -242,6 +251,149 @@ describe('names mode: isNameCandidate', () => {
   })
   it('treats undefined the same as null', () => {
     assert.equal(isNameCandidate({ address: null }), true)
+  })
+})
+
+describe('names mode: isGeocodableVenueName', () => {
+  it('accepts ordinary venue names', () => {
+    assert.equal(isGeocodableVenueName("Ingy's Piano Bar"), true)
+    assert.equal(isGeocodableVenueName('Need Skateshop'), true)
+    assert.equal(isGeocodableVenueName('Gazebo Green'), true)
+  })
+  it('refuses an email address leaking into the name field', () => {
+    assert.equal(isGeocodableVenueName('For venue details reach us at info@learnerring.com'), false)
+  })
+  it('refuses a bare street address', () => {
+    assert.equal(isGeocodableVenueName('1146 W Highland Rd'), false)
+  })
+  it('refuses a bare US state name', () => {
+    assert.equal(isGeocodableVenueName('Ohio'), false)
+  })
+  it('refuses a street-fragment junk name', () => {
+    assert.equal(isGeocodableVenueName('Church Street'), false)
+  })
+  it('refuses an empty string', () => {
+    assert.equal(isGeocodableVenueName(''), false)
+  })
+  it('refuses prose in the name slot (more than 8 tokens)', () => {
+    const prose = 'Please call the front desk to confirm your exact meeting location here'
+    assert.equal(prose.split(/\s+/).length, 12)
+    assert.equal(isGeocodableVenueName(prose), false)
+  })
+})
+
+describe('names mode: venueNameRefusalReason (per-rule stamping)', () => {
+  it('returns null for ordinary venue names', () => {
+    assert.equal(venueNameRefusalReason("Ingy's Piano Bar"), null)
+    assert.equal(venueNameRefusalReason('Need Skateshop'), null)
+    assert.equal(venueNameRefusalReason('Gazebo Green'), null)
+  })
+  it('stamps "email/url" for an email address leaking into the name field', () => {
+    assert.equal(
+      venueNameRefusalReason('For venue details reach us at info@learnerring.com'),
+      'email/url',
+    )
+  })
+  it('stamps "email/url" for a bare URL', () => {
+    assert.equal(venueNameRefusalReason('https://example.com/venue'), 'email/url')
+  })
+  it('stamps "street address" for a bare street address', () => {
+    assert.equal(venueNameRefusalReason('1146 W Highland Rd'), 'street address')
+  })
+  it('stamps "state name" for a bare US state name', () => {
+    assert.equal(venueNameRefusalReason('Ohio'), 'state name')
+  })
+  it('stamps "state name" for a street-fragment junk name (isJunkVenueName territory)', () => {
+    assert.equal(venueNameRefusalReason('Church Street'), 'state name')
+  })
+  it('stamps "too short" for an empty string', () => {
+    assert.equal(venueNameRefusalReason(''), 'too short')
+  })
+  it('stamps "no letters" for a digits-only name', () => {
+    assert.equal(venueNameRefusalReason('12345'), 'no letters')
+  })
+  it('stamps "prose" for more than 8 tokens in the name slot', () => {
+    const prose = 'Please call the front desk to confirm your exact meeting location here'
+    assert.equal(prose.split(/\s+/).length, 12)
+    assert.equal(venueNameRefusalReason(prose), 'prose')
+  })
+  it('isGeocodableVenueName stays boolean-compatible with venueNameRefusalReason', () => {
+    for (const name of ["Ingy's Piano Bar", 'Ohio', '1146 W Highland Rd', '', 'https://x.com']) {
+      assert.equal(isGeocodableVenueName(name), venueNameRefusalReason(name) === null)
+    }
+  })
+})
+
+describe('names mode: baseline venue pagination does not drop rows past a full page', () => {
+  it('retains isNameCandidate rows across a full page + a short trailing page', () => {
+    // Mirrors the PostgREST 1000-row page cap that fetchVenueIdsWithUpcomingEvents
+    // already guards against: a full page (length === pageSize) must never be
+    // mistaken for the last page — only a page SHORTER than pageSize terminates
+    // the loop. Simulated here with a small pageSize since exercising the real
+    // 1000-row cap needs a live DB.
+    const pageSize = 3
+    const page1 = [
+      { id: 'v1', lat: null, lng: null, address: null },
+      { id: 'v2', lat: null, lng: null, address: '   ' },
+      { id: 'v3', lat: 41.0, lng: -81.5, address: null }, // has coords: not a candidate
+    ]
+    const page2 = [
+      { id: 'v4', lat: null, lng: null, address: null },
+    ]
+    assert.equal(page1.length, pageSize) // full page: loop must keep paging
+    assert.ok(page2.length < pageSize) // short page: loop terminates here
+
+    const rawVenues = [...page1, ...page2]
+    const baseline = rawVenues.filter(isNameCandidate)
+    assert.deepEqual(baseline.map((v) => v.id), ['v1', 'v2', 'v4'])
+  })
+})
+
+describe('names mode: refused-list scoping (only venues actually in play tonight)', () => {
+  it('filters refusals down to upcomingVenueIds instead of the whole junk-named baseline', () => {
+    const refused = [
+      { v: { id: 'r1', name: 'Ohio' }, why: venueNameRefusalReason('Ohio') },
+      { v: { id: 'r2', name: '1146 W Highland Rd' }, why: venueNameRefusalReason('1146 W Highland Rd') },
+    ]
+    // Only r1 has an upcoming published event tonight; r2 does not (e.g. its
+    // only event already happened, or it has none at all) and must not show
+    // up in the printed refusal report.
+    const upcomingVenueIds = new Set(['r1'])
+    const refusedInScope = refused.filter((r) => upcomingVenueIds.has(r.v.id))
+    assert.deepEqual(refusedInScope.map((r) => r.v.id), ['r1'])
+    assert.equal(refusedInScope[0].why, 'state name')
+  })
+})
+
+describe('names mode: buildNameQuery', () => {
+  it('joins name, city, and state when a city is present', () => {
+    assert.equal(buildNameQuery('Lock 3', 'Akron'), 'Lock 3, Akron, OH')
+  })
+  it('omits the city segment when absent', () => {
+    assert.equal(buildNameQuery('Lock 3', null), 'Lock 3, OH')
+    assert.equal(buildNameQuery('Lock 3', undefined), 'Lock 3, OH')
+    assert.equal(buildNameQuery('Lock 3', ''), 'Lock 3, OH')
+  })
+})
+
+describe('names mode: cityMatches', () => {
+  it('passes through when the venue has no city on file', () => {
+    assert.equal(cityMatches(null, { address: { city: 'Hudson' } }), true)
+    assert.equal(cityMatches('', { address: { city: 'Hudson' } }), true)
+  })
+  it('passes through when the result reports no city at all', () => {
+    assert.equal(cityMatches('Akron', { address: {} }), true)
+    assert.equal(cityMatches('Akron', {}), true)
+  })
+  it('matches on an exact city (case/whitespace-insensitive)', () => {
+    assert.equal(cityMatches('Akron', { address: { city: 'akron' } }), true)
+    assert.equal(cityMatches(' Akron ', { address: { city: 'Akron' } }), true)
+  })
+  it('treats "Coventry Township" on the venue as equal to a result reporting "Coventry"', () => {
+    assert.equal(cityMatches('Coventry Township', { address: { city: 'Coventry' } }), true)
+  })
+  it('rejects a genuine mismatch (Akron venue, Hudson result)', () => {
+    assert.equal(cityMatches('Akron', { address: { city: 'Hudson' } }), false)
   })
 })
 

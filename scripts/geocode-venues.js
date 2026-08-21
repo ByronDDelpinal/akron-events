@@ -12,10 +12,13 @@
  *   - default mode: result addresstype/class is address-precision (not a
  *     road/city/boundary centroid), the venue's zip (if any) matches the
  *     result's postcode, and the result falls inside the NE-Ohio sanity box
- *   - --names mode: token-overlap similarity between the venue name and the
- *     result name clears MIN_SIMILARITY_NAMES, the result isn't a junk
- *     class/type (highway, a bare place=house, a boundary), and the result
- *     falls inside the Summit County bbox
+ *   - --names mode: junk venue names (emails, street addresses, state names,
+ *     prose) are refused before any API call; a Nominatim hit must then not
+ *     be a junk class/type (highway, boundary, place=house, or a
+ *     city/town/village/... administrative centroid), must fall inside the
+ *     real Summit County polygon (not just a bbox), must agree with the
+ *     venue's on-file city (when both sides report one), and must clear
+ *     MIN_SIMILARITY_NAMES token-overlap similarity against the venue name
  * Anything failing a gate is listed for manual review, not written.
  *
  * Candidate selection (default mode): venues with an address but no
@@ -44,14 +47,18 @@
  *
  *   --names       ALTERNATE MODE: geocode by venue NAME instead of street
  *                 address, for venues that have NO lat, NO lng, AND NO
- *                 address at all (nothing else to geocode from), and that
- *                 have at least one upcoming published event. Queries
- *                 Nominatim free-form, bounded to a hard Summit County
- *                 bbox, and gates on name-similarity + a junk-class filter
- *                 (see above). NOTE: this mode is DRY RUN BY DEFAULT — the
- *                 opposite of the default mode above — because a bare-name
- *                 lookup is much more likely to hit a same-named place in
- *                 the wrong city. Pass --write to actually update rows.
+ *                 usable address at all (nothing else to geocode from), and
+ *                 that have at least one upcoming published event. Refuses
+ *                 junk venue names (emails, street addresses, state names,
+ *                 prose) before making any API call. Queries Nominatim
+ *                 free-form, bounded by a Summit County viewbox (a query
+ *                 hint, not the acceptance gate), and gates on the real
+ *                 Summit County polygon + a venue/result city match + name-
+ *                 similarity + a junk-class filter (see above). NOTE: this
+ *                 mode is DRY RUN BY DEFAULT — the opposite of the default
+ *                 mode above — because a bare-name lookup is much more
+ *                 likely to hit a same-named place in the wrong city. Pass
+ *                 --write to actually update rows.
  *   --write       (only meaningful with --names) perform the writes.
  *                 If --dry-run is also passed, --dry-run wins (no writes) —
  *                 the explicit safety flag beats the explicit danger flag.
@@ -61,6 +68,8 @@
  */
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
+import { isJunkVenueName, looksLikeStreetAddress } from './lib/normalize.js'
+import { classifySummitLocation, preloadSummitCountyBoundary } from './lib/summit-county.js'
 
 // Nominatim usage-policy identification. Required by policy; also the only
 // way Nominatim can reach us if a query pattern needs adjusting.
@@ -99,9 +108,20 @@ const PLACE_PRECISE_TYPES = new Set(['house'])
 // no street address to anchor it, so a wrong-city false positive (a
 // same-named bar/venue elsewhere) is much easier to get than with a full
 // address query. Hard-constrain to Summit County itself, not just NE Ohio.
+// NAMES_BBOX is a Nominatim viewbox query bound (biases/limits candidate
+// results server-side) — NOT the acceptance gate; the real gate is the
+// Summit County polygon via classifySummitLocation() in the loop below.
 const NAMES_BBOX = { west: -81.69, south: 40.90, east: -81.36, north: 41.35 }
 const MIN_SIMILARITY_NAMES = 0.8
 const JUNK_CLASSES = new Set(['highway', 'boundary'])
+// class=place types that are administrative centroids, not a point anyone
+// can visit — rejected alongside the pre-existing place=house rule. Does NOT
+// include 'park': a place=park hit (e.g. a named green space) still passes
+// through to the similarity gate.
+const PLACE_ADMIN_TYPES = new Set([
+  'city', 'town', 'village', 'hamlet', 'borough', 'suburb', 'neighbourhood',
+  'quarter', 'locality', 'municipality', 'county', 'state', 'region', 'island',
+])
 
 const args = process.argv.slice(2)
 const DRY_RUN = args.includes('--dry-run')
@@ -329,23 +349,30 @@ export function resultDisplayName(result) {
 }
 
 /**
- * --names mode junk filter: roads, administrative boundaries, and bare
- * place=house results are never a defensible venue match regardless of how
- * similar the name looks (a road can share a name with a business on it).
+ * --names mode junk filter: roads, administrative boundaries, a bare
+ * place=house result, and (extended) any place=<city/town/village/...>
+ * administrative centroid are never a defensible venue match regardless of
+ * how similar the name looks (a road can share a name with a business on
+ * it; a city/county centroid is not a point anyone can visit).
+ * PLACE_ADMIN_TYPES intentionally does NOT include 'park' — a place=park
+ * hit (e.g. a named green space) still passes through to the similarity
+ * gate.
  */
 export function isJunkClassType(cls, type) {
   if (!cls) return false
   if (JUNK_CLASSES.has(cls)) return true
-  if (cls === 'place' && type === 'house') return true
+  if (cls === 'place' && (type === 'house' || PLACE_ADMIN_TYPES.has(type))) return true
   return false
 }
 
 /**
  * Combined --names quality gate for one Nominatim hit: not a junk class/type,
  * and its name clears MIN_SIMILARITY_NAMES token-overlap similarity against
- * the venue name. Does NOT check the Summit County bbox — that's a separate
- * post-hoc reject applied by the caller (see inSummitBbox), since it depends
- * on the hit's coordinates rather than its name/class fields.
+ * the venue name. Does NOT check the Summit County polygon or the venue/
+ * result city match — those are separate post-hoc rejects applied by the
+ * caller (runNamesMode), since they depend on the hit's coordinates/address
+ * fields rather than its name/class fields. Kept for tests / call sites that
+ * only need the name+class half of the gate.
  */
 export function passesNamesGate(venueName, result) {
   if (!result) return false
@@ -356,11 +383,90 @@ export function passesNamesGate(venueName, result) {
 }
 
 /**
- * --names candidate predicate: no coordinates AND no address — there is
- * nothing else on the row to geocode from besides the venue name.
+ * --names mode pre-filter: is this venue's NAME even worth sending to
+ * Nominatim? Refuses:
+ *   - too short to be a real name (<3 chars after trimming)
+ *   - no letters at all
+ *   - an email address or URL leaking into the name field (a stray contact
+ *     string from a flyer/intake form, e.g. "For venue details reach us at
+ *     info@learnerring.com")
+ *   - a junk venue name per isJunkVenueName() (bare state name, "TBD",
+ *     "Church Street", ...)
+ *   - a bare street address per looksLikeStreetAddress() (e.g.
+ *     "1146 W Highland Rd")
+ *   - prose in the name slot: more than 8 whitespace-separated tokens
+ * Checked BEFORE the upcoming-event narrowing in runNamesMode() so a refusal
+ * costs zero API calls. Pure + exported for tests.
+ */
+const EMAIL_OR_URL_PATTERN = /@|https?:\/\/|www\./i
+
+/**
+ * Same gate as isGeocodableVenueName, but returns WHICH rule refused the
+ * name (or null when it clears all of them) instead of collapsing every
+ * refusal into one flat boolean. Lets the --names report stamp each refused
+ * venue with the specific check that caught it rather than a uniform "junk
+ * name" label that told a reviewer nothing about which of the six checks
+ * fired. Pure + exported for tests.
+ */
+export function venueNameRefusalReason(name) {
+  const trimmed = String(name ?? '').trim()
+  if (trimmed.length < 3) return 'too short'
+  if (!/[a-z]/i.test(trimmed)) return 'no letters'
+  if (EMAIL_OR_URL_PATTERN.test(trimmed)) return 'email/url'
+  if (isJunkVenueName(trimmed)) return 'state name'
+  if (looksLikeStreetAddress(trimmed)) return 'street address'
+  const tokenCount = trimmed.split(/\s+/).filter(Boolean).length
+  if (tokenCount > 8) return 'prose'
+  return null
+}
+
+/** Boolean-compatible wrapper over venueNameRefusalReason — kept so every
+ *  existing boolean call site (and its tests) is untouched. */
+export function isGeocodableVenueName(name) {
+  return venueNameRefusalReason(name) === null
+}
+
+/**
+ * --names candidate predicate: no coordinates AND no usable address — either
+ * NULL or a blank/whitespace-only string, which is exactly as unusable as no
+ * address at all. There is nothing else on the row to geocode from besides
+ * the venue name.
  */
 export function isNameCandidate(v) {
-  return v.lat == null && v.lng == null && v.address == null
+  const hasUnusableAddress = v.address == null || String(v.address).trim() === ''
+  return v.lat == null && v.lng == null && hasUnusableAddress
+}
+
+/** Strip a trailing "Township"/"Twp." so 'coventry township' ≡ 'coventry' —
+ *  the same normalization scripts/lib/summit-county.js applies internally
+ *  (not exported there), duplicated here as the one extra line it is. */
+function normalizeCityForCompare(city) {
+  return String(city ?? '').toLowerCase().trim().replace(/\s+(township|twp\.?)$/i, '')
+}
+
+/** The city a Nominatim result reports, if any: address.city, falling back
+ *  through town/village/hamlet — the same fallback chain Nominatim itself
+ *  uses across varying administrative levels. */
+function resultCityOf(result) {
+  const addr = result && result.address
+  return addr ? (addr.city ?? addr.town ?? addr.village ?? addr.hamlet) : undefined
+}
+
+/**
+ * --names mode gate (d): does the Nominatim result's city agree with the
+ * venue's on-file city? Pass-through (true) when the venue has no city on
+ * file, or when the result reports no city at all — there is nothing to
+ * compare against in either case. Otherwise both sides are lowercased,
+ * trimmed, and have a trailing "township"/"twp." stripped before comparing,
+ * so a venue city of "Coventry Township" matches a result reporting
+ * "Coventry". Pure + exported for tests.
+ */
+export function cityMatches(venueCity, result) {
+  const wantCity = normalizeCityForCompare(venueCity)
+  if (!wantCity) return true
+  const gotCity = normalizeCityForCompare(resultCityOf(result))
+  if (!gotCity) return true
+  return gotCity === wantCity
 }
 
 /**
@@ -445,18 +551,29 @@ function logNameDecision(v, result, similarity, decision, reason) {
 }
 
 /**
- * Geocode one venue by NAME (no address), free-form and bounded to Summit
- * County via Nominatim's viewbox+bounded=1 (a hard filter, not just a bias).
- * Returns the raw top result object, or null if Nominatim returned nothing.
+ * Build the free-form `q` query string for a --names lookup: venue name,
+ * city (if on file), and state, comma-joined, in that order. Nominatim's own
+ * free-text parser resolves the rest. Pure + exported for tests.
  */
-async function geocodeByName(name) {
+export function buildNameQuery(name, city) {
+  return [name, city, 'OH'].filter(Boolean).join(', ')
+}
+
+/**
+ * Geocode one venue by NAME (no street address), free-form and bounded to
+ * Summit County via Nominatim's viewbox+bounded=1 (a query hint/limit, NOT
+ * the acceptance gate — see NAMES_BBOX above). Returns the raw top result
+ * object, or null if Nominatim returned nothing.
+ */
+async function geocodeByName(name, city) {
   // Nominatim viewbox corner order is x1,y1,x2,y2 — conventionally the
   // top-left then bottom-right corner, i.e. west,north,east,south.
   const viewbox = `${NAMES_BBOX.west},${NAMES_BBOX.north},${NAMES_BBOX.east},${NAMES_BBOX.south}`
   const params = new URLSearchParams({
-    q: name,
+    q: buildNameQuery(name, city),
     format: 'json',
     namedetails: '1',
+    addressdetails: '1',
     countrycodes: 'us',
     limit: '1',
     bounded: '1',
@@ -469,36 +586,77 @@ async function geocodeByName(name) {
 }
 
 /**
- * --names mode: geocode venues that have no lat, no lng, AND no address at
- * all, restricted to ones with >=1 upcoming published event (a venue nobody
- * is about to visit isn't worth the API call or the false-positive risk).
- * DRY RUN BY DEFAULT — pass --write to update rows.
+ * --names mode: geocode venues that have no lat, no lng, AND no usable
+ * address at all, restricted to ones with >=1 upcoming published event (a
+ * venue nobody is about to visit isn't worth the API call or the
+ * false-positive risk). DRY RUN BY DEFAULT — pass --write to update rows.
  */
 async function runNamesMode() {
+  // The real Summit County polygon check (classifySummitLocation ->
+  // pointInSummitCounty) requires the boundary GeoJSON preloaded first, or
+  // it throws. Load it once, up front, rather than per-venue.
+  await preloadSummitCountyBoundary()
+
   // Instant-in-time cutoff for "upcoming" — not a calendar-day boundary, so
   // this is not the toISOString() "today" footgun; it mirrors the .gte
   // pattern other scrapers already use to bound future events.
   const nowIso = new Date().toISOString()
 
-  // 1. Baseline candidates: no coordinates and no address whatsoever.
-  const { data: rawVenues, error: vErr } = await supabaseAdmin
-    .from('venues')
-    .select('id, name, lat, lng, address')
-    .is('lat', null)
-    .is('lng', null)
-    .is('address', null)
-    .order('name', { ascending: true })
-  if (vErr) throw new Error(`loading venues: ${vErr.message}`)
-  const baseline = (rawVenues || []).filter(isNameCandidate)
+  // 1. Baseline candidates: no coordinates. Paginated the same way
+  // fetchVenueIdsWithUpcomingEvents pages event_venues below — PostgREST
+  // silently truncates ANY plain select() at 1000 rows with no error and no
+  // flag, and a venues-missing-lat/lng scan is exactly the kind of query
+  // that can quietly blow past that cap. `.order('id')` is added as a
+  // tiebreaker after `.order('name')` so ties can't be skipped or repeated
+  // across pages. Address usability (NULL vs blank string) is checked in
+  // isNameCandidate below rather than at the DB level, since a blank-string
+  // address is exactly as unusable as no address at all and
+  // `.is('address', null)` wouldn't catch it.
+  const rawVenues = []
+  for (let from = 0; ; from += EVENT_LINK_PAGE_SIZE) {
+    const { data: page, error: vErr } = await supabaseAdmin
+      .from('venues')
+      .select('id, name, lat, lng, address, city')
+      .is('lat', null)
+      .is('lng', null)
+      .order('name', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, from + EVENT_LINK_PAGE_SIZE - 1)
+    if (vErr) throw new Error(`loading venues: ${vErr.message}`)
+    const rows = page || []
+    rawVenues.push(...rows)
+    if (rows.length < EVENT_LINK_PAGE_SIZE) break // short page = last page
+  }
+  const baseline = rawVenues.filter(isNameCandidate)
+
+  // 1b. Refuse junk venue names BEFORE the upcoming-event narrowing below —
+  // a name that's really an email/URL/street-address/state-name/prose blob
+  // was never going to produce a usable Nominatim hit, so refusing it here
+  // costs zero API calls (versus discovering the same thing after a wasted,
+  // rate-limited lookup). Each refusal is stamped with the specific rule
+  // that caught it (venueNameRefusalReason), not a flat "junk name" label.
+  const refused = []
+  const geocodableBaseline = []
+  for (const v of baseline) {
+    const reason = venueNameRefusalReason(v.name)
+    if (reason === null) {
+      geocodableBaseline.push(v)
+    } else {
+      refused.push({ v, why: reason })
+    }
+  }
 
   // 2. Narrow to venues with >=1 upcoming published event. Inverted from a
   // full unpaginated events scan — PostgREST caps a plain select() at 1000
   // rows with no warning, and the events table runs ~8,000 rows, so that
   // approach silently dropped eligible candidates. Instead, query
-  // event_venues bounded by the small baseline candidate list (~40-90 ids)
-  // and inner-join to events filtered the same way (status='published',
-  // start_at >= now): the result size is bounded by the baseline, not by
-  // the whole events table.
+  // event_venues bounded by the small baseline candidate list (~40-90 ids,
+  // refused names included) and inner-join to events filtered the same way
+  // (status='published', start_at >= now): the result size is bounded by
+  // the baseline, not by the whole events table. Refused names are folded
+  // into baselineIds (not just geocodableBaseline) so the refusal report
+  // below can also be scoped to venues actually in play tonight, instead of
+  // printing every junk-named address-less venue in the whole table.
   const baselineIds = baseline.map((v) => v.id)
   let upcomingVenueIds = new Set()
   if (baselineIds.length) {
@@ -512,11 +670,17 @@ async function runNamesMode() {
     upcomingVenueIds = venueIdsWithUpcomingEvents(links)
   }
 
-  let candidates = baseline.filter((v) => upcomingVenueIds.has(v.id))
+  let candidates = geocodableBaseline.filter((v) => upcomingVenueIds.has(v.id))
   if (LIMIT) candidates = candidates.slice(0, LIMIT)
 
+  // Refused venues actually in scope tonight (has an upcoming published
+  // event), for reporting — a refused venue with no upcoming event was
+  // never going to be geocoded regardless, so it doesn't belong in the log.
+  const refusedInScope = refused.filter((r) => upcomingVenueIds.has(r.v.id))
+
   console.log(`📍  --names mode ${NAMES_WRITE ? '(WRITE)' : '(DRY RUN — pass --write to update rows)'}`)
-  console.log(`    candidate baseline (no lat/lng/address): ${baseline.length}`)
+  console.log(`    candidate baseline (no lat/lng, no usable address): ${baseline.length}`)
+  console.log(`    refused (junk venue name, zero API calls): ${refusedInScope.length}`)
   console.log(`    planned after (also has >=1 upcoming published event, pre-gate): ${candidates.length}\n`)
 
   let updated = 0
@@ -526,29 +690,52 @@ async function runNamesMode() {
 
   for (const v of candidates) {
     try {
-      const result = await geocodeByName(v.name)
+      const result = await geocodeByName(v.name, v.city)
 
-      if (!result) {
+      // (a) a result exists with finite coordinates.
+      const lat = result ? parseFloat(result.lat) : NaN
+      const lng = result ? parseFloat(result.lon) : NaN
+      if (!result || !Number.isFinite(lat) || !Number.isFinite(lng)) {
         logNameDecision(v, null, null, 'fail', 'no result')
         failed.push({ v, why: 'no result' })
         continue
       }
 
-      const lat = parseFloat(result.lat)
-      const lng = parseFloat(result.lon)
       const similarity = tokenOverlapSimilarity(v.name, resultDisplayName(result))
 
-      if (!inSummitBbox(lng, lat)) {
+      // (b) not a junk class/type — highway, boundary, bare place=house, or
+      // (extended) a place=<city/town/village/...> administrative centroid.
+      if (isJunkClassType(result.class, result.type)) {
+        const why = `junk class/type (${result.class}/${result.type})`
+        logNameDecision(v, result, similarity, 'skip', why)
+        skipped.push({ v, why })
+        continue
+      }
+
+      // (c) the real Summit County polygon, not just the NAMES_BBOX query
+      // bound — a hit can sit inside the viewbox rectangle yet outside the
+      // actual county line.
+      if (classifySummitLocation({ lat, lng }) !== 'in') {
         const why = `out of Summit County (${lat.toFixed(4)}, ${lng.toFixed(4)})`
         logNameDecision(v, result, similarity, 'skip', why)
         skipped.push({ v, why })
         continue
       }
 
-      if (!passesNamesGate(v.name, result)) {
-        const why = isJunkClassType(result.class, result.type)
-          ? `junk class/type (${result.class}/${result.type})`
-          : `low similarity ${similarity.toFixed(2)}`
+      // (d) the result's reported city (if any) must agree with the venue's
+      // city (if any) — catches a same-named venue in the wrong town that
+      // still happens to fall inside the county polygon (e.g. near a border).
+      if (!cityMatches(v.city, result)) {
+        const gotCity = resultCityOf(result) || 'none'
+        const why = `city mismatch (venue=${v.city}, result=${gotCity})`
+        logNameDecision(v, result, similarity, 'skip', why)
+        skipped.push({ v, why })
+        continue
+      }
+
+      // (e) name-similarity gate, unchanged.
+      if (similarity < MIN_SIMILARITY_NAMES) {
+        const why = `low similarity ${similarity.toFixed(2)}`
         logNameDecision(v, result, similarity, 'skip', why)
         skipped.push({ v, why })
         continue
@@ -586,6 +773,10 @@ async function runNamesMode() {
   }
 
   console.log(`\n${NAMES_WRITE ? 'Updated' : 'Would update'}: ${updated}`)
+  if (refusedInScope.length) {
+    console.log(`\n🚫 Refused before any API call (${refusedInScope.length}):`)
+    for (const r of refusedInScope) console.log(`   - ${r.v.id}  "${r.v.name}" — ${r.why}`)
+  }
   if (skipped.length) {
     console.log(`\n⚠️  Skipped for manual review (${skipped.length}):`)
     for (const s of skipped) console.log(`   - ${s.v.id}  "${s.v.name}" — ${s.why}`)
