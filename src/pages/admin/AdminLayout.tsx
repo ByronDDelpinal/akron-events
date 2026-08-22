@@ -2,6 +2,7 @@ import { useState, useEffect, type FormEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { notEndedFilter } from '@/lib/admin/expiry'
 import { SEO } from '@/lib/seo'
 import FeedbackDialog from '@/components/FeedbackDialog'
 import './AdminLayout.css'
@@ -89,6 +90,11 @@ function LoginGate({ onLogin }: { onLogin: (email: string, password: string) => 
 function useReviewCount() {
   const [count, setCount] = useState<number | null>(null)
   useEffect(() => {
+    // MUST use the same time scope as the review queue's default view.
+    // Without it the badge counted every needs_review row ever ingested
+    // while the page showed only the live ones, so the two numbers
+    // disagreed by construction (466 versus 213 as measured 2026-08-18)
+    // and the badge read as a permanent unpayable debt.
     supabase
       .from('events')
       .select('id', { count: 'exact', head: true })
@@ -97,6 +103,7 @@ function useReviewCount() {
       // if one of these two changes, the other changes in the same commit.
       .eq('needs_review', true)
       .is('reviewed_at', null)
+      .or(notEndedFilter())
       .then(({ count: c, error }) => {
         if (!error) setCount(c ?? 0)
       })

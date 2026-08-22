@@ -4,7 +4,8 @@ import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
 import { STATUSES } from '@/lib/admin/constants'
-import { StatusBadge, SearchBar, ConfirmDialog, Pagination } from '@/components/admin'
+import { notEndedFilter, expiredCount } from '@/lib/admin/expiry'
+import { StatusBadge, SearchBar, ConfirmDialog, Pagination, IncludePastToggle } from '@/components/admin'
 
 const PAGE_SIZE = 50
 
@@ -19,9 +20,24 @@ export default function EventsListPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [deleting, setDeleting] = useState<Row | null>(null)
+  // Ended events are hidden by default here too, so /admin/events opens on
+  // what is still ahead instead of on 11k rows of mostly history.
+  const [includePast, setIncludePast] = useState(false)
+  const [hidden, setHidden] = useState<number | null>(null)
 
   const fetchEvents = useCallback(async () => {
     setLoading(true)
+
+    // Every non-time filter, applied identically to the page query and the
+    // hidden-count query so the number beside the toggle always describes
+    // the same list the operator is looking at.
+    const scope = (q: LooseQuery): LooseQuery => {
+      let out = q
+      if (statusFilter !== 'all') out = out.eq('status', statusFilter)
+      if (search.trim()) out = out.ilike('title', `%${search.trim()}%`)
+      return out
+    }
+
     let query: LooseQuery = supabase
       .from('events')
       .select(`
@@ -31,24 +47,35 @@ export default function EventsListPage() {
         event_organizations ( organization_id, organization:organizations ( id, name ) ),
         event_areas ( area_id, area:areas ( id, name ) )
       `, { count: 'exact' })
-      .order('start_at', { ascending: false })
+      // Soonest first when looking forward. Falling back to most recent
+      // first when past rows are included keeps the near past on page 1.
+      .order('start_at', { ascending: !includePast })
 
-    if (statusFilter !== 'all') query = query.eq('status', statusFilter)
-    if (search.trim()) query = query.ilike('title', `%${search.trim()}%`)
+    // Expired means ended, not started. See lib/admin/expiry.ts.
+    if (!includePast) query = query.or(notEndedFilter())
 
     const from = page * PAGE_SIZE
-    query = query.range(from, from + PAGE_SIZE - 1)
+    query = scope(query).range(from, from + PAGE_SIZE - 1)
 
     const { data, count } = await query
     setEvents((data ?? []) as Row[])
     setTotal(count ?? 0)
     setLoading(false)
-  }, [page, statusFilter, search])
+
+    if (includePast) {
+      setHidden(null)
+      return
+    }
+    const { count: all, error: allErr } = await scope(
+      supabase.from('events').select('id', { count: 'exact', head: true }) as LooseQuery,
+    )
+    setHidden(allErr ? null : expiredCount(all ?? 0, count ?? 0))
+  }, [page, statusFilter, search, includePast])
 
   useEffect(() => { fetchEvents() }, [fetchEvents])
 
   // Reset to page 0 when filters change
-  useEffect(() => { setPage(0) }, [statusFilter, search])
+  useEffect(() => { setPage(0) }, [statusFilter, search, includePast])
 
   const handleDelete = async () => {
     if (!deleting) return
@@ -70,6 +97,11 @@ export default function EventsListPage() {
           <option value="all">All statuses</option>
           {STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
         </select>
+        <IncludePastToggle
+          includePast={includePast}
+          onChange={setIncludePast}
+          hiddenCount={hidden}
+        />
         <button className="btn-admin-primary btn-admin-create" onClick={() => navigate('/admin/events/new')}>
           + New Event
         </button>

@@ -1,11 +1,12 @@
 import type { TablesUpdate } from '@/lib/database.types'
-import type { LooseRow } from '@/types'
+import type { LooseRow, LooseQuery } from '@/types'
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { supabase } from '@/lib/supabase'
 import { CATEGORIES } from '@/lib/admin/constants'
-import { ChipSelector } from '@/components/admin'
+import { notEndedFilter, expiredCount } from '@/lib/admin/expiry'
+import { ChipSelector, IncludePastToggle } from '@/components/admin'
 import { eventPath } from '@/lib/slug'
 
 const PAGE_SIZE = 50
@@ -26,6 +27,11 @@ export default function ReviewQueuePage() {
   const [total, setTotal]     = useState(0)
   const [page, setPage]       = useState(0)
   const [loading, setLoading] = useState(true)
+  // Ended events are hidden by default. `hidden` is what that costs, shown
+  // next to the toggle so the default never silently swallows work.
+  const [includePast, setIncludePast] = useState(false)
+  const [hidden, setHidden] = useState<number | null>(null)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   // Per-row selected category — keyed by event id
   const [selections, setSelections] = useState<Record<string, string[]>>({})
@@ -51,18 +57,9 @@ export default function ReviewQueuePage() {
     setLoading(true)
     const from = page * PAGE_SIZE
 
-    let query = supabase
-      .from('events')
-      .select(
-        'id, title, start_at, source, source_id, status, manual_overrides, event_categories ( category )',
-        { count: 'exact' },
-      )
-      // Hide events whose start time has already passed — no point reviewing them.
-      .gte('start_at', new Date().toISOString())
-      .order('start_at', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1)
-
-    query =
+    // Applied to both the page query and the hidden-count query so the two
+    // can never describe different queues.
+    const scope = (q: LooseQuery): LooseQuery =>
       tab === 'categorize'
         // `needs_review` is the SCRAPER's per-run confidence signal and is
         // recomputed on every run (scripts/lib/normalize.js:1803). `reviewed_at`
@@ -70,22 +67,60 @@ export default function ReviewQueuePage() {
         // queue is the intersection: flagged, and not yet adjudicated. Without
         // the second clause every approval reappears after the nightly scrape.
         // See the migration 060 header for the full reasoning.
-        ? query.eq('needs_review', true).is('reviewed_at', null)
-        : query.eq('status', 'pending_review')
+        ? q.eq('needs_review', true).is('reviewed_at', null)
+        : q.eq('status', 'pending_review')
 
-    const { data, count, error } = await query
+    let query: LooseQuery = supabase
+      .from('events')
+      .select(
+        'id, title, start_at, end_at, source, source_id, status, manual_overrides, event_categories ( category )',
+        { count: 'exact' },
+      )
+      // Soonest first while triaging forward; most recent first when looking
+      // back, because the useful end of a historical list is the near past.
+      .order('start_at', { ascending: !includePast })
+      .range(from, from + PAGE_SIZE - 1)
 
-    if (!error) {
-      setEvents((data ?? []) as Row[])
-      setTotal(count ?? 0)
+    // Hide events that have ALREADY ENDED. Not events that have already
+    // started: something running right now is exactly what an admin needs to
+    // be able to reach. See lib/admin/expiry.ts.
+    if (!includePast) query = query.or(notEndedFilter())
+
+    const { data, count, error } = await scope(query)
+
+    if (error) {
+      // A failed fetch must not render as an empty queue. "Queue is clear"
+      // and "we could not ask" are opposite facts.
+      setEvents([])
+      setTotal(0)
+      setFetchError(error.message)
+      setLoading(false)
+      return
     }
+
+    setFetchError(null)
+    setEvents((data ?? []) as Row[])
+    setTotal(count ?? 0)
     setLoading(false)
-  }, [page, tab])
+
+    // Second round trip, only while the default filter is on: how many rows
+    // it is hiding. Derived by subtraction because negating the filter would
+    // drop null-`end_at` rows through SQL's three-valued logic.
+    if (includePast) {
+      setHidden(null)
+      return
+    }
+    const { count: all, error: allErr } = await scope(
+      supabase.from('events').select('id', { count: 'exact', head: true }),
+    )
+    setHidden(allErr ? null : expiredCount(all ?? 0, count ?? 0))
+  }, [page, tab, includePast])
 
   useEffect(() => { fetchQueue() }, [fetchQueue])
 
-  // Reset to the first page whenever the active tab changes.
-  useEffect(() => { setPage(0) }, [tab])
+  // Reset to the first page whenever the active tab or the time scope
+  // changes — the old offset points into a different result set.
+  useEffect(() => { setPage(0) }, [tab, includePast])
 
   // Seed per-row selections with the event's current non-'other' categories.
   useEffect(() => {
@@ -202,16 +237,40 @@ export default function ReviewQueuePage() {
         )}
       </p>
 
+      <div className="admin-toolbar admin-toolbar--scope">
+        <IncludePastToggle
+          includePast={includePast}
+          onChange={setIncludePast}
+          hiddenCount={hidden}
+        />
+      </div>
+
       {loading && <div className="admin-loading">Loading queue…</div>}
 
-      {!loading && events.length === 0 && (
+      {!loading && fetchError && (
+        <div className="admin-review-error" role="alert">
+          <p>Could not load the queue. This is a fetch failure, not an empty queue.</p>
+          <p className="admin-review-error-detail">{fetchError}</p>
+          <button className="btn-admin-ghost btn-admin-sm" onClick={fetchQueue}>
+            Retry
+          </button>
+        </div>
+      )}
+
+      {!loading && !fetchError && events.length === 0 && (
         <div className="admin-review-empty">
           <span className="admin-review-empty-icon">✓</span>
           <p>
             {tab === 'categorize'
-              ? 'Queue is clear — no events need review.'
-              : 'Nothing to publish — every upcoming event is live.'}
+              ? 'Queue is clear. No events need review.'
+              : 'Nothing to publish. Every upcoming event is live.'}
           </p>
+          {!includePast && hidden !== null && hidden > 0 && (
+            <p className="admin-review-empty-note">
+              {hidden.toLocaleString()} ended {hidden === 1 ? 'event is' : 'events are'} hidden.
+              Turn on Include past to see them.
+            </p>
+          )}
         </div>
       )}
 
