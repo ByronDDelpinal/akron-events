@@ -102,7 +102,7 @@ describe('Art Museum: Batch Invariants', () => {
 // silently failed for months (bot UA + swallowed errors) — all descriptions
 // stored empty. These cover the new meta-tag extraction tier.
 
-import { extractMetaDescription } from '../scrape-akron-art-museum.js'
+import { extractMetaDescription, deriveSourceId } from '../scrape-akron-art-museum.js'
 
 describe('AAM: extractMetaDescription', () => {
   it('reads og:description (content-after-property order)', () => {
@@ -124,5 +124,54 @@ describe('AAM: extractMetaDescription', () => {
 
   it('returns null when no description meta exists', () => {
     assert.equal(extractMetaDescription('<html><head><title>x</title></head></html>'), null)
+  })
+})
+
+// ── Stable source_id derivation (2026-08-22 fix) ────────────────────────────
+// The old fallback emitted the raw href as source_id; query strings and
+// &#038; entities vary run-to-run, re-minting duplicate events.
+
+describe('AAM: deriveSourceId', () => {
+  it('extracts the slug from a clean /events/<slug>/ href', () => {
+    assert.equal(
+      deriveSourceId('https://akronartmuseum.org/media/events/foo-bar/', 'Foo Bar', '2026-09-01'),
+      'foo-bar'
+    )
+  })
+
+  it('ignores query strings, encoded entities, and fragments', () => {
+    assert.equal(
+      deriveSourceId('https://akronartmuseum.org/media/events/foo-bar/?occurrence=2026-09-01', 'Foo Bar', '2026-09-01'),
+      'foo-bar'
+    )
+    assert.equal(
+      deriveSourceId('https://akronartmuseum.org/media/events/foo-bar/?a=1&#038;b=2', 'Foo Bar', '2026-09-01'),
+      'foo-bar'
+    )
+    assert.equal(
+      deriveSourceId('https://akronartmuseum.org/media/events/foo-bar#tickets', 'Foo Bar', '2026-09-01'),
+      'foo-bar'
+    )
+  })
+
+  it('falls back to a deterministic slugified title-date for non-matching hrefs', () => {
+    const a = deriveSourceId('https://akronartmuseum.org/calendar/?date=2026-09-01', 'Free Family Day!', '2026-09-01')
+    const b = deriveSourceId('https://akronartmuseum.org/calendar/?date=2026-09-01', 'Free Family Day!', '2026-09-01')
+    assert.equal(a, 'free-family-day-2026-09-01')
+    assert.equal(a, b)
+  })
+
+  it('never emits the raw href', () => {
+    const hrefs = [
+      'https://akronartmuseum.org/calendar/?date=2026-09-01&#038;days=31',
+      'https://akronartmuseum.org/media/events/foo-bar/?occurrence=2026-09-01',
+      '',
+      null,
+    ]
+    for (const href of hrefs) {
+      const id = deriveSourceId(href, 'Some Event', '2026-09-01')
+      assert.notEqual(id, href)
+      assert.ok(!/[/?#&:]/.test(id), `source_id looks href-like: ${id}`)
+    }
   })
 })

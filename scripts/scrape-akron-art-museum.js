@@ -37,6 +37,27 @@ import {
 
 const BASE_URL   = 'https://akronartmuseum.org/calendar/'
 
+// ── source_id derivation ──────────────────────────────────────────────────
+
+function slugify(str) {
+  return String(str).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80)
+}
+
+/**
+ * Derive a stable source_id for an event.
+ *
+ * Prefer the URL slug: /media/events/<slug>/ (query strings, fragments and
+ * trailing slashes ignored, matching the Stan Hywet convention). If the href
+ * has no /events/<slug> segment, fall back to slugify(`${title}-${dateStr}`)
+ * — never the raw href, whose query strings and encoded entities (&#038;)
+ * vary run-to-run and re-mint duplicate events.
+ */
+export function deriveSourceId(href, title, dateStr) {
+  const slugMatch = String(href || '').match(/\/events\/([^/?#]+)/)
+  if (slugMatch) return slugMatch[1]
+  return slugify(`${title}-${dateStr}`)
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────
 // stripHtml imported from normalize.js — handles all named + numeric HTML entities
 
@@ -563,11 +584,8 @@ async function processEvents(items, venueId, organizerId) {
         endAt = new Date(new Date(startAt).getTime() + 2 * 3600_000).toISOString()
       }
 
-      // Fetch detail page for price, description, ticket link
-      // Use a slug derived from the URL as source_id — stable across runs
-      const slugMatch = item.href.match(/\/events\/([^/]+)\/?$/)
-      const slug = slugMatch ? slugMatch[1] : item.href
-      const source_id = slug
+      // Stable source_id derived from the URL slug (or title+date fallback)
+      const source_id = deriveSourceId(item.href, item.title, dateStr)
 
       // Rate-limit detail page fetches
       const detail = await fetchEventDetail(item.href)
