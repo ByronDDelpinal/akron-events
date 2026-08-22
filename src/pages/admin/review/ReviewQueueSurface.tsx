@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { supabase } from '@/lib/supabase'
 import { CATEGORIES } from '@/lib/admin/constants'
-import { notEndedFilter, expiredCount, upcomingBounds, hasEnded } from '@/lib/admin/expiry'
+import { notEndedFilter, upcomingBounds, hasEnded } from '@/lib/admin/expiry'
 import {
   REASONS, FACET_IDS, FACET_FILTERS, reviewQueueScope,
   isCategoryUnsure, isAwaitingPublish, isMissingEnd, rowReason,
@@ -13,10 +13,16 @@ import {
 } from '@/lib/admin/reviewReasons'
 import { ChipSelector, ConfirmDialog, IncludePastToggle, Pagination } from '@/components/admin'
 import { eventPath } from '@/lib/slug'
-import { normalizeOverrides } from '@/lib/admin/useOverrides'
+import { normalizeOverrides, withStatusLock } from '@/lib/admin/useOverrides'
 import { useShellCounts } from '@/lib/admin/useShellCounts'
 
 const PAGE_SIZE = 50
+
+/**
+ * Debounce for auto-saved tag changes on published rows: long enough to pick
+ * a second chip before the save commits and the row transitions out.
+ */
+const AUTOSAVE_DEBOUNCE_MS = 800
 
 // Everything the rows, chips, and drawer narrate. All real columns; the
 // drawer invents nothing and omits what is null.
@@ -40,7 +46,7 @@ interface ToastState {
 }
 
 /** Which triage action failed, so the inline Retry re-runs THAT action. */
-type RowAction = 'approve' | 'dismiss' | 'publish' | 'cancel'
+type RowAction = 'approve' | 'dismiss' | 'publish' | 'cancel' | 'unpublish'
 
 interface RowError {
   message: string
@@ -48,9 +54,12 @@ interface RowError {
 }
 
 interface ConfirmState {
-  kind: 'publish' | 'cancel'
+  kind: 'publish' | 'cancel' | 'unpublish'
   ev: Row
 }
+
+const sameSet = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((x) => b.includes(x))
 
 /**
  * The one review queue: membership is the union of "flagged, not yet
@@ -67,21 +76,49 @@ export default function ReviewQueueSurface() {
   const [loading, setLoading] = useState(true)
   const [facet, setFacet]     = useState<Facet>('all')
   const [counts, setCounts]   = useState<FacetCounts>(EMPTY_COUNTS)
-  // Ended events are hidden by default. `hidden` is what that costs, shown
-  // next to the toggle so the default never silently swallows work.
-  const [hidden, setHidden] = useState<number | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
 
   // Per-row selected categories, saving state, and inline action errors.
   const [selections, setSelections] = useState<Record<string, string[]>>({})
   const [saving, setSaving] = useState<Record<string, boolean>>({})
   const [rowErrors, setRowErrors] = useState<Record<string, RowError>>({})
+  // Auto-save busyness per row: a light drawer hint (aria-busy + "Saving…"),
+  // deliberately NOT the row-wide `saving` flag -- that one applies
+  // pointer-events:none and would freeze the drawer mid-interaction.
+  const [autoSaving, setAutoSaving] = useState<Record<string, boolean>>({})
 
   const [openId, setOpenId] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [toast, setToast] = useState<ToastState | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Mirror of `selections` readable from debounced auto-save callbacks
+  // without stale-closure risk. Written in the same call sites that call
+  // setSelections.
+  const selectionsRef = useRef<Record<string, string[]>>({})
+  // Last category set known to be persisted per row, seeded from
+  // event_categories. Auto-save compares against and reverts to this.
+  const lastCommitted = useRef<Record<string, string[]>>({})
+  // Pending debounce timers (with the row they belong to, so a flush can
+  // still run the save after the timer is cleared).
+  const pendingSave = useRef<Record<string, { timer: ReturnType<typeof setTimeout>; ev: Row }>>({})
+  // Per-row in-flight flag + queued follow-up: a toggle landing mid-flight
+  // queues exactly one more save after the current one resolves (last write
+  // wins, never interleaved). `savePromise` holds the active run so other
+  // writers (confirm actions, explicit Update) can await it instead of
+  // interleaving with it.
+  const saveBusy = useRef<Record<string, boolean>>({})
+  const saveQueued = useRef<Record<string, boolean>>({})
+  const savePromise = useRef<Record<string, Promise<void>>>({})
+  // Freshest known state per row, updated on fetch and on every
+  // applyTransition. Confirm-based actions read from here, never from a
+  // snapshot captured before an auto-save landed: a statusLock built from a
+  // stale snapshot would rewrite manual_overrides WITHOUT the category lock
+  // the auto-save just stamped, and the tag decision would silently revert
+  // on the next scrape. (The Phase-2 RPC with a server-side jsonb merge is
+  // the durable fix.)
+  const latestRow = useRef<Record<string, Row>>({})
 
   // The signed-in administrator, stamped onto every triage decision so the
   // queue has an audit trail. Null until the session resolves, and null is an
@@ -97,6 +134,24 @@ export default function ReviewQueueSurface() {
   // approval without a `reviewed_at` is undone before morning (migration 060).
   const triageStamp = () =>
     ({ reviewed_at: new Date().toISOString(), reviewed_by: reviewerId }) as TablesUpdate<'events'>
+
+  // Status decisions get the same survive-the-scraper treatment as category
+  // locks: scraper payloads carry `status` (ics/wix/squarespace/dice all set
+  // 'published') and moderation re-sets 'pending_review' on unchanged
+  // content, and `_stripOverriddenFields` only protects keys present in
+  // `manual_overrides`. So Publish, Unpublish, and Cancel all stamp
+  // `manual_overrides.status` -- key presence is all the scraper checks, and
+  // the `{ at }` shape matches the category lock. Without this stamp, a
+  // publish or cancel silently reverts on the next scrape (the same
+  // "decision undone before morning" failure class migration 060 fixed for
+  // `needs_review`). The shape contract lives in withStatusLock
+  // (useOverrides.ts), pinned by scripts/tests/test-review-reasons.js.
+  // Callers must pass the LATEST row state (see latestRow above), never a
+  // snapshot from before a pending auto-save.
+  const statusLock = (ev: Row) => withStatusLock(ev.manual_overrides)
+
+  /** The freshest known state for a row, falling back to the given snapshot. */
+  const freshRow = (ev: Row): Row => latestRow.current[ev.id] ?? ev
 
   const showToast = useCallback((message: string, undoId: string | null = null) => {
     setToast({ message, undoId })
@@ -114,10 +169,10 @@ export default function ReviewQueueSurface() {
     setLoading(true)
     const from = page * PAGE_SIZE
 
-    // Membership + (facet) applied to page query, hidden-count query, and
-    // facet counts alike so no two numbers describe different queues. The
-    // time scope is added separately and POSITIVELY (never negated -- see
-    // expiry.ts); PostgREST ANDs successive .or() params.
+    // Membership + (facet) applied to page query and facet counts alike so
+    // no two numbers describe different queues. The time scope is added
+    // separately and POSITIVELY (never negated -- see expiry.ts); PostgREST
+    // ANDs successive .or() params.
     const membership = (q: LooseQuery): LooseQuery => reviewQueueScope(q)
     const timeScoped = (q: LooseQuery): LooseQuery =>
       includeEnded ? q : q.or(notEndedFilter())
@@ -138,13 +193,12 @@ export default function ReviewQueueSurface() {
     if (error) {
       // A failed fetch must not render as an empty queue. "Queue is clear"
       // and "we could not ask" are opposite facts. The same goes for the
-      // numbers: counts and the hidden tally are cleared (never a hard "0",
-      // never a stale figure from an earlier load) so the header shows an
-      // honest "unknown" state instead.
+      // numbers: counts are cleared (never a hard "0", never a stale figure
+      // from an earlier load) so the header shows an honest "unknown" state
+      // instead.
       setEvents([])
       setTotal(0)
       setCounts(EMPTY_COUNTS)
-      setHidden(null)
       setFetchError(error.message)
       setLoading(false)
       return
@@ -187,21 +241,10 @@ export default function ReviewQueueSurface() {
         time: timeRes.error ? null : (timeRes.count ?? 0),
       })
     }
-
-    // Second round trip, only while the default filter is on: how many rows
-    // it is hiding. Derived by subtraction because negating the filter would
-    // drop null-`end_at` rows through SQL's three-valued logic.
-    if (includeEnded) {
-      setHidden(null)
-      return
-    }
-    let allQ: LooseQuery = membership(
-      supabase.from('events').select('id', { count: 'exact', head: true }),
-    )
-    if (facet !== 'all') allQ = FACET_FILTERS[facet](allQ)
-    const { count: all, error: allErr } = await allQ
-    if (seq !== fetchSeq.current) return
-    setHidden(allErr ? null : expiredCount(all ?? 0, count ?? 0))
+    // The hidden-ended-rows head count that used to follow here was removed
+    // with the hidden-count hint itself (drawer spec, 2026-08-23). That is a
+    // deliberate reversal of the "always show what the default filter hides"
+    // invariant -- see IncludePastToggle's doc comment before restoring it.
   }, [page, facet, includeEnded])
 
   useEffect(() => { fetchQueue() }, [fetchQueue])
@@ -210,8 +253,11 @@ export default function ReviewQueueSurface() {
   // old offset points into a different result set.
   useEffect(() => { setPage(0); setOpenId(null) }, [facet, includeEnded])
 
-  // Seed per-row selections with the event's current non-'other' categories.
+  // Seed per-row selections with the event's current non-'other' categories,
+  // and remember that set as the last persisted one for auto-save.
   useEffect(() => {
+    // Fetched rows are server truth; transitions keep this fresh afterwards.
+    events.forEach((ev) => { latestRow.current[ev.id] = ev })
     setSelections((prev) => {
       const next = { ...prev }
       events.forEach((ev) => {
@@ -221,7 +267,11 @@ export default function ReviewQueueSurface() {
             .filter((c: string) => c && c !== 'other')
             .slice(0, 2)
         }
+        if (!(ev.id in lastCommitted.current)) {
+          lastCommitted.current[ev.id] = next[ev.id]
+        }
       })
+      selectionsRef.current = next
       return next
     })
   }, [events])
@@ -232,10 +282,14 @@ export default function ReviewQueueSurface() {
    * VISIBLE list when it no longer satisfies membership, or when it no
    * longer matches the active facet (an approved cat+pend row must not
    * linger under the Category-unsure facet); it leaves the QUEUE — and the
-   * pip decrements — only when membership itself ends.
+   * pip decrements — only when membership itself ends. Facet counts sync
+   * SYMMETRICALLY: a transition can also add a reason (an unpublished row
+   * gains "Awaiting publish" while staying a member via its cat flag), so
+   * each reason count moves by wasX/isX delta in both directions.
    */
   const applyTransition = useCallback((before: Row, patch: Partial<Row>) => {
     const after = { ...before, ...patch }
+    latestRow.current[before.id] = after
     const wasCat = isCategoryUnsure(before)
     const wasPend = isAwaitingPublish(before)
     const wasTime = isMissingEnd(before)
@@ -245,6 +299,9 @@ export default function ReviewQueueSurface() {
     }
     const leavesFacet = facet !== 'all' && !facetTwin[facet](after)
     const leavesList = !stillMember || leavesFacet
+
+    const shift = (n: number | null, was: boolean, is: boolean) =>
+      n == null ? n : Math.max(0, n + (was && !is ? -1 : 0) + (!was && is ? 1 : 0))
 
     setSelected((prev) => {
       if (!prev.has(before.id) || !leavesList) return prev
@@ -257,8 +314,8 @@ export default function ReviewQueueSurface() {
       setEvents((prev) => prev.map((e) => (e.id === before.id ? after : e)))
       setCounts((prev) => ({
         ...prev,
-        cat: prev.cat != null && wasCat && !isCategoryUnsure(after) ? prev.cat - 1 : prev.cat,
-        pend: prev.pend != null && wasPend && !isAwaitingPublish(after) ? prev.pend - 1 : prev.pend,
+        cat: shift(prev.cat, wasCat, isCategoryUnsure(after)),
+        pend: shift(prev.pend, wasPend, isAwaitingPublish(after)),
       }))
       return
     }
@@ -272,8 +329,8 @@ export default function ReviewQueueSurface() {
     setTotal((t) => Math.max(0, t - 1))
     setCounts((prev) => ({
       all: prev.all != null && !stillMember ? Math.max(0, prev.all - 1) : prev.all,
-      cat: prev.cat != null && wasCat && !isCategoryUnsure(after) ? prev.cat - 1 : prev.cat,
-      pend: prev.pend != null && wasPend && !isAwaitingPublish(after) ? prev.pend - 1 : prev.pend,
+      cat: shift(prev.cat, wasCat, isCategoryUnsure(after)),
+      pend: shift(prev.pend, wasPend, isAwaitingPublish(after)),
       time: prev.time != null && wasTime && !stillMember ? prev.time - 1 : prev.time,
     }))
     // Pip, tile, and queue header agree without a refetch — but only for a
@@ -306,7 +363,9 @@ export default function ReviewQueueSurface() {
     })
 
   /**
-   * Approve: replace the event's categories with the chosen set, then stamp.
+   * Persist a category set: replace the event's categories with `cats`, then
+   * stamp. The one pipeline behind both the explicit Update button and the
+   * published-row auto-save.
    *
    * No transaction is available without a migration, and two constraints
    * squeeze the ordering from both sides: a flagged row can be
@@ -329,17 +388,15 @@ export default function ReviewQueueSurface() {
    * A concurrent write landing BETWEEN steps can still momentarily break
    * the guarantee -- only the Phase-2 `approve_event_review` RPC (one
    * transaction server-side) closes that for good. The stamp goes LAST: a
-   * failure at any earlier step leaves the row in the queue with
-   * `reviewed_at` unset, an inline error, and a retry -- re-approve is
-   * safe and idempotent. Every step's error is checked.
+   * failure at any earlier step leaves the row with `reviewed_at` unset --
+   * re-running is safe and idempotent. Every step's error is checked.
+   *
+   * Returns the applyTransition patch on success, or an error message.
    */
-  async function handleApprove(ev: Row): Promise<boolean> {
-    const cats = [...new Set(selections[ev.id] ?? [])].slice(0, 2)
-    if (cats.length === 0) return false
-
-    setRowSaving(ev.id, true)
-    setRowError(ev.id, null)
-
+  async function persistCategories(
+    ev: Row,
+    cats: string[],
+  ): Promise<{ error: string | null; patch: Partial<Row> | null }> {
     const existing = [...new Set(
       ((ev.event_categories ?? []) as Row[])
         .map((ec) => ec.category)
@@ -378,12 +435,7 @@ export default function ReviewQueueSurface() {
     for (const step of steps) {
       const { error } = await step()
       if (error) {
-        setRowSaving(ev.id, false)
-        setRowError(ev.id, {
-          message: `Could not update categories: ${error.message}`,
-          action: 'approve',
-        })
-        return false
+        return { error: `Could not update categories: ${error.message}`, patch: null }
       }
     }
 
@@ -401,22 +453,188 @@ export default function ReviewQueueSurface() {
       .from('events')
       .update({ ...stamp, manual_overrides: updatedOverrides, needs_review: false } as TablesUpdate<'events'>)
       .eq('id', ev.id)
-    setRowSaving(ev.id, false)
     if (stampErr) {
-      setRowError(ev.id, {
-        message: `Could not save the approval: ${stampErr.message}`,
-        action: 'approve',
-      })
+      return { error: `Could not save the update: ${stampErr.message}`, patch: null }
+    }
+    return {
+      error: null,
+      patch: {
+        needs_review: false,
+        reviewed_at: stamp.reviewed_at,
+        manual_overrides: updatedOverrides,
+        event_categories: cats.map((category) => ({ category })),
+      },
+    }
+  }
+
+  /**
+   * Update (the button formerly labeled Approve; semantics unchanged):
+   * persist the chosen categories, lock the category override, stamp
+   * reviewed_at/reviewed_by, clear needs_review. Explicit human tag choice
+   * must survive re-scrape regardless of why the row queued, so this stamps
+   * and locks on pend-only rows too.
+   */
+  async function handleApprove(ev: Row): Promise<boolean> {
+    // Serialize with the per-row auto-save pipeline: this explicit Update
+    // supersedes any pending debounce (clear it), and an in-flight save must
+    // finish first -- two interleaved persistCategories runs for one row can
+    // transiently exceed two junction rows and trip trg_event_categories_max2.
+    const pending = pendingSave.current[ev.id]
+    if (pending) {
+      clearTimeout(pending.timer)
+      delete pendingSave.current[ev.id]
+    }
+    if (saveBusy.current[ev.id]) await (savePromise.current[ev.id] ?? Promise.resolve())
+
+    // Selections and row state re-read AFTER the await, so this commits the
+    // set the admin sees now against the row as it now stands.
+    const row = freshRow(ev)
+    const cats = [...new Set(selectionsRef.current[row.id] ?? [])].slice(0, 2)
+    if (cats.length === 0) return false
+
+    setRowSaving(row.id, true)
+    setRowError(row.id, null)
+    const { error, patch } = await persistCategories(row, cats)
+    setRowSaving(row.id, false)
+    if (error || !patch) {
+      setRowError(row.id, { message: error ?? 'Could not save the update.', action: 'approve' })
       return false
     }
-
-    applyTransition(ev, {
-      needs_review: false,
-      reviewed_at: stamp.reviewed_at,
-      manual_overrides: updatedOverrides,
-      event_categories: cats.map((category) => ({ category })),
-    })
+    lastCommitted.current[row.id] = cats
+    applyTransition(row, patch)
     return true
+  }
+
+  /**
+   * Auto-save for published rows: a chip toggle IS the human decision, so it
+   * commits through the same persistCategories pipeline (stamp + category
+   * lock included -- an unstamped tag change reverts on the nightly scrape).
+   * Debounced by the caller; here we serialize per row. Failure is honest:
+   * revert the chips to the last persisted set and toast the error, no
+   * silent retry.
+   */
+  function runAutoSave(ev: Row): Promise<void> {
+    if (saveBusy.current[ev.id]) {
+      // Queue exactly one follow-up on the active run and hand back ITS
+      // promise, so awaiting callers wait for the whole serialized batch.
+      saveQueued.current[ev.id] = true
+      return savePromise.current[ev.id] ?? Promise.resolve()
+    }
+    saveBusy.current[ev.id] = true
+    const run = (async () => {
+      setAutoSaving((s) => ({ ...s, [ev.id]: true }))
+      let cur = freshRow(ev)
+      let transitioned = false
+      try {
+        let again = true
+        while (again) {
+          saveQueued.current[ev.id] = false
+          const cats = [...new Set(selectionsRef.current[ev.id] ?? [])].slice(0, 2)
+          const committed = lastCommitted.current[ev.id] ?? []
+          if (cats.length === 0) {
+            // An empty set never commits: a published event must not reach
+            // zero categories (the same invariant handleApprove enforces).
+            // But silence here would strand the UI out of sync with the DB,
+            // so the chips revert to the last persisted set, honestly.
+            if (committed.length > 0) {
+              selectionsRef.current = { ...selectionsRef.current, [ev.id]: committed }
+              setSelections((s) => ({ ...s, [ev.id]: committed }))
+              showToast('A published event keeps at least one category. Your change was reverted.')
+            }
+          } else if (!sameSet(cats, committed)) {
+            const { error, patch } = await persistCategories(cur, cats)
+            if (error || !patch) {
+              // Revert only if nothing newer arrived mid-flight: a newer
+              // selection is not this failed attempt and must not be
+              // stomped -- its own debounce will try it.
+              const nowSel = [...new Set(selectionsRef.current[ev.id] ?? [])].slice(0, 2)
+              if (sameSet(nowSel, cats)) {
+                selectionsRef.current = { ...selectionsRef.current, [ev.id]: committed }
+                setSelections((s) => ({ ...s, [ev.id]: committed }))
+                showToast(`${error ?? 'Could not save categories.'} Your change was reverted.`)
+                break
+              }
+              showToast(error ?? 'Could not save categories.')
+            } else {
+              lastCommitted.current[ev.id] = cats
+              if (!transitioned) {
+                applyTransition(cur, patch)
+                transitioned = true
+              }
+              cur = { ...cur, ...patch }
+              latestRow.current[ev.id] = cur
+              showToast(`Updated "${truncate(ev.title)}". Category locked against re-scrape.`)
+            }
+          }
+          again = saveQueued.current[ev.id]
+        }
+      } finally {
+        saveBusy.current[ev.id] = false
+        setAutoSaving((s) => {
+          const next = { ...s }
+          delete next[ev.id]
+          return next
+        })
+      }
+    })()
+    savePromise.current[ev.id] = run
+    return run
+  }
+  // Debounced callbacks and flush effects reach the latest closure through a
+  // ref, so a timer set three renders ago never runs against stale state.
+  const runAutoSaveRef = useRef(runAutoSave)
+  runAutoSaveRef.current = runAutoSave
+
+  const scheduleAutoSave = (ev: Row) => {
+    const prev = pendingSave.current[ev.id]
+    if (prev) clearTimeout(prev.timer)
+    const timer = setTimeout(() => {
+      delete pendingSave.current[ev.id]
+      void runAutoSaveRef.current(ev)
+    }, AUTOSAVE_DEBOUNCE_MS)
+    pendingSave.current[ev.id] = { timer, ev }
+  }
+
+  /** Run a pending debounced save NOW (a toggle the admin saw must not evaporate). */
+  const flushAutoSave = (id: string) => {
+    const pending = pendingSave.current[id]
+    if (!pending) return
+    clearTimeout(pending.timer)
+    delete pendingSave.current[id]
+    void runAutoSaveRef.current(pending.ev)
+  }
+  const flushAutoSaveRef = useRef(flushAutoSave)
+  flushAutoSaveRef.current = flushAutoSave
+
+  /**
+   * Flush any pending debounce for the row and wait for every in-flight
+   * save (queued follow-up included) to land. Confirm-based actions call
+   * this BEFORE opening and before acting, so they never race a save and
+   * never act on a snapshot older than what just committed.
+   */
+  const settleAutoSave = (id: string): Promise<void> => {
+    flushAutoSave(id)
+    return savePromise.current[id] ?? Promise.resolve()
+  }
+
+  // Closing a drawer (or switching rows) flushes that row's pending save.
+  useEffect(() => {
+    Object.keys(pendingSave.current).forEach((id) => {
+      if (id !== openId) flushAutoSaveRef.current(id)
+    })
+  }, [openId])
+  // Unmount flushes everything still pending (fire-and-forget).
+  useEffect(() => {
+    const pending = pendingSave.current
+    return () => { Object.keys(pending).forEach((id) => flushAutoSaveRef.current(id)) }
+  }, [])
+
+  const changeSelection = (ev: Row, ids: string[]) => {
+    selectionsRef.current = { ...selectionsRef.current, [ev.id]: ids }
+    setSelections((s) => ({ ...s, [ev.id]: ids }))
+    // Published rows save on toggle (debounced); unpublished rows commit via
+    // the Update button.
+    if (ev.status === 'published') scheduleAutoSave(ev)
   }
 
   async function handleDismiss(ev: Row): Promise<boolean> {
@@ -440,50 +658,96 @@ export default function ReviewQueueSurface() {
    * Publish flips status to 'published' AND clears the review flag, so the
    * event drops off every review surface at once (current documented
    * behavior, kept). Only ever reached through the ConfirmDialog: one
-   * activation can never publish flagged content.
+   * activation can never publish flagged content. Stamps the
+   * manual_overrides.status lock so a re-scrape of still-moderation-matching
+   * content cannot revert the publish (see statusLock).
    */
   async function handlePublish(ev: Row) {
+    ev = freshRow(ev) // never build the status lock from a stale snapshot
     setRowSaving(ev.id, true)
     setRowError(ev.id, null)
     const stamp = triageStamp()
+    const updatedOverrides = statusLock(ev)
     const { error } = await supabase
       .from('events')
-      .update({ ...stamp, status: 'published', needs_review: false } as TablesUpdate<'events'>)
+      .update({
+        ...stamp, status: 'published', needs_review: false, manual_overrides: updatedOverrides,
+      } as TablesUpdate<'events'>)
       .eq('id', ev.id)
     setRowSaving(ev.id, false)
     if (error) {
       setRowError(ev.id, { message: `Could not publish: ${error.message}`, action: 'publish' })
       return
     }
-    applyTransition(ev, { needs_review: false, reviewed_at: stamp.reviewed_at, status: 'published' })
+    applyTransition(ev, {
+      needs_review: false, reviewed_at: stamp.reviewed_at, status: 'published',
+      manual_overrides: updatedOverrides,
+    })
     showToast(`Published "${truncate(ev.title)}". It is live on the public site.`)
+  }
+
+  /**
+   * Unpublish: take a published event off the public site, back to
+   * 'pending_review'. A visibility decision, not a category adjudication --
+   * it does NOT stamp reviewed_at or clear needs_review, because that would
+   * silently clear the cat branch of the union predicate for a
+   * still-unadjudicated flag. It DOES stamp the manual_overrides.status
+   * lock, or the next scrape would flip the event straight back to
+   * 'published'. The row stays in the queue (cat) and gains the pend reason.
+   * Confirmed, danger-styled: it destroys public visibility in one decision.
+   */
+  async function handleUnpublish(ev: Row) {
+    ev = freshRow(ev) // never build the status lock from a stale snapshot
+    setRowSaving(ev.id, true)
+    setRowError(ev.id, null)
+    const updatedOverrides = statusLock(ev)
+    const { error } = await supabase
+      .from('events')
+      .update({ status: 'pending_review', manual_overrides: updatedOverrides } as TablesUpdate<'events'>)
+      .eq('id', ev.id)
+    setRowSaving(ev.id, false)
+    if (error) {
+      setRowError(ev.id, { message: `Could not unpublish: ${error.message}`, action: 'unpublish' })
+      return
+    }
+    applyTransition(ev, { status: 'pending_review', manual_overrides: updatedOverrides })
+    showToast(`Unpublished "${truncate(ev.title)}". It is off the public site and back in review.`)
   }
 
   /**
    * Cancel: a pending row cannot leave the queue through `reviewed_at`
    * alone under the union predicate, so "this should not go out" needs a
-   * real status. Confirmed, danger-styled.
+   * real status. Confirmed, danger-styled. Stamps the manual_overrides.status
+   * lock so the next scrape's moderation pass cannot revert the cancel back
+   * to 'pending_review' (see statusLock).
    */
   async function handleCancel(ev: Row) {
+    ev = freshRow(ev) // never build the status lock from a stale snapshot
     setRowSaving(ev.id, true)
     setRowError(ev.id, null)
     const stamp = triageStamp()
+    const updatedOverrides = statusLock(ev)
     const { error } = await supabase
       .from('events')
-      .update({ ...stamp, status: 'cancelled', needs_review: false } as TablesUpdate<'events'>)
+      .update({
+        ...stamp, status: 'cancelled', needs_review: false, manual_overrides: updatedOverrides,
+      } as TablesUpdate<'events'>)
       .eq('id', ev.id)
     setRowSaving(ev.id, false)
     if (error) {
       setRowError(ev.id, { message: `Could not cancel: ${error.message}`, action: 'cancel' })
       return
     }
-    applyTransition(ev, { needs_review: false, reviewed_at: stamp.reviewed_at, status: 'cancelled' })
+    applyTransition(ev, {
+      needs_review: false, reviewed_at: stamp.reviewed_at, status: 'cancelled',
+      manual_overrides: updatedOverrides,
+    })
     showToast(`Cancelled "${truncate(ev.title)}". It will not publish.`)
   }
 
   async function approveWithToast(ev: Row) {
     const ok = await handleApprove(ev)
-    if (ok) showToast(`Approved "${truncate(ev.title)}". Category locked against re-scrape.`)
+    if (ok) showToast(`Updated "${truncate(ev.title)}". Category locked against re-scrape.`)
   }
 
   async function dismissWithToast(ev: Row) {
@@ -539,7 +803,7 @@ export default function ReviewQueueSurface() {
     }
     const skipped = selected.size - eligible.length
     showToast(
-      `${done} ${done === 1 ? 'event' : 'events'} approved.` +
+      `${done} ${done === 1 ? 'event' : 'events'} updated.` +
       (skipped > 0 ? ` ${skipped} skipped: no category picked, or awaiting publish.` : ''),
     )
     setSelected(new Set())
@@ -552,6 +816,33 @@ export default function ReviewQueueSurface() {
       else next.add(id)
       return next
     })
+
+  /**
+   * Open a confirm dialog row-fresh: settle the row's auto-save first, then
+   * capture the LATEST row. Without this, a pending auto-save could land
+   * between opening and confirming, and the confirm's stale snapshot would
+   * rebuild manual_overrides without the just-written category lock -- the
+   * tag decision would then silently revert on the next scrape.
+   */
+  const openConfirm = async (kind: ConfirmState['kind'], ev: Row) => {
+    await settleAutoSave(ev.id)
+    setConfirm({ kind, ev: freshRow(ev) })
+  }
+
+  const confirmMessage = (c: ConfirmState): string => {
+    if (c.kind === 'publish') {
+      // An extreme-moderation row (status 'cancelled') can sit in the queue
+      // via its cat flag; "Publish first" would foreground it, so the
+      // confirm says what publishing would override.
+      return c.ev.status === 'cancelled'
+        ? `This event was cancelled by moderation. Publish "${c.ev.title}" anyway?`
+        : `Publish "${c.ev.title}" to the public site?`
+    }
+    if (c.kind === 'unpublish') {
+      return `Take "${c.ev.title}" off the public site? It returns to the review queue.`
+    }
+    return `Cancel "${c.ev.title}"? It will never publish and shows as cancelled.`
+  }
 
   const bounds = upcomingBounds()
   const visibleCount = counts.all ?? (facet === 'all' ? total : null)
@@ -570,11 +861,14 @@ export default function ReviewQueueSurface() {
           )
         )}
         <div className="ashell-grow" />
+        {/* showHint={false}: the hidden-count copy was deliberately removed
+            here (drawer spec, 2026-08-23), reversing the earlier "always
+            show what the default hides" rule. Documented in
+            IncludePastToggle; do not restore as a bug fix. */}
         <IncludePastToggle
           includePast={includeEnded}
           onChange={setIncludeEnded}
-          hiddenCount={hidden}
-          countUnavailable={fetchError != null}
+          showHint={false}
         />
       </div>
 
@@ -622,12 +916,9 @@ export default function ReviewQueueSurface() {
           <div className="ashell-empty-ring" aria-hidden="true">✓</div>
           <h3>Queue is clear</h3>
           <p>Nothing needs review in this view.</p>
-          {!includeEnded && hidden != null && hidden > 0 && (
-            <p className="ashell-empty-note">
-              {hidden.toLocaleString()} ended {hidden === 1 ? 'event stays' : 'events stay'} tucked
-              away. Turn on Include past to see them.
-            </p>
-          )}
+          {/* The "N ended events stay tucked away" note that used to render
+              here was deliberately removed (drawer spec, 2026-08-23) along
+              with the hidden-count hint. See IncludePastToggle. */}
         </div>
       )}
 
@@ -641,7 +932,7 @@ export default function ReviewQueueSurface() {
                 <span className="ashell-qcol-why">Why it is here</span>
                 <span className="ashell-qcol-when">When</span>
                 <span className="ashell-qcol-src">Source</span>
-                <span className="ashell-qcol-acts">Actions</span>
+                <span className="ashell-qcol-acts" />
               </div>
               <ul role="list" className="ashell-qlist">
                 {events.map((ev) => (
@@ -652,15 +943,17 @@ export default function ReviewQueueSurface() {
                     isOpen={openId === ev.id}
                     isSelected={selected.has(ev.id)}
                     isSaving={!!saving[ev.id]}
+                    isAutoSaving={!!autoSaving[ev.id]}
                     rowError={rowErrors[ev.id] ?? null}
                     selection={selections[ev.id] ?? []}
                     onToggleOpen={() => setOpenId((prev) => (prev === ev.id ? null : ev.id))}
                     onToggleSelected={() => toggleSelected(ev.id)}
-                    onSelectionChange={(ids) => setSelections((s) => ({ ...s, [ev.id]: ids }))}
+                    onSelectionChange={(ids) => changeSelection(ev, ids)}
                     onApprove={() => approveWithToast(ev)}
                     onDismiss={() => dismissWithToast(ev)}
-                    onPublish={() => setConfirm({ kind: 'publish', ev })}
-                    onCancelEvent={() => setConfirm({ kind: 'cancel', ev })}
+                    onPublish={() => { void openConfirm('publish', ev) }}
+                    onUnpublish={() => { void openConfirm('unpublish', ev) }}
+                    onCancelEvent={() => { void openConfirm('cancel', ev) }}
                   />
                 ))}
               </ul>
@@ -675,7 +968,7 @@ export default function ReviewQueueSurface() {
         <div className="ashell-bulk" role="toolbar" aria-label="Bulk actions">
           <span><b>{selected.size}</b> selected</span>
           <button type="button" className="ashell-btn ashell-btn--onnav ashell-btn--primary" onClick={handleBulkApprove}>
-            Approve selected
+            Update selected
           </button>
           <button type="button" className="ashell-btn ashell-btn--onnav" onClick={handleBulkDismiss}>
             Dismiss selected
@@ -699,19 +992,24 @@ export default function ReviewQueueSurface() {
 
       {confirm && (
         <ConfirmDialog
-          message={
-            confirm.kind === 'publish'
-              ? `Publish "${confirm.ev.title}" to the public site?`
-              : `Cancel "${confirm.ev.title}"? It will never publish and shows as cancelled.`
+          message={confirmMessage(confirm)}
+          confirmLabel={
+            confirm.kind === 'publish' ? 'Publish'
+              : confirm.kind === 'unpublish' ? 'Unpublish'
+                : 'Cancel event'
           }
-          confirmLabel={confirm.kind === 'publish' ? 'Publish' : 'Cancel event'}
           tone={confirm.kind === 'publish' ? 'primary' : 'danger'}
           onCancel={() => setConfirm(null)}
-          onConfirm={() => {
+          onConfirm={async () => {
             const { kind, ev } = confirm
             setConfirm(null)
-            if (kind === 'publish') handlePublish(ev)
-            else handleCancel(ev)
+            // Settle again (cheap when idle): the handler must act on the
+            // row as it stands NOW, not as it stood when the dialog opened.
+            await settleAutoSave(ev.id)
+            const row = freshRow(ev)
+            if (kind === 'publish') handlePublish(row)
+            else if (kind === 'unpublish') handleUnpublish(row)
+            else handleCancel(row)
           }}
         />
       )}
@@ -727,6 +1025,7 @@ interface QueueRowProps {
   isOpen: boolean
   isSelected: boolean
   isSaving: boolean
+  isAutoSaving: boolean
   rowError: RowError | null
   selection: string[]
   onToggleOpen: () => void
@@ -735,26 +1034,30 @@ interface QueueRowProps {
   onApprove: () => void
   onDismiss: () => void
   onPublish: () => void
+  onUnpublish: () => void
   onCancelEvent: () => void
 }
 
 function QueueRow({
-  ev, nowIso, isOpen, isSelected, isSaving, rowError, selection,
+  ev, nowIso, isOpen, isSelected, isSaving, isAutoSaving, rowError, selection,
   onToggleOpen, onToggleSelected, onSelectionChange,
-  onApprove, onDismiss, onPublish, onCancelEvent,
+  onApprove, onDismiss, onPublish, onUnpublish, onCancelEvent,
 }: QueueRowProps) {
   const reason = rowReason(ev)
   const cat = isCategoryUnsure(ev)
   const pend = isAwaitingPublish(ev)
   const missingEnd = isMissingEnd(ev)
+  const published = ev.status === 'published'
   const runningNow = !!ev.end_at && !!ev.start_at && ev.start_at <= nowIso && ev.end_at >= nowIso
   const drawerId = `qdrawer-${ev.id}`
   const titleId = `qtitle-${ev.id}`
   // Retry re-runs the action that actually failed -- a failed Cancel must
-  // never route through the Publish confirm. Publish/cancel retries go back
-  // through their confirms; publishing stays behind a confirm, always.
+  // never route through the Publish confirm. Publish/unpublish/cancel
+  // retries go back through their confirms; publishing stays behind a
+  // confirm, always.
   const retryHandlers: Record<RowAction, () => void> = {
-    approve: onApprove, dismiss: onDismiss, publish: onPublish, cancel: onCancelEvent,
+    approve: onApprove, dismiss: onDismiss, publish: onPublish,
+    cancel: onCancelEvent, unpublish: onUnpublish,
   }
 
   return (
@@ -769,15 +1072,35 @@ function QueueRow({
         }
       }}
     >
+      {/* Clicking anywhere on the row toggles the drawer. This is a pointer
+          convenience only: the title <button> below stays the accessible
+          disclosure control (aria-expanded/aria-controls, native Enter and
+          Space). No role="button" on the row -- interactive descendants
+          inside a button role are invalid ARIA. Controls are excluded
+          structurally via closest(); a live text selection must not toggle. */}
       <div
         className={`ashell-qrow ${isSelected ? 'ashell-qrow--selected' : ''} ${isOpen ? 'ashell-qrow--open' : ''}`}
+        onClick={(e) => {
+          const target = e.target as HTMLElement
+          if (target.closest('button, a, input, [role="button"]')) return
+          // Only a selection INSIDE this row suppresses the toggle; a live
+          // selection elsewhere on the page is not this row's business.
+          const sel = window.getSelection()
+          if (sel && !sel.isCollapsed && e.currentTarget.contains(sel.anchorNode)) return
+          onToggleOpen()
+        }}
       >
         <button
           type="button"
           className="ashell-cb"
           aria-pressed={isSelected}
           aria-label={`Select ${ev.title}`}
-          onClick={onToggleSelected}
+          onClick={(e) => {
+            // Belt-and-braces: the row's closest() check already excludes
+            // buttons, but selecting must never fall through to a toggle.
+            e.stopPropagation()
+            onToggleSelected()
+          }}
           disabled={isSaving}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
@@ -833,48 +1156,17 @@ function QueueRow({
           <code>{ev.source}</code>
         </div>
 
-        <div className="ashell-qcol-acts ashell-acts">
-          {cat && (
-            <>
-              <button
-                type="button"
-                className="ashell-ibtn ashell-ibtn--ok"
-                aria-label={`Approve ${ev.title}`}
-                title={selection.length === 0 ? 'Pick a category first' : 'Approve with the picked categories'}
-                onClick={onApprove}
-                disabled={isSaving || selection.length === 0}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
-                  <path d="m4 12.5 5 5L20 6.5" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                className="ashell-ibtn ashell-ibtn--no"
-                aria-label={`Dismiss ${ev.title}`}
-                title="Remove from the queue without changing the category"
-                onClick={onDismiss}
-                disabled={isSaving}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true" focusable="false">
-                  <path d="M6 6l12 12M18 6 6 18" />
-                </svg>
-              </button>
-            </>
-          )}
-          <button
-            type="button"
-            className="ashell-ibtn"
-            aria-label={`Open details for ${ev.title}`}
-            title="Open details"
-            aria-expanded={isOpen}
-            aria-controls={drawerId}
-            onClick={onToggleOpen}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+        {/* Decorative open/closed affordance only. The old ✓/✗ quick actions
+            are gone (approve/dismiss live in the drawer now), and the
+            chevron's <button> wrapper with them: with the whole row as the
+            toggle, a second interactive disclosure control would be
+            duplicate tab-stop noise. */}
+        <div className="ashell-qcol-acts ashell-acts" aria-hidden="true">
+          <span className={`ashell-chev ${isOpen ? 'ashell-chev--open' : ''}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" focusable="false">
               <path d="m6 9 6 6 6-6" />
             </svg>
-          </button>
+          </span>
         </div>
       </div>
 
@@ -887,7 +1179,7 @@ function QueueRow({
       >
         {isOpen && (
           <div className="ashell-drawer-in">
-            <div className="ashell-dcol">
+            <div className="ashell-dcol ashell-dcol--why">
               <h4>Why this is in review</h4>
               <p className="ashell-why-p">{narrative(ev, cat, pend, missingEnd)}</p>
               <dl className="ashell-kv">
@@ -925,18 +1217,23 @@ function QueueRow({
                 table). Nothing here is guessed; if we cannot derive it, we say so.
               </div>
             </div>
-            <div className="ashell-dcol">
+            <div className="ashell-dcol ashell-dcol--fix">
               <h4>Set it right</h4>
-              {cat && (
-                <div className="ashell-catpick">
-                  <ChipSelector
-                    items={REMAP_OPTIONS.map((c) => ({ id: c.value, name: c.label }))}
-                    selectedIds={selection}
-                    onChange={onSelectionChange}
-                    max={2}
-                  />
-                </div>
-              )}
+              {/* The tag picker renders in EVERY drawer and stays editable
+                  even when tags are already set (drawer standard, item 1.1).
+                  On published rows a toggle auto-saves (debounced); the
+                  aria-busy hint below is the light per-drawer signal, never
+                  the row-wide saving freeze. */}
+              <div className="ashell-catpick" aria-busy={isAutoSaving || undefined}>
+                <ChipSelector
+                  items={REMAP_OPTIONS.map((c) => ({ id: c.value, name: c.label }))}
+                  selectedIds={selection}
+                  onChange={onSelectionChange}
+                  max={2}
+                  maxHint="Only two categories can be selected at a time"
+                />
+                {isAutoSaving && <span className="ashell-autosave" role="status">Saving…</span>}
+              </div>
               {rowError && (
                 <p className="ashell-row-error" role="alert">
                   {rowError.message}{' '}
@@ -946,54 +1243,68 @@ function QueueRow({
                 </p>
               )}
               <div className="ashell-dactions">
+                {/* Publish/Unpublish is ALWAYS the first button (drawer
+                    standard, item 2.1). Both go through a confirm. */}
+                {published ? (
+                  <button
+                    type="button"
+                    className="ashell-btn ashell-btn--danger-ghost"
+                    onClick={onUnpublish}
+                    disabled={isSaving}
+                    title="Take this event off the public site; a confirm follows"
+                  >
+                    Unpublish…
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="ashell-btn ashell-btn--primary"
+                    onClick={onPublish}
+                    disabled={isSaving}
+                    title="Publish this event to the public site; a confirm follows"
+                  >
+                    Publish…
+                  </button>
+                )}
+                {/* Published rows have no Update button: tag toggles
+                    auto-save there. */}
+                {!published && (
+                  <button
+                    type="button"
+                    className="ashell-btn"
+                    onClick={onApprove}
+                    disabled={isSaving || selection.length === 0}
+                    title="Save these categories and lock them against future scraper overwrites"
+                  >
+                    {isSaving ? 'Saving…' : 'Update'}
+                  </button>
+                )}
                 {cat && (
-                  <>
-                    <button
-                      type="button"
-                      className="ashell-btn ashell-btn--primary"
-                      onClick={onApprove}
-                      disabled={isSaving || selection.length === 0}
-                      title="Save this category and lock it against future scraper overwrites"
-                    >
-                      {isSaving ? 'Saving…' : 'Approve'}
-                    </button>
-                    <button
-                      type="button"
-                      className="ashell-btn"
-                      onClick={onDismiss}
-                      disabled={isSaving}
-                      title="Remove from the queue without changing the category"
-                    >
-                      Dismiss
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    className="ashell-btn"
+                    onClick={onDismiss}
+                    disabled={isSaving}
+                    title="Remove from the queue without changing the category"
+                  >
+                    Dismiss
+                  </button>
                 )}
                 {pend && (
-                  <>
-                    <button
-                      type="button"
-                      className={`ashell-btn ${cat ? '' : 'ashell-btn--primary'}`}
-                      onClick={onPublish}
-                      disabled={isSaving}
-                      title="Publish this event to the public site; a confirm follows"
-                    >
-                      Publish…
-                    </button>
-                    <button
-                      type="button"
-                      className="ashell-btn ashell-btn--danger"
-                      onClick={onCancelEvent}
-                      disabled={isSaving}
-                      title="Mark this event cancelled so it never publishes; a confirm follows"
-                    >
-                      Cancel event…
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    className="ashell-btn ashell-btn--danger"
+                    onClick={onCancelEvent}
+                    disabled={isSaving}
+                    title="Mark this event cancelled so it never publishes; a confirm follows"
+                  >
+                    Cancel event…
+                  </button>
                 )}
                 <Link className="ashell-edit-link" to={`/admin/events/${ev.id}/edit`}>
                   Open full editor →
                 </Link>
-                {ev.status === 'published' && (
+                {published && (
                   <a
                     className="ashell-edit-link"
                     href={eventPath(ev)}

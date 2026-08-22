@@ -25,7 +25,7 @@ import {
   FACET_IDS,
   REASONS,
 } from '../../src/lib/admin/reviewReasons.ts'
-import { normalizeOverrides } from '../../src/lib/admin/useOverrides.ts'
+import { normalizeOverrides, withStatusLock } from '../../src/lib/admin/useOverrides.ts'
 
 // ── Membership predicate ────────────────────────────────────────────────
 
@@ -131,5 +131,55 @@ describe('normalizeOverrides', () => {
       title: { at: '2026-01-05T00:00:00Z' },
       venue: { at: null },
     })
+  })
+})
+
+// ── withStatusLock — the Publish/Unpublish/Cancel status pin ────────────
+//
+// Cross-boundary contract: the review queue's Publish, Unpublish, and
+// Cancel actions stamp `manual_overrides.status` through withStatusLock,
+// and scripts/lib/normalize.js's `_stripOverriddenFields` protects exactly
+// the keys PRESENT in manual_overrides (key presence, shape ignored). If
+// the `status` key ever goes missing from this output, a human publish or
+// cancel silently reverts on the next scrape -- the "decision undone
+// before morning" failure class. These tests pin the shape.
+
+describe('withStatusLock', () => {
+  it('stamps a status key in the canonical { at: ISO } marker shape', () => {
+    const at = '2026-08-23T09:00:00.000Z'
+    assert.deepEqual(withStatusLock(null, at), { status: { at } })
+  })
+
+  it('defaults `at` to a parseable ISO timestamp', () => {
+    const out = withStatusLock({})
+    assert.ok(out.status)
+    assert.equal(typeof out.status.at, 'string')
+    assert.ok(Number.isFinite(Date.parse(out.status.at)))
+  })
+
+  it('preserves every existing lock (the category lock survives)', () => {
+    const at = '2026-08-23T09:00:00.000Z'
+    const catAt = '2026-08-20T12:00:00Z'
+    assert.deepEqual(
+      withStatusLock({ category: { at: catAt } }, at),
+      { category: { at: catAt }, status: { at } },
+    )
+  })
+
+  it('normalizes legacy markers while adding the pin (self-healing write)', () => {
+    const at = '2026-08-23T09:00:00.000Z'
+    assert.deepEqual(
+      withStatusLock({ category: true, title: 'x' }, at),
+      { category: { at: null }, title: { at: null }, status: { at } },
+    )
+  })
+
+  it('re-pinning replaces the status marker, never duplicates or drops it', () => {
+    const out = withStatusLock({ status: { at: '2026-01-01T00:00:00Z' } }, '2026-08-23T09:00:00.000Z')
+    assert.deepEqual(out, { status: { at: '2026-08-23T09:00:00.000Z' } })
+  })
+
+  it('the pinned key is spelled exactly `status` (what the scraper strip checks)', () => {
+    assert.ok('status' in withStatusLock(undefined))
   })
 })

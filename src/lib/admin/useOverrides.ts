@@ -8,7 +8,9 @@ import { useState, useCallback } from 'react'
  * shape is widened rather than special-cased so every consumer handles
  * both vintages through one code path.
  */
-export interface OverrideMarker {
+// A type alias, not an interface: aliases get an implicit index signature,
+// so Overrides stays assignable to the generated Json column type.
+export type OverrideMarker = {
   at: string | null
 }
 
@@ -42,6 +44,23 @@ export function normalizeOverrides(json: unknown): Overrides {
     }
   }
   return out
+}
+
+/**
+ * Build the manual_overrides value that pins a human STATUS decision
+ * (Publish, Unpublish, and Cancel in the review queue) against re-scrape.
+ *
+ * Cross-boundary contract, pinned by scripts/tests/test-review-reasons.js:
+ * scraper payloads carry `status` and the moderation pass re-sets it, and
+ * `_stripOverriddenFields` (scripts/lib/normalize.js) protects exactly the
+ * keys PRESENT in the existing row's manual_overrides. So the returned
+ * object must contain a `status` key in the canonical `{ at: ISO }` marker
+ * shape (matching the category lock), and must preserve every other lock
+ * already on the row -- normalized, so legacy bare-`true` markers self-heal
+ * on this write.
+ */
+export function withStatusLock(existing: unknown, at: string = new Date().toISOString()): Overrides {
+  return { ...normalizeOverrides(existing), status: { at } }
 }
 
 /**

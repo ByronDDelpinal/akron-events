@@ -2,17 +2,108 @@
    PULSE CONTROL — the admin shell chrome.
 
    Rail, topbar, overview tiles, pulse divider, kitten break, palette,
-   and the review-queue surface. Built strictly from the existing brand
-   tokens (globals.css / themes.css) so every one of the 15 themes gets
-   the control-room look for free: the rail rides --bg-nav, accents ride
-   --amber-on-dark (every theme pins it AA-legible on its own nav), and
-   derived shades come from color-mix over existing tokens — no second
-   palette to keep in sync.
+   and the review-queue surface. Rules consume only the existing brand
+   token NAMES (globals.css / themes.css) — no hardcoded hex — but since
+   the 2026-08-23 dark-first amendment those tokens are redefined on the
+   admin roots below to the Pulse Control dark palette, so the admin is
+   dark ALWAYS, regardless of which of the 15 public themes is active.
+   Derived shades still come from color-mix over the tokens and recompute
+   from the dark values automatically.
 
    Scoped under .admin-shell. The inner pages' own chrome
    (.admin-section, .admin-table*, .btn-admin-*, forms) still lives in
    AdminLayout.css untouched.
 ════════════════════════════════════════════════════════════════ */
+
+/* ── Dark-first control center (design amendment, binding) ───────
+   The admin ALWAYS renders the Pulse Control prototype's dark palette,
+   independent of the public site's 15-theme selection. One token block on
+   the only two admin roots (.admin-shell here, .admin-login-wrap in
+   AdminLayout.css) redefines every site token the admin stylesheets
+   consume to the prototype's :root[data-theme="dark"] values. Custom
+   properties resolve on the nearest defining ancestor, so this overrides
+   the .theme-* class useTheme puts on <html> with no specificity contest
+   and no change to useTheme -- the public site and its themes stay
+   byte-untouched. No admin component portals out of these roots
+   (position: fixed does not break custom-property inheritance).
+
+   Deliberately NOT redefined: --white and the --overlay-* tokens (every
+   admin use sits on --bg-nav/rail surfaces that stay dark), and the
+   spacing/typography/radius/z-index scales.
+
+   The --tag-* remaps translate the prototype's dark reason-chip and
+   status colors onto the theme-invariant public tag tokens the admin
+   borrows (reason chips, status pills, ok-state buttons). Public tag
+   rendering is untouched: the remap only exists inside these roots.
+
+   AA spot checks (from the design amendment): --text-muted #86A7B2 on
+   --bg-secondary #0E323E is about 5.3:1; legacy buttons self-heal since
+   .btn-admin-primary/danger use color: var(--bg-card) on --amber/--coral,
+   both about 6:1. */
+.admin-shell,
+.admin-login-wrap {
+  /* Native inputs, selects, and scrollbars (forms.css) go dark too. */
+  color-scheme: dark;
+  /* Themes swap fonts; the control center pins the brand pair, always
+     loaded by index.html's base font link. */
+  --font-display: 'Sora', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+
+  /* Surfaces */
+  --bg-page: #071E26;
+  --bg-card: #0B2A34;
+  --bg-secondary: #0E323E;
+  --bg-nav: #051820;
+  --green-deep: #051820;
+
+  /* Ink */
+  --text-primary: #E8F1F4;
+  --text-secondary: #B4CDD6;
+  --text-muted: #86A7B2;
+
+  /* Accent (the site's amber slot carries the control-room teal) */
+  --amber: #56B0C2;
+  --amber-hover: #7FC6D6;
+  --amber-on-dark: #7FC6D6;
+  --amber-pale: rgba(86, 176, 194, 0.16);
+  --amber-border: rgba(86, 176, 194, 0.25);
+  --amber-tint-10: rgba(86, 176, 194, 0.10);
+  --amber-tint-25: rgba(86, 176, 194, 0.25);
+  --amber-tint-50: rgba(86, 176, 194, 0.50);
+  --green-mid: #56B0C2;
+
+  /* Danger */
+  --coral: #E58A7B;
+  --coral-hover: #EFA89C;
+  --coral-pale: rgba(229, 138, 123, 0.16);
+  --coral-tint-15: rgba(229, 138, 123, 0.15);
+  --coral-tint-25: rgba(229, 138, 123, 0.25);
+  --coral-tint-35: rgba(229, 138, 123, 0.35);
+
+  /* Lines, chips, shadows */
+  --border: rgba(159, 194, 204, 0.16);
+  --border-mid: rgba(159, 194, 204, 0.30);
+  --chip-bg: #0E323E;
+  --chip-text: #B4CDD6;
+  --chip-active-bg: #56B0C2;
+  --chip-active-txt: #06222B;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.30), 0 4px 14px rgba(0, 0, 0, 0.25);
+  --shadow-hover: 0 4px 10px rgba(0, 0, 0, 0.35), 0 10px 28px rgba(0, 0, 0, 0.30);
+  --shadow-modal: 0 8px 16px rgba(0, 0, 0, 0.35), 0 24px 60px rgba(0, 0, 0, 0.5);
+  --shadow-focus: 0 0 0 3px rgba(86, 176, 194, 0.40);
+
+  /* Reason-chip / status remaps (prototype rz/status colors) */
+  --tag-nonprofit-bg: rgba(232, 180, 94, 0.15);
+  --tag-nonprofit-txt: #E8B45E;
+  --tag-food-bg: rgba(240, 155, 134, 0.15);
+  --tag-food-txt: #F0A794;
+  --tag-education-bg: rgba(108, 206, 206, 0.15);
+  --tag-education-txt: #7FD2D2;
+  --tag-fitness-bg: rgba(127, 214, 174, 0.14);
+  --tag-fitness-txt: #7FD6AE;
+  --tag-music-bg: rgba(127, 214, 174, 0.14);
+  --tag-music-txt: #7FD6AE;
+}
 
 .admin-shell {
   display: flex;
@@ -383,7 +474,7 @@
 .ashell-qhead,
 .ashell-qrow {
   display: grid;
-  grid-template-columns: 34px minmax(240px, 2.1fr) minmax(170px, 1.15fr) 112px 108px 128px;
+  grid-template-columns: 34px minmax(240px, 2.1fr) minmax(170px, 1.15fr) 112px 108px 44px;
   align-items: center;
   gap: var(--space-md);
   padding: 0 16px 0 10px;
@@ -406,6 +497,9 @@
   min-height: 44px;
   position: relative;
   transition: background var(--transition-fast);
+  /* The whole row is a pointer-convenience toggle for the drawer; the title
+     button stays the accessible disclosure control. */
+  cursor: pointer;
 }
 .ashell-qrow:hover { background: var(--amber-tint-10); }
 .ashell-qrow--open { background: var(--amber-tint-10); box-shadow: inset 3px 0 0 var(--green-mid); }
@@ -511,34 +605,19 @@
   transition: opacity var(--transition-fast);
 }
 .ashell-qrow:hover .ashell-acts,
-.ashell-qrow--open .ashell-acts,
-.ashell-acts:focus-within { opacity: 1; }
-.ashell-ibtn {
-  border: var(--border-width-thin) solid var(--border);
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  border-radius: var(--radius-sm);
-  width: 30px;
-  height: 30px;
+.ashell-qrow--open .ashell-acts { opacity: 1; }
+/* Decorative open/closed chevron (the ✓/✗ quick actions and the chevron's
+   button wrapper were removed with the row-click drawer toggle). */
+.ashell-chev {
   display: grid;
   place-items: center;
-  padding: 0;
-  cursor: pointer;
-  transition: border-color var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+  width: 24px;
+  height: 24px;
+  color: var(--text-muted);
+  transition: transform var(--transition-fast);
 }
-.ashell-ibtn:hover:not(:disabled) { border-color: var(--green-mid); color: var(--amber); }
-.ashell-ibtn--ok:hover:not(:disabled) {
-  border-color: var(--tag-fitness-txt);
-  color: var(--tag-fitness-txt);
-  background: var(--tag-fitness-bg);
-}
-.ashell-ibtn--no:hover:not(:disabled) {
-  border-color: var(--coral);
-  color: var(--coral);
-  background: var(--coral-pale);
-}
-.ashell-ibtn:disabled { opacity: 0.45; cursor: default; }
-.ashell-ibtn svg { width: 15px; height: 15px; }
+.ashell-chev--open { transform: rotate(180deg); }
+.ashell-chev svg { width: 15px; height: 15px; }
 
 /* drawer */
 .ashell-drawer { border-top: var(--border-width-thin) solid var(--border); }
@@ -598,6 +677,14 @@
 }
 .ashell-p2 b { color: var(--text-secondary); }
 .ashell-catpick { margin: 4px 0 10px; }
+/* Light auto-save hint for published rows: the drawer stays interactive
+   (never the row-wide --saving freeze) while a debounced tag save runs. */
+.ashell-autosave {
+  display: inline-block;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
 .ashell-dactions {
   display: flex;
   gap: var(--space-sm);
@@ -663,6 +750,18 @@
   background: transparent;
 }
 .ashell-btn--danger:hover:not(:disabled) { background: var(--coral-pale); }
+/* Unpublish: red-outline ghost, distinct from the Cancel-event danger
+   button. Transparent ground so it reads as "reversible but destructive to
+   visibility", not as the primary CTA. */
+.ashell-btn--danger-ghost {
+  color: var(--coral);
+  border-color: var(--coral-tint-35);
+  background: transparent;
+}
+.ashell-btn--danger-ghost:hover:not(:disabled) {
+  border-color: var(--coral);
+  background: var(--coral-pale);
+}
 
 /* empty state */
 .ashell-empty {
@@ -870,12 +969,17 @@
   .ashell-tiles { grid-template-columns: repeat(2, 1fr); }
   .ashell-qhead,
   .ashell-qrow {
-    grid-template-columns: 34px minmax(180px, 2fr) minmax(120px, 1fr) 110px 96px;
+    grid-template-columns: 34px minmax(180px, 2fr) minmax(120px, 1fr) 110px 40px;
   }
   .ashell-qcol-src { display: none; }
+  /* Narrow viewports stack the drawer columns with "Set it right" FIRST
+     (drawer standard, item 5): grid auto-placement honors `order`, so the
+     DOM keeps why-first while the actions render on top. The divider moves
+     with the flip: it sits on the why column, now visually second. */
   .ashell-drawer-in { grid-template-columns: 1fr; }
-  .ashell-dcol + .ashell-dcol {
-    border-left: none;
+  .ashell-dcol + .ashell-dcol { border-left: none; }
+  .ashell-dcol--fix { order: -1; }
+  .ashell-dcol--why {
     border-top: var(--border-width-thin) solid var(--border);
   }
   .ashell-queue { min-width: 0; }
@@ -913,6 +1017,6 @@
   .ashell-cmdk kbd { display: none; }
   .ashell-scrape-pill { display: none; }
   .ashell-qhead,
-  .ashell-qrow { grid-template-columns: 30px 1fr 100px; }
+  .ashell-qrow { grid-template-columns: 30px 1fr 40px; }
   .ashell-qcol-why, .ashell-qcol-when { display: none; }
 }

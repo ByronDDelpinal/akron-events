@@ -350,7 +350,10 @@
 .override-toggle--locked {
   background: var(--amber);
   border-color: var(--amber);
-  color: var(--white, #fff);
+  /* The sole dark-first component exception: white on the dark palette's
+     light teal accent fails contrast (about 1.9:1); the on-accent ink
+     token is the audited pair. */
+  color: var(--chip-active-txt);
 }
 .override-toggle--locked:hover,
 .override-toggle--locked:focus-visible {
@@ -397,6 +400,17 @@
 .admin-chip--taken {
   opacity: 0.55;
   border-style: dashed;
+}
+/* Selection cap reached: unselected chips gray out but stay hoverable and
+   focusable (aria-disabled, not disabled) so the title tooltip explaining
+   the cap remains reachable. */
+.admin-chip--capped {
+  opacity: 0.45;
+  cursor: default;
+}
+.admin-chip--capped:hover {
+  border-color: var(--border);
+  color: var(--text-secondary);
 }
 
 /* ── Override info ── */

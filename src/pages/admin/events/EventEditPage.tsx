@@ -208,6 +208,7 @@ function EventForm({
               selectedIds={form.categories ?? []}
               onChange={(ids) => setField('categories', ids)}
               max={2}
+              maxHint="Only two categories can be selected at a time"
             />
           </FormField>
         </FormFieldRow>
