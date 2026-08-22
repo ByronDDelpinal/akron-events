@@ -306,8 +306,8 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     method:      'ICS feed',
     methodDetail:'Native iCalendar subscription — /events page',
     venue:       'North Hill community — multiple venues',
-    notes:       'NHCDC exposes a public ICS export. Covers Maker Mondays, community markets, and community meetings. Venue is per-event from the VEVENT LOCATION field.',
-    status:      'active',
+    notes:       'RETIRED 2026-08-23 — NHCDC replaced their own calendar with an embedded Akron Pulse widget, so scraping their site would re-ingest our own listings as if they were theirs (the same self-referential loop the aggregator suppression rules exist to prevent). Their events now enter through us directly; until partner accounts ship, changes are made by an admin. The scraper is kept in the repo, deactivated, so it can be revived if they ever publish an independent feed again. Previously: public ICS export covering Maker Mondays, community markets, and community meetings, venue per-event from VEVENT LOCATION.',
+    status:      'retired',
   },
   {
     key:         'akron_public_schools',
