@@ -55,7 +55,7 @@ import 'dotenv/config'
 import {
   enrichWithImageDimensions,
   ensureOrganization,
-  ensureVenue,
+  ensureVenueFromInfo,
   linkEventOrganization,
   linkEventVenue,
   linkOrganizationVenue,
@@ -229,15 +229,7 @@ async function main() {
       description: 'The Akron Fossils & Science Center is a natural-history museum in Copley offering hands-on exhibits, kids\' day camps, and family science programming.',
     })
 
-    const venueId = await ensureVenue(VENUE_INFO.name, {
-      address: VENUE_INFO.address,
-      city:    VENUE_INFO.city,
-      state:   VENUE_INFO.state,
-      zip:     VENUE_INFO.zip,
-      lat:     VENUE_INFO.lat,
-      lng:     VENUE_INFO.lng,
-      website: VENUE_INFO.website,
-    })
+    const venueId = await ensureVenueFromInfo(VENUE_INFO)
 
     if (venueId && organizerId) {
       await linkOrganizationVenue(organizerId, venueId)

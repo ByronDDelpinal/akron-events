@@ -1207,6 +1207,26 @@ export function venueNameKey(name) {
     .trim()
 }
 
+/**
+ * `ensureVenue` for a single-venue scraper's `VENUE_INFO` constant.
+ *
+ * Eleven fixed-venue scrapers each hand-listed every `VENUE_INFO` field into an
+ * `ensureVenue(VENUE_INFO.name, { address: VENUE_INFO.address, … })` call, so
+ * adding a field to the constant meant remembering to add it to the call too.
+ * Splitting `name` off and forwarding the rest is exactly what all eleven were
+ * spelling out by hand.
+ *
+ * `details` keys with an `undefined` value behave the same as absent ones, so a
+ * `VENUE_INFO` that omits `lat`/`lng` is unaffected.
+ *
+ * @param {object} venueInfo  `{ name, ...details }` — `name` is required.
+ * @param {object} [opts]     Forwarded verbatim to `ensureVenue`.
+ */
+export async function ensureVenueFromInfo(venueInfo, opts = {}) {
+  const { name, ...details } = venueInfo ?? {}
+  return ensureVenue(name, details, opts)
+}
+
 export async function ensureVenue(name, details = {}, opts = {}) {
   if (!name) return null
   // Universal safeguard: a venue NAME must never contain HTML. Some feeds

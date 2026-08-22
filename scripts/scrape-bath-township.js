@@ -68,6 +68,7 @@ import {
   easternToIso,
 } from './lib/normalize.js'
 import { classifySummitLocation } from './lib/summit-county.js'
+import { makeWindowFilter } from './lib/event-window.js'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -256,16 +257,15 @@ export function normalizeSourceUrl(raw) {
   )
 }
 
-/** True when the event's window overlaps [now - grace, now + horizon]. */
-export function isWithinWindow(startUtc, endUtc, nowMs = Date.now()) {
-  if (!startUtc) return false
-  const startMs = new Date(startUtc).getTime()
-  const endMs = endUtc ? new Date(endUtc).getTime() : startMs
-  if (Number.isNaN(startMs)) return false
-  if (endMs < nowMs - PAST_GRACE_MS) return false
-  if (startMs > nowMs + HORIZON_DAYS * 86_400_000) return false
-  return true
-}
+/**
+ * True when the event's window overlaps [now - grace, now + horizon].
+ * Single implementation lives in scripts/lib/event-window.js; the horizon
+ * stays per-scraper because these calendars publish different distances out.
+ */
+export const isWithinWindow = makeWindowFilter({
+  horizonDays: HORIZON_DAYS,
+  pastGraceMs: PAST_GRACE_MS,
+})
 
 /**
  * Pure transform: feed row → { row, venueSpec } (no DB access).

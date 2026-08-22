@@ -37,7 +37,7 @@ import {
   upsertEventSafe,
   linkEventVenue,
   linkEventOrganization,
-  ensureVenue,
+  ensureVenueFromInfo,
   ensureOrganization,
   linkOrganizationVenue,
   easternToIso,
@@ -274,13 +274,7 @@ async function main() {
 
   try {
     const organizerId = await ensureOrganization(ORG_INFO.name, ORG_INFO.details)
-    const venueId = await ensureVenue(VENUE_INFO.name, {
-      address: VENUE_INFO.address, city: VENUE_INFO.city, state: VENUE_INFO.state,
-      zip: VENUE_INFO.zip, lat: VENUE_INFO.lat, lng: VENUE_INFO.lng,
-      neighborhood_slug: VENUE_INFO.neighborhood_slug, website: VENUE_INFO.website,
-      description: VENUE_INFO.description, parking_type: VENUE_INFO.parking_type,
-      parking_notes: VENUE_INFO.parking_notes,
-    })
+    const venueId = await ensureVenueFromInfo(VENUE_INFO)
     if (organizerId && venueId) await linkOrganizationVenue(organizerId, venueId)
 
     console.log(`\n🔍  Fetching ${PROGRAMS_URL}…`)

@@ -44,7 +44,7 @@ import {
   easternToIso,
   enrichWithImageDimensions,
   ensureOrganization,
-  ensureVenue,
+  ensureVenueFromInfo,
   inferCategory,
   linkEventOrganization,
   linkEventVenue,
@@ -339,18 +339,7 @@ async function main() {
   const start = Date.now()
 
   try {
-    const venueId = await ensureVenue(VENUE_INFO.name, {
-      address:       VENUE_INFO.address,
-      city:          VENUE_INFO.city,
-      state:         VENUE_INFO.state,
-      zip:           VENUE_INFO.zip,
-      lat:           VENUE_INFO.lat,
-      lng:           VENUE_INFO.lng,
-      website:       VENUE_INFO.website,
-      description:   VENUE_INFO.description,
-      parking_type:  VENUE_INFO.parking_type,
-      parking_notes: VENUE_INFO.parking_notes,
-    })
+    const venueId = await ensureVenueFromInfo(VENUE_INFO)
     const organizerId = await ensureOrganization(ORG_INFO.name, ORG_INFO.details)
     if (venueId && organizerId) await linkOrganizationVenue(organizerId, venueId)
 

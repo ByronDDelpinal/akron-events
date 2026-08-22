@@ -49,6 +49,7 @@ import {
   linkEventOrganization,
   ensureOrganization,
   ensureVenue,
+  ensureVenueFromInfo,
   linkOrganizationVenue,
   easternToIso,
 } from './lib/normalize.js'
@@ -622,13 +623,7 @@ async function main() {
       description: 'City of Akron Recreation & Parks offers programs, camps, classes, and sports leagues at community centers across Akron.',
     })
 
-    const venueId = await ensureVenue(VENUE_INFO.name, {
-      address: VENUE_INFO.address,
-      city:    VENUE_INFO.city,
-      state:   VENUE_INFO.state,
-      zip:     VENUE_INFO.zip,
-      website: VENUE_INFO.website,
-    })
+    const venueId = await ensureVenueFromInfo(VENUE_INFO)
 
     if (organizerId && venueId) await linkOrganizationVenue(organizerId, venueId)
 

@@ -28,6 +28,7 @@ import {
   linkEventVenue, linkEventOrganization, ensureVenue, linkOrganizationVenue,
   parseCostFromTribe, parseTagsFromTribe, ensureOrganization, easternTodayIso,
 } from './lib/normalize.js'
+import { fetchTribeEvents } from './lib/tribe-events.js'
 import { preloadSummitCountyBoundary, classifySummitLocation } from './lib/summit-county.js'
 import { fetchWithRetry } from './lib/http.js'
 
@@ -114,40 +115,19 @@ async function fetchAllPages() {
   const startDate = easternTodayIso()
   const endDate   = easternTodayIso(new Date(Date.now() + DAYS_AHEAD * 86400_000))
 
-  let page    = 1
-  let hasMore = true
-  const all   = []
-
   console.log('\n🔍  Fetching CVNP Conservancy events via Tribe REST API…')
 
-  while (hasMore) {
-    const url = new URL(BASE_URL)
-    url.searchParams.set('per_page',   PER_PAGE)
-    url.searchParams.set('page',       page)
-    url.searchParams.set('start_date', startDate)
-    url.searchParams.set('end_date',   endDate)
-    url.searchParams.set('status',     'publish')
-
-    const res = await fetchWithRetry(url.toString(), {
-      headers: { Accept: 'application/json' },
-      useProxy: true,
-      treatBotChallengeAsRetryable: true,
-    })
-
-    if (!res.ok) throw new Error(`CVNP Conservancy API error ${res.status}: ${await res.text()}`)
-
-    const data   = await res.json()
-    const events = data.events ?? []
-    all.push(...events)
-    console.log(`  Page ${page}/${data.total_pages ?? 1}: ${events.length} events (total: ${all.length})`)
-
-    hasMore = events.length > 0 && page < (data.total_pages ?? 1)
-    page++
-
-    if (hasMore) await new Promise(r => setTimeout(r, 200))
-  }
-
-  return all
+  return fetchTribeEvents({
+    baseUrl:   BASE_URL,
+    label:     "CVNP Conservancy",
+    startDate,
+    endDate,
+    perPage:   PER_PAGE,
+    fetchImpl: fetchWithRetry,
+    fetchOptions: { useProxy: true, treatBotChallengeAsRetryable: true },
+    stopOnEmptyPage: true,
+    errorBodyLimit: Infinity,
+  })
 }
 
 // ── Process ────────────────────────────────────────────────────────────────

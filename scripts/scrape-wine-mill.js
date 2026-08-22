@@ -42,6 +42,7 @@ import {
   parseCostFromTribe, parseTagsFromTribe,
   easternTodayIso, easternToIso,
 } from './lib/normalize.js'
+import { fetchTribeEvents } from './lib/tribe-events.js'
 import { fetchWithRetry } from './lib/http.js'
 
 export const SOURCE_KEY = 'wine_mill'
@@ -143,36 +144,17 @@ async function fetchAllPages() {
   const startDate = easternTodayIso()
   const endDate   = new Date(Date.now() + DAYS_AHEAD * 86400_000).toISOString().split('T')[0]
 
-  let page = 1, hasMore = true
-  const all = []
   console.log('\n🔍  Fetching The Wine Mill events via Tribe REST API…')
 
-  while (hasMore) {
-    const url = new URL(BASE_URL)
-    url.searchParams.set('per_page',   PER_PAGE)
-    url.searchParams.set('page',       page)
-    url.searchParams.set('start_date', startDate)
-    url.searchParams.set('end_date',   endDate)
-    url.searchParams.set('status',     'publish')
-
-    const res = await fetchWithRetry(url.toString(), {
-      headers: { Accept: 'application/json' },
-      redirect: 'follow',
-      useProxy: true,
-      treatBotChallengeAsRetryable: true,
-    })
-    if (!res.ok) throw new Error(`Wine Mill API error ${res.status}: ${(await res.text()).slice(0, 200)}`)
-
-    const data   = await res.json()
-    const events = data.events ?? []
-    all.push(...events)
-    console.log(`  Page ${page}/${data.total_pages ?? 1}: ${events.length} events (total: ${all.length})`)
-
-    hasMore = page < (data.total_pages ?? 1)
-    page++
-    if (hasMore) await new Promise((r) => setTimeout(r, 200))
-  }
-  return all
+  return fetchTribeEvents({
+    baseUrl:   BASE_URL,
+    label:     "Wine Mill",
+    startDate,
+    endDate,
+    perPage:   PER_PAGE,
+    fetchImpl: fetchWithRetry,
+    fetchOptions: { useProxy: true, treatBotChallengeAsRetryable: true },
+  })
 }
 
 // ── Entry point ──────────────────────────────────────────────────────────────

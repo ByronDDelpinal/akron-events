@@ -25,7 +25,7 @@ import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
 import {
   logUpsertResult, logScraperError, stripHtml, inferCategory, enrichWithImageDimensions,
-  upsertEventSafe, linkEventVenue, linkEventOrganization, ensureVenue, ensureOrganization,
+  upsertEventSafe, linkEventVenue, linkEventOrganization, ensureVenueFromInfo, ensureOrganization,
   linkOrganizationVenue, easternToIso,
 } from './lib/normalize.js'
 
@@ -132,11 +132,7 @@ async function main() {
       website:     HOME_URL,
       description: 'Akron Makerspace is a volunteer-run 501(c)(3) makerspace in downtown Akron offering tools, classes, and maker community events.',
     })
-    const venueId = await ensureVenue(VENUE_INFO.name, {
-      address: VENUE_INFO.address, city: VENUE_INFO.city, state: VENUE_INFO.state, zip: VENUE_INFO.zip,
-      lat: VENUE_INFO.lat, lng: VENUE_INFO.lng, neighborhood_slug: VENUE_INFO.neighborhood_slug,
-      website: VENUE_INFO.website, parking_type: VENUE_INFO.parking_type,
-    })
+    const venueId = await ensureVenueFromInfo(VENUE_INFO)
     if (organizerId && venueId) await linkOrganizationVenue(organizerId, venueId)
 
     const events = parseSimcalEvents(await fetchHtml(HOME_URL))

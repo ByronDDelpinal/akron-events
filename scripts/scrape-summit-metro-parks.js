@@ -21,6 +21,7 @@ import {
   parseCostFromTribe, parseTagsFromTribe, ensureOrganization,
   easternTodayIso,
 } from './lib/normalize.js'
+import { fetchTribeEvents } from './lib/tribe-events.js'
 
 const BASE_URL   = 'https://www.summitmetroparks.org/wp-json/tribe/events/v1/events'
 const PER_PAGE   = 50
@@ -107,41 +108,18 @@ async function fetchAllPages() {
   const startDate = easternTodayIso()
   const endDate   = new Date(Date.now() + DAYS_AHEAD * 86400_000).toISOString().split('T')[0]
 
-  let page    = 1
-  let hasMore = true
-  const all   = []
-
   console.log('\n🔍  Fetching Summit Metro Parks events via Tribe REST API…')
 
-  while (hasMore) {
-    const url = new URL(BASE_URL)
-    url.searchParams.set('per_page',   PER_PAGE)
-    url.searchParams.set('page',       page)
-    url.searchParams.set('start_date', startDate)
-    url.searchParams.set('end_date',   endDate)
-    url.searchParams.set('status',     'publish')
-
-    const res = await fetch(url.toString(), {
-      headers: {
-        Accept:       'application/json',
-        'User-Agent': 'Mozilla/5.0 (compatible; The330-bot/1.0)',
-      },
-    })
-
-    if (!res.ok) throw new Error(`Summit Metro Parks API error ${res.status}: ${await res.text()}`)
-
-    const data   = await res.json()
-    const events = data.events ?? []
-    all.push(...events)
-    console.log(`  Page ${page}/${data.total_pages ?? 1}: ${events.length} events (total: ${all.length})`)
-
-    hasMore = events.length > 0 && page < (data.total_pages ?? 1)
-    page++
-
-    if (hasMore) await new Promise(r => setTimeout(r, 200))
-  }
-
-  return all
+  return fetchTribeEvents({
+    baseUrl:   BASE_URL,
+    label:     "Summit Metro Parks",
+    startDate,
+    endDate,
+    perPage:   PER_PAGE,
+    userAgent: 'Mozilla/5.0 (compatible; The330-bot/1.0)',
+    stopOnEmptyPage: true,
+    errorBodyLimit: Infinity,
+  })
 }
 
 // ── Process ────────────────────────────────────────────────────────────────

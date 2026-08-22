@@ -55,6 +55,7 @@ import {
   ensureVenue, ensureOrganization, linkOrganizationVenue, parseTagsFromTribe,
   easternTodayIso,
 } from './lib/normalize.js'
+import { fetchTribeEvents } from './lib/tribe-events.js'
 
 export const SOURCE_KEY = 'raintree_golf'
 const BASE_URL   = 'https://www.golfraintree.com/wp-json/tribe/events/v1/events'
@@ -175,37 +176,17 @@ async function fetchAllPages() {
   const startDate = easternTodayIso()
   const endDate   = new Date(Date.now() + DAYS_AHEAD * 86400_000).toISOString().split('T')[0]
 
-  let page = 1, hasMore = true
-  const all = []
   console.log('\n🔍  Fetching Raintree Golf events via Tribe REST API…')
 
-  while (hasMore) {
-    const url = new URL(BASE_URL)
-    url.searchParams.set('per_page',   PER_PAGE)
-    url.searchParams.set('page',       page)
-    url.searchParams.set('start_date', startDate)
-    url.searchParams.set('end_date',   endDate)
-    url.searchParams.set('status',     'publish')
-
-    const res = await fetch(url.toString(), {
-      headers: { Accept: 'application/json', 'User-Agent': BROWSER_UA },
-      redirect: 'follow',
-    })
-    // Tribe returns 400 with a "no results" code when the window is empty —
-    // treat that as zero events rather than an error.
-    if (res.status === 400) break
-    if (!res.ok) throw new Error(`Raintree Golf API error ${res.status}: ${(await res.text()).slice(0, 200)}`)
-
-    const data   = await res.json()
-    const events = data.events ?? []
-    all.push(...events)
-    console.log(`  Page ${page}/${data.total_pages ?? 1}: ${events.length} events (total: ${all.length})`)
-
-    hasMore = page < (data.total_pages ?? 1)
-    page++
-    if (hasMore) await new Promise((r) => setTimeout(r, 200))
-  }
-  return all
+  return fetchTribeEvents({
+    baseUrl:   BASE_URL,
+    label:     "Raintree Golf",
+    startDate,
+    endDate,
+    perPage:   PER_PAGE,
+    userAgent: BROWSER_UA,
+    emptyStatuses: [400],
+  })
 }
 
 // ── Process ──────────────────────────────────────────────────────────────────

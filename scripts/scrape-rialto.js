@@ -21,7 +21,7 @@ import 'dotenv/config'
 import {
   enrichWithImageDimensions,
   ensureOrganization,
-  ensureVenue,
+  ensureVenueFromInfo,
   inferCategory,
   linkEventOrganization,
   linkEventVenue,
@@ -155,13 +155,7 @@ async function main() {
     })
 
     // The venue is fixed — every event happens here
-    const venueId = await ensureVenue(VENUE_INFO.name, {
-      address: VENUE_INFO.address,
-      city:    VENUE_INFO.city,
-      state:   VENUE_INFO.state,
-      zip:     VENUE_INFO.zip,
-      website: VENUE_INFO.website,
-    })
+    const venueId = await ensureVenueFromInfo(VENUE_INFO)
 
     if (venueId && organizerId) {
       await linkOrganizationVenue(organizerId, venueId)
