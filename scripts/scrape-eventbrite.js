@@ -801,7 +801,10 @@ function normaliseEvent(ev) {
 
   const rawDesc = ev.description?.text ?? ev.summary ??
     (typeof ev.description === 'string' ? ev.description : null)
-  const description = rawDesc ? stripHtml(rawDesc).slice(0, 5000) || null : null
+  // htmlToText (not stripHtml) so paragraph/list/line-break structure survives —
+  // stripHtml collapses every newline into a space, producing a wall of text the
+  // frontend's EventDescription can't split into paragraphs (visitor feedback 2026-08).
+  const description = rawDesc ? htmlToText(rawDesc).slice(0, 5000) || null : null
 
   let start_at = null, end_at = null
   if (ev.start?.utc) {
@@ -1198,7 +1201,7 @@ async function fetchEventDetail(url, cookie) {
       const legacyHtml = ev?.description?.html ?? ev?.description?.text ?? null
       if (legacyHtml && legacyHtml.trim().length > 10) {
         if (DEBUG) console.log(`  [debug]   → found via __SERVER_DATA__.event.description`)
-        return { description: stripHtml(legacyHtml), summary: ev?.summary ?? null, imageUrl, categoryName, subcategoryName, organizer: htmlOrganizer }
+        return { description: htmlToText(legacyHtml), summary: ev?.summary ?? null, imageUrl, categoryName, subcategoryName, organizer: htmlOrganizer }
       }
 
       // Format 1b: structured_content modules (newer Eventbrite editor)
@@ -1211,10 +1214,10 @@ async function fetchEventDetail(url, cookie) {
         const parts = []
         for (const mod of modules) {
           const bodyHtml = mod?.data?.body?.html ?? mod?.data?.body?.text ?? null
-          if (bodyHtml && bodyHtml.trim()) { parts.push(stripHtml(bodyHtml).trim()); continue }
+          if (bodyHtml && bodyHtml.trim()) { parts.push(htmlToText(bodyHtml).trim()); continue }
           const textHtml = mod?.data?.text?.html ?? mod?.data?.text ?? null
           if (textHtml && typeof textHtml === 'string' && textHtml.trim()) {
-            parts.push(stripHtml(textHtml).trim())
+            parts.push(htmlToText(textHtml).trim())
           }
         }
         const combined = parts.filter(Boolean).join('\n\n')
