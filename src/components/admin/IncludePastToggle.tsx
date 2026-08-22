@@ -11,6 +11,11 @@ interface IncludePastToggleProps {
   onChange: (next: boolean) => void
   /** Rows hidden by the default filter. `null` while still counting. */
   hiddenCount: number | null
+  /**
+   * The count could not be fetched (as opposed to "still counting"). Shows
+   * an honest "unavailable" instead of a perpetual "Counting…".
+   */
+  countUnavailable?: boolean
   /** Noun for the copy, e.g. "event". */
   noun?: string
 }
@@ -19,11 +24,13 @@ export default function IncludePastToggle({
   includePast,
   onChange,
   hiddenCount,
+  countUnavailable = false,
   noun = 'event',
 }: IncludePastToggleProps) {
   const plural = hiddenCount === 1 ? noun : `${noun}s`
-  const hint =
-    hiddenCount === null
+  const hint = countUnavailable
+    ? 'Hidden count unavailable'
+    : hiddenCount === null
       ? 'Counting…'
       : hiddenCount === 0
         ? `No ended ${noun}s hidden`

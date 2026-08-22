@@ -46,79 +46,11 @@
   text-align: center;
 }
 
-/* ── Layout ── */
-.admin-page {
-  min-height: 100vh;
-  background: var(--bg-secondary);
-}
-.admin-topbar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: var(--space-lg) var(--space-2xl);
-  background: var(--bg-nav);
-  border-bottom: var(--border-width-thin) solid var(--overlay-light-05);
-}
-.admin-topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-}
-.admin-topbar-title {
-  /* h1 inside the persistent admin chrome — overriding the global
-     --text-h1 way down to body scale because this is a chrome label,
-     not a page title. font-family / weight come from the global rule. */
-  font-size: var(--text-md);
-  color: var(--white);
-  letter-spacing: -0.01em;
-}
-.admin-layout {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  min-height: calc(100vh - 54px);
-}
-@media (max-width: 768px) {
-  .admin-layout { grid-template-columns: 1fr; }
-  .admin-sidebar {
-    flex-direction: row !important;
-    overflow-x: auto;
-    border-right: none !important;
-    border-bottom: var(--border-width-thin) solid var(--border) !important;
-    padding: var(--space-sm) !important;
-    gap: var(--space-xs) !important;
-  }
-  .admin-nav-btn { padding: var(--space-sm) var(--space-lg) !important; font-size: var(--text-xs) !important; }
-}
-
-/* ── Sidebar Nav ── */
-.admin-sidebar {
-  display: flex; flex-direction: column; gap: var(--space-2xs);
-  background: var(--bg-card);
-  border-right: var(--border-width-thin) solid var(--border);
-  padding: var(--space-lg) var(--space-md);
-}
-.admin-nav-btn {
-  display: flex; align-items: center; gap: var(--space-md);
-  padding: var(--space-md) var(--space-lg); border: none;
-  border-radius: var(--radius-md); background: transparent;
-  font-family: var(--font-display);
-  font-size: var(--text-sm); font-weight: 600;
-  color: var(--text-secondary);
-  cursor: pointer; transition: all var(--transition-fast);
-  text-align: left;
-}
-.admin-nav-btn:hover { background: var(--bg-secondary); }
-.admin-nav-btn.active {
-  background: var(--amber-pale);
-  color: var(--amber);
-}
-.admin-nav-icon { font-size: var(--text-md); }
-.admin-nav-back {
-  margin-bottom: var(--space-sm);
-  padding-bottom: var(--space-md);
-  border-bottom: var(--border-width-thin) solid var(--border);
-  color: var(--text-muted);
-  text-decoration: none;
-}
-.admin-nav-back:hover { color: var(--amber); background: transparent; }
+/* ── Layout ──
+ * The shell chrome (rail, topbar, tiles, palette, kitten break, and the
+ * review surface) lives in AdminShell.css. This file keeps everything the
+ * INNER pages use: .admin-section, .admin-table*, .btn-admin-*, forms,
+ * modals, toggles — legacy pages render unchanged inside the new shell. */
 
 /* ── Main Area ── */
 .admin-main {
@@ -751,30 +683,6 @@
 }
 
 /* ── Review Queue ── */
-.admin-tabs {
-  display: flex; gap: var(--space-xs);
-  border-bottom: 1px solid var(--border-subtle, var(--border));
-  margin-bottom: var(--space-xl);
-}
-.admin-tab {
-  appearance: none; background: none; border: none; cursor: pointer;
-  padding: var(--space-sm) var(--space-md);
-  font-size: var(--text-sm); font-weight: 500;
-  color: var(--text-muted);
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-.admin-tab:hover { color: var(--text-primary); }
-.admin-tab--active {
-  color: var(--amber);
-  border-bottom-color: var(--amber);
-}
-.admin-review-desc {
-  font-size: var(--text-sm); color: var(--text-secondary);
-  margin-bottom: var(--space-xl);
-  max-width: 600px;
-}
 .admin-review-empty {
   display: flex; flex-direction: column; align-items: center;
   gap: var(--space-md); padding: var(--space-5xl);
@@ -811,13 +719,6 @@
   white-space: nowrap;
 }
 .admin-row--saving { opacity: 0.5; pointer-events: none; }
-.admin-nav-badge {
-  margin-left: auto;
-  background: var(--coral); color: #fff;
-  font-size: 10px; font-weight: 700; line-height: 1;
-  padding: 2px 6px; border-radius: var(--radius-pill);
-  min-width: 18px; text-align: center;
-}
 
 /* ── Include past toggle ───────────────────────────────────────────────────
  * Admin lists hide events that have ALREADY ENDED by default. The hidden

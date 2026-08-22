@@ -41,6 +41,7 @@ const FestivalPage   = lazy(() => import('@/pages/FestivalPage'))
 
 // Admin pages — visitors never pay for the admin surface.
 const AdminLayout = lazy(() => import('@/pages/admin/AdminLayout'))
+const AdminHomePage = lazy(() => import('@/pages/admin/home/AdminHomePage'))
 const EventsListPage = lazy(() => import('@/pages/admin/events/EventsListPage'))
 const EventEditPage = lazy(() => import('@/pages/admin/events/EventEditPage'))
 const VenuesListPage = lazy(() => import('@/pages/admin/venues/VenuesListPage'))
@@ -263,7 +264,9 @@ function AppInner() {
 
           {/* Admin — nested routing with shared layout */}
           <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Navigate to="events" replace />} />
+            {/* Pulse — the overview home surface (replaces the old redirect
+                to /admin/events). */}
+            <Route index element={<AdminHomePage />} />
             <Route path="events"             element={<EventsListPage />} />
             <Route path="events/new"         element={<EventEditPage />} />
             <Route path="events/:id/edit"    element={<EventEditPage />} />

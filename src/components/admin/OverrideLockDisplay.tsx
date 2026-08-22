@@ -1,14 +1,19 @@
 import { format } from 'date-fns'
-import type { Overrides } from '@/lib/admin/useOverrides'
+import { normalizeOverrides } from '@/lib/admin/useOverrides'
 
 /**
  * Displays the current override locks summary at the bottom of a form.
  *
  * The chip glyph matches the closed-padlock SVG used in <OverrideToggle />
  * so the locked state reads the same in both surfaces.
+ *
+ * Renders defensively through `normalizeOverrides`: legacy rows store bare
+ * `true` markers instead of `{ at }` objects, and a lock whose timestamp is
+ * unknown (or unparsable) says "locked earlier" instead of throwing a
+ * RangeError out of date-fns.
  */
-export default function OverrideLockDisplay({ overrides }: { overrides?: Overrides }) {
-  const entries = Object.entries(overrides ?? {})
+export default function OverrideLockDisplay({ overrides }: { overrides?: unknown }) {
+  const entries = Object.entries(normalizeOverrides(overrides))
   if (entries.length === 0) return null
 
   return (
@@ -23,14 +28,24 @@ export default function OverrideLockDisplay({ overrides }: { overrides?: Overrid
           <span key={field} className="admin-override-chip">
             <ClosedLockGlyph />
             <span>{field}</span>
-            <span className="admin-override-date">
-              (since {format(new Date(val.at), 'MMM d')})
-            </span>
+            <span className="admin-override-date">{lockedSince(val.at)}</span>
           </span>
         ))}
       </div>
     </>
   )
+}
+
+/**
+ * "(since MMM d)" only when the timestamp parses; a legacy lock with no
+ * usable date reads "(locked earlier)". Never throws.
+ */
+function lockedSince(at: string | null): string {
+  if (at) {
+    const parsed = new Date(at)
+    if (!Number.isNaN(parsed.getTime())) return `(since ${format(parsed, 'MMM d')})`
+  }
+  return '(locked earlier)'
 }
 
 function ClosedLockGlyph() {
