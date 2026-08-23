@@ -1,5 +1,5 @@
 import type { LooseRow, LooseQuery } from '@/types'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { EVENT_LIST_COLUMNS, FIRST_PAGE_CACHE_ROWS } from '@/lib/firstPageQuery'
 import { applyBrowseVisibility } from '@/lib/browseVisibility'
@@ -191,6 +191,15 @@ export function useEvents({
   const [error,   setError]   = useState<string | null>(null)
   const [total,   setTotal]   = useState(0)
 
+  // The `start_at` floor page one of the CURRENT filter set was fetched with,
+  // so every later page can reuse it. That floor is "now", and it advances
+  // between requests: if page 2 re-evaluated it, every event that started in
+  // between would drop out of the result set, the whole window would shift up
+  // by that many rows, and exactly that many events would be skipped at the
+  // page boundary. `sig` scopes the pin to one filter set (limit and offset
+  // excluded) so changing a filter starts from a fresh floor.
+  const floorRef = useRef<{ sig: string; floorIso: string } | null>(null)
+
   // The caller may pass fresh array literals on every render, so the fetch
   // effect keys on a serialized form and reads memoized arrays derived from
   // it. Values are slugs/keys (never contain commas), so join/split is safe.
@@ -206,6 +215,19 @@ export function useEvents({
   useEffect(() => {
     let cancelled = false
     const categories = categoriesStable, excludedCategories = excludedCatsStable, hiddenSources = hiddenSourcesStable, venueCities = venueCitiesStable
+
+    // Identifies the current filter set for the pinned start_at floor (see
+    // floorRef above). Deliberately excludes `limit` and `offset`: paging
+    // through one feed must keep the floor page one used, while changing any
+    // actual filter must start a fresh one. JSON.stringify, not a join —
+    // `search` is free text, and a delimiter join lets a term containing the
+    // delimiter collide with a different filter set. Same shape as
+    // useMapEvents' cacheKey below.
+    const sig = JSON.stringify([
+      categories, excludedCategories, family, excludeFamily, fundraiser,
+      dateRange, dateFrom, dateTo, timeOfDay, search, freeOnly, priceMax,
+      hiddenSources, neighborhoodSlug, venueCities, sort, hubSlug,
+    ])
 
     // The pristine homepage request (page one, no filters, default
     // sort) is byte-identical for every visitor, so it's served from
@@ -236,6 +258,11 @@ export function useEvents({
     async function fetchEvents() {
       setLoading(true)
       setError(null)
+
+      // Page one sets the floor; later pages of the same feed reuse it. A page
+      // whose filter set doesn't match the pinned one starts fresh.
+      const nowIso = new Date().toISOString()
+      const floorIso = offset > 0 && floorRef.current?.sig === sig ? floorRef.current.floorIso : nowIso
 
       // ── Shared live-query builder ─────────────────────────────────────
       // ONE construction site for the PostgREST query, used by three paths:
@@ -275,7 +302,7 @@ export function useEvents({
           `, countOption)
           .eq('status', 'published')
           // Drop events the moment their start time passes — no in-progress grace window.
-          .gte('start_at', new Date().toISOString())
+          .gte('start_at', floorIso)
 
         // Festival children are hidden from the browse grid; the umbrella
         // stands in for them and links to the hub. Skipped when a search
@@ -393,7 +420,7 @@ export function useEvents({
         try {
           const res = await headPromise
           if (res.ok) {
-            const { events: rows, total: cachedTotal } = await res.json()
+            const { events: rows, total: cachedTotal, bakedAt } = await res.json()
             if (Array.isArray(rows)) {
               let combined = (rows as RawRow[]).slice(0, limit)
               if (tailPromise) {
@@ -406,6 +433,21 @@ export function useEvents({
                 combined = [...combined, ...((tailRows ?? []) as RawRow[]).filter((r) => !seen.has(r.id))]
               }
               if (!cancelled) {
+                // One floor shared by every page of a list is the whole point
+                // of the pin, so pin the ordering the DEEPEST RENDERED ROW came
+                // from — that is where the next page must continue.
+                //   no tail: every rendered row is a baked row, so the bake's
+                //     floor is the right one. The cached body can be more than
+                //     a day stale (s-maxage=28800 + stale-while-revalidate=
+                //     86400), which is exactly why "now" would be wrong here.
+                //   tail: the deepest rows came from the live query, which was
+                //     started before this JSON was parsed and so necessarily
+                //     used `floorIso`. Pinning `bakedAt` would shift page 2
+                //     forward by however many events started since the bake and
+                //     re-serve rows already on screen.
+                // A response with no `bakedAt` (older deploy, or a cache still
+                // holding a pre-bakedAt body) falls back to this fetch's floor.
+                floorRef.current = { sig, floorIso: tailPromise ? floorIso : (bakedAt ?? floorIso) }
                 setEvents(combined.map((r) => normalizeEventJoins(r) as AppEvent))
                 setTotal(cachedTotal ?? 0)
                 setLoading(false)
@@ -439,7 +481,7 @@ export function useEvents({
         try {
           const res = await headPromise
           if (res.ok) {
-            const { events: rows, total: cachedTotal } = await res.json()
+            const { events: rows, total: cachedTotal, bakedAt } = await res.json()
             if (Array.isArray(rows)) {
               let combined = (rows as RawRow[]).slice(0, limit)
               if (tailPromise) {
@@ -449,6 +491,12 @@ export function useEvents({
                 combined = [...combined, ...((tailRows ?? []) as RawRow[]).filter((r) => !seen.has(r.id))]
               }
               if (!cancelled) {
+                // Same rule as the pristine block: pin the ordering the deepest
+                // rendered row came from. /api/events-hub returns no `bakedAt`
+                // today, so both arms collapse to `floorIso` — no behavior
+                // change now, and the hub is correct for free if that endpoint
+                // ever starts baking one.
+                floorRef.current = { sig, floorIso: tailPromise ? floorIso : (bakedAt ?? floorIso) }
                 setEvents(combined.map((r) => normalizeEventJoins(r) as AppEvent))
                 setTotal(cachedTotal ?? 0)
                 setLoading(false)
@@ -468,6 +516,8 @@ export function useEvents({
 
         if (fetchError) throw fetchError
         if (!cancelled) {
+          // Page one of a live feed pins the floor its later pages will use.
+          if (offset === 0) floorRef.current = { sig, floorIso }
           setEvents((data ?? []).map((r: RawRow) => normalizeEventJoins(r) as AppEvent))
           // Only page one carries a count; later pages leave the page-one
           // total untouched (a filter change resets offset to 0 and recounts).

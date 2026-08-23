@@ -36,6 +36,13 @@ interface FilterTrayProps {
   onExcludeFamily?: (v: boolean) => void
   showAudienceToggle?: boolean
   total: number
+  /**
+   * The caller's single batched clear (`useEventFilters.clearFilters`). It must
+   * be one write: sequential setter calls in one handler each derive from the
+   * same render's searchParams snapshot, so the later ones clobber the earlier.
+   * Absent means the tray shows no "Clear all" button, mirroring the strip.
+   */
+  onClearAll?: () => void
   lockedDimensions?: LockedDimensions
   /**
    * The partner's locked category set (embed only). When present, the Category
@@ -80,6 +87,7 @@ export default function FilterTray({
   excludeFamily = false, onExcludeFamily,
   showAudienceToggle = false,
   total,
+  onClearAll,
   lockedDimensions = {},
   lockedCategories = [],
 }: FilterTrayProps) {
@@ -189,20 +197,6 @@ export default function FilterTray({
     return null
   }
 
-  function clearAll() {
-    onIntentId(null)
-    // In the embed an empty categories param resets to the full locked set, so
-    // this never escapes the lock. Locked price/date are left untouched.
-    onRawCategories([])
-    onExcludeFamily?.(false)
-    if (!lockedDimensions.price) onPriceFilter(null)
-    if (!lockedDimensions.dateRange) onWhenChange({ type: 'clear' })
-    // tod is not lockable in v1 (docs/when-filter.md §5) — always cleared,
-    // same as every other unlocked filter.
-    onTimeOfDayChange(null)
-    onSort('soonest')
-  }
-
   return (
     <div className="tray-overlay" onClick={(e: MouseEvent) => { if (e.target === e.currentTarget) onClose() }}>
       <div
@@ -232,7 +226,7 @@ export default function FilterTray({
         {/* Header */}
         <div className="tray-header">
           <span className="tray-title">Filter &amp; Sort</span>
-          <button className="tray-clear-btn" onClick={clearAll}>Clear all</button>
+          {onClearAll && <button className="tray-clear-btn" onClick={onClearAll}>Clear all</button>}
         </div>
 
         {/* ── When (date + time of day) ── */}

@@ -58,8 +58,13 @@ export const FIRST_PAGE_CACHE_ROWS = 48
  * page one) to a supabase client. Must stay behaviorally identical to
  * useEvents' builder with default options — if you change one, change
  * the other.
+ *
+ * `floorIso` is the `start_at` floor. The caller passes the timestamp it bakes
+ * into the response so later pages of the same feed can reuse the exact same
+ * floor — a floor that moves between pages shifts the offset window and drops
+ * (or duplicates) rows at the seam.
  */
-export function buildFirstPageQuery(supabase, limit = FIRST_PAGE_CACHE_ROWS) {
+export function buildFirstPageQuery(supabase, limit = FIRST_PAGE_CACHE_ROWS, floorIso = new Date().toISOString()) {
   let query = supabase
     .from('events')
     .select(`
@@ -70,7 +75,7 @@ export function buildFirstPageQuery(supabase, limit = FIRST_PAGE_CACHE_ROWS) {
     `, { count: 'exact' })
     .eq('status', 'published')
     // Drop events the moment their start time passes — no in-progress grace window.
-    .gte('start_at', new Date().toISOString())
+    .gte('start_at', floorIso)
 
   query = applyBrowseVisibility(query)
 

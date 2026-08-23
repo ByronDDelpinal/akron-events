@@ -160,6 +160,12 @@ export function useEventFilters({
     else updateParams({ date: null, from: null, to: null })
   }, [updateParams])
 
+  /** Suggestion click: intent + optional date preset in ONE write. Two
+   *  sequential setters would clobber each other — see updateParams above. */
+  const setIntentWithDate = useCallback((intentId: string | null, datePreset: string | null) => {
+    updateParams(datePreset ? { intent: intentId, date: datePreset, from: null, to: null } : { intent: intentId })
+  }, [updateParams])
+
   // categories — comma-separated list (e.g. "music,outdoors")
   const rawCategories = useMemo(() => {
     const raw = searchParams.get('categories') || ''
@@ -321,6 +327,7 @@ export function useEventFilters({
     search, setSearch,
     excludeFamily, setExcludeFamily,
     // actions
+    setIntentWithDate,
     clearFilters,
     // derived
     activeIntent,

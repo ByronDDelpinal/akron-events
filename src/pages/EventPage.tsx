@@ -1,6 +1,6 @@
 import type { LooseRow } from '@/types'
 import { useState, useCallback, useEffect, useRef, Suspense, lazy, type ReactNode } from 'react'
-import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
+import { useParams, useNavigate, useLocation, Navigate, Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { useEvent, type AppEvent } from '@/hooks/useEvents'
 import { useEmbed } from '@/hooks/useEmbed'
@@ -133,6 +133,25 @@ function downloadEventIcs(event: AppEvent): void {
   downloadIcs(eventIcsFilename(event), content)
 }
 
+function EventNotFound({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="event-loading">
+      <p>Event not found.</p>
+      <button className="event-back-btn" onClick={onBack}>← Back to events</button>
+    </div>
+  )
+}
+
+/** Legacy one-segment /events/<uuid>: resolve, then replace-redirect to the
+ *  canonical /events/{slug}/{id}. Never renders event content off-canonical. */
+export function LegacyEventRedirect({ id }: { id: string }) {
+  const navigate = useNavigate()
+  const { event, loading, error } = useEvent(id)
+  if (loading) return <div className="event-loading">Loading event…</div>
+  if (error || !event) return <EventNotFound onBack={() => navigate(-1)} />
+  return <Navigate to={eventPath(event)} replace />
+}
+
 export default function EventPage() {
   const { id, slug } = useParams()
   const navigate     = useNavigate()
@@ -191,12 +210,7 @@ export default function EventPage() {
   }, [event, id, slug, navigate, embed, location.search])
 
   if (loading) return <div className="event-loading">Loading event…</div>
-  if (error || !event) return (
-    <div className="event-loading">
-      <p>Event not found.</p>
-      <button className="event-back-btn" onClick={backToList}>← Back to events</button>
-    </div>
-  )
+  if (error || !event) return <EventNotFound onBack={backToList} />
 
   const price = formatPrice(event.price_min, event.price_max)
 

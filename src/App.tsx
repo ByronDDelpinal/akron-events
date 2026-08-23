@@ -13,7 +13,7 @@ import { getMyHubSlug } from '@/lib/myHub'
 import EmbedLayout   from '@/pages/embed/EmbedLayout'
 import EmbedHomePage from '@/pages/embed/EmbedHomePage'
 import HomePage  from '@/pages/HomePage'
-import EventPage from '@/pages/EventPage'
+import EventPage, { LegacyEventRedirect } from '@/pages/EventPage'
 import CategoryPage from '@/pages/CategoryPage'
 
 // Route-split pages — each becomes its own chunk, fetched on first visit.
@@ -374,11 +374,12 @@ function GoNeighborhood() {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
- * Dispatch /events/:slug. UUIDs → legacy EventPage (which canonicalizes the
- * URL); known hub slugs → CategoryPage.
+ * Dispatch /events/:slug. UUIDs → LegacyEventRedirect, which resolves the event
+ * and replace-redirects to the canonical /events/{slug}/{id} rather than
+ * rendering the detail page off-canonical; known hub slugs → CategoryPage.
  */
 function EventsSlugRouter() {
   const { slug } = useParams()
-  if (slug && UUID_RE.test(slug)) return <EventPage />
+  if (slug && UUID_RE.test(slug)) return <LegacyEventRedirect id={slug} />
   return <CategoryPage />
 }

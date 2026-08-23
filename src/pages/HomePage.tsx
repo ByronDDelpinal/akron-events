@@ -299,8 +299,7 @@ export default function HomePage() {
                     key={i}
                     className="search-suggestion-item"
                     onMouseDown={() => {
-                      filters.setActiveIntentId(s.intentId)
-                      if (s.datePreset) filters.setDateRange(s.datePreset)
+                      filters.setIntentWithDate(s.intentId, s.datePreset)
                       setSearchFocused(false)
                     }}
                   >

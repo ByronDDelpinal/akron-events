@@ -32,7 +32,7 @@
  */
 import { useState, useMemo, useCallback, useRef, useEffect, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import MapGL, { Marker, Popup, NavigationControl, Source, Layer, type MapRef } from 'react-map-gl/maplibre'
-import { AKRON_CENTER, MAP_STYLE, DEFAULT_ZOOM } from '@/lib/mapConfig'
+import { AKRON_CENTER, resolveMapStyle, DEFAULT_ZOOM } from '@/lib/mapConfig'
 import { googleDirectionsUrl } from '@/lib/directions'
 import { boundsForPoints, roundCoordKey, type PlanMapPoint, type PlanMarkerGroup, type BBox } from '@/lib/planMapPoints'
 import { prefersReducedMotion } from '@/lib/feedback'
@@ -89,6 +89,9 @@ function groupPoints(points: PlanMapPoint[]): PlanMarkerGroup[] {
 export default function PlanMap({ points, connector, selectedKey, onSelect, totalItems, showConnector = true }: PlanMapProps) {
   const mapRef = useRef<MapRef | null>(null)
   const sectionRef = useRef<HTMLDivElement | null>(null)
+  // Resolved once on mount: the basemap must match the page's background, and
+  // re-reading it per render would churn the style for no gain.
+  const mapStyle = useMemo(() => resolveMapStyle(), [])
   const [mapLoaded, setMapLoaded] = useState(false)
   const [connectorColor, setConnectorColor] = useState(DEFAULT_CONNECTOR_COLOR)
   // Seed the controlled camera onto Akron before the map can run a precise
@@ -215,7 +218,7 @@ export default function PlanMap({ points, connector, selectedKey, onSelect, tota
         onMove={(e: { viewState: typeof viewState }) => setViewState(e.viewState)}
         onLoad={() => setMapLoaded(true)}
         style={{ width: '100%', height: '100%' }}
-        mapStyle={MAP_STYLE}
+        mapStyle={mapStyle}
         cooperativeGestures
         /* Compact (collapsible) attribution, NOT false: OpenFreeMap/OpenMapTiles/
          * OSM attribution is a license requirement; compact keeps it legal

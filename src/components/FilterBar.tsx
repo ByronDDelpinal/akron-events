@@ -291,6 +291,7 @@ export default function FilterBar({
         timeOfDay={timeOfDay}           onTimeOfDayChange={onTimeOfDayChange}
         sort={sort}                     onSort={onSort}
         total={total}
+        onClearAll={onClearAll}
         lockedDimensions={lockedDimensions}
         lockedCategories={lockedCategories}
       />

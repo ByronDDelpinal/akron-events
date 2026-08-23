@@ -20,10 +20,6 @@ export const MAP_STYLES = {
   light: 'https://tiles.openfreemap.org/styles/positron',
 } as const
 
-/** Legacy default (PlanMap, FestivalMap). Surfaces that render on themed
- *  pages should prefer resolveMapStyle() below. */
-export const MAP_STYLE = MAP_STYLES.dark
-
 export const DEFAULT_ZOOM = 13
 
 /**

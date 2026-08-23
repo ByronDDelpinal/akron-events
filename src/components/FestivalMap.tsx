@@ -8,7 +8,7 @@
  * prefix, pins) arrives through props from FestivalPage.tsx.
  *
  * Built on the PlanMap.tsx stack, not on MapView and not by adding mode
- * props to either: shared MAP_STYLE/DEFAULT_ZOOM from mapConfig.ts, popup
+ * props to either: shared resolveMapStyle/DEFAULT_ZOOM from mapConfig.ts, popup
  * chrome from MapPopup.css, camera math from planMapPoints.ts. Pins are
  * plain DOM markers (a festival is <100 venues; PlanMap's no-clustering
  * rationale applies with the same force). The popup is click-only and
@@ -20,7 +20,7 @@
  */
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import MapGL, { Marker, Popup, NavigationControl, type MapRef } from 'react-map-gl/maplibre'
-import { MAP_STYLE, DEFAULT_ZOOM } from '@/lib/mapConfig'
+import { resolveMapStyle, DEFAULT_ZOOM } from '@/lib/mapConfig'
 import { googleDirectionsUrl } from '@/lib/directions'
 import { boundsForPoints, type BBox } from '@/lib/planMapPoints'
 import type { FestivalMapPin } from '@/lib/festivalSchedule'
@@ -75,6 +75,9 @@ function DirectionsIcon() {
 
 export default function FestivalMap({ pins, bounds, plannedVenueIds, festivalName }: FestivalMapProps) {
   const mapRef = useRef<MapRef | null>(null)
+  // Resolved once on mount: the basemap must match the page's background, and
+  // re-reading it per render would churn the style for no gain.
+  const mapStyle = useMemo(() => resolveMapStyle(), [])
   const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null)
   // Seed the camera on the registry bounds' center before the map can run a
   // precise fitBounds (PlanMap.tsx's lesson: an imperative fitBounds can
@@ -123,7 +126,7 @@ export default function FestivalMap({ pins, bounds, plannedVenueIds, festivalNam
         onMove={(e: { viewState: typeof viewState }) => setViewState(e.viewState)}
         onLoad={handleLoad}
         style={{ width: '100%', height: '100%' }}
-        mapStyle={MAP_STYLE}
+        mapStyle={mapStyle}
         cooperativeGestures
         /* Compact (collapsible) attribution, NOT false: OpenFreeMap/
          * OpenMapTiles/OSM attribution is a license requirement. */

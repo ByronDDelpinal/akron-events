@@ -43,7 +43,12 @@ export default async function handler(req, res) {
   }
 
   const supabase = createClient(url, key)
-  const { data, error, count } = await buildFirstPageQuery(supabase, FIRST_PAGE_CACHE_ROWS)
+  // The `start_at` floor this page was baked with, returned to the client so
+  // page 2 can query against the SAME floor. Without it the client's later
+  // pages use a newer "now", the offset window slides, and events fall through
+  // the seam between the cached page and the first live one.
+  const bakedAt = new Date().toISOString()
+  const { data, error, count } = await buildFirstPageQuery(supabase, FIRST_PAGE_CACHE_ROWS, bakedAt)
 
   if (error) {
     // Don't cache failures.
@@ -64,5 +69,5 @@ export default async function handler(req, res) {
   // `events` tag that every cached events response carries — purging `events`
   // busts the homepage + all hub pages in a single call.
   res.setHeader('Vercel-Cache-Tag', 'events-first-page,events')
-  res.status(200).json({ events: data ?? [], total: count ?? 0 })
+  res.status(200).json({ events: data ?? [], total: count ?? 0, bakedAt })
 }
