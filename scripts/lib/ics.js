@@ -1041,6 +1041,44 @@ export function applyNeedsReviewHook(row, ev, flagNeedsReview) {
  *   @param {string}   [config.ageRestriction]
  *   @param {string}   [config.defaultImageUrl]
  */
+/**
+ * How to record a feed that fetched and parsed cleanly but carried no events.
+ *
+ * WHY THIS IS NOT ALWAYS AN ERROR (2026-08-23): an empty calendar and a broken
+ * calendar are different things, and only one of them needs a human. Akron
+ * Pride's festival ended 08-22; its feed now correctly returns a valid,
+ * event-free VCALENDAR, and reporting that as `error` every night forever
+ * trains everyone to ignore the one night it means something. Village of
+ * Mogadore already declared `allowEmptyFeed: true` and still errored here —
+ * the flag only ever covered the fetch layer, not this one, so it never did
+ * what its name promised.
+ *
+ * The safety net is unchanged and lives elsewhere: `events_found` is still 0,
+ * so `scraper_health`'s consecutive-zero-events streak still catches a
+ * seasonal source that fails to wake up in season. `status` answers "did the
+ * pipeline work"; the zero streak answers "is this source producing". Keeping
+ * those separate is the whole point.
+ *
+ * @param {object} [config]
+ * @param {boolean} [config.allowEmptyFeed] source is seasonal / legitimately
+ *        empty out of season
+ * @returns {{status: 'success'|'error', errorMessage: string|null, reason: string}}
+ */
+export function emptyFeedOutcome(config = {}) {
+  if (config.allowEmptyFeed === true) {
+    return {
+      status: 'success',
+      errorMessage: null,
+      reason: 'Feed parsed cleanly and is empty — expected for this source, recording 0 events',
+    }
+  }
+  return {
+    status: 'error',
+    errorMessage: 'Feed parsed but contained 0 VEVENTs',
+    reason: 'Feed parsed but contained 0 VEVENTs',
+  }
+}
+
 export async function runIcsScraper(config) {
   const { source } = config
   if (!source) throw new Error('runIcsScraper: config.source is required')
@@ -1089,9 +1127,11 @@ export async function runIcsScraper(config) {
     }
 
     if (rawEvents.length === 0) {
+      const outcome = emptyFeedOutcome(config)
+      console.log(`  ${outcome.status === 'success' ? 'ℹ' : '❌'}  ${outcome.reason}`)
       await logUpsertResult(source, 0, 0, 0, {
-        status: 'error',
-        errorMessage: 'Feed parsed but contained 0 VEVENTs',
+        status: outcome.status,
+        ...(outcome.errorMessage ? { errorMessage: outcome.errorMessage } : {}),
         durationMs: Date.now() - start,
         eventsFound: 0,
       })

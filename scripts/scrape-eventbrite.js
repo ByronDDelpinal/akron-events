@@ -58,7 +58,7 @@ import {
   ensureOrganization,
 } from './lib/normalize.js'
 import { isSelfCredit } from './lib/source-tiers.js'
-import { proxyDispatcherFromEnv, dispatchedFetch, describeError } from './lib/http.js'
+import { proxyDispatcherFromEnv, freshProxyDispatcher, dispatchedFetch, describeError } from './lib/http.js'
 
 const DEBUG      = process.argv.includes('--debug')
 const FORCE      = process.argv.includes('--force')
@@ -76,10 +76,31 @@ const NO_DETAILS = process.argv.includes('--no-details')
 // opens. That is the 2026-08-20 outage; this call site was missed by the first
 // pass of the fix because it deliberately bypasses fetchWithRetry (the cookie
 // handshake needs its own sequencing) and so bypassed the fix living there too.
+//
+// FRESH-EXIT-SESSION RETRY (2026-08-23). Every ebFetch shares one pooled tunnel
+// and therefore one residential exit IP. From 08-21 eventbrite began refusing
+// that peer: the provider dashboard shows the CONNECT billed and 224 bytes
+// coming back, while the scraper reports UND_ERR_CONNECT_TIMEOUT. Retrying on
+// the same session is worthless against an origin that blocks by exit IP, so
+// rotate once and adopt the new session for the rest of the run.
 let _dispatcher
+let _rotated = false
 async function ebFetch(url, opts = {}) {
   if (_dispatcher === undefined) _dispatcher = await proxyDispatcherFromEnv()
-  return dispatchedFetch(url, opts, _dispatcher)
+  try {
+    return await dispatchedFetch(url, opts, _dispatcher)
+  } catch (err) {
+    if (!_dispatcher || _rotated) throw err
+    const fresh = await freshProxyDispatcher()
+    if (!fresh) throw err
+    _rotated = true
+    console.warn(`  ⚠ eventbrite proxy egress failed — retrying on a fresh exit session`)
+    console.warn(`     cause: ${describeError(err)}`)
+    // Adopt it: if the new peer works we want the rest of the run on it, and a
+    // pooled agent must outlive the response body streaming over its socket.
+    _dispatcher = fresh
+    return dispatchedFetch(url, opts, fresh)
+  }
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────

@@ -12,6 +12,7 @@ import {
   expandRecurrenceSet, isRecurrenceOverride,
   applyNeedsReviewHook, icsDateOnlyToNoonIso, withDateOnlyTimeNote,
   DATE_ONLY_TIME_NOTE, MAX_DESCRIPTION, isBotChallenge,
+  emptyFeedOutcome,
 } from '../lib/ics.js'
 // Imported through civicplus.js on purpose: the predicate moved to ics.js and
 // civicplus.js re-exports it, so this also asserts the re-export still works
@@ -636,3 +637,35 @@ describe('ICS: defensive parsing', () => {
     assert.equal(events.length, 2)
   })
 })
+
+// ── empty feed: seasonal source vs broken source ─────────────────────────────
+//
+// Akron Pride's festival ended 2026-08-22 and its feed now correctly returns a
+// valid, event-free calendar. Reporting that as `error` every night forever is
+// how a monitor teaches people to ignore it. An empty calendar and a broken
+// calendar are different things.
+describe('ICS: emptyFeedOutcome', () => {
+  it('defaults to an error — a silently empty feed is usually a broken feed', () => {
+    const out = emptyFeedOutcome({})
+    assert.equal(out.status, 'error')
+    assert.equal(out.errorMessage, 'Feed parsed but contained 0 VEVENTs')
+  })
+
+  it('treats an empty feed as a clean zero-event run when allowEmptyFeed is set', () => {
+    const out = emptyFeedOutcome({ allowEmptyFeed: true })
+    assert.equal(out.status, 'success')
+    assert.equal(out.errorMessage, null)
+    assert.match(out.reason, /expected for this source/)
+  })
+
+  it('only opts in on an explicit true — never on a truthy accident', () => {
+    for (const v of [undefined, null, false, 0, '', 'yes', 1]) {
+      assert.equal(emptyFeedOutcome({ allowEmptyFeed: v }).status, 'error', `value: ${JSON.stringify(v)}`)
+    }
+  })
+
+  it('is safe with no argument at all', () => {
+    assert.equal(emptyFeedOutcome().status, 'error')
+  })
+})
+

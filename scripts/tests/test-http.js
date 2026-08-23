@@ -20,6 +20,9 @@ import {
   proxyDispatcherFromEnv,
   dispatchedFetch,
   proxyConfigFromUrl,
+  rotateProxySession,
+  redactProxyUrl,
+  PROXY_CONNECT_TIMEOUT_MS,
 } from '../lib/http.js'
 
 // A minimal Response-like stub with a working clone()/text().
@@ -361,5 +364,178 @@ describe('dispatchedFetch — the safe dispatcher seam', () => {
       () => dispatchedFetch('https://example.invalid/', { method: 'POST' }, marker),
       (err) => err instanceof Error,
     )
+  })
+})
+
+// ── fresh exit session (2026-08-23 eventbrite IP-block regression) ───────────
+//
+// eventbrite began refusing our residential exit IP on 08-21. Every attempt in
+// the retry loop shares one pooled tunnel and therefore one exit IP, so the
+// retries were re-asking the same rejected peer. These lock in that we rotate
+// onto a NEW session before falling back to direct egress (which leaks the
+// runner IP), and that we only ever rotate a dispatcher we own.
+
+describe('rotateProxySession', () => {
+  it('rewrites an existing session token and differs each call', () => {
+    const url = 'http://user%3Bsid.aaa111:pw@gw.test:824'
+    const a = rotateProxySession(url)
+    const b = rotateProxySession(url)
+    assert.ok(a && b)
+    assert.notEqual(a, b)
+    assert.ok(!a.includes('sid.aaa111'), 'old session token must not survive')
+    assert.ok(a.includes('gw.test:824'), 'gateway must be preserved')
+    assert.ok(a.includes(':pw@'), 'password must be preserved')
+  })
+
+  it('returns a bare origin — a proxy uri is not a document', () => {
+    const out = rotateProxySession('http://user%3Bsid.aaa111:pw@gw.test:824')
+    assert.ok(!out.endsWith('/'), 'URL.toString() would append a path')
+    assert.equal(new URL(out).pathname, '/')
+  })
+
+  it('returns null for a url with no session token (gateway already rotates)', () => {
+    assert.equal(rotateProxySession('http://user:pw@gw.test:823'), null)
+  })
+
+  it('appends a token when SCRAPER_PROXY_ROTATE_SESSION=1', () => {
+    const prev = process.env.SCRAPER_PROXY_ROTATE_SESSION
+    process.env.SCRAPER_PROXY_ROTATE_SESSION = '1'
+    try {
+      const out = rotateProxySession('http://user:pw@gw.test:823')
+      assert.ok(out && /sid\./.test(out))
+    } finally {
+      if (prev === undefined) delete process.env.SCRAPER_PROXY_ROTATE_SESSION
+      else process.env.SCRAPER_PROXY_ROTATE_SESSION = prev
+    }
+  })
+
+  it('is a no-op for credential-less, unset, and unparseable urls', () => {
+    assert.equal(rotateProxySession('http://gw.test:823'), null)
+    assert.equal(rotateProxySession(''), null)
+    assert.equal(rotateProxySession('not a url'), null)
+  })
+})
+
+describe('redactProxyUrl', () => {
+  it('never emits the password or the session token', () => {
+    const out = redactProxyUrl('http://user%3Bsid.secret:hunter2@gw.test:824')
+    assert.ok(!out.includes('hunter2'))
+    assert.ok(!out.includes('secret'))
+    assert.ok(out.includes('gw.test:824'))
+  })
+})
+
+describe('fetchWithRetry — proxied attempt window', () => {
+  const PROXY_URL = 'http://user:pass@proxy.test:8080'
+
+  async function withProxyEnv(value, fn) {
+    const prev = process.env.SCRAPER_PROXY_URL
+    if (value === undefined) delete process.env.SCRAPER_PROXY_URL
+    else process.env.SCRAPER_PROXY_URL = value
+    try { return await fn() } finally {
+      if (prev === undefined) delete process.env.SCRAPER_PROXY_URL
+      else process.env.SCRAPER_PROXY_URL = prev
+    }
+  }
+
+  // Regression: raising the CONNECT timeout is inert if the per-attempt
+  // AbortController still fires at 20s, because the abort lands first.
+  it('widens the attempt window past the connect timeout when proxying', async () => {
+    await withProxyEnv(PROXY_URL, async () => {
+      let signal
+      const fetchImpl = async (_url, init) => { signal = init.signal; return resp(200) }
+      await fetchWithRetry('https://x.test', { fetchImpl, sleep: noSleep, useProxy: true })
+      assert.ok(signal, 'an abort signal is still installed')
+      assert.ok(PROXY_CONNECT_TIMEOUT_MS + 10_000 > 20_000, 'window must exceed the 20s default')
+    })
+  })
+
+  it('an explicit timeoutMs from the caller is never widened', async () => {
+    await withProxyEnv(PROXY_URL, async () => {
+      const started = Date.now()
+      const fetchImpl = async () => { throw new Error('fetch failed') }
+      await assert.rejects(fetchWithRetry('https://x.test', {
+        fetchImpl, sleep: noSleep, useProxy: true, retries: 0, timeoutMs: 5,
+        freshDispatcherFactory: async () => null,
+      }))
+      assert.ok(Date.now() - started < 5_000, 'must not have waited on a widened window')
+    })
+  })
+})
+
+describe('fetchWithRetry — fresh exit session retry', () => {
+  const PROXY_URL = 'http://user:pass@proxy.test:8080'
+
+  async function withProxyEnv(value, fn) {
+    const prev = process.env.SCRAPER_PROXY_URL
+    if (value === undefined) delete process.env.SCRAPER_PROXY_URL
+    else process.env.SCRAPER_PROXY_URL = value
+    try { return await fn() } finally {
+      if (prev === undefined) delete process.env.SCRAPER_PROXY_URL
+      else process.env.SCRAPER_PROXY_URL = prev
+    }
+  }
+
+  it('rotates onto a fresh session after every attempt fails at the network layer', async () => {
+    await withProxyEnv(PROXY_URL, async () => {
+      const freshAgent = { fresh: true }
+      let freshCalls = 0
+      const seen = []
+      const fetchImpl = async (_url, init) => {
+        seen.push(init.dispatcher)
+        if (init.dispatcher === freshAgent) return resp(200, 'ok')
+        throw Object.assign(new Error('fetch failed'), { code: 'UND_ERR_CONNECT_TIMEOUT' })
+      }
+      const res = await fetchWithRetry('https://x.test', {
+        fetchImpl, sleep: noSleep, useProxy: true, retries: 2,
+        freshDispatcherFactory: async () => { freshCalls++; return freshAgent },
+      })
+      assert.equal(res.status, 200)
+      assert.equal(freshCalls, 1, 'rotates exactly once, not once per attempt')
+      assert.equal(seen.at(-1), freshAgent)
+    })
+  })
+
+  it('does NOT rotate a dispatcher the caller passed in', async () => {
+    await withProxyEnv(PROXY_URL, async () => {
+      let freshCalls = 0
+      const fetchImpl = async () => { throw new Error('fetch failed') }
+      await assert.rejects(fetchWithRetry('https://x.test', {
+        fetchImpl, sleep: noSleep, useProxy: true, dispatcher: { mine: true }, retries: 0,
+        freshDispatcherFactory: async () => { freshCalls++; return { fresh: true } },
+      }))
+      assert.equal(freshCalls, 0)
+    })
+  })
+
+  it('does NOT rotate when a retryable HTTP status — not a network error — was seen', async () => {
+    await withProxyEnv(PROXY_URL, async () => {
+      let freshCalls = 0
+      const fetchImpl = async () => resp(503)
+      const res = await fetchWithRetry('https://x.test', {
+        fetchImpl, sleep: noSleep, useProxy: true, retries: 1,
+        freshDispatcherFactory: async () => { freshCalls++; return { fresh: true } },
+      })
+      assert.equal(res.status, 503)
+      assert.equal(freshCalls, 0, 'reaching the origin means the exit IP is fine')
+    })
+  })
+
+  it('still falls back to direct egress when the fresh session also fails', async () => {
+    await withProxyEnv(PROXY_URL, async () => {
+      const calls = []
+      const fetchImpl = async (_url, init) => {
+        calls.push(init.dispatcher ? 'proxied' : 'direct')
+        if (init.dispatcher) throw new Error('fetch failed')
+        return resp(200, 'direct')
+      }
+      const res = await fetchWithRetry('https://x.test', {
+        fetchImpl, sleep: noSleep, useProxy: true, retries: 0,
+        freshDispatcherFactory: async () => ({ fresh: true }),
+      })
+      assert.equal(res.status, 200)
+      assert.equal(calls.at(-1), 'direct')
+      assert.ok(calls.filter((c) => c === 'proxied').length >= 2, 'original session then fresh session')
+    })
   })
 })

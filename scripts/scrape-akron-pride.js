@@ -83,6 +83,12 @@ async function main() {
     mapTags,
     ageRestriction: 'all_ages',
     skipPast: true,
+    // The festival is a dated annual event: between one year's festival and the
+    // next year's listings going up, this feed is correctly empty. Without this
+    // the source reports `error` every night out of season — see
+    // emptyFeedOutcome() in lib/ics.js. A zero-events streak still surfaces in
+    // scraper_health if it fails to populate when it should.
+    allowEmptyFeed: true,
   })
 }
 
