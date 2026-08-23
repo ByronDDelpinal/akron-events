@@ -1230,6 +1230,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'jadfa_house',
+    method:      'HTML scrape',
+    methodDetail:'WordPress/Divi /meetings/ page, raw-source parse of the Our Meetings block, weekly occurrences generated via lib/weekly-occurrences.js',
+    venue:       'The JADFA House, 916 Kenmore Blvd, Kenmore, Akron',
+    notes:       "The JADFA House is a 501(c)(3) recovery and community center on Kenmore Boulevard, founded by Kenny Lambert (the \"Just a Dad From Akron\" brand). Its meetings page publishes a standing weekly schedule with weekdays and clock times but no dates, so this is a recurrence-expansion scraper rather than a date-parsing one: we slice the Our Meetings block, read the day headings and list items out of it, and generate the next 8 weekly occurrences per meeting with Eastern-anchored calendar math. Nothing about the schedule is hardcoded, so a moved or added meeting is picked up on the next scrape. source_id is keyed on (weekday, 24-hour start time, date) and never on a title slug: the likeliest edit this page will ever get is fixing the \"Recovery Dharm\" typo, and a title-keyed id would re-insert every future occurrence under a new id and orphan the old rows. Titles publish verbatim, typo included. The block is bounded by the next h3, which excludes a retired Fear of Change Friday Meeting section the house concluded at the end of 2025. A stale sweep removes future rows this run did not produce, guarded by a minimum-parse floor and scoped with a source_id LIKE so it can only ever touch recurrence rows. Sex-restricted meetings (Men Only, Women Only) carry that in the title and description only, never in age_restriction, which is an age field. Category civic; price 0 is parsed from the page's own \"Attendance is free\" rule, never assumed, so it reverts to null if the house ever starts charging.",
+    status:      'active',
+  },
+  {
     key:         'full_grip_games',
     method:      'iCal feed',
     methodDetail:'Public Google Calendar iCal feed, with RRULE recurrence expansion',
@@ -1780,6 +1788,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   the_well_cdc:           'html',
   better_kenmore:         'html',
   first_glance:           'html',
+  jadfa_house:            'html',
   full_grip_games:        'ics',
   better_plays_gaming:    'ics',
   akron_makerspace:       'html',

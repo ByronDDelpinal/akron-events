@@ -35,26 +35,72 @@ const DAYS_AHEAD = 180  // fetch 6 months at a time
 
 // ── Known branch library addresses ───────────────────────────────────────
 // Used to pre-populate venue records. Branches not listed here get name-only records.
+//
+// COORDINATES ARE GEOCODED, NOT EYEBALLED.
+// Every lat/lng below was obtained by geocoding that branch's own street
+// address (as published on akronlibrary.org/locations) against Nominatim and
+// taking a building-precision result. Street-centerline fallbacks and
+// no-results were rejected rather than rounded into place.
+//
+// Why this matters: the previous hand-estimated table put six branches on the
+// WRONG neighborhood hub, by 1.1 km to 9.0 km. Highland Square resolved to
+// west-akron, Kenmore to summit-lake, Ellet to goodyear-heights, Northwest
+// Akron to wallhaven, Odom Boulevard to summit-lake, and Maple Valley to
+// ellet. Each of those branches is a short walk from the neighborhood it is
+// named after, and each was filed under a different one. Two of them carried
+// well over a hundred upcoming events onto the wrong hub.
+//
+// This also corrects the record on a 2026-06-14 note describing a "GeoJSON
+// defect: the resolver places the entire Kenmore Blvd corridor in summit-lake
+// instead of kenmore", which prescribed setting neighborhood_slug by hand as a
+// workaround. That diagnosis was wrong. Multiple Kenmore Blvd addresses
+// geocode and resolve to kenmore correctly; the polygon is fine. What was
+// wrong was this table's Kenmore coordinate, 2 km off, and someone patched the
+// slug instead of the coordinate.
+//
+// THE RULE: neighborhood_slug is DERIVED. scripts/lib/neighborhood-resolver.js
+// computes it from the coordinate, and ensureVenue calls into it. Never hand
+// assign a slug to paper over a coordinate you have not checked. If a venue is
+// landing on the wrong hub, the coordinate is the bug; fix that.
+//
+// Seven of the addresses here were also wrong (Fairlawn-Bath, Maple Valley,
+// Nordonia Hills, Portage Lakes, Richfield, Springfield-Lakemore and Tallmadge
+// all named a street the library does not sit on), which is what made the bad
+// coordinates so hard to spot: re-geocoding the stored address reproduced the
+// error. Addresses below are taken from the library's own branch pages.
 export const BRANCH_INFO = {
-  'Main Library':                     { address: '60 S High St',            zip: '44326', lat: 41.0819, lng: -81.5188, parking_type: 'garage',  parking_notes: 'Parking garage adjacent to building on S High St.' },
-  'Highland Square Branch Library':   { address: '807 W Market St',         zip: '44303', lat: 41.0808, lng: -81.5468, parking_type: 'lot',     parking_notes: 'Free surface lot behind building.' },
-  'Kenmore Branch Library':           { address: '969 Kenmore Blvd',        zip: '44314', lat: 41.0510, lng: -81.5355, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Firestone Park Branch Library':    { address: '1486 Aster Ave',          zip: '44301', lat: 41.0450, lng: -81.5093, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Ellet Branch Library':             { address: '2470 E Market St',        zip: '44312', lat: 41.0808, lng: -81.4706, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'North Hill Branch Library':        { address: '183 E Cuyahoga Falls Ave', zip: '44310', lat: 41.1108, lng: -81.5143, parking_type: 'lot',    parking_notes: 'Free on-site parking lot.' },
-  'Green Branch Library':             { address: '4046 Massillon Rd', city: 'Green',       zip: '44232', lat: 40.9478, lng: -81.4696, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Goodyear Branch Library':          { address: '60 Goodyear Blvd',        zip: '44305', lat: 41.0680, lng: -81.4870, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Northwest Akron Branch Library':   { address: '1720 Shatto Ave',         zip: '44313', lat: 41.1065, lng: -81.5665, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Fairlawn-Bath Branch Library':     { address: '3490 W Market St', city: 'Fairlawn',        zip: '44333', lat: 41.1353, lng: -81.5927, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Portage Lakes Branch Library':     { address: '4261 Shriver Rd',         zip: '44319', lat: 40.9987, lng: -81.5346, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Mogadore Branch Library':          { address: '144 S Cleveland Ave', city: 'Mogadore',      zip: '44260', lat: 41.0593, lng: -81.4018, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Maple Valley Branch Library':      { address: '1187 Mogadore Rd',        zip: '44306', lat: 41.0588, lng: -81.4625, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Richfield Branch Library':         { address: '3761 S Park Dr', city: 'Richfield',          zip: '44286', lat: 41.2304, lng: -81.6412, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Nordonia Hills Branch Library':    { address: '70 Olde Eight Rd', city: 'Northfield',        zip: '44067', lat: 41.2112, lng: -81.5107, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Norton Branch Library':            { address: '3930 S Cleveland-Massillon Rd', city: 'Norton', zip: '44203', lat: 40.9892, lng: -81.6395, parking_type: 'lot', parking_notes: 'Free on-site parking lot.' },
-  'Springfield-Lakemore Branch Library': { address: '1100 Canton Rd', city: 'Lakemore',       zip: '44312', lat: 41.0169, lng: -81.4632, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Tallmadge Branch Library':         { address: '90 North Ave', city: 'Tallmadge',            zip: '44278', lat: 41.0992, lng: -81.4426, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
-  'Odom Boulevard Branch Library':    { address: '600 Vernon Odom Blvd',    zip: '44307', lat: 41.0631, lng: -81.5372, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  'Main Library':                     { address: '60 S High St',            zip: '44326', lat: 41.083244, lng: -81.516898, parking_type: 'garage',  parking_notes: 'Parking garage adjacent to building on S High St.' },
+  'Highland Square Branch Library':   { address: '807 W Market St',         zip: '44303', lat: 41.096814, lng: -81.543184, parking_type: 'lot',     parking_notes: 'Free surface lot behind building.' },
+  'Kenmore Branch Library':           { address: '969 Kenmore Blvd',        zip: '44314', lat: 41.043914, lng: -81.558088, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  'Firestone Park Branch Library':    { address: '1486 Aster Ave',          zip: '44301', lat: 41.042605, lng: -81.514814, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  'Ellet Branch Library':             { address: '2470 E Market St',        zip: '44312', lat: 41.055068, lng: -81.441012, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  'North Hill Branch Library':        { address: '183 E Cuyahoga Falls Ave', zip: '44310', lat: 41.108174, lng: -81.509635, parking_type: 'lot',    parking_notes: 'Free on-site parking lot.' },
+  'Green Branch Library':             { address: '4046 Massillon Rd', city: 'Green',       zip: '44232', lat: 40.951168, lng: -81.466773, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  'Goodyear Branch Library':          { address: '60 Goodyear Blvd',        zip: '44305', lat: 41.066637, lng: -81.481270, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  'Northwest Akron Branch Library':   { address: '1720 Shatto Ave',         zip: '44313', lat: 41.115917, lng: -81.574512, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  // Address corrected from '3490 W Market St': the branch is on Smith Rd.
+  'Fairlawn-Bath Branch Library':     { address: '3101 Smith Rd', city: 'Fairlawn',        zip: '44333', lat: 41.136374, lng: -81.621903, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  // Address corrected from '4261 Shriver Rd': the branch is on Manchester Rd.
+  'Portage Lakes Branch Library':     { address: '4261 Manchester Rd',      zip: '44319', lat: 40.987139, lng: -81.558632, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  'Mogadore Branch Library':          { address: '144 S Cleveland Ave', city: 'Mogadore',      zip: '44260', lat: 41.047242, lng: -81.393902, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  // Address corrected from '1187 Mogadore Rd' (44306): the branch is at 1187
+  // Copley Rd in West Akron, 9 km away. The old coordinate resolved to ellet.
+  'Maple Valley Branch Library':      { address: '1187 Copley Rd',          zip: '44320', lat: 41.083586, lng: -81.565055, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  // COORDINATE UNVERIFIED. Address corrected from '3761 S Park Dr', but neither
+  // that address, '3761 S Grant St', nor the branch name returns any result from
+  // Nominatim (OpenStreetMap has no record of this building). The lat/lng below
+  // is the original hand-estimated value, left in place deliberately rather than
+  // replaced with a guess. Re-verify against another geocoder before trusting it.
+  'Richfield Branch Library':         { address: '3761 S Grant St', city: 'Richfield',          zip: '44286', lat: 41.2304, lng: -81.6412, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  // Address corrected from '70 Olde Eight Rd': the branch is at 9458 Olde Eight Rd.
+  'Nordonia Hills Branch Library':    { address: '9458 Olde Eight Rd', city: 'Northfield',        zip: '44067', lat: 41.317428, lng: -81.539517, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  'Norton Branch Library':            { address: '3930 S Cleveland-Massillon Rd', city: 'Norton', zip: '44203', lat: 41.031752, lng: -81.639153, parking_type: 'lot', parking_notes: 'Free on-site parking lot.' },
+  // Address corrected from '1100 Canton Rd': the branch is at 1500 Canton Rd
+  // (Lakemore Plaza). City stays Lakemore so it hubs there, per the branch-city test.
+  'Springfield-Lakemore Branch Library': { address: '1500 Canton Rd', city: 'Lakemore',       zip: '44312', lat: 41.024972, lng: -81.425697, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  // Address corrected from '90 North Ave': the branch is at 90 Community Rd.
+  'Tallmadge Branch Library':         { address: '90 Community Rd', city: 'Tallmadge',            zip: '44278', lat: 41.103898, lng: -81.433631, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+  'Odom Boulevard Branch Library':    { address: '600 Vernon Odom Blvd',    zip: '44307', lat: 41.071137, lng: -81.544269, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
 }
 
 /**

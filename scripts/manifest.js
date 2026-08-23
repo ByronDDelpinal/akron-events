@@ -117,6 +117,7 @@ export const SCRAPERS = [
   { key: 'the_well_cdc',        script: 'scripts/scrape-the-well-cdc.js',             label: 'The Well CDC',                 group: 'custom',         active: true  },
   { key: 'better_kenmore',       script: 'scripts/scrape-better-kenmore.js',          label: 'Better Kenmore CDC',           group: 'wordpress',      active: true  },
   { key: 'first_glance',         script: 'scripts/scrape-first-glance.js',            label: 'First Glance Student Center',  group: 'wordpress',      active: true  },
+  { key: 'jadfa_house',          script: 'scripts/scrape-jadfa-house.js',             label: 'The JADFA House',              group: 'wordpress',      active: true, defaultCategory: 'civic' },
   { key: 'full_grip_games',      script: 'scripts/scrape-full-grip-games.js',         label: 'Full Grip Games',              group: 'ics',            active: true, defaultCategory: 'games' },
   { key: 'better_plays_gaming',  script: 'scripts/scrape-better-plays-gaming.js',     label: 'Better Plays Gaming',          group: 'ics',            active: true, defaultCategory: 'games' },
   { key: 'mustard_seed',         script: 'scripts/scrape-mustard-seed.js',            label: 'Mustard Seed Market & Café',   group: 'custom',         active: true  },

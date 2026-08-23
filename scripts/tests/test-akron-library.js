@@ -42,6 +42,7 @@ import {
 // ── Import shared utilities (pure functions) ─────────────────────────────────
 import { stripHtml, easternToIso } from '../lib/normalize.js'
 import { BRANCH_INFO as SCRAPER_BRANCH_INFO } from '../scrape-akron-library.js'
+import { resolveNeighborhoodSlug } from '../lib/neighborhood-resolver.js'
 
 // Recognized Summit County places that map to a city hub or a regional rollup
 // (mirror of CITIES labels in src/lib/cities.js + the region cityMatch arrays in
@@ -81,6 +82,58 @@ describe('Library branch cities', () => {
     // A representative in-Akron branch must NOT carry a city override.
     assert.equal(SCRAPER_BRANCH_INFO['Kenmore Branch Library'].city, undefined)
     assert.equal(SCRAPER_BRANCH_INFO['Highland Square Branch Library'].city, undefined)
+  })
+})
+
+// ── Branch coordinates ───────────────────────────────────────────────────────
+// BRANCH_INFO's lat/lng is written straight into venues.lat/lng by ensureVenue
+// on every nightly run, and the neighborhood resolver derives neighborhood_slug
+// from it. A coordinate that is off by a kilometre therefore silently moves a
+// branch (and all of its events) onto the wrong neighborhood hub, with nothing
+// failing loudly.
+//
+// Six branches are named after the Akron neighborhood they stand in. That gives
+// us a free, source-independent assertion: run the stored coordinate through the
+// repo's own resolver and the slug must come back matching the branch's name.
+// Before the 2026-08-23 geocoding pass, five of these six failed (Highland
+// Square landed in west-akron, Kenmore in summit-lake, Ellet in
+// goodyear-heights, Northwest Akron in wallhaven).
+describe('Library branch coordinates', () => {
+  const NAMED_AFTER_NEIGHBORHOOD = {
+    'Highland Square Branch Library': 'highland-square',
+    'Kenmore Branch Library':         'kenmore',
+    'Ellet Branch Library':           'ellet',
+    'Northwest Akron Branch Library': 'northwest-akron',
+    'North Hill Branch Library':      'north-hill',
+    'Firestone Park Branch Library':  'firestone-park',
+  }
+
+  it('resolves each self-named branch to its own neighborhood', async () => {
+    for (const [branch, slug] of Object.entries(NAMED_AFTER_NEIGHBORHOOD)) {
+      const info = SCRAPER_BRANCH_INFO[branch]
+      assert.ok(info, `${branch} missing from BRANCH_INFO`)
+      const resolved = await resolveNeighborhoodSlug(info.lat, info.lng)
+      assert.equal(
+        resolved, slug,
+        `${branch} at ${info.lat},${info.lng} resolves to "${resolved}", expected "${slug}". ` +
+        'The coordinate is wrong. Re-geocode the branch address; do not hand-assign a slug.',
+      )
+    }
+  })
+
+  it('keeps every branch coordinate inside the Summit County envelope', () => {
+    // Coarse guard against a transposed sign, a swapped lat/lng, or a stray
+    // digit. Summit County spans roughly 40.90 to 41.35 N and -81.75 to -81.35 W.
+    for (const [branch, info] of Object.entries(SCRAPER_BRANCH_INFO)) {
+      assert.ok(
+        typeof info.lat === 'number' && info.lat >= 40.90 && info.lat <= 41.40,
+        `${branch} lat ${info.lat} is outside Summit County`,
+      )
+      assert.ok(
+        typeof info.lng === 'number' && info.lng >= -81.80 && info.lng <= -81.30,
+        `${branch} lng ${info.lng} is outside Summit County`,
+      )
+    }
   })
 })
 
