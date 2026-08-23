@@ -168,6 +168,26 @@ export function initAnalytics(): void {
   // duplicate (and unredacted) hit.
   gtagOptions.send_page_view = false
   ReactGA.initialize(MEASUREMENT_ID, { gtagOptions })
+
+  // CRITICAL — gtag config-level custom params do NOT attach to our events.
+  // gtagOptions above only reach the `gtag('config', ...)` command, and with
+  // send_page_view:false the config's own page_view (the single hit that would
+  // carry config params) never fires. gtag does NOT merge config custom params
+  // onto the page_view we dispatch ourselves via trackPageView, so left as
+  // config-only, `surface` and `embed_host` recorded as (not set) on EVERY hit.
+  // That is why every surface=embed report read empty — ga-embeds-snapshot.js
+  // ("No embed traffic yesterday" daily) and api/pageviews.js (no embed hosts).
+  // gtag('set', ...) — which ReactGA.set issues — DOES persist across every
+  // subsequent event, so re-assert the dimensions here (send_page_view is a
+  // config-only directive, not a hit param, so it is filtered out). theme and
+  // neighborhood are additionally refreshed by setThemeContext /
+  // setNeighborhoodContext; surface and embed_host have no other updater and
+  // relied entirely on this call.
+  const persistentDims: Record<string, string> = {}
+  for (const [key, value] of Object.entries(gtagOptions)) {
+    if (key !== 'send_page_view' && typeof value === 'string') persistentDims[key] = value
+  }
+  ReactGA.set(persistentDims)
 }
 
 /**
