@@ -54,6 +54,7 @@ describe('audit: pickCanonical', () => {
 describe('audit: planVenueAudit', () => {
   const venues = [
     // KillBox — clear merge: events live on the coord-less record, coords on the dupe.
+    // Historical fixture of the June 2026 merge: these coords are the WRONG ones it copied, do not "correct" them.
     { id: 'k1', name: 'The KillBox Comedy Club', address: '1305 E Tallmadge Ave', neighborhood_slug: 'north-hill', lat: null, lng: null, events: 65, upcoming: 53 },
     { id: 'k2', name: 'The KillBox', address: '1305 E Tallmadge Ave', neighborhood_slug: 'north-hill', lat: 41.10783, lng: -81.51039, events: 0, upcoming: 0 },
     // Royal Palace — clear, and only groups if directionals fold (East↔E).

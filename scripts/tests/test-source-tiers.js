@@ -96,6 +96,24 @@ describe('source-tiers: aggregatorRank', () => {
   it('eventbrite outranks downtown_akron', () => {
     assert.ok(aggregatorRank('eventbrite') < aggregatorRank('downtown_akron'))
   })
+
+  // Byron's call (2026-08-23): akron_life is the last-resort aggregator. Pinned
+  // here because the ordering is otherwise just a list literal, and a future
+  // reorder could quietly float akron_life back up without failing anything.
+  it('akron_life is the LAST entry in AGGREGATOR_PRIORITY', () => {
+    assert.equal(aggregatorRank('akron_life'), AGGREGATOR_PRIORITY.length - 1)
+    assert.equal(AGGREGATOR_PRIORITY.at(-1), 'akron_life')
+  })
+
+  it('akron_life ranks strictly below every other aggregator', () => {
+    for (const source of AGGREGATOR_PRIORITY) {
+      if (source === 'akron_life') continue
+      assert.ok(
+        aggregatorRank('akron_life') > aggregatorRank(source),
+        `akron_life must rank below ${source}`,
+      )
+    }
+  })
 })
 
 describe('source-tiers: classifyAggregatorEvent', () => {
@@ -165,6 +183,24 @@ describe('source-tiers: classifyAggregatorEvent', () => {
   it('publishes normally at an uncovered venue', () => {
     const result = classifyAggregatorEvent([], vinyasaDAP)
     assert.deepEqual(result, { suppress: false, needsReview: false, reason: null })
+  })
+
+  // Consequence of the 2026-08-23 demotion: akron_life's copy must lose to any
+  // other aggregator's copy of the same event at the same venue/second/title.
+  // Before the reorder akron_life outranked downtown_akron and this pair
+  // resolved the other way, so this is the behavioural pin on that decision.
+  it('suppresses an akron_life copy when downtown_akron already holds it', () => {
+    const dapRow = { source: 'downtown_akron', start_at: '2026-09-12T23:00:00Z', title: 'Highland Square Porch Rokr' }
+    const akronLifeCandidate = { source: 'akron_life', startAt: '2026-09-12T23:00:00Z', title: 'Highland Square Porch Rokr' }
+    const result = classifyAggregatorEvent([dapRow], akronLifeCandidate)
+    assert.deepEqual(result, { suppress: true, needsReview: false, reason: 'higher-priority-aggregator' })
+  })
+
+  it('does NOT suppress a downtown_akron copy when only akron_life holds it', () => {
+    const akronLifeRow = { source: 'akron_life', start_at: '2026-09-12T23:00:00Z', title: 'Highland Square Porch Rokr' }
+    const dapCandidate = { source: 'downtown_akron', startAt: '2026-09-12T23:00:00Z', title: 'Highland Square Porch Rokr' }
+    const result = classifyAggregatorEvent([akronLifeRow], dapCandidate)
+    assert.equal(result.suppress, false)
   })
 
   it('is defensive against missing titles and bad dates', () => {

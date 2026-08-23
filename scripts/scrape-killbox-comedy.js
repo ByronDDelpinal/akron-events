@@ -63,12 +63,25 @@ const VENUE_INFO = {
   state:   'OH',
   zip:     '44310',
   // Geo is carried by the source so the venue always plots on the map and lands
-  // in the North Hill neighborhood embed — without it the venue had null
-  // coordinates and was invisible on map views (a stray geocoded duplicate held
-  // the coords instead; merged 2026-06-15).
-  lat:     41.107830,
-  lng:     -81.510390,
-  neighborhood_slug: 'north-hill',
+  // in the right neighborhood embed; without it the venue had null coordinates
+  // and was invisible on map views.
+  //
+  // These coordinates are verified against Nominatim for 1305 E Tallmadge Ave
+  // and resolve to 'chapel-hill' through public/akron-neighborhoods.geojson.
+  // The previous values (41.107830, -81.510390) were copied off a stray
+  // duplicate venue row during the 2026-06-15 merge and were about 2.4 miles
+  // off, which is what put the venue in 'north-hill'. Deliberately no
+  // neighborhood_slug here: the polygon resolver derives it from these
+  // coordinates, and a hand-asserted slug sitting next to coordinates that
+  // already derive it is exactly how the wrong slug survived that merge.
+  //
+  // The venue row also pins lat/lng/neighborhood_slug in
+  // venues.manual_overrides, so at runtime the DB pin is authoritative and
+  // this constant only governs a fresh mint: trg_enforce_manual_overrides_venues
+  // is BEFORE UPDATE only, so it does not fire on INSERT. Both have to stay
+  // correct, and neither is safe to "simplify" away.
+  lat:     41.102280,
+  lng:     -81.467839,
   website: BASE_URL,
   description:
     "Akron's dedicated stand-up comedy club — open mics, weeknight specials, and " +

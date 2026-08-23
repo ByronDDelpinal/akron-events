@@ -120,11 +120,24 @@ export const AGGREGATOR_PRIORITY = [
   'ticketmaster',
   'eventbrite',
   'visit_akron_cvb',
-  'akron_life',
   'runsignup',
   'ohio_festivals',
   'downtown_akron',
   'stewarts_partner_events', // hand-edited page with year-less prose dates
+  // Byron's call (2026-08-23): akron_life is the last-resort aggregator, so its
+  // copy of an event loses to every other aggregator's copy of the same event.
+  //
+  // This is a TRUST ranking, not a data-quality one. Rank is consulted only
+  // after two rows already agree on venue and start second, and inside dedupe
+  // only after the low-confidence-time, venue-presence and image/description
+  // scoring have all tied. It is the tiebreaker of last resort, not a verdict
+  // on how good akron_life's parsing is.
+  //
+  // This demotion explicitly does NOT mark the source degraded. akron_life
+  // stays active as the discovery canary for venues we do not yet cover with a
+  // direct scraper, so do not reach for the status flag in scripts/manifest.js
+  // or src/lib/dataSources.ts on the strength of this ordering.
+  'akron_life',
 ]
 
 /** Rank within Tier 3. Unlisted sources rank last (least trusted). */

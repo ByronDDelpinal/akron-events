@@ -40,7 +40,13 @@ const BASE_URL   = 'https://royalpalaceakron.com/wp-json/tribe/events/v1/events'
 const PER_PAGE   = 50
 const DAYS_AHEAD = 180
 
-const ORG_NAME = 'Royal Palace Akron'
+// Short form on purpose. The org row is consolidated so that this first-party
+// scraper and Eventbrite's "ROYAL PALACE" organizer name fold onto the SAME
+// orgNameKey via ensureOrganization's loose matcher. orgNameKey('Royal Palace
+// Akron') is 'royal palace akron', which does not match 'royal palace', and
+// that mismatch is what minted a duplicate org. Do not "restore" the Akron
+// suffix; the short name is what prevents the duplicate coming back.
+const ORG_NAME = 'Royal Palace'
 const VENUE_NAME = 'Royal Palace'
 const VENUE_DETAILS = {
   address: '134 E Tallmadge Ave', city: 'Akron', state: 'OH', zip: '44310',
