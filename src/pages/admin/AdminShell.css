@@ -1020,3 +1020,172 @@
   .ashell-qrow { grid-template-columns: 30px 1fr 40px; }
   .ashell-qcol-why, .ashell-qcol-when { display: none; }
 }
+
+/* ── Partner surfaces (061 partner accounts build) ───────────────
+   The scoped partner shell and the admin Partners roster page. Same
+   token block, same dark-first rules as everything above: these rules
+   consume token NAMES only. */
+
+/* Partner events list: title · organizations · status · when · chevron.
+   Same row conventions as the review queue (whole row toggles, title
+   button is the accessible control). */
+.ashell-phead,
+.ashell-prow {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) minmax(150px, 1.2fr) 128px 112px 44px;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 0 16px;
+}
+.ashell-phead {
+  min-height: 40px;
+  background: var(--bg-secondary);
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: var(--border-width-thin) solid var(--border);
+}
+.ashell-prow {
+  min-height: 44px;
+  position: relative;
+  transition: background var(--transition-fast);
+  cursor: pointer;
+}
+.ashell-prow:hover { background: var(--amber-tint-10); }
+.ashell-prow.ashell-qrow--open { background: var(--amber-tint-10); box-shadow: inset 3px 0 0 var(--green-mid); }
+.ashell-porgs {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ashell-prow:hover .ashell-acts,
+.ashell-prow.ashell-qrow--open .ashell-acts { opacity: 1; }
+
+/* Org context strip (design §6.10 item 1). */
+.ashell-orgstrip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+.ashell-orgstrip-lbl {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.ashell-orgchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  border: var(--border-width-thin) solid var(--border-mid);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+.ashell-orgchip:hover { border-color: var(--green-mid); }
+.ashell-orgchip--on {
+  background: var(--amber-pale);
+  border-color: var(--amber);
+  color: var(--text-primary);
+}
+.ashell-orgchip-note {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 1px 6px;
+}
+
+/* Drawer fields + venue control. */
+.ashell-pfields { display: grid; gap: var(--space-md); margin-top: var(--space-md); }
+.ashell-pro-note { color: var(--text-secondary); }
+.ashell-pvenue { display: grid; gap: var(--space-sm); }
+.ashell-pvenue-current { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); }
+.ashell-pmint {
+  display: grid;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+.ashell-pmint-actions { display: flex; gap: var(--space-sm); }
+
+/* Create flow. */
+.ashell-pcreate { max-width: 720px; }
+.ashell-pform {
+  display: grid;
+  gap: var(--space-md);
+  background: var(--bg-card);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-lg);
+}
+.ashell-pcreate-links { margin-top: var(--space-md) !important; }
+
+/* Admin Partners roster. */
+.ashell-tenant {
+  background: var(--bg-card);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-md) var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+.ashell-tenant--suspended { opacity: 0.72; }
+.ashell-tenant-hd {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}
+.ashell-tenant-name { font-size: var(--text-base); }
+.ashell-tenant-slug {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+}
+.ashell-tenant-meta { color: var(--text-muted); font-size: var(--text-sm); }
+.ashell-tenant-body { padding-top: var(--space-md); }
+.ashell-tenant-add { margin-bottom: var(--space-md); }
+.ashell-member-add {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+  max-width: 460px;
+}
+.ashell-member--revoked { text-decoration: line-through; color: var(--text-muted); }
+.ashell-roster-foot { max-width: 640px; }
+
+@media (max-width: 1080px) {
+  .ashell-phead,
+  .ashell-prow { grid-template-columns: minmax(180px, 2fr) minmax(120px, 1fr) 118px 40px; }
+  .ashell-pcol-when { display: none; }
+}
+@media (max-width: 720px) {
+  .ashell-phead,
+  .ashell-prow { grid-template-columns: 1fr 40px; }
+  .ashell-pcol-orgs, .ashell-pcol-status { display: none; }
+}
+
+/* Cancelled-is-final note in the drawer's action row (no republish
+   affordance for partners; restore is admin-only). */
+.ashell-cancel-final {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}

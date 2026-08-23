@@ -6,16 +6,22 @@ import { SEO } from '@/lib/seo'
 import FeedbackDialog from '@/components/FeedbackDialog'
 import { AdminPalette, KittenBreak } from '@/components/admin'
 import { ShellCountsContext, useShellCountsProvider } from '@/lib/admin/useShellCounts'
+import { AdminRoleContext, useAdminRoleProvider, type AdminRoleState } from '@/lib/admin/useAdminRole'
+import NobodyPage from '@/pages/admin/NobodyPage'
 import { format } from 'date-fns'
 import './AdminLayout.css'
 import './AdminShell.css'
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 // Real Supabase Auth (email + password). The session JWT carries the
-// `authenticated` role, which is what the admin RLS policies are scoped to
-// (see migration 038). There is NO public sign-up from this app — the single
-// admin user is created in the Supabase dashboard, and email sign-ups must be
-// disabled in the project's Auth settings so `authenticated` == the admin.
+// `authenticated` role. There is NO public sign-up from this app — every
+// account is created in the Supabase dashboard — but `authenticated` is no
+// longer "the admin": since 059/061 it covers three principals, told apart
+// server-side, never by the JWT alone. Admins are rows in `admin_users`
+// (is_admin()), partners are live rows in `partner_memberships`
+// (partner_org_context()), and any other signed-in account is a stranger
+// with the anon-shaped surface. The role probe below picks which SHELL to
+// render; RLS and the 061 RPCs are what actually enforce the difference.
 
 type AuthState = 'loading' | 'signed-out' | 'signed-in'
 
@@ -101,12 +107,13 @@ const ADMIN_SECTION_LABELS: Record<string, string> = {
   email:          'Email',
   review:         'Review Queue',
   feedback:       'Feedback',
+  partners:       'Partners',
 }
 
-function adminSectionTitle(pathname: string): string {
+function adminSectionTitle(pathname: string, prefix = 'Admin'): string {
   const seg = pathname.replace(/^\/admin\/?/, '').split('/')[0] || ''
   const label = ADMIN_SECTION_LABELS[seg] || seg
-  return `Admin: ${label}`
+  return `${prefix}: ${label}`
 }
 
 // ── Rail icons — inline SVGs, stroke follows currentColor ─────────────────
@@ -146,6 +153,24 @@ const RAIL_ITEMS: RailItem[] = [
     icon: railIcon(<><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></>) },
   { to: '/admin/feedback', label: 'Feedback',
     icon: railIcon(<path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5Z" />) },
+  { to: '/admin/partners', label: 'Partners',
+    // Handshake-ish: two hands meeting. No badge (design §4.3).
+    icon: railIcon(<><path d="M2 9l4-4 6 5 6-5 4 4" /><path d="M12 10l-3.5 3.5a1.6 1.6 0 0 0 2.3 2.3L12 14.5" /><path d="M12 10l3.5 3.5a1.6 1.6 0 0 1-2.3 2.3L12 14.5" /><path d="M2 9v6M22 9v6" /></>) },
+]
+
+/**
+ * The partner rail: exactly three sections plus utilities (design §4.3).
+ * Create is a first-class rail action (the D4 full-flow decision), not a
+ * button hidden in a list. No kitten break, no palette, no scrape pill --
+ * admin furniture; a partner's pending rows live in THEIR events list.
+ */
+const PARTNER_RAIL_ITEMS: RailItem[] = [
+  { to: '/admin', end: true, label: 'Pulse, your overview',
+    icon: railIcon(<path d="M2 12h4l3-8 4 16 3-8h6" />) },
+  { to: '/admin/events', end: true, label: 'Your events',
+    icon: railIcon(<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10h18" /></>) },
+  { to: '/admin/events/new', label: 'New event',
+    icon: railIcon(<><circle cx="12" cy="12" r="9" /><path d="M12 8v8M8 12h8" /></>) },
 ]
 
 const PAW_ICON = railIcon(
@@ -171,6 +196,9 @@ const LOGOUT_ICON = railIcon(
 export default function AdminLayout() {
   const { state, login, logout } = useAdminAuth()
   const navigate = useNavigate()
+  // The role probe (design §4.2): fires once sign-in resolves, cached per
+  // session. UX routing only, never security -- see useAdminRole.ts.
+  const roleState = useAdminRoleProvider(state === 'signed-in')
 
   if (state === 'loading') {
     return <div className="admin-login-wrap"><p className="admin-login-sub">Loading…</p></div>
@@ -178,7 +206,48 @@ export default function AdminLayout() {
   if (state === 'signed-out') return <LoginGate onLogin={login} />
 
   const handleLogout = async () => { await logout(); navigate('/') }
-  return <AdminShell onLogout={handleLogout} />
+
+  if (roleState.status === 'loading') {
+    return <div className="admin-login-wrap"><p className="admin-login-sub">Checking your access…</p></div>
+  }
+  if (roleState.status === 'error') {
+    // The probe FAILED; that is not "no access" and must not read as it.
+    return <RoleProbeError roleState={roleState} onLogout={handleLogout} />
+  }
+  return (
+    <AdminRoleContext.Provider value={roleState}>
+      {roleState.role === 'admin' && <AdminShell onLogout={handleLogout} />}
+      {roleState.role === 'partner' && <PartnerShell onLogout={handleLogout} />}
+      {roleState.role === 'none' && <NobodyPage onLogout={handleLogout} />}
+    </AdminRoleContext.Provider>
+  )
+}
+
+/**
+ * The probe could not answer (network, backend down). "We could not ask"
+ * and "you have no access" are opposite facts, so this renders an error
+ * state with a retry, never NobodyPage and never a guessed shell.
+ */
+function RoleProbeError({ roleState, onLogout }: { roleState: AdminRoleState; onLogout: () => void }) {
+  return (
+    <div className="admin-login-wrap">
+      <div className="admin-login-card" role="alert">
+        <div className="admin-login-icon" aria-hidden="true">⚡</div>
+        <h2 className="admin-login-title">Pulse Control</h2>
+        <p className="admin-login-sub">
+          You are signed in, but we could not work out what this account can
+          see. This is a lookup failure, not a verdict on your access.
+        </p>
+        {roleState.error && <p className="admin-login-err">{roleState.error}</p>}
+        <button type="button" className="btn-admin-primary" onClick={roleState.retry}>
+          Try again
+        </button>
+        <button type="button" className="btn-admin-ghost" onClick={onLogout}>
+          Log out
+        </button>
+      </div>
+    </div>
+  )
 }
 
 function greeting(): string {
@@ -340,5 +409,81 @@ function AdminShell({ onLogout }: { onLogout: () => void }) {
         <KittenBreak open={kittenOpen} onClose={closeKitten} />
       </div>
     </ShellCountsContext.Provider>
+  )
+}
+
+/**
+ * The scoped partner shell (design §4.3/§6.10): same chrome, same dark
+ * Pulse Control styling (the .admin-shell token block is shell-scoped, not
+ * role-scoped), a three-item rail. Kept: "Open the public site", "Log out",
+ * and the feedback affordance (public plumbing; partners are legitimate
+ * reporters). Removed: kitten break, the Cmd-K palette (admin-scoped
+ * actions), and the scrape pill (admin telemetry -- presentation, not
+ * secrecy). No ShellCounts provider: those six queries are admin numbers a
+ * partner page never reads.
+ */
+function PartnerShell({ onLogout }: { onLogout: () => void }) {
+  const location = useLocation()
+
+  const [displayName, setDisplayName] = useState<string | null>(null)
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const name = data.user?.user_metadata?.name
+      setDisplayName(typeof name === 'string' && name.trim() ? name.trim() : null)
+    })
+  }, [])
+
+  const dateLine = new Intl.DateTimeFormat(undefined, {
+    weekday: 'long', month: 'long', day: 'numeric',
+  }).format(new Date())
+
+  return (
+    <div className="admin-shell">
+      <SEO title={adminSectionTitle(location.pathname, 'Partner')} noindex />
+
+      <nav className="ashell-rail" aria-label="Partner sections">
+        <NavLink to="/admin" end className="ashell-rail-logo" aria-label="Akron Pulse partner home">
+          <img src="/favicon.svg" alt="" />
+        </NavLink>
+        {PARTNER_RAIL_ITEMS.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            className={({ isActive }) => `ashell-rail-btn ${isActive ? 'ashell-rail-btn--active' : ''}`}
+            aria-label={item.label}
+          >
+            {item.icon}
+            <span className="ashell-tip" aria-hidden="true">{item.label}</span>
+          </NavLink>
+        ))}
+        <div className="ashell-rail-spacer" />
+        <a className="ashell-rail-btn" href="/" target="_blank" rel="noopener noreferrer" aria-label="Open the public site">
+          {SITE_ICON}
+          <span className="ashell-tip" aria-hidden="true">Open the public site</span>
+        </a>
+        <button type="button" className="ashell-rail-btn" aria-label="Log out" onClick={onLogout}>
+          {LOGOUT_ICON}
+          <span className="ashell-tip" aria-hidden="true">Log out</span>
+        </button>
+      </nav>
+
+      <div className="ashell-main">
+        <header className="ashell-topbar">
+          <div className="ashell-hello">
+            <h1>{displayName ? `${greeting()}, ${displayName}` : greeting()}</h1>
+            <p>{dateLine} · your events on Akron Pulse</p>
+          </div>
+          <div className="ashell-grow" />
+          {/* Same feedback plumbing as the public site and the admin
+              topbar; partners report real problems. */}
+          <FeedbackDialog placement="admin_toolbar" triggerClassName="ashell-feedback-trigger" />
+        </header>
+
+        <div className="admin-main">
+          <Outlet />
+        </div>
+      </div>
+    </div>
   )
 }

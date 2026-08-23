@@ -39,8 +39,12 @@ const DayPlanPage    = lazy(() => import('@/pages/DayPlanPage'))
 const SharedPlanPage = lazy(() => import('@/pages/SharedPlanPage'))
 const FestivalPage   = lazy(() => import('@/pages/FestivalPage'))
 
-// Admin pages — visitors never pay for the admin surface.
+// Admin pages — visitors never pay for the admin surface. RoleSwitch swaps
+// each /admin route's element by the resolved shell role (admin vs partner,
+// design D8: one /admin, role-switched) and is itself lazy so nothing
+// partner- or admin-shaped reaches the public entry chunk.
 const AdminLayout = lazy(() => import('@/pages/admin/AdminLayout'))
+const RoleSwitch = lazy(() => import('@/pages/admin/RoleSwitch'))
 const AdminHomePage = lazy(() => import('@/pages/admin/home/AdminHomePage'))
 const EventsListPage = lazy(() => import('@/pages/admin/events/EventsListPage'))
 const EventEditPage = lazy(() => import('@/pages/admin/events/EventEditPage'))
@@ -54,6 +58,11 @@ const ScraperRunsPage = lazy(() => import('@/pages/admin/scraper-runs/ScraperRun
 const EmailPage = lazy(() => import('@/pages/admin/email/EmailPage'))
 const ReviewQueuePage = lazy(() => import('@/pages/admin/review/ReviewQueuePage'))
 const AdminFeedbackPage = lazy(() => import('@/pages/admin/feedback/AdminFeedbackPage'))
+const PartnersPage = lazy(() => import('@/pages/admin/partners/PartnersPage'))
+// Partner-scoped surfaces (the 061 partner accounts build).
+const PartnerHomePage = lazy(() => import('@/pages/admin/partner/PartnerHomePage'))
+const PartnerEventsPage = lazy(() => import('@/pages/admin/partner/PartnerEventsPage'))
+const PartnerCreateEventPage = lazy(() => import('@/pages/admin/partner/PartnerCreateEventPage'))
 
 import { trackPageView } from '@/lib/analytics'
 import { historyEntryKey } from '@/lib/historyKey'
@@ -262,27 +271,32 @@ function AppInner() {
               registry in src/lib/festivals.ts (unknown slug → not found). */}
           <Route path="/festival/:slug"          element={<FestivalPage />} />
 
-          {/* Admin — nested routing with shared layout */}
+          {/* Admin — nested routing with shared layout. One /admin for two
+              principals (design D8): the paths are identical for admins and
+              partners; RoleSwitch swaps the element by the role AdminLayout
+              resolved. Admin-only routes render the off-limits state for a
+              partner — never the admin surface, never a blank. */}
           <Route path="/admin" element={<AdminLayout />}>
             {/* Pulse — the overview home surface (replaces the old redirect
                 to /admin/events). */}
-            <Route index element={<AdminHomePage />} />
-            <Route path="events"             element={<EventsListPage />} />
-            <Route path="events/new"         element={<EventEditPage />} />
-            <Route path="events/:id/edit"    element={<EventEditPage />} />
-            <Route path="venues"             element={<VenuesListPage />} />
-            <Route path="venues/new"         element={<VenueEditPage />} />
-            <Route path="venues/:id/edit"    element={<VenueEditPage />} />
-            <Route path="organizations"      element={<OrganizationsListPage />} />
-            <Route path="organizations/new"  element={<OrgEditPage />} />
-            <Route path="organizations/:id/edit" element={<OrgEditPage />} />
-            <Route path="areas"              element={<AreasListPage />} />
-            <Route path="areas/new"          element={<AreaEditPage />} />
-            <Route path="areas/:id/edit"     element={<AreaEditPage />} />
-            <Route path="scraper-runs"       element={<ScraperRunsPage />} />
-            <Route path="email"              element={<EmailPage />} />
-            <Route path="review"             element={<ReviewQueuePage />} />
-            <Route path="feedback"           element={<AdminFeedbackPage />} />
+            <Route index element={<RoleSwitch admin={<AdminHomePage />} partner={<PartnerHomePage />} />} />
+            <Route path="events"             element={<RoleSwitch admin={<EventsListPage />} partner={<PartnerEventsPage />} />} />
+            <Route path="events/new"         element={<RoleSwitch admin={<EventEditPage />} partner={<PartnerCreateEventPage />} />} />
+            <Route path="events/:id/edit"    element={<RoleSwitch admin={<EventEditPage />} />} />
+            <Route path="venues"             element={<RoleSwitch admin={<VenuesListPage />} />} />
+            <Route path="venues/new"         element={<RoleSwitch admin={<VenueEditPage />} />} />
+            <Route path="venues/:id/edit"    element={<RoleSwitch admin={<VenueEditPage />} />} />
+            <Route path="organizations"      element={<RoleSwitch admin={<OrganizationsListPage />} />} />
+            <Route path="organizations/new"  element={<RoleSwitch admin={<OrgEditPage />} />} />
+            <Route path="organizations/:id/edit" element={<RoleSwitch admin={<OrgEditPage />} />} />
+            <Route path="areas"              element={<RoleSwitch admin={<AreasListPage />} />} />
+            <Route path="areas/new"          element={<RoleSwitch admin={<AreaEditPage />} />} />
+            <Route path="areas/:id/edit"     element={<RoleSwitch admin={<AreaEditPage />} />} />
+            <Route path="scraper-runs"       element={<RoleSwitch admin={<ScraperRunsPage />} />} />
+            <Route path="email"              element={<RoleSwitch admin={<EmailPage />} />} />
+            <Route path="review"             element={<RoleSwitch admin={<ReviewQueuePage />} />} />
+            <Route path="feedback"           element={<RoleSwitch admin={<AdminFeedbackPage />} />} />
+            <Route path="partners"           element={<RoleSwitch admin={<PartnersPage />} />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

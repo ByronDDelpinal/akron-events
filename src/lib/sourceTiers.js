@@ -58,6 +58,15 @@ export const TIER_3_SOURCES = new Set([
 ])
 
 export function sourceTier(source) {
+  // Partner-created events (ADR-partner-accounts §10.3): `partner:<slug>` is
+  // a FAMILY of source keys, one per tenant slug, that grows on every
+  // onboarding — so this must be a PREFIX rule, never an enumeration. A
+  // partner is the organizer's own staff typing their own event, which is
+  // exactly the Tier 1 trust definition; without this entry the tier would be
+  // an accident of the unknown-key default below rather than a decision, and
+  // a future Tier-1-vs-Tier-1 dedupe tie against the org's scraper twin
+  // would rest on an accident.
+  if (typeof source === 'string' && source.startsWith('partner:')) return TIER_VENUE_OFFICIAL
   if (TIER_3_SOURCES.has(source)) return TIER_AGGREGATOR
   if (TIER_2_SOURCES.has(source)) return TIER_PLATFORM
   return TIER_VENUE_OFFICIAL
@@ -90,6 +99,11 @@ export const SOURCE_TIER_LABEL = {
  */
 export function sourceTierLabel(source) {
   if (!source) return 'manual'
+  // Partner rows get their own analytics bucket for the same reason manual
+  // rows do: they were typed by a human, not scraped, and folding them into
+  // 'venue_official' would silently inflate the number this label exists to
+  // measure. Prefix rule, matching sourceTier() above.
+  if (typeof source === 'string' && source.startsWith('partner:')) return 'partner'
   return SOURCE_TIER_LABEL[sourceTier(source)]
 }
 

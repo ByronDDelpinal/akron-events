@@ -14,6 +14,34 @@ export type Database = {
   }
   public: {
     Tables: {
+      // HAND-AUTHORED to match 061 pending codegen; regenerate against prod
+      // after 061 applies and delete this comment. (Covers the 059 objects the
+      // checked-in file predates — admin_users, is_admin — AND 061's tables
+      // and RPCs, in codegen's idiom and alphabetical placement, so the
+      // post-apply `gen types` run replaces them with no diff churn. A
+      // substantive diff at that point means this block and the migration
+      // disagreed, which is a bug to fix before Phase B merges further.)
+      admin_users: {
+        Row: {
+          created_at: string
+          email: string
+          note: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          note?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          note?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       areas: {
         Row: {
           capacity: number | null
@@ -612,6 +640,77 @@ export type Database = {
         }
         Relationships: []
       }
+      // HAND-AUTHORED to match 061 pending codegen — see the admin_users note.
+      partner_memberships: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          email: string
+          organization_id: string
+          revoked_at: string | null
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          email: string
+          organization_id: string
+          revoked_at?: string | null
+          role?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          email?: string
+          organization_id?: string
+          revoked_at?: string | null
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_memberships_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "partner_orgs"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      partner_orgs: {
+        Row: {
+          active: boolean
+          auto_publish: boolean
+          created_at: string
+          organization_id: string
+          slug: string
+        }
+        Insert: {
+          active?: boolean
+          auto_publish?: boolean
+          created_at?: string
+          organization_id: string
+          slug: string
+        }
+        Update: {
+          active?: boolean
+          auto_publish?: boolean
+          created_at?: string
+          organization_id?: string
+          slug?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_orgs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scraper_runs: {
         Row: {
           duration_ms: number | null
@@ -893,6 +992,11 @@ export type Database = {
       }
     }
     Functions: {
+      // HAND-AUTHORED to match 061 pending codegen — see the admin_users note.
+      admin_lookup_auth_user: {
+        Args: { p_email: string }
+        Returns: string
+      }
       create_day_plan: {
         Args: { p_event_ids: string[]; p_plan_id: string; p_title: string }
         Returns: string
@@ -923,8 +1027,67 @@ export type Database = {
       }
       gen_day_plan_code: { Args: never; Returns: string }
       get_day_plan: { Args: { p_code: string }; Returns: Json }
+      is_admin: { Args: never; Returns: boolean }
       moderation_request_role: { Args: never; Returns: string }
       moderation_severity: { Args: { input: string }; Returns: string }
+      partner_fold_whitespace: {
+        Args: { p_text: string }
+        Returns: string
+      }
+      partner_may_create_for_org: {
+        Args: { p_org: string }
+        Returns: boolean
+      }
+      partner_may_write_event: {
+        Args: { p_event: string; p_org: string }
+        Returns: boolean
+      }
+      partner_mint_venue: {
+        Args: {
+          p_address: string
+          p_city?: string
+          p_details?: Json
+          p_name: string
+          p_org: string
+        }
+        Returns: Json
+      }
+      partner_org_context: {
+        Args: never
+        Returns: {
+          organization_id: string
+          name: string
+          slug: string
+          auto_publish: boolean
+        }[]
+      }
+      partner_scope: { Args: never; Returns: string[] }
+      partner_set_event_categories: {
+        Args: { p_event: string; p_org: string; p_slugs: string[] }
+        Returns: Json
+      }
+      partner_set_event_status: {
+        Args: { p_event: string; p_org: string; p_status: string }
+        Returns: Json
+      }
+      partner_set_event_venue: {
+        Args: { p_event: string; p_org: string; p_venue: string }
+        Returns: Json
+      }
+      partner_upsert_event: {
+        Args: {
+          p_categories?: string[]
+          p_event: string
+          p_org: string
+          p_patch: Json
+          p_venue?: string
+        }
+        Returns: Json
+      }
+      partner_venue_name_blocked: {
+        Args: { p_name: string }
+        Returns: string
+      }
       purge_expired_day_plans: { Args: never; Returns: number }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }

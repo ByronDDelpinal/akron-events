@@ -41,6 +41,7 @@ const SECTIONS: { label: string; to: string }[] = [
   { label: 'Review queue',        to: '/admin/review' },
   { label: 'Email',               to: '/admin/email' },
   { label: 'Feedback',            to: '/admin/feedback' },
+  { label: 'Partners',            to: '/admin/partners' },
 ]
 
 export default function AdminPalette({
