@@ -768,7 +768,15 @@ export function parseIcs(icsText) {
  *   @param {number|null} [config.defaultPriceMin] — default price_min (default null — never assume free)
  *   @param {number|null} [config.defaultPriceMax] — default price_max (default null)
  *   @param {string}   [config.ageRestriction]   — default age_restriction (default 'not_specified')
- *   @param {string}   [config.defaultImageUrl]  — fallback image if feed omits one
+ *   @param {string}   [config.defaultImageUrl]  — per-feed image used when the
+ *                                                 VEVENT carries none. It is
+ *                                                 written into row.image_url,
+ *                                                 so it counts as a real image
+ *                                                 and takes precedence over the
+ *                                                 linked organization's
+ *                                                 photos[0] fallback that
+ *                                                 enrichWithImageDimensions
+ *                                                 applies to image-less rows.
  * @returns {object|null}  — Event row ready for upsertEventSafe(); null if invalid
  */
 /**
@@ -1224,7 +1232,7 @@ export async function runIcsScraper(config) {
           if (!venueId && isJunkVenueName(locName)) row.needs_review = true
         }
 
-        const enrichedRow = await enrichWithImageDimensions(row)
+        const enrichedRow = await enrichWithImageDimensions(row, { organizationId })
         const { data: upserted, error, isNew } = await upsertEventSafe(enrichedRow)
 
         if (error) {

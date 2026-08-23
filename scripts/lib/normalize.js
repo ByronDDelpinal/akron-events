@@ -14,7 +14,6 @@ import { resolveNeighborhoodSlug } from './neighborhood-resolver.js'
 import { inferCategories as _inferCategories } from './category-inference.js'
 import { V1_TO_V2, CATEGORY_SLUGS } from '../../src/lib/categories.js'
 import { defaultCategoryFor } from '../manifest.js'
-import { fallbackImageFor } from './fallback-images.js'
 import { isAggregatorSelfOrgName, isSelfCredit, orgNameMatchKey } from './source-tiers.js'
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -332,22 +331,87 @@ export async function fetchSchemaDescription(url) {
   }
 }
 
-export async function enrichWithImageDimensions(row) {
+/**
+ * The organization photo that stands in for an image-less event: the FIRST
+ * entry of `organizations.photos`, or null when the org has none.
+ *
+ * Pure and exported so the selection rule is unit-testable without a database.
+ * First-wins rather than "best" because the admin editor renders photos in
+ * stored order — the top of that list is the org's deliberate lead image.
+ */
+export function orgFallbackPhoto(photos) {
+  return photos?.[0] ?? null
+}
+
+/**
+ * Resolve the fallback image for an image-less row from its linked org, or
+ * null.
+ *
+ * Attribution guard: linkEventOrganization refuses to credit an aggregator's
+ * own org on an event that aggregator merely republishes. Borrowing that same
+ * org's photo would stamp its branding on an event we deliberately will NOT
+ * credit it for, so the fallback is skipped under exactly the same condition —
+ * keeping one policy, not two that can drift apart. (No selfHostVerified
+ * escape hatch here: that flag authorizes asserting a presenter, which is a
+ * strictly different question from whose photo may represent the event.)
+ *
+ * Provenance gate: ONLY a `published` org may donate a photo. `organizations`
+ * carries an RLS policy ("Anon can insert pending organizations") whose
+ * `with check` is just `status = 'pending_review'` — no column allowlist — so
+ * anyone holding the publishable key can insert an org row with an arbitrary
+ * `photos` array. That was inert while `photos` was unused; making it a
+ * public-facing image path (event pages, the email digest) turns it into an
+ * unmoderated image channel. `organizations.name` has no unique index either,
+ * so a planted duplicate-name row can win ensureOrganization's loose-name
+ * probe. Requiring `published` — a status only an admin can set — closes both:
+ * a pending_review row (the only status anon can create) and a cancelled row
+ * are both refused. This is a code-side guard, not a substitute for narrowing
+ * that policy.
+ */
+async function _orgFallbackImage(row, organizationId) {
+  if (!organizationId) return null
+  const orgName = await orgNameById(organizationId)
+  if (isAggregatorSelfOrgName(orgName) && isSelfCredit(row.source, orgName)) return null
+  const { photos, status } = await orgPhotoSourceById(organizationId)
+  if (status !== 'published') return null
+  return orgFallbackPhoto(photos)
+}
+
+/**
+ * Attach image_width/height/file_size to a row, resolving a fallback image
+ * from the linked organization when the scraper found none.
+ *
+ * @param {object} row                   — event row (image_url may be null)
+ * @param {object} [opts]
+ * @param {string} [opts.organizationId] — org this event will be linked to;
+ *   its photos[0] becomes the image when the row has none. Omit it and the
+ *   function behaves exactly as it did before org fallbacks existed.
+ */
+export async function enrichWithImageDimensions(row, opts = {}) {
   if (!await _hasImageDimensionColumns()) return row
-  // Sources whose platform structurally can't supply a per-event photo get a
-  // curated static fallback (scripts/lib/fallback-images.js) — a no-op until
-  // Byron fills one in. Never overrides a real image_url from the scraper.
-  const sourceImageUrl = row.image_url || fallbackImageFor(row.source)
-  if (!sourceImageUrl) {
+
+  // A real scraped photo ALWAYS wins — the org fallback is only consulted for
+  // a row that arrived with no image at all.
+  const scrapedUrl = row.image_url || null
+  const orgPhoto   = scrapedUrl ? null : await _orgFallbackImage(row, opts.organizationId)
+
+  // normalizeImageUrl's per-source transforms are keyed on `source` alone and
+  // are NOT hostname-guarded (drupalImageStyle, wordpressResizedSuffix in
+  // image-url-normalizer.js would happily rewrite any URL containing their
+  // patterns). They exist to un-resize what a specific SOURCE served us, so
+  // they must never touch an admin-supplied org photo. Dimensions are still
+  // probed for both — banner eligibility needs width/height/file size.
+  const imageUrl = scrapedUrl ? normalizeImageUrl(scrapedUrl, row.source) : orgPhoto
+
+  if (!imageUrl) {
     return { ...row, image_width: null, image_height: null, image_file_size: null }
   }
-  const normalizedUrl = normalizeImageUrl(sourceImageUrl, row.source)
-  const meta = await getImageDimensions(normalizedUrl)
+  const meta = await getImageDimensions(imageUrl)
 
   if (meta) {
     return {
       ...row,
-      image_url:       normalizedUrl,
+      image_url:       imageUrl,
       image_width:     meta.width    ?? null,
       image_height:    meta.height   ?? null,
       image_file_size: meta.fileSize ?? null,
@@ -358,10 +422,10 @@ export async function enrichWithImageDimensions(row) {
   // is unchanged for this (source, source_id). This guards against bot
   // detection / transient origin errors silently degrading our data.
   const existing = await _getExistingImageMeta(row.source, row.source_id)
-  if (existing && existing.image_url === normalizedUrl) {
+  if (existing && existing.image_url === imageUrl) {
     return {
       ...row,
-      image_url:       normalizedUrl,
+      image_url:       imageUrl,
       image_width:     existing.image_width,
       image_height:    existing.image_height,
       image_file_size: existing.image_file_size,
@@ -370,7 +434,7 @@ export async function enrichWithImageDimensions(row) {
 
   return {
     ...row,
-    image_url:       normalizedUrl,
+    image_url:       imageUrl,
     image_width:     null,
     image_height:    null,
     image_file_size: null,
@@ -570,6 +634,7 @@ export function parseTagsFromTribe(categories = [], tags = [], extraTags = []) {
 
 const _orgNameCache = new Map() // name → orgId
 const _orgIdNameCache = new Map() // orgId → name (reverse; see orgNameById)
+const _orgPhotoSourceCache = new Map() // orgId → { photos, status } (see orgPhotoSourceById)
 
 /**
  * Organization name for an id, cached per run.
@@ -586,6 +651,31 @@ async function orgNameById(orgId) {
   const name = data?.name ?? null
   _orgIdNameCache.set(orgId, name)
   return name
+}
+
+/**
+ * Organization photos AND status for an id, cached per run.
+ *
+ * Backs enrichWithImageDimensions' fallback image. Status rides along with
+ * photos because _orgFallbackImage must never donate a photo from a row that
+ * isn't `published` — fetching them together keeps that check free.
+ *
+ * Like orgNameById this is seeded for free by ensureOrganization, so the query
+ * below only fires for org ids a scraper obtained some other way (a hardcoded
+ * UUID, a venue's organization_id). Worst case that is ONE read per
+ * organization per run — never one per event row.
+ *
+ * A missing row yields status null, which is not 'published', so an org id
+ * that no longer resolves is refused rather than silently trusted.
+ */
+async function orgPhotoSourceById(orgId) {
+  if (!orgId) return { photos: [], status: null }
+  if (_orgPhotoSourceCache.has(orgId)) return _orgPhotoSourceCache.get(orgId)
+  const { data } = await supabaseAdmin
+    .from('organizations').select('photos, status').eq('id', orgId).maybeSingle()
+  const entry = { photos: data?.photos ?? [], status: data?.status ?? null }
+  _orgPhotoSourceCache.set(orgId, entry)
+  return entry
 }
 
 const _eventSourceCache = new Map() // eventId → source
@@ -636,7 +726,11 @@ function escapeLike(s) {
   return s.replace(/[\\%_]/g, (m) => `\\${m}`)
 }
 
-const ORG_SELECT = 'id, name, website, description, image_url, address, city, state, zip'
+// `photos` and `status` ride along so ensureOrganization can seed
+// _orgPhotoSourceCache without a second read — enrichWithImageDimensions needs
+// photos[0] for every image-less row this org owns, and refuses to use it
+// unless status is 'published'.
+const ORG_SELECT = 'id, name, website, description, image_url, address, city, state, zip, photos, status'
 
 /**
  * Look up an org by loose name (case-insensitive, optional leading "The",
@@ -717,7 +811,7 @@ export async function ensureOrganization(name, details = {}) {
   if (_orgNameCache.has(trimmed)) return _orgNameCache.get(trimmed)
 
   const { data: exact } = await supabaseAdmin
-    .from('organizations').select('id, name, website, description, image_url, address, city, state, zip').eq('name', trimmed).maybeSingle()
+    .from('organizations').select('id, name, website, description, image_url, address, city, state, zip, photos, status').eq('name', trimmed).maybeSingle()
 
   // Fall back to a loose match ("The X" ↔ "X", case-insensitive) before
   // minting a second row for an org we already know about.
@@ -744,6 +838,10 @@ export async function ensureOrganization(name, details = {}) {
     // spelling here would let the guard evaluate a name that isn't in the DB.
     _orgNameCache.set(trimmed, existing.id)
     _orgIdNameCache.set(existing.id, existing.name ?? trimmed)
+    _orgPhotoSourceCache.set(existing.id, {
+      photos: existing.photos ?? [],
+      status: existing.status ?? null,
+    })
     return existing.id
   }
 
@@ -758,8 +856,10 @@ export async function ensureOrganization(name, details = {}) {
   if (details.state)       row.state       = details.state
   if (details.zip)         row.zip         = details.zip
 
+  // `status` comes back on the same round trip so the cache seed below records
+  // what the DB actually assigned instead of assuming the column default.
   const { data, error } = await supabaseAdmin
-    .from('organizations').insert(row).select('id').single()
+    .from('organizations').insert(row).select('id, status').single()
 
   if (error) {
     console.warn(`  ⚠ Could not create organization "${trimmed}":`, error.message)
@@ -770,6 +870,15 @@ export async function ensureOrganization(name, details = {}) {
   console.log(`  ✚ Created organization: ${trimmed}`)
   _orgNameCache.set(trimmed, data.id)
   _orgIdNameCache.set(data.id, trimmed)
+  // A row we just minted has the `photos` column default '{}' — the insert
+  // payload above never sets photos — so there is nothing to donate and no
+  // read to make. Its `status` is whatever the DB assigned; today that is the
+  // column default 'published' (migration 006), which is DELIBERATE and safe:
+  // eligibility is gated on status AND a non-empty photos array, and only an
+  // admin editing the org can ever put a photo in that array. Caching the
+  // returned status rather than hardcoding 'published' means a future default
+  // change is tracked automatically instead of silently diverging.
+  _orgPhotoSourceCache.set(data.id, { photos: [], status: data.status ?? null })
   return data.id
 }
 

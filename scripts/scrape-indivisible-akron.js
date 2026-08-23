@@ -166,7 +166,7 @@ async function processEvents(rawEvents, organizerId) {
       }
       if (!row.start_at) { skipped++; continue }
 
-      const enrichedRow = await enrichWithImageDimensions(row)
+      const enrichedRow = await enrichWithImageDimensions(row, { organizationId: organizerId })
       const { data: upserted, error } = await upsertEventSafe(enrichedRow)
       if (error) {
         console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)

@@ -191,7 +191,8 @@ export function buildRow(card, now = new Date()) {
       // The feed's `image`/`event_image` fields are consistently empty in
       // practice (verified 2026-07-02) — the platform has no per-event photo
       // for this library. Read defensively anyway in case that ever changes;
-      // otherwise a source-level fallback applies (lib/fallback-images.js).
+      // otherwise the row falls back to the library organization's photos[0]
+      // (set in the admin org editor), if an admin has added one.
       image_url: card.imageUrl || null,
       ticket_url: card.detailUrl || BASE,
       source: SOURCE_KEY,
@@ -290,7 +291,7 @@ async function main() {
         if (!built) { skipped++; continue }
         if (Date.parse(built.row.start_at) < cutoffPast) { skipped++; continue }
 
-        const enriched = await enrichWithImageDimensions(built.row)
+        const enriched = await enrichWithImageDimensions(built.row, { organizationId: organizerId })
         const { data: upserted, error } = await upsertEventSafe(enriched)
         if (error) { console.warn(`  ⚠ Upsert failed "${built.row.title}": ${error.message}`); skipped++; continue }
 

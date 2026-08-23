@@ -353,7 +353,7 @@ async function main() {
         price_min:       null, // pages state no admission fee either way
         price_max:       null,
         age_restriction: 'all_ages',
-        image_url:       null, // shared fallback image covers display
+        image_url:       null, // no per-event photo on the event pages
         ticket_url:      ev.ticketUrl,
         source_url:      ev.ticketUrl,
         source:          SOURCE_KEY,

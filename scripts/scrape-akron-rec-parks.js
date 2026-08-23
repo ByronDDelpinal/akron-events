@@ -717,7 +717,7 @@ async function main() {
         const facilityVenueId = await ensureFacilityVenue(sched?.location, prog.title)
         const eventVenueId    = facilityVenueId || venueId
 
-        const enriched = await enrichWithImageDimensions(row)
+        const enriched = await enrichWithImageDimensions(row, { organizationId: organizerId })
         const { data: upserted, error } = await upsertEventSafe(enriched)
 
         if (error) {

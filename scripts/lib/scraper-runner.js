@@ -118,7 +118,9 @@ export function defineScraper({ source, label, fetch: fetchItems, parse, venue, 
         }
         if (!row) { skipped++; continue }
 
-        const enriched = await enrichWithImageDimensions(row)
+        // Same org this row will be linked to below, so an image-less row can
+        // fall back to that org's photo.
+        const enriched = await enrichWithImageDimensions(row, { organizationId: row.org_id ?? orgId })
         const { data: upserted, error, isNew } = await upsertEventSafe(enriched)
 
         if (error) {

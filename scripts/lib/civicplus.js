@@ -302,7 +302,7 @@ export async function runCivicPlusScraper(config) {
           if (!venueId && isJunkVenueName(locName)) row.needs_review = true
         }
 
-        const enrichedRow = await enrichWithImageDimensions(row)
+        const enrichedRow = await enrichWithImageDimensions(row, { organizationId })
         const { data: upserted, error, isNew } = await upsertEventSafe(enrichedRow)
         if (error) {
           console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)

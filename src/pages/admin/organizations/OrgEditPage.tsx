@@ -16,8 +16,11 @@ type Row = LooseRow
 const DEFAULT_ORG: Row = {
   name: '', status: 'published', description: '', website: '',
   address: '', city: '', state: 'OH', zip: '', contact_email: '',
-  image_url: '', manual_overrides: {},
+  image_url: '', photos: [], manual_overrides: {},
 }
+
+/** organizations.photos is documented as "up to 12 image URLs" (migration 006). */
+const MAX_ORG_PHOTOS = 12
 
 export default function OrgEditPage() {
   const { id } = useParams()
@@ -72,6 +75,10 @@ function OrgForm({ seed, isNew, orgId, allVenues, ownedVenueIds, setOwnedVenueId
   const { form, setField } = useFormState(seed)
   const { overrides, toggleOverride } = useOverrides(seed.manual_overrides)
 
+  // `photos` is a text[] NOT NULL DEFAULT '{}' — never send null.
+  const photos: string[] = Array.isArray(form.photos) ? (form.photos as string[]) : []
+  const setPhotos = (next: string[]) => setField('photos', next.slice(0, MAX_ORG_PHOTOS))
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     const orgFields = {
@@ -85,6 +92,9 @@ function OrgForm({ seed, isNew, orgId, allVenues, ownedVenueIds, setOwnedVenueId
       zip:              form.zip ?? null,
       contact_email:    form.contact_email ?? null,
       image_url:        form.image_url ?? null,
+      // Drop the blank row the "Add photo" button leaves behind, and hold the
+      // documented 12-URL cap on the way out as well as in the editor.
+      photos:           photos.map((p) => p.trim()).filter(Boolean).slice(0, MAX_ORG_PHOTOS),
       manual_overrides: overrides,
     }
 
@@ -173,6 +183,49 @@ function OrgForm({ seed, isNew, orgId, allVenues, ownedVenueIds, setOwnedVenueId
                 onLoad={(e) => { e.currentTarget.style.display = 'block' }}
               />
             </div>
+          )}
+        </FormField>
+
+        <FormField label={`Photos (${photos.length}/${MAX_ORG_PHOTOS})`}>
+          <p className="admin-hint">
+            Heads up: the FIRST photo here becomes the fallback image for every event
+            of this organization that has no image of its own. Use a photo we have the
+            rights to, and one that reads well as a wide event banner. Leave this empty
+            and image-less events stay image-less.
+          </p>
+          {photos.map((url, i) => (
+            <div key={i} style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <FormInput
+                  value={url}
+                  placeholder="https://…"
+                  onChange={(e) => setPhotos(photos.map((p, j) => (j === i ? e.target.value : p)))}
+                />
+                <button
+                  type="button"
+                  className="btn-admin-ghost"
+                  onClick={() => setPhotos(photos.filter((_, j) => j !== i))}
+                >
+                  Remove
+                </button>
+              </div>
+              {url && (
+                <div style={{ marginTop: 8 }}>
+                  <img
+                    src={url}
+                    alt={`Photo ${i + 1} preview`}
+                    style={{ maxHeight: 140, maxWidth: '100%', borderRadius: 6, objectFit: 'cover', border: '1px solid var(--border)' }}
+                    onError={(e) => { e.currentTarget.style.display = 'none' }}
+                    onLoad={(e) => { e.currentTarget.style.display = 'block' }}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+          {photos.length < MAX_ORG_PHOTOS && (
+            <button type="button" className="btn-admin-ghost" onClick={() => setPhotos([...photos, ''])}>
+              + Add photo
+            </button>
           )}
         </FormField>
 

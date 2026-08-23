@@ -110,8 +110,9 @@ describe('CFL buildRow', () => {
 // 2026-07-02 data-quality plan (task 6): the feed's `image`/`event_image`
 // fields are empty in practice, so image_url had been hardcoded null. Read
 // them defensively in case that ever changes — but only trust an already-
-// absolute URL, since we don't know this platform's asset base path. A
-// source-level static fallback (lib/fallback-images.js) covers the rest.
+// absolute URL, since we don't know this platform's asset base path. Rows
+// that stay image-less fall back to the library organization's photos[0]
+// (enrichWithImageDimensions), if an admin has set one.
 describe('CFL image field (defensive, 2026-07-02)', () => {
   it('leaves imageUrl null when the feed field is empty (current reality)', () => {
     const card = eventToCard({ title: 'Play Cafe', image: '', event_image: '' })

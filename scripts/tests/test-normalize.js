@@ -8,8 +8,9 @@
  *   node --test scripts/tests/test-normalize.js
  */
 
-import { describe, it } from 'node:test'
+import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
+import http from 'node:http'
 
 // We can't directly import from normalize.js because it imports supabase-admin.js
 // which throws if env vars are missing. Instead, we'll extract and test the pure
@@ -1464,6 +1465,311 @@ describe('ensureVenue — split + name-key + alias-hop resolution', () => {
       const id = await ensureVenue('Neighbors of Elma Green', { address: '760 Elma St' })
       assert.equal(id, 'v-addr-canon')
       assert.equal(calls.insert, 0)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// ORGANIZATION FALLBACK IMAGE
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Replaced the hardcoded per-source SOURCE_FALLBACK_IMAGE map (deleted): an
+// event with no photo of its own now borrows the FIRST photo on its linked
+// organization, which admins set in the org editor.
+
+const { orgFallbackPhoto, enrichWithImageDimensions } = await import('../lib/normalize.js')
+
+describe('orgFallbackPhoto', () => {
+  it('returns null for an org with no photos (the project-wide state today)', () => {
+    assert.equal(orgFallbackPhoto([]), null)
+  })
+
+  it('returns null for null/undefined rather than throwing', () => {
+    // A lazy org read that misses returns no row at all, and the `photos`
+    // column is only NOT NULL going forward — never let either crash a scrape.
+    assert.equal(orgFallbackPhoto(null), null)
+    assert.equal(orgFallbackPhoto(undefined), null)
+  })
+
+  it('returns the FIRST photo, not an arbitrary one', () => {
+    assert.equal(
+      orgFallbackPhoto(['https://example.com/lead.jpg', 'https://example.com/second.jpg']),
+      'https://example.com/lead.jpg')
+  })
+})
+
+// ── enrichWithImageDimensions: the scraped image always wins ────────────────
+//
+// THE invariant of this feature. A source photo is specific to the event; an
+// org photo is generic branding. If the fallback could ever overwrite a real
+// image_url, every scraper with a photo would silently regress to a logo.
+//
+// Runs fully offline: images are served by a throwaway loopback HTTP server
+// and every DB call goes through the supabase-admin test seam.
+describe('enrichWithImageDimensions — org photo fallback', () => {
+  // parseDimensions only reads the PNG signature plus the IHDR width/height
+  // words, so a 32-byte stub is a valid probe target without shipping a binary.
+  function pngStub(width, height) {
+    const buf = Buffer.alloc(32)
+    buf.writeUInt8(0x89, 0)
+    buf.write('PNG', 1, 'ascii')
+    buf.writeUInt32BE(width, 16)
+    buf.writeUInt32BE(height, 20)
+    return buf
+  }
+
+  const IMAGES = {
+    '/scraped.png': pngStub(1200, 630),
+    '/org.png':     pngStub(800, 800),
+
+    // Bait for the "never normalize an org photo" tests below. Each pair is a
+    // URL a per-source transform would mangle, PLUS the URL it would mangle it
+    // INTO — both served, with distinct dimensions, so a regression fails on
+    // the wrong URL *and* the wrong size rather than incidentally on a 404.
+    '/org-300x300.png':                       pngStub(300, 300),   // → /org.png (800×800)
+    '/styles/thumb/public/org-drupal.png':    pngStub(150, 150),
+    '/org-drupal.png':                        pngStub(900, 900),
+  }
+
+  let server, base
+  before(async () => {
+    server = http.createServer((req, res) => {
+      // Key on the path only: one bait URL carries Drupal's ?itok= token.
+      const body = IMAGES[req.url.split('?')[0]]
+      if (!body) { res.statusCode = 404; res.end(); return }
+      res.setHeader('Content-Type', 'image/png')
+      res.setHeader('Content-Length', String(body.length))
+      res.end(body)
+    })
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+    base = `http://127.0.0.1:${server.address().port}`
+  })
+  after(() => new Promise((resolve) => server.close(resolve)))
+
+  // Minimal client: the events probe that gates the dimension columns, the
+  // org name and photos/status reads, and the "keep previous dimensions"
+  // lookup. Org fixtures state `status` explicitly — the provenance gate below
+  // is the whole point, so no fixture may inherit it by default.
+  function imageMock({ orgs = {} } = {}) {
+    const calls = { orgPhotoReads: 0 }
+    function builder(table) {
+      const st = { table, cols: null, id: null }
+      const chain = {
+        select(cols) { st.cols = cols; return chain },
+        eq(col, val) { if (col === 'id') st.id = val; return chain },
+        limit() { return Promise.resolve({ data: [], error: null }) },
+        maybeSingle() {
+          if (st.table === 'organizations') {
+            if (st.cols === 'photos, status') calls.orgPhotoReads++
+            return Promise.resolve({ data: orgs[st.id] ?? null, error: null })
+          }
+          return Promise.resolve({ data: null, error: null })  // no prior event row
+        },
+      }
+      return chain
+    }
+    return { client: { from: builder }, calls }
+  }
+
+  it('never replaces a real scraped image_url with the org photo', async () => {
+    const { client } = imageMock({
+      orgs: { 'org-photo-1': { name: 'Cuyahoga Falls Library', photos: [`${base}/org.png`], status: 'published' } },
+    })
+    __setClientForTests(client)
+    try {
+      const out = await enrichWithImageDimensions(
+        { title: 'T', source: 'cuyahoga_falls_library', source_id: 'a1', image_url: `${base}/scraped.png` },
+        { organizationId: 'org-photo-1' })
+      assert.equal(out.image_url, `${base}/scraped.png`)
+      assert.equal(out.image_width, 1200)
+      assert.equal(out.image_height, 630)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('uses a PUBLISHED org photo (with dimensions) only when the row has no image', async () => {
+    const { client } = imageMock({
+      orgs: { 'org-photo-2': { name: 'Cuyahoga Falls Library', photos: [`${base}/org.png`], status: 'published' } },
+    })
+    __setClientForTests(client)
+    try {
+      const out = await enrichWithImageDimensions(
+        { title: 'T', source: 'cuyahoga_falls_library', source_id: 'a2', image_url: null },
+        { organizationId: 'org-photo-2' })
+      assert.equal(out.image_url, `${base}/org.png`)
+      // Dimensions matter: banner eligibility is computed from them.
+      assert.equal(out.image_width, 800)
+      assert.equal(out.image_height, 800)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('leaves an image-less row image-less when the org has no photos', async () => {
+    const { client } = imageMock({
+      orgs: { 'org-photo-3': { name: 'Cuyahoga Falls Library', photos: [], status: 'published' } },
+    })
+    __setClientForTests(client)
+    try {
+      const out = await enrichWithImageDimensions(
+        { title: 'T', source: 'cuyahoga_falls_library', source_id: 'a3', image_url: null },
+        { organizationId: 'org-photo-3' })
+      assert.equal(out.image_url ?? null, null)
+      assert.equal(out.image_width, null)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('skips the fallback when the org is the aggregator crediting its own event', async () => {
+    // Same condition linkEventOrganization refuses to link under. Borrowing the
+    // photo there would brand an event we deliberately will not credit them for.
+    const { client, calls } = imageMock({
+      orgs: { 'org-photo-4': { name: 'Downtown Akron Partnership', photos: [`${base}/org.png`], status: 'published' } },
+    })
+    __setClientForTests(client)
+    try {
+      const out = await enrichWithImageDimensions(
+        { title: 'T', source: 'downtown_akron', source_id: 'a4', image_url: null },
+        { organizationId: 'org-photo-4' })
+      assert.equal(out.image_url ?? null, null)
+      assert.equal(calls.orgPhotoReads, 0)  // bailed before even reading photos
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('omitting opts entirely behaves exactly as before org fallbacks existed', async () => {
+    const { client, calls } = imageMock()
+    __setClientForTests(client)
+    try {
+      const out = await enrichWithImageDimensions(
+        { title: 'T', source: 'cuyahoga_falls_library', source_id: 'a5', image_url: null })
+      assert.equal(out.image_url ?? null, null)
+      assert.equal(calls.orgPhotoReads, 0)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  // ── Provenance gate: only a PUBLISHED org may donate a photo ─────────────
+  //
+  // The RLS policy "Anon can insert pending organizations" checks only
+  // `status = 'pending_review'` — it carries NO column allowlist, so anyone
+  // with the publishable key can insert an org row bearing an arbitrary
+  // `photos` array, and `photos` is not covered by content moderation.
+  // `organizations.name` has no unique index either, so such a row can also
+  // win ensureOrganization's loose-name probe (findOrgByLooseName's first
+  // ilike probe has no ORDER BY) and attach itself to a real event.
+  //
+  // 'published' is a status only an admin can set, which makes it the one
+  // signal that a human curated these photos. Anything else — the
+  // anon-reachable 'pending_review', an admin's 'cancelled', or an org id
+  // that no longer resolves at all — donates nothing.
+  const STATUS_CASES = [
+    ['published',      true,  'an admin curated this row'],
+    ['pending_review', false, 'the ONLY status anon can insert'],
+    ['cancelled',      false, 'deliberately retired by an admin'],
+  ]
+
+  for (const [status, shouldUse, why] of STATUS_CASES) {
+    it(`org status '${status}' ${shouldUse ? 'DONATES' : 'never donates'} its photo (${why})`, async () => {
+      const orgId = `org-status-${status}`
+      const { client } = imageMock({
+        orgs: { [orgId]: { name: 'Cuyahoga Falls Library', photos: [`${base}/org.png`], status } },
+      })
+      __setClientForTests(client)
+      try {
+        const out = await enrichWithImageDimensions(
+          { title: 'T', source: 'cuyahoga_falls_library', source_id: `s-${status}`, image_url: null },
+          { organizationId: orgId })
+        assert.equal(out.image_url ?? null, shouldUse ? `${base}/org.png` : null)
+      } finally {
+        __setClientForTests(null)
+      }
+    })
+  }
+
+  it('an org id that resolves to no row donates nothing (status reads as null)', async () => {
+    const { client } = imageMock({ orgs: {} })
+    __setClientForTests(client)
+    try {
+      const out = await enrichWithImageDimensions(
+        { title: 'T', source: 'cuyahoga_falls_library', source_id: 's-missing', image_url: null },
+        { organizationId: 'org-status-missing' })
+      assert.equal(out.image_url ?? null, null)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  // ── normalizeImageUrl must NEVER run on an org photo ─────────────────────
+  //
+  // The per-source transforms in image-url-normalizer.js are keyed on `source`
+  // alone and are NOT hostname-guarded: wordpressResizedSuffix and
+  // drupalImageStyle rewrite ANY URL matching their pattern. They exist to
+  // un-resize what a specific SOURCE served us. An org photo is admin-supplied
+  // and has no relationship to the source's CDN, so running a transform on it
+  // can silently rewrite it into a URL that does not exist — or, worse, into a
+  // different real image.
+  //
+  // These two tests are what makes that invariant enforceable. Collapsing
+  // enrichWithImageDimensions' ternary to
+  //   const imageUrl = normalizeImageUrl(scrapedUrl ?? orgPhoto, row.source)
+  // passes every other test in this repo; it fails these.
+  const UNGUARDED_TRANSFORM_CASES = [
+    {
+      // TRANSFORMS.summit_artspace = wordpressResizedSuffix, which strips a
+      // -WxH suffix: /org-300x300.png would become /org.png (a real 800×800).
+      source: 'summit_artspace',
+      photo:  '/org-300x300.png',
+      width:  300,
+    },
+    {
+      // TRANSFORMS.akron_childrens_museum = drupalImageStyle, which strips
+      // /styles/<style>/public/ and the ?itok= query: this would become
+      // /org-drupal.png (a real 900×900).
+      source: 'akron_childrens_museum',
+      photo:  '/styles/thumb/public/org-drupal.png?itok=aBcDeF',
+      width:  150,
+    },
+  ]
+
+  for (const { source, photo, width } of UNGUARDED_TRANSFORM_CASES) {
+    it(`stores the org photo byte-identically for '${source}' (transform must not touch it)`, async () => {
+      const orgId = `org-noxform-${source}`
+      const orgPhoto = `${base}${photo}`
+      const { client } = imageMock({
+        orgs: { [orgId]: { name: 'Cuyahoga Falls Library', photos: [orgPhoto], status: 'published' } },
+      })
+      __setClientForTests(client)
+      try {
+        const out = await enrichWithImageDimensions(
+          { title: 'T', source, source_id: `x-${source}`, image_url: null },
+          { organizationId: orgId })
+        // Byte-identical: not merely "resolves to an image".
+        assert.equal(out.image_url, orgPhoto)
+        // And the dimensions came from THAT file, not the transform's target.
+        assert.equal(out.image_width, width)
+      } finally {
+        __setClientForTests(null)
+      }
+    })
+  }
+
+  it('still normalizes a SCRAPED url for the same sources (the guard is org-photo-only)', async () => {
+    // Guards the opposite regression: dropping normalizeImageUrl entirely
+    // would also make the two tests above pass.
+    const { client } = imageMock({ orgs: {} })
+    __setClientForTests(client)
+    try {
+      const out = await enrichWithImageDimensions(
+        { title: 'T', source: 'summit_artspace', source_id: 'x-scraped', image_url: `${base}/org-300x300.png` })
+      assert.equal(out.image_url, `${base}/org.png`)
+      assert.equal(out.image_width, 800)
     } finally {
       __setClientForTests(null)
     }

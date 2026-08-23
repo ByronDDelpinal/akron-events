@@ -197,7 +197,7 @@ async function processGames(games, organizerId) {
         ...(g.timeSynthesized ? { needs_review: true } : {}),
       }
 
-      const enrichedRow = await enrichWithImageDimensions(row)
+      const enrichedRow = await enrichWithImageDimensions(row, { organizationId: organizerId })
       const { data: upserted, error } = await upsertEventSafe(enrichedRow)
       if (error) {
         console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)

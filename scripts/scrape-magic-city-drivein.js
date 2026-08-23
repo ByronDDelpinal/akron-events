@@ -247,7 +247,7 @@ async function main() {
         price_min:       null,          // admission charged, amount not published on the schedule page
         price_max:       null,
         age_restriction: 'all_ages',
-        image_url:       null,          // posters are third-party; shared fallback image covers display
+        image_url:       null,          // posters are third-party — no usable per-event photo
         ticket_url:      ev.ticketUrl,
         source:          SOURCE_KEY,
         source_id:       sourceId,

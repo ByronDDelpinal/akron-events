@@ -6,6 +6,7 @@
  * All external I/O (upsert, enrich, link, log) is stubbed so the tests run
  * offline and make no DB calls. We verify that the runner:
  *   • calls fetch, parse, upsert, linkVenue, linkOrg in the correct order
+ *   • hands enrichWithImageDimensions the same org id it links the row to
  *   • counts inserted / skipped correctly
  *   • skips null rows returned by parse
  *   • skips rows when parse throws (without aborting the loop)
@@ -41,7 +42,10 @@ function makeStubs() {
   const stubs = {
     ensureVenue:             async (name) => { calls.ensureVenue.push(name); return `venue-id-${name}` },
     ensureOrganization:      async (name) => { calls.ensureOrganization.push(name); return `org-id-${name}` },
-    enrichWithImageDimensions: async (row) => { calls.enrichWithImageDimensions.push(row.title); return row },
+    // Records [title, opts] so tests can pin that the runner hands enrich the
+    // SAME org id it will link the row to — that opts.organizationId is what
+    // resolves an image-less row's fallback photo (organizations.photos[0]).
+    enrichWithImageDimensions: async (row, opts) => { calls.enrichWithImageDimensions.push([row.title, opts]); return row },
     upsertEventSafe:         async (row) => { calls.upsertEventSafe.push(row.title); return { data: { id: `ev-${row.title}` }, error: null } },
     linkEventVenue:          async (evId, vId) => { calls.linkEventVenue.push([evId, vId]) },
     linkEventOrganization:   async (evId, oId) => { calls.linkEventOrganization.push([evId, oId]) },
@@ -95,7 +99,7 @@ function makeRunner(stubs) {
           }
           if (!row) { skipped++; continue }
 
-          const enriched = await stubs.enrichWithImageDimensions(row)
+          const enriched = await stubs.enrichWithImageDimensions(row, { organizationId: row.org_id ?? orgId })
           const { data: upserted, error } = await stubs.upsertEventSafe(enriched)
 
           if (error) {
@@ -175,6 +179,11 @@ describe('defineScraper — happy path', () => {
     assert.deepEqual(calls.upsertEventSafe, ['Event A', 'Event B'])
     assert.equal(calls.linkEventVenue.length, 2)
     assert.equal(calls.linkEventOrganization.length, 2)
+    // The resolved org id reaches enrich, not just the link step.
+    assert.deepEqual(calls.enrichWithImageDimensions, [
+      ['Event A', { organizationId: 'org-id-Test Org' }],
+      ['Event B', { organizationId: 'org-id-Test Org' }],
+    ])
     assert.equal(calls.logUpsertResult[0][1], 2) // inserted = 2
     assert.equal(calls.logUpsertResult[0][3], 0) // skipped = 0
   })
@@ -215,6 +224,7 @@ describe('defineScraper — happy path', () => {
     assert.equal(calls.ensureVenue.length, 0)
     assert.equal(calls.linkEventVenue[0][1], 'custom-venue-id')
     assert.equal(calls.linkEventOrganization[0][1], 'custom-org-id')
+    assert.deepEqual(calls.enrichWithImageDimensions[0][1], { organizationId: 'custom-org-id' })
   })
 
   it('works without venue or org', async () => {
@@ -231,6 +241,8 @@ describe('defineScraper — happy path', () => {
 
     assert.equal(calls.linkEventVenue.length, 0)
     assert.equal(calls.linkEventOrganization.length, 0)
+    // No org configured → enrich gets a null id and must not invent a fallback.
+    assert.deepEqual(calls.enrichWithImageDimensions[0][1], { organizationId: null })
   })
 
   it('uses row.venue_id / row.org_id when provided', async () => {
@@ -241,12 +253,16 @@ describe('defineScraper — happy path', () => {
       source: 's',
       fetch:  async () => [{}],
       // Row carries its own venue_id (per-event venue override)
-      parse:  () => ({ title: 'T', source: 's', source_id: '1', venue_id: 'per-event-venue' }),
+      parse:  () => ({ title: 'T', source: 's', source_id: '1', venue_id: 'per-event-venue', org_id: 'per-event-org' }),
     })
 
     await run()
 
     assert.equal(calls.linkEventVenue[0][1], 'per-event-venue')
+    assert.equal(calls.linkEventOrganization[0][1], 'per-event-org')
+    // A row-level org_id wins for the image fallback too, exactly as it does
+    // for the link — the two must never disagree about which org owns the row.
+    assert.deepEqual(calls.enrichWithImageDimensions[0][1], { organizationId: 'per-event-org' })
   })
 })
 

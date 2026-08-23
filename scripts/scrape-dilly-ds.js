@@ -312,7 +312,7 @@ async function main() {
         price_min:       null,            // page states no entry fee either way
         price_max:       null,
         age_restriction: ev.allAges ? 'all_ages' : 'not_specified', // "All ages welcome." — parsed, not assumed
-        image_url:       null,            // shared fallback image covers display
+        image_url:       null,            // no per-event photo on the trivia page
         ticket_url:      PAGE_URL,
         source:          SOURCE_KEY,
         source_id:       ev.sourceId,
