@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import {
   hasAddressPrecision, zipMatches, passesAddressGate,
   inSummitBbox, normalizeNameTokens, tokenOverlapSimilarity, resultDisplayName,
-  isJunkClassType, passesNamesGate, buildNameVariants,
+  isJunkClassType, passesNamesGate, buildNameVariants, evaluateNameVariantRung,
   isGeocodableVenueName, venueNameRefusalReason, buildNameQuery, cityMatches,
   isNameCandidate, venueIdsWithUpcomingEvents, summarizeNamesRun,
   createRateLimiter,
@@ -185,11 +185,21 @@ describe('names mode: tokenOverlapSimilarity', () => {
   it('still computes 0.8 for the Lock 3 / Lock 3 Park boundary case (regression guard)', () => {
     assert.equal(tokenOverlapSimilarity('Lock 3', 'Lock 3 Park'), 0.8)
   })
+  it('MAJOR 1 regression: a shared stopword ("of") must not lower the score below the pre-ladder value: "Hall of Fame Museum" vs "Pro Football Hall of Fame Museum" stays 0.8 and passes MIN_SIMILARITY_NAMES', () => {
+    const similarity = tokenOverlapSimilarity('Hall of Fame Museum', 'Pro Football Hall of Fame Museum')
+    assert.equal(similarity, 0.8)
+    assert.ok(similarity >= 0.8)
+  })
 })
 
 describe('names mode: buildNameVariants', () => {
   it('returns exactly the original for a short, already-clean name (request-budget guard)', () => {
     assert.deepEqual(buildNameVariants('Lock 3'), ['Lock 3'])
+  })
+  it('rung 0 is always the original name, verbatim, at index 0 (not just present anywhere in the ladder)', () => {
+    const prose = 'Pro Football Hall of Fame Museum in Canton'
+    const variants = buildNameVariants(prose)
+    assert.equal(variants[0], prose)
   })
   it('includes the head-only variant for a name with " in <locality>" (never the tail)', () => {
     const variants = buildNameVariants('The Rialto Theatre in Kenmore')
@@ -312,22 +322,107 @@ describe('names mode: passesNamesGate', () => {
     const r = { class: 'amenity', type: 'theatre', namedetails: { name: 'Rialto Theater' } }
     assert.equal(passesNamesGate('Rialto Theatre', r), true)
   })
-  // NOTE (design discrepancy, not silently patched): the venue-name-analysis
-  // design called for this exact pair to be false, on the theory that the
-  // locality suffix ("in Kenmore") dilutes similarity below MIN_SIMILARITY_
-  // NAMES. Measured against the actual algorithm as specified (theatre->
-  // theater mapping + {the,in} stopword drop, unchanged 0.8 Dice threshold),
-  // it computes to exactly 0.8 -- tied at the SAME boundary value the Lock 3
-  // / Lock 3 Park case above documents as a pass. Per hard constraints this
-  // fix must not touch MIN_SIMILARITY_NAMES, the Dice formula, or the
-  // stopword list, so the assertion below reflects the verified actual
-  // result (true), not the false originally specified. Flagged for the
-  // architect/reviewer; this is exactly why buildNameVariants tries the
-  // head-only rung ('Rialto Theatre') rather than relying on the full name.
-  it('the "in <locality>" full-name variant ties the 0.8 boundary (does not clear it strictly) -- documented discrepancy, see note above', () => {
+  // RESOLVED by the MAJOR 1 fix (round-2 code review): this pair used to
+  // compute to exactly 0.8 (a "documented discrepancy" against the design,
+  // which called for it to be false) because tokenOverlapSimilarity used to
+  // route through normalizeNameTokens' stopword drop. Dropping "the"/"in"
+  // from ONLY the venue side (the candidate has neither) shrank that side's
+  // denominator without a matching numerator gain, artificially inflating
+  // the score. Now that similarity scoring keeps stopwords (mappedNameTokens),
+  // this pair correctly lands at 4/7, about 0.571, below MIN_SIMILARITY_NAMES,
+  // matching the design intent, the locality suffix really does dilute the
+  // match, which is exactly why buildNameVariants tries the head-only rung
+  // ("Rialto Theatre") rather than relying on the full name.
+  it('the "in <locality>" full-name variant now correctly fails the 0.8 boundary (design discrepancy fixed by MAJOR 1)', () => {
     const r = { class: 'amenity', type: 'theatre', namedetails: { name: 'Rialto Theater' } }
-    assert.equal(tokenOverlapSimilarity('The Rialto Theatre in Kenmore', resultDisplayName(r)), 0.8)
-    assert.equal(passesNamesGate('The Rialto Theatre in Kenmore', r), true)
+    assert.equal(tokenOverlapSimilarity('The Rialto Theatre in Kenmore', resultDisplayName(r)), 4 / 7)
+    assert.equal(passesNamesGate('The Rialto Theatre in Kenmore', r), false)
+  })
+})
+
+// A stub isInSummit(lat, lng) => boolean is passed to every call below so
+// these tests never touch the real county boundary GeoJSON.
+const inSummit = () => true
+const outOfSummit = () => false
+
+describe('names mode: evaluateNameVariantRung (MAJOR 2 + MAJOR 3: the variant walk, extracted)', () => {
+  it('rung 0 (verbatim original) considers ONLY the first result, exactly as the pre-ladder code did: a passing second result must not be picked up', () => {
+    const results = [
+      { class: 'highway', type: 'residential', lat: '41.08', lon: '-81.52', namedetails: { name: 'Lock 3' } }, // junk, rejected
+      { class: 'amenity', type: 'theatre', lat: '41.08', lon: '-81.52', namedetails: { name: 'Lock 3' } }, // would pass
+    ]
+    const { matched, rejected } = evaluateNameVariantRung(0, 'Lock 3', results, null, inSummit)
+    assert.equal(matched, null)
+    assert.ok(rejected)
+    assert.equal(rejected.why, 'junk class/type (highway/residential)')
+  })
+  it('a derived rung (rungIndex >= 1) scans past a failing first result to a passing second result', () => {
+    const results = [
+      { class: 'highway', type: 'residential', lat: '41.08', lon: '-81.52', namedetails: { name: 'Lock 3' } }, // junk, rejected
+      { class: 'amenity', type: 'theatre', lat: '41.08', lon: '-81.52', namedetails: { name: 'Lock 3' } }, // passes
+    ]
+    const { matched, rejected } = evaluateNameVariantRung(1, 'Lock 3', results, null, inSummit)
+    assert.ok(matched)
+    assert.equal(matched.rungIndex, 1)
+    assert.equal(matched.result, results[1])
+    // A rejected candidate from EARLIER in the same rung's scan (results[0],
+    // junk class) is still tracked even though a later result matched, the
+    // caller only reads `rejected` when the whole walk comes up empty, so a
+    // stray reject alongside a match is harmless, but it must be the right
+    // one (results[0]'s reason), not null.
+    assert.ok(rejected)
+    assert.equal(rejected.result, results[0])
+    assert.equal(rejected.why, 'junk class/type (highway/residential)')
+  })
+  it('STOPPING RULE: when the first result already clears every gate, a later also-passing result is never reached', () => {
+    const results = [
+      { class: 'amenity', type: 'theatre', lat: '41.08', lon: '-81.52', namedetails: { name: 'Lock 3' } },
+      { class: 'amenity', type: 'theatre', lat: '41.09', lon: '-81.53', namedetails: { name: 'Lock 3' } },
+    ]
+    const { matched } = evaluateNameVariantRung(1, 'Lock 3', results, null, inSummit)
+    assert.equal(matched.result, results[0])
+  })
+  it('MINOR 4: a result with non-finite coordinates is reported as rejected ("unparseable coords"), not silently skipped', () => {
+    const results = [{ class: 'amenity', type: 'theatre', lat: 'not-a-number', lon: 'nope', namedetails: { name: 'Lock 3' } }]
+    const { matched, rejected } = evaluateNameVariantRung(0, 'Lock 3', results, null, inSummit)
+    assert.equal(matched, null)
+    assert.ok(rejected)
+    assert.equal(rejected.why, 'unparseable coords')
+  })
+  it('rejects on the Summit County polygon check via the injected isInSummit predicate', () => {
+    const results = [{ class: 'amenity', type: 'theatre', lat: '41.08', lon: '-81.52', namedetails: { name: 'Lock 3' } }]
+    const { matched, rejected } = evaluateNameVariantRung(0, 'Lock 3', results, null, outOfSummit)
+    assert.equal(matched, null)
+    assert.ok(rejected.why.startsWith('out of Summit County'))
+  })
+  it('rejects on city mismatch when the venue has a city on file', () => {
+    const results = [{
+      class: 'amenity', type: 'theatre', lat: '41.08', lon: '-81.52',
+      namedetails: { name: 'Lock 3' }, address: { city: 'Barberton' },
+    }]
+    const { matched, rejected } = evaluateNameVariantRung(0, 'Lock 3', results, 'Akron', inSummit)
+    assert.equal(matched, null)
+    assert.equal(rejected.why, 'city mismatch (venue=Akron, result=Barberton)')
+  })
+  it('rejects on low similarity and reports the score', () => {
+    const results = [{ class: 'amenity', type: 'theatre', lat: '41.08', lon: '-81.52', namedetails: { name: 'Something Unrelated' } }]
+    const { matched, rejected } = evaluateNameVariantRung(0, 'Lock 3', results, null, inSummit)
+    assert.equal(matched, null)
+    assert.ok(rejected.why.startsWith('low similarity'))
+  })
+  it('an empty results array (no hits) yields no match and no rejection', () => {
+    const { matched, rejected } = evaluateNameVariantRung(0, 'Lock 3', [], null, inSummit)
+    assert.equal(matched, null)
+    assert.equal(rejected, null)
+  })
+  it('across multiple rejected results on a derived rung, the highest-similarity rejection wins', () => {
+    const results = [
+      { class: 'amenity', type: 'theatre', lat: '41.08', lon: '-81.52', namedetails: { name: 'Totally Unrelated Name' } },
+      { class: 'amenity', type: 'theatre', lat: '41.09', lon: '-81.53', namedetails: { name: 'Lock 3 Riverfront Park' } },
+    ]
+    const { matched, rejected } = evaluateNameVariantRung(1, 'Lock 3', results, null, inSummit)
+    assert.equal(matched, null)
+    assert.equal(rejected.result, results[1])
   })
 })
 

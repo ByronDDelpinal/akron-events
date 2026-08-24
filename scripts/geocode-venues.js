@@ -330,17 +330,35 @@ const NAME_STOPWORDS = new Set(['the', 'a', 'an', 'of', 'at', 'in', 'on', 'and']
 /**
  * Lowercase, strip punctuation, split into non-empty whitespace tokens, map
  * spelling/abbreviation variants to a single canonical form (NAME_TOKEN_
- * SYNONYMS), then drop stopwords (NAME_STOPWORDS). If dropping stopwords
- * would empty the list, fall back to the pre-stopword (but still mapped)
- * tokens instead — a real venue name should never normalize to [].
+ * SYNONYMS). No stopword dropping here: see the comment on
+ * normalizeNameTokens for why that has to live on a separate path from
+ * similarity scoring.
  */
-export function normalizeNameTokens(str) {
+function mappedNameTokens(str) {
   const rawTokens = String(str || '')
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
     .filter(Boolean)
-  const mapped = rawTokens.map((t) => NAME_TOKEN_SYNONYMS[t] || t)
+  return rawTokens.map((t) => NAME_TOKEN_SYNONYMS[t] || t)
+}
+
+/**
+ * Same as mappedNameTokens, then drops stopwords (NAME_STOPWORDS). If
+ * dropping stopwords would empty the list, fall back to the pre-stopword
+ * (but still mapped) tokens instead, a real venue name should never
+ * normalize to []. Used ONLY for variant-building/variant-floor checks
+ * (passesVariantFloor), never for similarity scoring: dropping a stopword
+ * that is present in BOTH names being compared shrinks the Dice numerator
+ * and denominator unevenly (2(c+s)/(a+b) -> 2c/(a+b-2s) for s shared
+ * stopwords) and can LOWER the score for a strict superset name, breaking
+ * the "adding words never hurts" guarantee tokenOverlapSimilarity relies
+ * on. Confirmed regression: "Hall of Fame Museum" vs "Pro Football Hall of
+ * Fame Museum" scored 0.800 with stopwords kept and 0.750 with "of"
+ * dropped from both sides.
+ */
+export function normalizeNameTokens(str) {
+  const mapped = mappedNameTokens(str)
   const withoutStopwords = mapped.filter((t) => !NAME_STOPWORDS.has(t))
   return withoutStopwords.length ? withoutStopwords : mapped
 }
@@ -350,11 +368,14 @@ export function normalizeNameTokens(str) {
  * Dice coefficient over their token sets: 2*|A∩B| / (|A|+|B|). Symmetric,
  * 0..1, and forgiving of one name being a superset of the other's words
  * (e.g. "Lock 3" vs "Lock 3 Park" → 2*2/(2+3) = 0.8) while still requiring
- * real overlap, not just a shared word.
+ * real overlap, not just a shared word. Uses mappedNameTokens (synonym
+ * mapping, no stopword drop) rather than normalizeNameTokens: see the
+ * comment there for why stopword removal must not touch a similarity
+ * comparison.
  */
 export function tokenOverlapSimilarity(a, b) {
-  const setA = new Set(normalizeNameTokens(a))
-  const setB = new Set(normalizeNameTokens(b))
+  const setA = new Set(mappedNameTokens(a))
+  const setB = new Set(mappedNameTokens(b))
   if (setA.size === 0 || setB.size === 0) return 0
   let intersection = 0
   for (const t of setA) if (setB.has(t)) intersection++
@@ -684,10 +705,12 @@ export function buildNameQuery(name, city) {
 /**
  * Geocode one venue-name VARIANT (no street address), free-form and bounded
  * to Summit County via Nominatim's viewbox+bounded=1 (a query hint/limit,
- * NOT the acceptance gate — see NAMES_BBOX above). limit=3, not 1, so the
- * caller can scan past a wrong top hit without an extra request — Nominatim
- * charges the same rate-limited request either way. Returns the raw results
- * array (possibly empty), never null, so callers can iterate unconditionally.
+ * NOT the acceptance gate, see NAMES_BBOX above). limit=3, not 1, so a
+ * DERIVED rung's caller can scan past a wrong top hit without an extra
+ * request (Nominatim charges the same rate-limited request either way).
+ * Rung 0 (the verbatim original name) still only looks at the top result;
+ * see evaluateNameVariantRung. Returns the raw results array (possibly
+ * empty), never null, so callers can iterate unconditionally.
  */
 async function geocodeByName(variant, city) {
   // Nominatim viewbox corner order is x1,y1,x2,y2 — conventionally the
@@ -707,6 +730,89 @@ async function geocodeByName(variant, city) {
   const url = `https://nominatim.openstreetmap.org/search?${params}`
   const json = await nominatimFetch(url)
   return Array.isArray(json) ? json : []
+}
+
+/**
+ * Evaluate one variant rung's already-fetched Nominatim results against the
+ * --names accept/reject gates, in order: (a) finite coordinates, (b) not a
+ * junk class/type, (c) inside the real Summit County polygon, (d) result
+ * city agrees with the venue's on-file city, (e) name-similarity >=
+ * MIN_SIMILARITY_NAMES, scored against the variant actually queried (not
+ * v.name, a derived rung should be judged on its own merits, not diluted
+ * by locality words the venue's full on-file name happened to carry).
+ *
+ * Applies the rung-0 top-hit-only restriction: rung 0 is the venue's
+ * original name, verbatim, the exact query the pre-ladder code sent, and
+ * that code only ever looked at Nominatim's top hit, so rung 0 here still
+ * only looks at result[0]. Scanning results 2-3 on rung 0 would let this
+ * change accept a match the old code would have rejected, which is not
+ * additive. Derived rungs (rungIndex >= 1) are new territory this ladder
+ * introduces, so they may scan every result the limit=3 request returned.
+ *
+ * STOPPING RULE: the first result (within the allowed scan) to clear every
+ * gate wins; scanning of this rung's results stops there. A result that
+ * fails a gate does not stop the rung; the next result (or, back in the
+ * caller, the next rung) is tried.
+ *
+ * Pure: takes isInSummit(lat, lng) as a parameter instead of calling
+ * classifySummitLocation directly, so this is unit-testable without
+ * loading the real county boundary GeoJSON. runNamesMode passes
+ * classifySummitLocation; tests pass a stub.
+ *
+ * Returns { matched, rejected }:
+  *   matched: { result, similarity, lat, lng, variant, rungIndex } or null.
+ *   rejected: the single highest-similarity rejected candidate seen on
+ *              THIS rung, as { result, similarity, variant, rungIndex,
+ *              why }, or null if this rung produced no candidates at all
+ *              (empty results). The caller folds this into its running
+ *              best-rejected-across-all-rungs.
+ */
+export function evaluateNameVariantRung(rungIndex, variant, results, venueCity, isInSummit) {
+  const resultsToScan = rungIndex === 0 ? results.slice(0, 1) : results
+  let matched = null
+  let rejected = null
+
+  for (const result of resultsToScan) {
+    const similarity = tokenOverlapSimilarity(variant, resultDisplayName(result))
+    const considerRejected = (why) => {
+      if (!rejected || similarity > rejected.similarity) {
+        rejected = { result, similarity, variant, rungIndex, why }
+      }
+    }
+
+    const lat = parseFloat(result.lat)
+    const lng = parseFloat(result.lon)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      considerRejected('unparseable coords')
+      continue
+    }
+
+    if (isJunkClassType(result.class, result.type)) {
+      considerRejected(`junk class/type (${result.class}/${result.type})`)
+      continue
+    }
+
+    if (!isInSummit(lat, lng)) {
+      considerRejected(`out of Summit County (${lat.toFixed(4)}, ${lng.toFixed(4)})`)
+      continue
+    }
+
+    if (!cityMatches(venueCity, result)) {
+      const gotCity = resultCityOf(result) || 'none'
+      considerRejected(`city mismatch (venue=${venueCity}, result=${gotCity})`)
+      continue
+    }
+
+    if (similarity < MIN_SIMILARITY_NAMES) {
+      considerRejected(`low similarity ${similarity.toFixed(2)}`)
+      continue
+    }
+
+    matched = { result, similarity, lat, lng, variant, rungIndex }
+    break
+  }
+
+  return { matched, rejected }
 }
 
 /**
@@ -828,60 +934,13 @@ async function runNamesMode() {
       for (let rungIndex = 0; rungIndex < variants.length && !matched; rungIndex++) {
         const variant = variants[rungIndex]
         const results = await geocodeByName(variant, v.city)
-
-        for (const result of results) {
-          // (a) a result exists with finite coordinates.
-          const lat = parseFloat(result.lat)
-          const lng = parseFloat(result.lon)
-          if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue
-
-          // Similarity is scored against the variant ACTUALLY QUERIED, not
-          // v.name — a derived rung ("Rialto Theatre") should be judged on
-          // its own merits, not diluted by locality words the venue's full
-          // on-file name happened to carry ("... in Kenmore").
-          const similarity = tokenOverlapSimilarity(variant, resultDisplayName(result))
-          const considerRejected = (why) => {
-            if (!bestRejected || similarity > bestRejected.similarity) {
-              bestRejected = { result, similarity, variant, rungIndex, why }
-            }
-          }
-
-          // (b) not a junk class/type — highway, boundary, bare place=house,
-          // or (extended) a place=<city/town/village/...> administrative
-          // centroid.
-          if (isJunkClassType(result.class, result.type)) {
-            considerRejected(`junk class/type (${result.class}/${result.type})`)
-            continue
-          }
-
-          // (c) the real Summit County polygon, not just the NAMES_BBOX
-          // query bound — a hit can sit inside the viewbox rectangle yet
-          // outside the actual county line.
-          if (classifySummitLocation({ lat, lng }) !== 'in') {
-            considerRejected(`out of Summit County (${lat.toFixed(4)}, ${lng.toFixed(4)})`)
-            continue
-          }
-
-          // (d) the result's reported city (if any) must agree with the
-          // venue's city (if any) — catches a same-named venue in the wrong
-          // town that still happens to fall inside the county polygon (e.g.
-          // near a border).
-          if (!cityMatches(v.city, result)) {
-            const gotCity = resultCityOf(result) || 'none'
-            considerRejected(`city mismatch (venue=${v.city}, result=${gotCity})`)
-            continue
-          }
-
-          // (e) name-similarity gate, scored against the queried variant.
-          if (similarity < MIN_SIMILARITY_NAMES) {
-            considerRejected(`low similarity ${similarity.toFixed(2)}`)
-            continue
-          }
-
-          // All gates cleared — stop scanning this variant's results and
-          // stop the outer variant walk (STOPPING RULE).
-          matched = { result, similarity, lat, lng, variant, rungIndex }
-          break
+        const { matched: rungMatch, rejected } = evaluateNameVariantRung(
+          rungIndex, variant, results, v.city,
+          (lat, lng) => classifySummitLocation({ lat, lng }) === 'in'
+        )
+        if (rungMatch) matched = rungMatch
+        if (rejected && (!bestRejected || rejected.similarity > bestRejected.similarity)) {
+          bestRejected = rejected
         }
       }
 
