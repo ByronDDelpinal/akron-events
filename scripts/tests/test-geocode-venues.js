@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import {
   hasAddressPrecision, zipMatches, passesAddressGate,
   inSummitBbox, normalizeNameTokens, tokenOverlapSimilarity, resultDisplayName,
-  isJunkClassType, passesNamesGate,
+  isJunkClassType, passesNamesGate, buildNameVariants,
   isGeocodableVenueName, venueNameRefusalReason, buildNameQuery, cityMatches,
   isNameCandidate, venueIdsWithUpcomingEvents, summarizeNamesRun,
   createRateLimiter,
@@ -139,6 +139,22 @@ describe('names mode: normalizeNameTokens', () => {
     assert.deepEqual(normalizeNameTokens(null), [])
     assert.deepEqual(normalizeNameTokens(undefined), [])
   })
+  it('maps theatre -> theater', () => {
+    assert.deepEqual(normalizeNameTokens('Rialto Theatre'), ['rialto', 'theater'])
+  })
+  it('maps centre -> center', () => {
+    assert.deepEqual(normalizeNameTokens('Highland Centre'), ['highland', 'center'])
+  })
+  it('maps st -> street', () => {
+    assert.deepEqual(normalizeNameTokens('High St. Hop House'), ['high', 'street', 'hop', 'house'])
+  })
+  it('drops stopwords (the/a/an/of/at/in/on/and)', () => {
+    assert.deepEqual(normalizeNameTokens('Concert in the Park'), ['concert', 'park'])
+    assert.deepEqual(normalizeNameTokens('Friends of the Library'), ['friends', 'library'])
+  })
+  it('falls back to the pre-stopword (but still mapped) tokens when dropping stopwords would empty the list', () => {
+    assert.deepEqual(normalizeNameTokens('The A An'), ['the', 'a', 'an'])
+  })
 })
 
 describe('names mode: tokenOverlapSimilarity', () => {
@@ -159,6 +175,67 @@ describe('names mode: tokenOverlapSimilarity', () => {
     assert.equal(tokenOverlapSimilarity('', 'Lock 3'), 0)
     assert.equal(tokenOverlapSimilarity('Lock 3', ''), 0)
     assert.equal(tokenOverlapSimilarity(null, undefined), 0)
+  })
+  it('is 1.0 across the theatre/theater spelling variant', () => {
+    assert.equal(tokenOverlapSimilarity('Rialto Theatre', 'Rialto Theater'), 1)
+  })
+  it('is 1.0 across the St./Street abbreviation variant', () => {
+    assert.equal(tokenOverlapSimilarity('High St. Hop House', 'High Street Hop House'), 1)
+  })
+  it('still computes 0.8 for the Lock 3 / Lock 3 Park boundary case (regression guard)', () => {
+    assert.equal(tokenOverlapSimilarity('Lock 3', 'Lock 3 Park'), 0.8)
+  })
+})
+
+describe('names mode: buildNameVariants', () => {
+  it('returns exactly the original for a short, already-clean name (request-budget guard)', () => {
+    assert.deepEqual(buildNameVariants('Lock 3'), ['Lock 3'])
+  })
+  it('includes the head-only variant for a name with " in <locality>" (never the tail)', () => {
+    const variants = buildNameVariants('The Rialto Theatre in Kenmore')
+    assert.ok(variants.includes('Rialto Theatre'))
+    assert.ok(!variants.includes('Kenmore')) // the locality tail is never queried on its own
+  })
+  it('orders the "at" head before the tail (Himelright Lodge at Cascade Valley Metro Park)', () => {
+    const variants = buildNameVariants('Himelright Lodge at Cascade Valley Metro Park')
+    const headIdx = variants.indexOf('Himelright Lodge')
+    const tailIdx = variants.indexOf('Cascade Valley Metro Park')
+    assert.ok(headIdx !== -1 && tailIdx !== -1)
+    assert.ok(headIdx < tailIdx)
+  })
+  it('orders the "at" head before the tail (Fazio Course at Firestone Country Club)', () => {
+    const variants = buildNameVariants('Fazio Course at Firestone Country Club')
+    const headIdx = variants.indexOf('Fazio Course')
+    const tailIdx = variants.indexOf('Firestone Country Club')
+    assert.ok(headIdx !== -1 && tailIdx !== -1)
+    assert.ok(headIdx < tailIdx)
+  })
+  it('drops a head that is all generic venue words (Main Stage at Akron Civic Theatre -> no "Main Stage")', () => {
+    const variants = buildNameVariants('Main Stage at Akron Civic Theatre')
+    assert.ok(!variants.includes('Main Stage'))
+    assert.ok(variants.includes('Akron Civic Theatre'))
+  })
+  it('drops a single-token "in" head below the variant floor (Concert in the Park -> length 1)', () => {
+    assert.deepEqual(buildNameVariants('Concert in the Park'), ['Concert in the Park'])
+  })
+  it('strips a parenthetical on the cleaned-base rung', () => {
+    const variants = buildNameVariants('Jan Weber Social Center (Senior Center)')
+    assert.ok(variants.includes('Jan Weber Social Center'))
+  })
+  it('every result is deduped and capped at 4', () => {
+    for (const name of [
+      'Lock 3',
+      'The Rialto Theatre in Kenmore',
+      'Himelright Lodge at Cascade Valley Metro Park',
+      'Fazio Course at Firestone Country Club',
+      'Main Stage at Akron Civic Theatre',
+      'Concert in the Park',
+      'Jan Weber Social Center (Senior Center)',
+    ]) {
+      const variants = buildNameVariants(name)
+      assert.ok(variants.length <= 4)
+      assert.equal(new Set(variants.map((v) => v.toLowerCase())).size, variants.length)
+    }
   })
 })
 
@@ -230,6 +307,27 @@ describe('names mode: passesNamesGate', () => {
   })
   it('fails when the result has no resolvable name', () => {
     assert.equal(passesNamesGate('Lock 3', { class: 'amenity', type: 'theatre' }), false)
+  })
+  it('passes the cleaned variant against an OSM hit across the theatre/theater spelling variant', () => {
+    const r = { class: 'amenity', type: 'theatre', namedetails: { name: 'Rialto Theater' } }
+    assert.equal(passesNamesGate('Rialto Theatre', r), true)
+  })
+  // NOTE (design discrepancy, not silently patched): the venue-name-analysis
+  // design called for this exact pair to be false, on the theory that the
+  // locality suffix ("in Kenmore") dilutes similarity below MIN_SIMILARITY_
+  // NAMES. Measured against the actual algorithm as specified (theatre->
+  // theater mapping + {the,in} stopword drop, unchanged 0.8 Dice threshold),
+  // it computes to exactly 0.8 -- tied at the SAME boundary value the Lock 3
+  // / Lock 3 Park case above documents as a pass. Per hard constraints this
+  // fix must not touch MIN_SIMILARITY_NAMES, the Dice formula, or the
+  // stopword list, so the assertion below reflects the verified actual
+  // result (true), not the false originally specified. Flagged for the
+  // architect/reviewer; this is exactly why buildNameVariants tries the
+  // head-only rung ('Rialto Theatre') rather than relying on the full name.
+  it('the "in <locality>" full-name variant ties the 0.8 boundary (does not clear it strictly) -- documented discrepancy, see note above', () => {
+    const r = { class: 'amenity', type: 'theatre', namedetails: { name: 'Rialto Theater' } }
+    assert.equal(tokenOverlapSimilarity('The Rialto Theatre in Kenmore', resultDisplayName(r)), 0.8)
+    assert.equal(passesNamesGate('The Rialto Theatre in Kenmore', r), true)
   })
 })
 

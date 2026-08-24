@@ -309,13 +309,40 @@ export function inSummitBbox(lng, lat) {
          lat >= NAMES_BBOX.south && lat <= NAMES_BBOX.north
 }
 
-/** Lowercase, strip punctuation, split into non-empty whitespace tokens. */
+// Common venue-name spelling/abbreviation variants that mean the same word
+// for matching purposes (British vs American spelling, and the abbreviations
+// Nominatim/venue data entry commonly use for street-type and building words).
+const NAME_TOKEN_SYNONYMS = {
+  theatre: 'theater',
+  centre: 'center',
+  st: 'street',
+  ave: 'avenue',
+  rd: 'road',
+  dr: 'drive',
+  blvd: 'boulevard',
+  hts: 'heights',
+  ctr: 'center',
+}
+// Low-signal filler words dropped before comparing two names — none of these
+// carry venue identity on their own ("the", "in", "at" ...).
+const NAME_STOPWORDS = new Set(['the', 'a', 'an', 'of', 'at', 'in', 'on', 'and'])
+
+/**
+ * Lowercase, strip punctuation, split into non-empty whitespace tokens, map
+ * spelling/abbreviation variants to a single canonical form (NAME_TOKEN_
+ * SYNONYMS), then drop stopwords (NAME_STOPWORDS). If dropping stopwords
+ * would empty the list, fall back to the pre-stopword (but still mapped)
+ * tokens instead — a real venue name should never normalize to [].
+ */
 export function normalizeNameTokens(str) {
-  return String(str || '')
+  const rawTokens = String(str || '')
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
     .filter(Boolean)
+  const mapped = rawTokens.map((t) => NAME_TOKEN_SYNONYMS[t] || t)
+  const withoutStopwords = mapped.filter((t) => !NAME_STOPWORDS.has(t))
+  return withoutStopwords.length ? withoutStopwords : mapped
 }
 
 /**
@@ -332,6 +359,93 @@ export function tokenOverlapSimilarity(a, b) {
   let intersection = 0
   for (const t of setA) if (setB.has(t)) intersection++
   return (2 * intersection) / (setA.size + setB.size)
+}
+
+// A derived (non-verbatim, non-cleaned-base) name-variant rung is only worth
+// an API call if it still looks like a specific place: at least 2
+// significant tokens, and at least 1 token that isn't one of these generic
+// venue/room words shared by hundreds of unrelated places ("Main Stage",
+// "Community Room" tell you nothing on their own). Applied to the "in"/"at"
+// derived rungs only — the verbatim name and the cleaned base always survive.
+const GENERIC_VENUE_WORDS = new Set([
+  'main', 'stage', 'room', 'hall', 'ballroom', 'lobby', 'lounge', 'studio',
+  'gallery', 'wing', 'annex', 'pavilion', 'patio', 'deck', 'floor', 'suite',
+  'theater', 'auditorium', 'gym', 'cafeteria', 'plaza', 'green', 'lawn',
+  'grounds', 'course', 'center', 'club', 'lodge', 'bar', 'house', 'park',
+  'field', 'arena', 'stadium', 'church', 'library', 'school',
+])
+
+const MAX_NAME_VARIANTS = 4
+const NAME_LEADING_ARTICLE_RE = /^(the|a|an)\s+/i
+const NAME_PARENTHETICAL_RE = /\s*\([^)]*\)/g
+
+/** Strip a leading "The "/"A "/"An ", strip any (parenthetical), collapse
+ *  whitespace. Used both as its own variant rung and as the base the " in "/
+ *  " at " derived rungs are split from. */
+function cleanedNameBase(name) {
+  let s = String(name || '').trim()
+  s = s.replace(NAME_LEADING_ARTICLE_RE, '')
+  s = s.replace(NAME_PARENTHETICAL_RE, ' ')
+  return s.replace(/\s+/g, ' ').trim()
+}
+
+/** VARIANT FLOOR for a derived (c/d) rung: >=2 significant tokens AND >=1
+ *  token outside GENERIC_VENUE_WORDS. Never applied to the verbatim name or
+ *  the cleaned base, which are always kept regardless. */
+function passesVariantFloor(candidate) {
+  const tokens = normalizeNameTokens(candidate)
+  if (tokens.length < 2) return false
+  return tokens.some((t) => !GENERIC_VENUE_WORDS.has(t))
+}
+
+/**
+ * Build the ladder of name variants to try against Nominatim, in order,
+ * deduped (case-insensitive) and capped at MAX_NAME_VARIANTS:
+ *   a) the original name, verbatim — always first, always kept.
+ *   b) the cleaned base (leading article + parenthetical stripped) —
+ *      always kept.
+ *   c) if the cleaned base contains " in ", the HEAD only — the tail after
+ *      " in " is a locality ("... in Kenmore"), which PLACE_ADMIN_TYPES
+ *      already rejects, so it is never worth querying.
+ *   d) if the cleaned base contains " at ", the HEAD (the more specific
+ *      place) then the TAIL (the coarser but still correct containing
+ *      site), in that order.
+ * Rungs c and d are subject to the VARIANT FLOOR (passesVariantFloor); a and
+ * b never are. Pure + exported for tests.
+ */
+export function buildNameVariants(name) {
+  const original = String(name || '').trim()
+  const variants = []
+  const seen = new Set()
+  const push = (candidate) => {
+    const trimmed = String(candidate || '').trim()
+    if (!trimmed || variants.length >= MAX_NAME_VARIANTS) return
+    const key = trimmed.toLowerCase()
+    if (seen.has(key)) return
+    seen.add(key)
+    variants.push(trimmed)
+  }
+
+  push(original) // (a)
+
+  const base = cleanedNameBase(original)
+  push(base) // (b)
+
+  if (base.includes(' in ')) {
+    const idx = base.indexOf(' in ')
+    const head = base.slice(0, idx).trim()
+    if (passesVariantFloor(head)) push(head) // (c) — head only, never the tail.
+  }
+
+  if (base.includes(' at ')) {
+    const idx = base.indexOf(' at ')
+    const head = base.slice(0, idx).trim()
+    const tail = base.slice(idx + ' at '.length).trim()
+    if (passesVariantFloor(head)) push(head) // (d1) — more specific place first.
+    if (passesVariantFloor(tail)) push(tail) // (d2) — coarser containing site.
+  }
+
+  return variants
 }
 
 /**
@@ -542,12 +656,20 @@ export function summarizeNamesRun(candidates, blocked) {
   return 'ok'
 }
 
-/** Log one --names decision with every field the run report requires. */
-function logNameDecision(v, result, similarity, decision, reason) {
+/**
+ * Log one --names decision with every field the run report requires:
+ * both the venue's own on-file name AND the variant actually queried
+ * (they can differ once buildNameVariants is walking a ladder), plus which
+ * rung of that ladder it was.
+ */
+function logNameDecision(v, result, similarity, decision, reason, variant, rungIndex) {
   const simStr = typeof similarity === 'number' ? similarity.toFixed(2) : 'n/a'
   const coords = result ? `${parseFloat(result.lat).toFixed(6)}, ${parseFloat(result.lon).toFixed(6)}` : 'n/a'
   const tag = decision === 'write' || decision === 'would-write' ? '✓' : decision === 'skip' ? '⚠' : '✖'
-  console.log(`  ${tag} id=${v.id} query="${v.name}" similarity=${simStr} coords=(${coords}) decision=${decision}${reason ? ` reason=${reason}` : ''}`)
+  const variantStr = variant != null
+    ? ` variant="${variant}"${typeof rungIndex === 'number' ? ` rung=${rungIndex}` : ''}`
+    : ''
+  console.log(`  ${tag} id=${v.id} name="${v.name}"${variantStr} similarity=${simStr} coords=(${coords}) decision=${decision}${reason ? ` reason=${reason}` : ''}`)
 }
 
 /**
@@ -560,29 +682,31 @@ export function buildNameQuery(name, city) {
 }
 
 /**
- * Geocode one venue by NAME (no street address), free-form and bounded to
- * Summit County via Nominatim's viewbox+bounded=1 (a query hint/limit, NOT
- * the acceptance gate — see NAMES_BBOX above). Returns the raw top result
- * object, or null if Nominatim returned nothing.
+ * Geocode one venue-name VARIANT (no street address), free-form and bounded
+ * to Summit County via Nominatim's viewbox+bounded=1 (a query hint/limit,
+ * NOT the acceptance gate — see NAMES_BBOX above). limit=3, not 1, so the
+ * caller can scan past a wrong top hit without an extra request — Nominatim
+ * charges the same rate-limited request either way. Returns the raw results
+ * array (possibly empty), never null, so callers can iterate unconditionally.
  */
-async function geocodeByName(name, city) {
+async function geocodeByName(variant, city) {
   // Nominatim viewbox corner order is x1,y1,x2,y2 — conventionally the
   // top-left then bottom-right corner, i.e. west,north,east,south.
   const viewbox = `${NAMES_BBOX.west},${NAMES_BBOX.north},${NAMES_BBOX.east},${NAMES_BBOX.south}`
   const params = new URLSearchParams({
-    q: buildNameQuery(name, city),
+    q: buildNameQuery(variant, city),
     format: 'json',
     namedetails: '1',
     addressdetails: '1',
     countrycodes: 'us',
-    limit: '1',
+    limit: '3',
     bounded: '1',
     viewbox,
     email: CONTACT_EMAIL,
   })
   const url = `https://nominatim.openstreetmap.org/search?${params}`
   const json = await nominatimFetch(url)
-  return Array.isArray(json) && json.length ? json[0] : null
+  return Array.isArray(json) ? json : []
 }
 
 /**
@@ -690,68 +814,103 @@ async function runNamesMode() {
 
   for (const v of candidates) {
     try {
-      const result = await geocodeByName(v.name, v.city)
+      // Walk buildNameVariants(v.name) — verbatim name first, then cleaned/
+      // derived rungs — stopping at the first variant whose result clears
+      // every gate (class, polygon, city, similarity). A variant whose
+      // results ALL fail a gate does not stop the walk; the next variant is
+      // tried. Across every variant/result attempted, the single highest-
+      // similarity REJECTED hit is kept so a total miss can still report the
+      // closest thing found and why it didn't clear.
+      const variants = buildNameVariants(v.name)
+      let matched = null // { result, similarity, lat, lng, variant, rungIndex }
+      let bestRejected = null // { result, similarity, variant, rungIndex, why }
 
-      // (a) a result exists with finite coordinates.
-      const lat = result ? parseFloat(result.lat) : NaN
-      const lng = result ? parseFloat(result.lon) : NaN
-      if (!result || !Number.isFinite(lat) || !Number.isFinite(lng)) {
-        logNameDecision(v, null, null, 'fail', 'no result')
-        failed.push({ v, why: 'no result' })
-        continue
+      for (let rungIndex = 0; rungIndex < variants.length && !matched; rungIndex++) {
+        const variant = variants[rungIndex]
+        const results = await geocodeByName(variant, v.city)
+
+        for (const result of results) {
+          // (a) a result exists with finite coordinates.
+          const lat = parseFloat(result.lat)
+          const lng = parseFloat(result.lon)
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue
+
+          // Similarity is scored against the variant ACTUALLY QUERIED, not
+          // v.name — a derived rung ("Rialto Theatre") should be judged on
+          // its own merits, not diluted by locality words the venue's full
+          // on-file name happened to carry ("... in Kenmore").
+          const similarity = tokenOverlapSimilarity(variant, resultDisplayName(result))
+          const considerRejected = (why) => {
+            if (!bestRejected || similarity > bestRejected.similarity) {
+              bestRejected = { result, similarity, variant, rungIndex, why }
+            }
+          }
+
+          // (b) not a junk class/type — highway, boundary, bare place=house,
+          // or (extended) a place=<city/town/village/...> administrative
+          // centroid.
+          if (isJunkClassType(result.class, result.type)) {
+            considerRejected(`junk class/type (${result.class}/${result.type})`)
+            continue
+          }
+
+          // (c) the real Summit County polygon, not just the NAMES_BBOX
+          // query bound — a hit can sit inside the viewbox rectangle yet
+          // outside the actual county line.
+          if (classifySummitLocation({ lat, lng }) !== 'in') {
+            considerRejected(`out of Summit County (${lat.toFixed(4)}, ${lng.toFixed(4)})`)
+            continue
+          }
+
+          // (d) the result's reported city (if any) must agree with the
+          // venue's city (if any) — catches a same-named venue in the wrong
+          // town that still happens to fall inside the county polygon (e.g.
+          // near a border).
+          if (!cityMatches(v.city, result)) {
+            const gotCity = resultCityOf(result) || 'none'
+            considerRejected(`city mismatch (venue=${v.city}, result=${gotCity})`)
+            continue
+          }
+
+          // (e) name-similarity gate, scored against the queried variant.
+          if (similarity < MIN_SIMILARITY_NAMES) {
+            considerRejected(`low similarity ${similarity.toFixed(2)}`)
+            continue
+          }
+
+          // All gates cleared — stop scanning this variant's results and
+          // stop the outer variant walk (STOPPING RULE).
+          matched = { result, similarity, lat, lng, variant, rungIndex }
+          break
+        }
       }
 
-      const similarity = tokenOverlapSimilarity(v.name, resultDisplayName(result))
-
-      // (b) not a junk class/type — highway, boundary, bare place=house, or
-      // (extended) a place=<city/town/village/...> administrative centroid.
-      if (isJunkClassType(result.class, result.type)) {
-        const why = `junk class/type (${result.class}/${result.type})`
-        logNameDecision(v, result, similarity, 'skip', why)
-        skipped.push({ v, why })
-        continue
-      }
-
-      // (c) the real Summit County polygon, not just the NAMES_BBOX query
-      // bound — a hit can sit inside the viewbox rectangle yet outside the
-      // actual county line.
-      if (classifySummitLocation({ lat, lng }) !== 'in') {
-        const why = `out of Summit County (${lat.toFixed(4)}, ${lng.toFixed(4)})`
-        logNameDecision(v, result, similarity, 'skip', why)
-        skipped.push({ v, why })
-        continue
-      }
-
-      // (d) the result's reported city (if any) must agree with the venue's
-      // city (if any) — catches a same-named venue in the wrong town that
-      // still happens to fall inside the county polygon (e.g. near a border).
-      if (!cityMatches(v.city, result)) {
-        const gotCity = resultCityOf(result) || 'none'
-        const why = `city mismatch (venue=${v.city}, result=${gotCity})`
-        logNameDecision(v, result, similarity, 'skip', why)
-        skipped.push({ v, why })
-        continue
-      }
-
-      // (e) name-similarity gate, unchanged.
-      if (similarity < MIN_SIMILARITY_NAMES) {
-        const why = `low similarity ${similarity.toFixed(2)}`
-        logNameDecision(v, result, similarity, 'skip', why)
-        skipped.push({ v, why })
+      if (!matched) {
+        if (bestRejected) {
+          const { result, similarity, variant, rungIndex, why } = bestRejected
+          logNameDecision(v, result, similarity, 'skip', why, variant, rungIndex)
+          skipped.push({ v, why })
+        } else {
+          logNameDecision(v, null, null, 'fail', 'no result')
+          failed.push({ v, why: 'no result' })
+        }
         continue
       }
 
       if (NAMES_WRITE) {
         const { error: upErr } = await supabaseAdmin
-          .from('venues').update({ lat, lng }).eq('id', v.id)
+          .from('venues').update({ lat: matched.lat, lng: matched.lng }).eq('id', v.id)
         if (upErr) {
-          logNameDecision(v, result, similarity, 'fail', upErr.message)
+          logNameDecision(v, matched.result, matched.similarity, 'fail', upErr.message, matched.variant, matched.rungIndex)
           failed.push({ v, why: upErr.message })
           continue
         }
       }
       updated++
-      logNameDecision(v, result, similarity, NAMES_WRITE ? 'write' : 'would-write')
+      logNameDecision(
+        v, matched.result, matched.similarity,
+        NAMES_WRITE ? 'write' : 'would-write', null, matched.variant, matched.rungIndex
+      )
     } catch (err) {
       if (err instanceof NominatimBlockedError) {
         blocked = true
