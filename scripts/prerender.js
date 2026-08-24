@@ -48,6 +48,7 @@ import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ENABLED_HUB_PATHS } from '../src/lib/seo/categories.js'
 import { FESTIVALS } from '../src/lib/festivalsData.js'
+import { GUIDES } from '../src/lib/guidesData.js'
 
 const ROOT   = fileURLToPath(new URL('..', import.meta.url))
 const DIST   = join(ROOT, 'dist')
@@ -78,6 +79,11 @@ const ROUTES = [
   // reliably and the schedule only if the data settles inside the existing
   // wait — still strictly better than an unprerendered page.
   ...FESTIVALS.map((f) => `/festival/${f.slug}`),
+  // Guides. Advertised in api/sitemap.xml.js STATIC_ROUTES, so they must be
+  // prerendered too. Unlike the festival routes these fetch nothing, so they
+  // settle on the first pass.
+  '/guides',
+  ...GUIDES.map((g) => `/guides/${g.slug}`),
 ]
 
 // Requests to abort during prerender: analytics (keeps GA clean), map

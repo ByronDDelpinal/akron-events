@@ -33,6 +33,19 @@ interface VenueInput {
   lng?: number | null
 }
 
+/** The subset of a guide registry entry videoObjectSchema reads. Structural
+ *  on purpose (like VenueInput/OrgInput below) so this module stays free of
+ *  page-level imports. */
+interface GuideVideoInput {
+  title: string
+  seoTitle?: string
+  metaDescription: string
+  youtubeId: string | null
+  posterSrc: string | null
+  uploadDate: string | null
+  durationIso: string | null
+}
+
 interface OrgInput {
   id?: string
   name?: string | null
@@ -327,6 +340,31 @@ export function itemListSchema(items: ListItemInput[] | null | undefined): JsonL
       name: item.name,
       url: canonicalUrl(item.url),
     })),
+  }
+}
+
+/**
+ * VideoObject — for a guide page whose video actually exists.
+ *
+ * Returns undefined until the video is real, which is the load-bearing part.
+ * Every guide in src/lib/guidesData.js ships with youtubeId, posterSrc and
+ * uploadDate null, so this emits nothing at all today. Structured data for a
+ * video that does not exist is fabricated markup, and fabricated markup is a
+ * manual-action risk, so the guard stays even when it looks redundant.
+ */
+export function videoObjectSchema(guide: GuideVideoInput | null | undefined): JsonLd | undefined {
+  if (!guide?.youtubeId || !guide.uploadDate || !guide.posterSrc) return undefined
+  return {
+    '@type': 'VideoObject',
+    name: guide.seoTitle ?? guide.title,
+    description: guide.metaDescription,
+    thumbnailUrl: guide.posterSrc.startsWith('http')
+      ? guide.posterSrc
+      : `${SITE.baseUrl}${guide.posterSrc}`,
+    uploadDate: guide.uploadDate,
+    duration: guide.durationIso ?? undefined,
+    embedUrl: `https://www.youtube-nocookie.com/embed/${guide.youtubeId}`,
+    contentUrl: `https://www.youtube.com/watch?v=${guide.youtubeId}`,
   }
 }
 

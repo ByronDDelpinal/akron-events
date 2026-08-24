@@ -1,0 +1,51 @@
+/* GuidesHubPage — /guides. Hub-only layout; the card itself is styled in
+   Guides.shared.css because the detail page renders it too. */
+
+/* Header standardized via the shared <PageHero> component (PageHero.css). */
+
+.guides-body {
+  max-width: var(--width-full);
+  margin: var(--space-4xl) auto;
+  padding: 0 var(--space-xl) var(--space-5xl);
+}
+
+.guides-track + .guides-track { margin-top: var(--space-4xl); }
+
+/* scroll-margin, not a scroll offset in JS: the footer links to these
+   sections by hash and .site-header is sticky at top: 0 with a 64px inner
+   (Header.css), so a bare scrollIntoView tucks the heading under the bar.
+   Same calc HomePage.css uses for its own anchored sections. */
+.guides-track { scroll-margin-top: calc(64px + env(safe-area-inset-top, 0px) + var(--space-lg)); }
+
+.guides-track-heading {
+  font-family: var(--font-display);
+  font-size: var(--text-h3);
+  color: var(--text-primary);
+  margin: 0 0 var(--space-sm);
+}
+
+.guides-track-intro {
+  font-size: var(--text-base);
+  line-height: 1.7;
+  color: var(--text-secondary);
+  max-width: 46rem;
+  margin: 0 0 var(--space-xl);
+}
+
+.guides-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-xl);
+}
+@media (max-width: 720px) {
+  .guides-grid { grid-template-columns: 1fr; }
+}
+
+.guides-footnote {
+  margin-top: var(--space-3xl);
+  font-size: var(--text-base);
+  line-height: 1.7;
+  color: var(--text-muted);
+  text-align: center;
+}
+.guides-footnote a { color: var(--amber); }

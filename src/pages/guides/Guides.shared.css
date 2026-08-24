@@ -1,0 +1,54 @@
+/* Guides.shared.css — classes rendered by BOTH /guides and /guides/:slug.
+
+   The hub and the detail page are separate lazy chunks, and GuideCard renders
+   on both, so its styling cannot live in either page's own stylesheet: on a
+   cold load of a guide page the hub's CSS chunk is simply not there. Same
+   reasoning as MapPopup.css. Anything only one page renders belongs in that
+   page's file, not here. All colors come from theme tokens. */
+
+.guide-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-xl);
+  text-decoration: none;
+  transition: border-color var(--transition-medium), transform var(--transition-medium);
+}
+.guide-card:hover {
+  border-color: var(--amber);
+  transform: translateY(-2px);
+}
+.guide-card:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .guide-card:hover { transform: none; }
+}
+
+.guide-card-title {
+  font-family: var(--font-display);
+  font-size: var(--text-h5);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.guide-card-blurb {
+  font-size: var(--text-base);
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0;
+  flex: 1;
+}
+
+.guide-card-meta {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 0;
+}

@@ -1,10 +1,12 @@
 import type { TablesInsert } from '@/lib/database.types'
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { SEO } from '@/lib/seo'
 import { ADMIN_CATEGORIES as CATEGORIES } from '@/lib/categories'
 import { INTAKE_MAILTO } from '@/lib/intakeEmail'
 import { fromDatetimeLocalValue } from '@/lib/datetimeLocal'
+import { trackEvent, EVENTS } from '@/lib/analytics'
 import './SubmitPage.css'
 
 interface SubmitForm {
@@ -124,6 +126,22 @@ export default function SubmitPage() {
           <h2 className="page-title">Event submitted!</h2>
           <p className="page-sub">Thanks for sharing with the community. We'll review your submission and publish it shortly.</p>
           <button className="btn-submit-form" style={{ maxWidth: 240 }} onClick={() => setStatus(null)}>Submit another</button>
+          <p className="success-guides">
+            Two things worth two minutes before your next one:{' '}
+            <Link
+              to="/guides/write-a-listing-that-gets-clicked"
+              onClick={() => trackEvent(EVENTS.GUIDE_LINK_CLICK, { guide_slug: 'write-a-listing-that-gets-clicked', placement: 'submit_success' })}
+            >
+              writing a listing people click
+            </Link>{' '}
+            and{' '}
+            <Link
+              to="/guides/series-recurrence-and-cancellations"
+              onClick={() => trackEvent(EVENTS.GUIDE_LINK_CLICK, { guide_slug: 'series-recurrence-and-cancellations', placement: 'submit_success' })}
+            >
+              handling repeats and cancellations
+            </Link>.
+          </p>
         </div>
       </div>
     )

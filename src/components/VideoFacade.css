@@ -1,0 +1,72 @@
+/* VideoFacade — the click-to-load video box on guide pages.
+   The 16:9 reservation is not cosmetic: it is what keeps the swap from the
+   poster to the real iframe (and from the placeholder to a poster, once the
+   videos exist) from shifting anything below it. */
+
+.video-facade {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+
+.video-facade-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+/* ── Placeholder state: no video yet ── */
+.video-facade--pending {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl);
+  border-style: dashed;
+  /* The 16:9 reservation exists for the poster to iframe swap, which this
+     state never takes part in. Holding it here clips the copy on a narrow
+     screen, or at any width once someone bumps their default font size. */
+  aspect-ratio: auto;
+  min-height: 8rem;
+  overflow: visible;
+}
+
+.video-facade-pending-text {
+  margin: 0;
+  max-width: 34rem;
+  text-align: center;
+  font-size: var(--text-base);
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+
+/* ── Poster state: video exists, not yet loaded ── */
+.video-facade--poster {
+  padding: 0;
+  cursor: pointer;
+  background-size: cover;
+  background-position: center;
+  transition: filter var(--transition-medium);
+}
+.video-facade--poster:hover { filter: brightness(1.06); }
+.video-facade--poster:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 3px;
+}
+
+.video-facade-play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.video-facade-play-bg { fill: rgba(0, 0, 0, 0.72); }
+.video-facade--poster:hover .video-facade-play-bg { fill: var(--coral); }
+.video-facade-play-arrow { fill: #ffffff; }

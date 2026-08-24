@@ -38,6 +38,8 @@ const EmbedBuilderPage  = lazy(() => import('@/pages/EmbedBuilderPage'))
 const DayPlanPage    = lazy(() => import('@/pages/DayPlanPage'))
 const SharedPlanPage = lazy(() => import('@/pages/SharedPlanPage'))
 const FestivalPage   = lazy(() => import('@/pages/FestivalPage'))
+const GuidesHubPage  = lazy(() => import('@/pages/guides/GuidesHubPage'))
+const GuidePage      = lazy(() => import('@/pages/guides/GuidePage'))
 
 // Admin pages — visitors never pay for the admin surface. RoleSwitch swaps
 // each /admin route's element by the resolved shell role (admin vs partner,
@@ -270,6 +272,14 @@ function AppInner() {
           {/* Festival hubs — per-tag schedule pages driven by the static
               registry in src/lib/festivals.ts (unknown slug → not found). */}
           <Route path="/festival/:slug"          element={<FestivalPage />} />
+
+          {/* Guides — a hub plus one page per guide, driven by the static
+              registry in src/lib/guides.ts (unknown slug → not found and
+              noindex). Both routes are in api/sitemap.xml.js AND
+              scripts/prerender.js; scripts/tests/test-guides-page-guards.js
+              asserts the pair. */}
+          <Route path="/guides"                  element={<GuidesHubPage />} />
+          <Route path="/guides/:slug"            element={<GuidePage />} />
 
           {/* Admin — nested routing with shared layout. One /admin for two
               principals (design D8): the paths are identical for admins and

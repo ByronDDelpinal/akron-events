@@ -126,6 +126,22 @@ export type PlanSyncOp = 'add' | 'remove'
 export type ImpactCalcVia = 'slider' | 'preset'
 
 /**
+ * Where a link into the /guides section was clicked. One event with this
+ * parameter instead of seven event names, per this registry's "describe with
+ * parameters, not name explosions" rule (same shape as feedback_opened's
+ * placement). Without it, footer traffic and high-intent traffic off the
+ * submit-success screen would be one indistinguishable number.
+ */
+export type GuideLinkPlacement =
+  | 'footer_discover'
+  | 'footer_contribute'
+  | 'organizers_card'
+  | 'submit_success'
+  | 'embed_builder_hero'
+  | 'guides_hub'
+  | 'related_guides'
+
+/**
  * Event-name constants. The string VALUES are what GA4 receives; the keys are
  * just ergonomic call-site references. Keep values in sync with EventParams.
  */
@@ -177,6 +193,10 @@ export const EVENTS = {
   PLAN_MAP_TOGGLED:      'plan_map_toggled',
   PLAN_MAP_SELECTION:    'plan_map_selection',
   IMPACT_CALC_ADJUSTED:  'impact_calc_adjusted',
+  GUIDE_LINK_CLICK:      'guide_link_click',
+  // Deliberately NOT `video_start` or `video_progress`: both are GA4 reserved
+  // names (see scripts/tests/test-analytics-events.js RESERVED).
+  GUIDE_VIDEO_PLAY:      'guide_video_play',
 } as const
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS]
@@ -269,4 +289,6 @@ export interface EventParams {
   // rule. Slider fires debounced on settle, never per-tick — a drag is one
   // exploration, not forty.
   impact_calc_adjusted:  { percent: number; via: ImpactCalcVia }
+  guide_link_click:      { guide_slug: string; placement: GuideLinkPlacement }
+  guide_video_play:      { guide_slug: string }
 }

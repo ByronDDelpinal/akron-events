@@ -1,0 +1,91 @@
+/* GuidePage — /guides/:slug. Detail-only styling; the related-guide cards are
+   styled in Guides.shared.css. Prose is set at a readable measure rather than
+   full width, which is the only real layout decision on this page. */
+
+/* Header standardized via the shared <PageHero> component (PageHero.css). */
+
+.guide-body {
+  max-width: 48rem;
+  margin: var(--space-3xl) auto;
+  padding: 0 var(--space-xl) var(--space-5xl);
+}
+
+.guide-eyebrow-link {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+}
+
+.guide-prose {
+  margin-top: var(--space-2xl);
+  font-size: var(--text-base);
+  line-height: 1.8;
+  color: var(--text-secondary);
+}
+
+.guide-prose p { margin: 0 0 var(--space-lg); }
+
+.guide-prose h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-h4);
+  color: var(--text-primary);
+  margin: var(--space-2xl) 0 var(--space-md);
+}
+
+.guide-prose ul,
+.guide-prose ol {
+  margin: 0 0 var(--space-lg);
+  padding-left: var(--space-xl);
+}
+
+.guide-prose li { margin-bottom: var(--space-sm); }
+.guide-prose li::marker { color: var(--amber); }
+
+.guide-prose strong { color: var(--text-primary); }
+.guide-prose a { color: var(--amber); }
+
+.guide-related {
+  margin-top: var(--space-3xl);
+  padding-top: var(--space-2xl);
+  border-top: 1px solid var(--border);
+}
+
+.guide-related-heading {
+  font-family: var(--font-display);
+  font-size: var(--text-h5);
+  color: var(--text-primary);
+  margin: 0 0 var(--space-lg);
+}
+
+.guide-related-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-lg);
+}
+@media (max-width: 720px) {
+  .guide-related-grid { grid-template-columns: 1fr; }
+}
+
+.guide-footnote {
+  margin-top: var(--space-2xl);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+.guide-footnote a { color: var(--amber); }
+
+.guide-notfound {
+  max-width: var(--width-full);
+  margin: var(--space-5xl) auto;
+  padding: 0 var(--space-xl);
+  text-align: center;
+  color: var(--text-secondary);
+}
+.guide-notfound a { color: var(--amber); }
+
+.guide-notfound h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-h3);
+  color: var(--text-primary);
+  margin: 0 0 var(--space-md);
+}

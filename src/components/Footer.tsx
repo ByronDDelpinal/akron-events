@@ -5,6 +5,7 @@ import { SITE_THEMES, DEFAULT_THEME, THEME_STORAGE_KEY, LEGACY_THEME_STORAGE_KEY
 import { ENABLED_CATEGORY_HUBS, ENABLED_NEIGHBORHOOD_HUBS } from '@/lib/seo'
 import { InstallFooterLink } from '@/components/InstallPrompt'
 import { INTAKE_MAILTO } from '@/lib/intakeEmail'
+import { TRACK_ANCHORS } from '@/lib/guides'
 import { trackEvent, EVENTS } from '@/lib/analytics'
 import './Footer.css'
 
@@ -200,6 +201,15 @@ export default function Footer() {
               <Link to="/venues">Venues</Link>
               <Link to="/organizations">Organizations</Link>
               <Link to="/subscribe">Get the Newsletter</Link>
+              {/* guide_slug 'hub' is a deliberate sentinel: these two links go to
+                  the hub, not to any one guide, and dropping the parameter
+                  would make the event's shape differ by placement. */}
+              <Link
+                to={`/guides#${TRACK_ANCHORS.using}`}
+                onClick={() => trackEvent(EVENTS.GUIDE_LINK_CLICK, { guide_slug: 'hub', placement: 'footer_discover' })}
+              >
+                Guides &amp; Tips
+              </Link>
               <InstallFooterLink />
             </div>
             <div className="footer-col">
@@ -208,6 +218,12 @@ export default function Footer() {
               <a href={INTAKE_MAILTO}>Email Your Event</a>
               <Link to="/embed-builder">Embed the Calendar</Link>
               <Link to="/organizers">Organizers &amp; Partners</Link>
+              <Link
+                to={`/guides#${TRACK_ANCHORS.organizers}`}
+                onClick={() => trackEvent(EVENTS.GUIDE_LINK_CLICK, { guide_slug: 'hub', placement: 'footer_contribute' })}
+              >
+                Organizer Guides
+              </Link>
             </div>
             <div className="footer-col">
               <p className="footer-col-title">Behind the Scenes</p>

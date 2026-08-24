@@ -130,3 +130,13 @@
 }
 .submit-email-option strong { color: var(--text-primary); }
 .submit-email-option:hover { border-color: var(--amber); color: var(--text-primary); }
+
+/* Guide links on the success screen. This is the highest-intent moment an
+   organizer has with us, so the next-step reading sits right here. */
+.success-guides {
+  margin-top: var(--space-xl);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+.success-guides a { color: var(--amber); }

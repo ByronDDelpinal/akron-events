@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { SEO, buildGraph, breadcrumbSchema } from '@/lib/seo'
 import PageHero from '@/components/PageHero'
+import { trackEvent, EVENTS } from '@/lib/analytics'
 import './OrganizersPage.css'
 
 const INTAKE_EMAIL = 'intake@akronpulse.com'
@@ -19,6 +20,11 @@ interface PathCard {
   isNew?: boolean
   description: React.ReactNode
   cta: React.ReactNode
+  /** Slug of the guide that walks through this path in more detail. */
+  guideSlug?: string
+  /** Link text for that guide. Specific on purpose: a bare "Learn more" is
+   *  useless to anyone reading the links out of context. */
+  guideLabel?: string
 }
 
 export default function OrganizersPage() {
@@ -43,6 +49,8 @@ export default function OrganizersPage() {
         </>
       ),
       cta: <a href={`mailto:${INTAKE_EMAIL}`} className="organizers-card-btn">Email your event →</a>,
+      guideSlug: 'how-to-get-on-the-calendar',
+      guideLabel: 'What happens after you send it',
     },
     {
       title: 'Submit the form',
@@ -53,6 +61,8 @@ export default function OrganizersPage() {
         </>
       ),
       cta: <Link to="/submit" className="organizers-card-btn">Submit an event →</Link>,
+      guideSlug: 'write-a-listing-that-gets-clicked',
+      guideLabel: 'How to write a listing people click',
     },
     {
       title: 'Put this calendar on your site',
@@ -65,6 +75,8 @@ export default function OrganizersPage() {
         </>
       ),
       cta: <Link to="/embed-builder" className="organizers-card-btn">Preview your embed →</Link>,
+      guideSlug: 'embed-and-partner-portal',
+      guideLabel: 'How the embed and the partner portal work',
     },
     {
       title: 'Get listed in the directory',
@@ -77,6 +89,8 @@ export default function OrganizersPage() {
         </>
       ),
       cta: <Link to="/organizations/submit" className="organizers-card-btn">Register your org →</Link>,
+      guideSlug: 'make-your-website-machine-readable',
+      guideLabel: 'How to get pulled in automatically',
     },
   ]
 
@@ -97,7 +111,7 @@ export default function OrganizersPage() {
 
       <div className="organizers-body">
         <div className="organizers-grid">
-          {cards.map(({ title, isNew, description, cta }) => (
+          {cards.map(({ title, isNew, description, cta, guideSlug, guideLabel }) => (
             <section key={title} className="organizers-card">
               <h2 className="organizers-card-title">
                 {title}
@@ -105,6 +119,15 @@ export default function OrganizersPage() {
               </h2>
               <p className="organizers-card-desc">{description}</p>
               {cta}
+              {guideSlug && (
+                <Link
+                  to={`/guides/${guideSlug}`}
+                  className="organizers-card-guide"
+                  onClick={() => trackEvent(EVENTS.GUIDE_LINK_CLICK, { guide_slug: guideSlug, placement: 'organizers_card' })}
+                >
+                  {guideLabel}
+                </Link>
+              )}
             </section>
           ))}
         </div>

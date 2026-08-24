@@ -80,3 +80,14 @@
   text-align: center;
 }
 .organizers-footnote a { color: var(--amber); }
+
+/* Secondary link under each card's CTA, pointing at the guide that covers
+   this path in depth. Muted so it never competes with the CTA above it. */
+.organizers-card-guide {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border);
+  align-self: flex-start;
+}
+.organizers-card-guide:hover { color: var(--amber); border-bottom-color: var(--amber); }

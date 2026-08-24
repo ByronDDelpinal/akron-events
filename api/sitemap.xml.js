@@ -14,6 +14,7 @@ import { createClient } from '@supabase/supabase-js'
 import { eventPath } from '../src/lib/slug.js'
 import { ENABLED_HUB_PATHS } from '../src/lib/seo/categories.js'
 import { FESTIVALS } from '../src/lib/festivalsData.js'
+import { GUIDES } from '../src/lib/guidesData.js'
 
 const SITE_ORIGIN = 'https://akronpulse.com'
 
@@ -33,6 +34,15 @@ const STATIC_ROUTES = [
   { path: '/organizations/submit', priority: 0.4, changefreq: 'monthly' },
   { path: '/subscribe',      priority: 0.5, changefreq: 'monthly' },
   { path: '/financials',     priority: 0.5, changefreq: 'monthly' },
+  // Guides. changefreq is honest: these change when a video lands, not
+  // daily. Every entry here has a matching scripts/prerender.js entry, and
+  // scripts/tests/test-guides-page-guards.js asserts the pair for all of them.
+  { path: '/guides',         priority: 0.6, changefreq: 'monthly' },
+  ...GUIDES.map((g) => ({
+    path:       `/guides/${g.slug}`,
+    priority:   0.6,
+    changefreq: 'monthly',
+  })),
   // Category & neighborhood hub pages. High priority because these
   // are the keyword-targeted landing pages most likely to win on
   // local-intent queries ("free events in Akron", "downtown Akron
