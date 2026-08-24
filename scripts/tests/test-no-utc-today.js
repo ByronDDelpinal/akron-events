@@ -172,6 +172,7 @@ const ALLOWLIST = [
   // be wrong about.
   { file: 'scrape-first-glance.js',           match: 'Date.UTC(y, m - 1, d + n, 12)', reason: 'addDaysYmd: noon-UTC anchor from an explicit YMD, not the clock' },
   { file: 'scrape-akron-childrens-museum.js', match: 'return d.toISOString()',        reason: 'addDaysToYmd: Date built from an explicit YMD string' },
+  { file: 'ga-to-db.js',                      match: 'return new Date(t).toISOString()', reason: 'addDays: parses an explicit YYYY-MM-DD at UTC midnight and shifts whole days; the clock is never read (todayInProperty is the ET formatter)' },
   { file: 'scrape-heritage-farms.js',         match: 'dows.includes',                 reason: 'datesInRangeOnWeekdays: iterates explicit YMD bounds' },
   { file: 'scrape-barnes-noble-akron.js',     match: 'return dt.toISOString()',       reason: 'addDaysStr: noon-UTC anchor from an explicit YMD string' },
   { file: 'scrape-cvsr.js',                   match: 'return d.toISOString()',        reason: 'cutoff is derived from easternTodayYmd(), not from the clock' },

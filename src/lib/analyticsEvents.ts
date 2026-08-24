@@ -130,9 +130,13 @@ export type ImpactCalcVia = 'slider' | 'preset'
  * parameter instead of seven event names, per this registry's "describe with
  * parameters, not name explosions" rule (same shape as feedback_opened's
  * placement). Without it, footer traffic and high-intent traffic off the
- * submit-success screen would be one indistinguishable number.
+ * submit-success screen would be one indistinguishable number; and 'header'
+ * is a general hub entry with no track anchor, unlike the two footer
+ * placements.
  */
 export type GuideLinkPlacement =
+  | 'header'
+  | 'mobile_menu'
   | 'footer_discover'
   | 'footer_contribute'
   | 'organizers_card'

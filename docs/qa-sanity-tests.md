@@ -280,19 +280,26 @@ Manual regression tests to run after **every** site change, no matter how small.
 **Goal:** Confirm primary nav and the mobile hamburger work everywhere they appear.
 
 **Variant A — desktop nav**
-1. From `/`, click **About**, then **Feedback**, then **+ Submit Event**, then **Subscribe** in turn.
-2. Confirm each navigates to the right route and the active link styling tracks the current page.
+1. From `/`, confirm the nav links are **About**, **Guides**, **Organizers & Partners**, **Submit an Event**, and that only **Feedback** and **Subscribe** render as pill buttons.
+2. Click each in turn; confirm each navigates to the right route and the active link styling tracks the current page.
 3. Click the **Akron Pulse** logo; confirm you return to `/`.
 
 **Variant B — mobile menu**
 1. In mobile viewport, click the hamburger.
-2. Confirm the menu opens, body scroll is locked (try scrolling the page behind it), and each menu item navigates correctly.
-3. After navigating, confirm the menu closes automatically.
+2. Confirm the menu opens, body scroll is locked (try scrolling the page behind it), and the nav rows render as one bordered group sitting above the two CTA pills (**Feedback**, **Subscribe**).
+3. Confirm each menu item navigates correctly, including **Guides** reaching `/guides`.
+4. Confirm the current page's row shows the amber active state; eyeball this on a dark theme such as Civic Teal or Newsprint.
+5. After navigating, confirm the menu closes automatically.
 
 **Variant C — scroll behavior on home**
 1. From `/`, scroll past 20px.
 2. Confirm the header shifts to its "scrolled" (solid) state.
 3. Scroll back to top; confirm it returns to the transparent/hero state.
+
+**Variant D — keyboard close and focus return**
+1. In mobile viewport, tab into the header until the hamburger has focus.
+2. Press Enter to open the menu.
+3. Press Escape; confirm the sheet closes and focus returns to the hamburger.
 
 ---
 

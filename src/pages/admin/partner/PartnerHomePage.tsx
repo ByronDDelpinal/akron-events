@@ -8,10 +8,15 @@
  * for; each chip is a filter toggle for the list below (default: all).
  * Orgs whose events are reviewed first carry a small "reviewed" affordance
  * that pre-answers "why did my event not publish".
+ *
+ * Below the band sits <OrgAnalytics>, the traffic and handoff numbers. It
+ * carries its own single-org picker rather than following the chip strip
+ * above: the strip is a multi-select filter where empty means all, and the
+ * analytics RPC takes exactly one org.
  */
 
 import { useMemo, useState } from 'react'
-import { PulseDivider } from '@/components/admin'
+import { OrgAnalytics, PulseDivider } from '@/components/admin'
 import { usePartnerContext } from '@/lib/admin/usePartnerContext'
 import { usePartnerCounts } from '@/lib/admin/usePartnerCounts'
 import { PartnerEventsSurface } from '@/pages/admin/partner/PartnerEventsPage'
@@ -90,6 +95,8 @@ export default function PartnerHomePage() {
           </div>
         </div>
       </section>
+
+      {orgs.length > 0 && <OrgAnalytics orgs={orgs} />}
 
       <PulseDivider liveNow={counts.liveNow} />
 

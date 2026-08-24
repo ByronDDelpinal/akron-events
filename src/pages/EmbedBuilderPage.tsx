@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { trackEvent, EVENTS } from '@/lib/analytics'
 import { SEO } from '@/lib/seo'
 import PageHero from '@/components/PageHero'
@@ -160,7 +161,14 @@ export default function EmbedBuilderPage() {
 
       <PageHero title="Embed Builder">
         Configure and preview a live Akron Pulse calendar for your website.
-        When it looks right, reach out and we'll set it up with you.
+        When it looks right, reach out and we'll set it up with you. New to
+        this?{' '}
+        <Link
+          to="/guides/embed-and-partner-portal"
+          onClick={() => trackEvent(EVENTS.GUIDE_LINK_CLICK, { guide_slug: 'embed-and-partner-portal', placement: 'embed_builder_hero' })}
+        >
+          Read the guide first
+        </Link>.
       </PageHero>
 
       <div className="builder-layout">

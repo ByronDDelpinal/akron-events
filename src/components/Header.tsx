@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useTheme } from '@/hooks/useTheme'
 import { getThemeLogo } from '@/lib/themes'
+import { trackEvent, EVENTS } from '@/lib/analytics'
 import { isStandalone } from '@/hooks/usePwaInstall'
 import { useNeighborhood } from '@/hooks/useNeighborhood'
 import { useDayPlan } from '@/hooks/useDayPlan'
@@ -22,9 +23,15 @@ function PinIcon() {
 }
 
 export default function Header() {
-  const [scrolled,    setScrolled]    = useState(false)
+  // Initialised from the route, not false: a non-home route is solid from
+  // the first commit, so the over-hero scrim never paints and fades out
+  // on entry. The effect below still owns every later transition.
+  const [scrolled,    setScrolled]    = useState(() => window.location.pathname !== '/')
   const [menuOpen,    setMenuOpen]    = useState(false)
   const [theme] = useTheme()
+  // Escape closes the sheet and hands focus back to the control that opened
+  // it, so a keyboard user is not dropped at the top of the document.
+  const hamburgerRef = useRef<HTMLButtonElement>(null)
   const location  = useLocation()
   const navigate  = useNavigate()
   const isHome    = location.pathname === '/'
@@ -62,10 +69,37 @@ export default function Header() {
   // Close menu on route change
   useEffect(() => { setMenuOpen(false) }, [location])
 
-  // Lock body scroll when mobile menu is open
+  // Lock body scroll when mobile menu is open, and let Escape close it.
   useEffect(() => {
     document.body.style.overflow = menuOpen ? 'hidden' : ''
-    return () => { document.body.style.overflow = '' }
+    if (!menuOpen) {
+      return () => { document.body.style.overflow = '' }
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      // A dialog rendered inside the sheet (the feedback popover) owns
+      // Escape while it is open. Both handlers sit on `document` in the
+      // bubble phase, so without this bail one Escape would dismiss the
+      // popover AND unmount the whole sheet underneath it.
+      if ((e.target as Element | null)?.closest?.('[role="dialog"]')) return
+      setMenuOpen(false)
+      // Guarded: the sheet also closes on route change (see the effect
+      // above), by which point the hamburger may be unmounted.
+      hamburgerRef.current?.focus()
+    }
+    // Widening past the desktop breakpoint hides the hamburger but would
+    // otherwise leave the fixed sheet covering the viewport with nothing
+    // left to dismiss it, and body scroll still locked.
+    const onResize = () => {
+      if (window.innerWidth >= 1280) setMenuOpen(false)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    window.addEventListener('resize', onResize, { passive: true })
+    return () => {
+      document.body.style.overflow = ''
+      document.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('resize', onResize)
+    }
   }, [menuOpen])
 
   // Hide header on admin page
@@ -94,7 +128,12 @@ export default function Header() {
           Akron <span className="amber">Pulse</span>
         </Link>
 
-        <nav className="nav-links">
+        {/* Two nav landmarks can be exposed at once (the sheet is reachable
+            at any width until the resize handler closes it), so their names
+            must differ: this row is "Main", the sheet's <nav> is "Menu".
+            Under 1280px this row is display:none and drops out of the
+            accessibility tree, leaving the sheet as the only one. */}
+        <nav className="nav-links" aria-label="Main">
           {standalone && (
             <button
               className="nav-link nav-myhood"
@@ -105,14 +144,21 @@ export default function Header() {
             </button>
           )}
           <Link to="/about" className={`nav-link ${isActive('/about') ? 'active' : ''}`}>About</Link>
+          <Link
+            to="/guides"
+            className={`nav-link ${isActive('/guides') ? 'active' : ''}`}
+            onClick={() => trackEvent(EVENTS.GUIDE_LINK_CLICK, { guide_slug: 'hub', placement: 'header' })}
+          >
+            Guides
+          </Link>
           <Link to="/organizers" className={`nav-link ${isActive('/organizers') ? 'active' : ''}`}>Organizers &amp; Partners</Link>
+          <Link to="/submit" className={`nav-link ${isActive('/submit') ? 'active' : ''}`}>Submit an Event</Link>
         </nav>
 
         <div className="nav-cta-group">
           {planCount > 0 && (
             <Link to="/day" className="nav-link nav-plan-pill">Plan · {planCount}</Link>
           )}
-          <Link to="/submit" className="btn-nav-cta btn-nav-cta-outline">+ Submit Event</Link>
           <FeedbackDialog placement="header" triggerClassName="btn-nav-cta btn-nav-cta-outline" />
           <Link to="/subscribe" className="btn-nav-cta">Subscribe</Link>
         </div>
@@ -134,11 +180,16 @@ export default function Header() {
               Plan · {planCount}
             </Link>
           )}
+          {/* aria-controls is set only while the sheet is open: the sheet is
+              conditionally mounted, so in the closed state the id it names
+              does not exist and the reference would dangle. */}
           <button
             className={`btn-hamburger ${menuOpen ? 'open' : ''}`}
             onClick={() => setMenuOpen((o) => !o)}
             aria-label="Menu"
             aria-expanded={menuOpen}
+            aria-controls={menuOpen ? 'mobile-menu' : undefined}
+            ref={hamburgerRef}
           >
             <span /><span /><span />
           </button>
@@ -146,7 +197,7 @@ export default function Header() {
       </div>
 
       {menuOpen && (
-        <div className="mobile-menu open">
+        <div className="mobile-menu open" id="mobile-menu">
           {standalone && (
             <div className="mobile-myhood">
               {hubSlug ? (
@@ -188,14 +239,29 @@ export default function Header() {
               )}
             </div>
           )}
-          {planCount > 0 && (
-            <button className={`mobile-nav-link ${isActive('/day') ? 'active' : ''}`} onClick={() => navTo('/day')}>
-              Plan · {planCount}
+          {/* Named "Menu", not "Main": the desktop row above already owns
+              the "Main" landmark name, and duplicating it would leave two
+              indistinguishable entries in a screen reader's landmark list
+              in any state where both rows are exposed. */}
+          <nav className="mobile-nav-group" aria-label="Menu">
+            {planCount > 0 && (
+              <button className={`mobile-nav-link ${isActive('/day') ? 'active' : ''}`} onClick={() => navTo('/day')}>
+                Plan · {planCount}
+              </button>
+            )}
+            <button className={`mobile-nav-link ${isActive('/about') ? 'active' : ''}`} onClick={() => navTo('/about')}>About</button>
+            <button
+              className={`mobile-nav-link ${isActive('/guides') ? 'active' : ''}`}
+              onClick={() => {
+                trackEvent(EVENTS.GUIDE_LINK_CLICK, { guide_slug: 'hub', placement: 'mobile_menu' })
+                navTo('/guides')
+              }}
+            >
+              Guides
             </button>
-          )}
-          <button className={`mobile-nav-link ${isActive('/about') ? 'active' : ''}`} onClick={() => navTo('/about')}>About</button>
-          <button className={`mobile-nav-link ${isActive('/organizers') ? 'active' : ''}`} onClick={() => navTo('/organizers')}>Organizers &amp; Partners</button>
-          <button className="mobile-menu-cta mobile-menu-cta-outline" onClick={() => navTo('/submit')}>+ Submit Event</button>
+            <button className={`mobile-nav-link ${isActive('/organizers') ? 'active' : ''}`} onClick={() => navTo('/organizers')}>Organizers &amp; Partners</button>
+            <button className={`mobile-nav-link ${isActive('/submit') ? 'active' : ''}`} onClick={() => navTo('/submit')}>Submit an Event</button>
+          </nav>
           <FeedbackDialog placement="mobile_menu" triggerClassName="mobile-menu-cta mobile-menu-cta-outline" />
           <button className="mobile-menu-cta" onClick={() => navTo('/subscribe')}>Subscribe</button>
         </div>

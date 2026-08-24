@@ -20,7 +20,7 @@ import type { LooseRow } from '@/types'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { format } from 'date-fns'
 import { supabase } from '@/lib/supabase'
-import { ConfirmDialog, EntityMultiSelect, FormInput } from '@/components/admin'
+import { ConfirmDialog, EntityMultiSelect, FormInput, OrgAnalytics } from '@/components/admin'
 import { isValidPartnerSlug } from '@/lib/admin/partnerShared'
 
 type Row = LooseRow
@@ -454,6 +454,19 @@ function TenantCard({
             </form>
             {memberError && <p className="ashell-row-error" role="alert">{memberError}</p>}
             {memberNote && <p className="admin-hint" role="status">{memberNote}</p>}
+
+            {/* The same analytics block the partner sees on their own home
+                page, scoped to this one tenant. One component, two call sites,
+                no admin branch: the RPC decides server side who may see what.
+                It lives inside the {isOpen && ...} guard so expanding a tenant
+                is what triggers the query, rather than every card firing one
+                on page load. */}
+            <OrgAnalytics
+              orgs={[{
+                organization_id: tenant.organization_id,
+                name: tenant.organization?.name ?? tenant.slug,
+              }]}
+            />
           </>
         )}
       </div>

@@ -295,14 +295,40 @@ function parseTags(title = '') {
 
 // ── Venue / Organizer ──────────────────────────────────────────────────────
 
+// Coordinates corrected 2026-08-24. The previous constants (41.0615 / -81.5160)
+// placed the zoo about 1.8 miles southeast of the real site, which made the
+// polygon resolver classify the venue 'south-akron' when it is in fact adjacent
+// to Sherbondy Hill. Provenance: two independent Nominatim lookups, one
+// structured ('500 Edgewood Ave', Akron, OH, 44307) and one by name
+// ('Akron Zoo, Akron, Ohio'), both return OSM way 243713543, tourism=zoo,
+// display name "Akron Zoo, 500, Edgewood Avenue, ... 44307", at
+// 41.0791622 / -81.5409225. The returned postcode matches the zip we already
+// stored, so the two agree on the address and disagreed only on the point.
+// scripts/lib/neighborhood-resolver.js returns 'sherbondy-hill' for the new
+// point and reproduces 'south-akron' for the old one.
+//
+// This is the same class of bug as The KillBox (see the notes in
+// scrape-killbox-comedy.js): the stored neighborhood_slug agreed with the
+// stored coordinates, so a slug-vs-coordinates sweep could never catch it.
+// Only comparing stored coordinates against a fresh geocode of the street
+// address detects it, and geocode-venues.js is still guarded to
+// .is('lat',null).is('lng',null), so it fills gaps and never audits.
+//
+// NOTE: neighborhood_slug is deliberately NOT asserted here. ensureVenue only
+// backfills it when the existing value is null, so hand-asserting it would go
+// stale silently; letting it derive from the coordinates keeps one source of
+// truth. The live row also carries lat/lng/neighborhood_slug pins in
+// venues.manual_overrides, because the trigger is BEFORE UPDATE only and does
+// not fire on INSERT: the pin protects the existing row, this constant governs
+// a fresh mint. Neither alone is a fix.
 async function ensureZooVenue() {
   return ensureVenue('Akron Zoo', {
     address:       '500 Edgewood Ave',
     city:          'Akron',
     state:         'OH',
     zip:           '44307',
-    lat:           41.0615,
-    lng:           -81.5160,
+    lat:           41.0791622,
+    lng:           -81.5409225,
     parking_type:  'lot',
     parking_notes: 'Free parking in zoo lots.',
     website:       'https://www.akronzoo.org',

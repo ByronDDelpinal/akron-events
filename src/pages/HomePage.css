@@ -1,8 +1,15 @@
 /* ── HERO ── */
 .hero {
   background: var(--bg-nav); /* fallback while poster/video loads */
+  /* The env() terms make the hero actually reach the top of the viewport on
+     iOS standalone, so the header's safe-area strip sits on hero-plus-scrim
+     rather than on the page background. */
+  /* Pre-env() fallback: engines without env() drop the calc line entirely. */
   margin-top: -65px;
-  padding-top: calc(52px + 65px);
+  margin-top: calc(-65px - env(safe-area-inset-top, 0px));
+  /* Pre-env() fallback: engines without env() drop the calc line entirely. */
+  padding-top: 117px;
+  padding-top: calc(52px + 65px + env(safe-area-inset-top, 0px));
   padding-bottom: var(--space-5xl);
   padding-left: var(--space-xl);
   padding-right: var(--space-xl);

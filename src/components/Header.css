@@ -3,7 +3,7 @@
    own subsections does not inherit the sticky positioning. (That
    bug bit the CategoryPage hub-header once; this scoping prevents
    a repeat.) The site header is mounted from
-   src/components/Header.jsx and is the only `.site-header` in the
+   src/components/Header.tsx and is the only `.site-header` in the
    app. */
 .site-header {
   background: transparent;
@@ -21,6 +21,105 @@
 .site-header.menu-open {
   background: var(--bg-nav);
   border-bottom-color: var(--overlay-light-05);
+}
+
+/* ── OVER-HERO SCRIM (transparent state only) ────────────────────────
+   On the homepage the bar is transparent until 20px of scroll
+   (Header.tsx), so at rest every element here sits directly on the hero
+   video. HomePage.css's .hero-bg-scrim only reaches rgba(0,0,0,0.52) at
+   its top edge, and the top 10% of the poster is blown-out sky
+   (measured on /video/akron-pulse-banner-poster.jpg: p90 = 252, max =
+   255). That leaves the bar on ~#787878, where --overlay-light-70 is
+   3.05:1 and --amber-on-dark bottoms out at 1.10:1 on Violet Hour.
+   (.hero-glow is NOT the culprit: it is 780px wide and centred, so it
+   never reaches the CTA group, and its tint is built from --amber, the
+   DARK primary, so where it does land it darkens and helps.)
+
+   Raw rgba black rather than a token, on purpose: this is an optical
+   darkening layer over arbitrary video, not a surface colour. It must
+   NOT flip with the theme, because the thing underneath it is the same
+   footage on every theme and needs the same amount of darkening.
+
+   0.35 is calculated, not taste. Over a blown #FFFFFF frame, 0.52 hero
+   scrim + 0.35 here lands on #505050 (255 * 0.48 * 0.65 = 79.56). The
+   binding constraint is NOT the accent, which is white and measures
+   8.12:1 there, but --overlay-light-70 on the plain nav links, which
+   measures 4.97:1. That token crosses the 4.5:1 floor at alpha 0.285,
+   so 0.35 keeps about 23% headroom for frames brighter than the poster
+   and for codec colour shift. --overlay-light-90 on the hamburger bars
+   measures 6.96:1, well clear of the 3:1 non-text floor. Combined with
+   the hero scrim this darkens the header band to an effective 0.688,
+   still lighter than the 0.72 that scrim already applies at its own
+   bottom edge, so the shot stays visible.
+
+   Geometry: top:0 resolves against the PADDING box, so this covers the
+   env(safe-area-inset-top) strip too (see the padding-top above). The
+   overhang below the bar is -40px MINUS that same inset, so the
+   overhang scales with the notch. A percentage stop cannot do this on
+   its own: the 62% plateau grows at 0.62x the inset while the bottom
+   of the 64px text band grows at 1.0x, so a fixed -40px bottom only
+   holds for insets under about 1.3px. Subtracting the inset from
+   `bottom` grows the element fast enough that the 62% plateau still
+   covers the full text band on notched iOS, and the fade still
+   finishes below the bar so it reads as a vignette, not a slab. */
+.site-header::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  bottom: calc(-40px - env(safe-area-inset-top, 0px));
+  z-index: -1;            /* behind .header-inner, above the hero */
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.35) 0%,
+    rgba(0, 0, 0, 0.35) 62%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  transition: opacity var(--transition-slowest) ease;
+}
+/* Same duration and easing as the background/border transition above, so
+   the three changes read as one state change instead of a pop. */
+.site-header.scrolled::before,
+.site-header.menu-open::before { opacity: 0; }
+
+/* ── HEADER ACCENT IS WHITE ─────────────────────────────────
+   Byron's call, 2026-08-24: "it looked so good when you had it white".
+
+   This started as a fix for one state. --amber-on-dark is tuned to clear
+   4.5:1 against --bg-nav specifically, which is very dark (Violet Hour
+   #1E0E2E), so it has almost no headroom. Over the homepage hero there
+   is no such floor: even rgba(0, 0, 0, 0.70) leaves Violet Hour's
+   #9A68CD at 3.84:1, and it would need alpha 0.81 to pass, which blacks
+   out the video. So the accent had to change over the hero.
+
+   Scoping that swap to the transparent state alone was the mistake. The
+   accent then snapped from white back to the theme colour the moment
+   you scrolled 20px or opened any other page, which reads as a bug
+   rather than a state change. The header accent is now white in EVERY
+   state: transparent over the hero, solid on scroll, and inside the
+   mobile sheet.
+
+   White is also the most robust option available: it is theme
+   independent, so this is one number for all 15 themes instead of 15
+   that each need their own audit. It measures 8.12:1 on the composited
+   hero backdrop (#505050, see the scrim above) and 14.4:1 or better on
+   every theme's --bg-nav. Nothing here can fail contrast.
+
+   Rejected on the way here: --amber-pale. It is a background-wash
+   token, not an accent, and sits so close to --white that the two-tone
+   "Akron Pulse" wordmark collapsed to a single colour on 14 of 15
+   themes. Plain white is honest about doing the same thing.
+
+   One token redefinition rather than a dozen selectors, so any future
+   header element using --amber-on-dark is covered automatically; this
+   file has been bitten by that class of miss before. Same specificity
+   as the base .site-header rule at the top of this file, and it comes
+   later, so it wins.
+
+   The theme colour is NOT gone from the header: .btn-nav-cta (desktop
+   Subscribe) fills with --amber and is untouched. */
+.site-header {
+  --amber-on-dark: var(--white);
 }
 
 .header-inner {
@@ -56,12 +155,25 @@
   align-items: center;
   gap: var(--space-2xs);
   flex: 1;
+  /* A flex item's automatic minimum size is its min-content width, and every
+     .nav-link is white-space: nowrap, so without this the row cannot shrink
+     and instead pushes the CTA group past the viewport edge. The worst case
+     (installed PWA + a long saved community name + the plan pill) exceeds the
+     1216px content box at 1280px on several themes. Clip instead of breaking
+     the page; .nav-myhood below caps the one label that can grow unbounded. */
+  min-width: 0;
+  overflow: hidden;
 }
 .nav-link {
   font-family: var(--font-body);
   font-size: var(--text-sm);
   font-weight: 500;
-  color: var(--overlay-light-50);
+  /* --overlay-light-50 composited on --bg-nav falls to 3.11:1 on Postcard and
+     4.25:1 on the default Civic Teal, under the 4.5:1 AA floor. That was
+     tolerable while these were secondary links beside three amber CTA pills;
+     it is not now that Submit an Event lives here as a primary action. At 70%
+     the darkest theme (Postcard) measures 4.55:1 and the rest run to 9.5:1. */
+  color: var(--overlay-light-70);
   background: transparent;
   border: none;
   cursor: pointer;
@@ -140,6 +252,15 @@
   gap: var(--space-xs);
   color: var(--amber-on-dark);
   font-weight: 600;
+  /* The only nav item whose width is user data. "My Community: Coventry
+     Crossing" runs ~295px on the widest theme pairing, which is what tips the
+     installed-PWA row past the content box at 1280px. Cap and ellipsize: the
+     pin plus the "My Community" prefix carry the meaning, and the full name
+     is one tap away. */
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .nav-myhood:hover { color: var(--white); background: var(--overlay-light-05); }
 .myhood-pin {
@@ -267,19 +388,42 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 .mobile-menu.open { display: flex; }
+/* Groups the nav rows so the sheet reads as places, then actions. Same
+   separator idiom as .mobile-myhood, one step stronger (--overlay-light-12
+   vs -05) so the group rule out-reads the per-row hairlines. Zero gap is
+   intentional: the rows are separated by those hairlines. */
+.mobile-nav-group {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--space-sm);
+  margin-bottom: var(--space-xs);
+  border-bottom: var(--border-width-thin) solid var(--overlay-light-12);
+}
 .mobile-nav-link {
   font-family: var(--font-body);
   font-size: var(--text-lg); font-weight: 500;
-  color: var(--overlay-light-70);
+  color: var(--overlay-light-90);
   background: transparent; border: none;
   text-align: left; cursor: pointer;
   padding: var(--space-md) var(--space-xs);
+  min-height: 44px;
   border-bottom: var(--border-width-thin) solid var(--overlay-light-05);
   transition: color var(--transition-medium);
 }
-.mobile-nav-link:last-of-type { border-bottom: none; }
+/* The group's own bottom border is the separator after the last row. The
+   old `:last-of-type` selector never matched: the last <button> in
+   .mobile-menu is the Subscribe CTA, not a nav row. */
+.mobile-nav-group .mobile-nav-link:last-child { border-bottom: none; }
+/* --amber is the dark primary and is near-invisible on the always-dark
+   sheet (Civic Teal 1.37:1) -- the same on-dark reasoning documented for
+   .mobile-menu-cta below. */
 .mobile-nav-link:hover,
-.mobile-nav-link.active { color: var(--amber); }
+.mobile-nav-link.active { color: var(--amber-on-dark); }
+/* With the header accent now white, .active differed from a resting row
+   only by 100% vs 90% white, so the "you are here" cue was invisible.
+   Carry it on weight instead, the same way .nav-link.active does on
+   desktop. Not on :hover: bolding on hover would shift the row.  */
+.mobile-nav-link.active { font-weight: 700; }
 .mobile-menu-cta {
   margin-top: var(--space-sm);
   /* The mobile sheet is always --bg-nav (dark). The label text on the old
@@ -332,16 +476,25 @@
   width: 100%;
 }
 
-/* Switch to hamburger menu below Tailwind's xl breakpoint (1280px). The full
-   desktop nav content (logo + 6 nav links + 3 CTA buttons + padding) needs
-   ~1220px to fit comfortably, so any narrower viewport — tablets, small
-   laptops, or partially-resized browser windows — gets the hamburger. */
+/* Switch to hamburger below Tailwind's xl breakpoint (1280px). Not a
+   width-fit threshold any more. The ordinary row (logo + 4 nav links + 2 CTA
+   buttons) needs ~870px on the default Civic Teal and ~965px on the widest
+   theme pairing, against a 1216px content box at 1280px. The pressure case is
+   the installed PWA: 5 nav links plus the plan pill plus a saved community
+   name reached ~1360px before .nav-myhood was capped and .nav-links was given
+   min-width: 0 (see both rules above), which is what keeps that case from
+   pushing the CTA group off-screen.
+   1280px itself is a deliberate policy line: tablets and half-width laptop
+   windows get the hamburger, which is the affordance their users already
+   know. Any change to this number is a UX decision, not a fitting exercise. */
 @media (max-width: 1279px) {
   .nav-links { display: none; }
   .header-inner { padding: 0 var(--space-xl); position: relative; }
   /* With nav-links and nav-cta-group both hidden, nothing is pulling
-     .header-mobile-actions (pill + hamburger) to the right edge. */
-  .btn-hamburger { display: flex; margin-left: 0; }
+     .header-mobile-actions (pill + hamburger) to the right edge. The 44x44
+     floor is the WCAG 2.5.5 minimum touch target; the bars are
+     flex-centered, so nothing moves. */
+  .btn-hamburger { display: flex; margin-left: 0; min-width: 44px; min-height: 44px; }
   .nav-cta-group { display: none; }
 
   .header-mobile-actions {
@@ -353,8 +506,9 @@
   .nav-plan-pill--bar {
     display: inline-flex;
     align-items: center;
-    /* 36px, matching the hamburger's own touch target -- 44px would fight
-       a 64px header. */
+    /* 36px is a deliberate de-emphasis inside a 64px bar: this pill is a
+       secondary return affordance sitting next to the 44x44 hamburger, and
+       matching that height would fight the bar. */
     min-height: 36px;
     padding: var(--space-2xs) var(--space-md);
     font-size: var(--text-xs);

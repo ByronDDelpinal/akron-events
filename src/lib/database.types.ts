@@ -1052,6 +1052,24 @@ export type Database = {
         }
         Returns: Json
       }
+      // 063_partner_metrics_rpc.sql. Hand-authored alongside the other partner
+      // RPCs (061 did the same): the generator is not run against prod from an
+      // agent session. The bigint columns arrive as JS numbers through
+      // PostgREST's JSON, which is safe at these magnitudes.
+      partner_event_metrics: {
+        Args: { p_org: string; p_from: string; p_to: string }
+        Returns: {
+          event_id: string
+          title: string
+          start_at: string | null
+          status: string | null
+          page_views: number
+          visitor_days: number
+          outbound_clicks: number
+          outbound_tickets: number
+          outbound_source: number
+        }[]
+      }
       partner_org_context: {
         Args: never
         Returns: {
