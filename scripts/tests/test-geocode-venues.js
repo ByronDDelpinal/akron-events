@@ -197,9 +197,16 @@ describe('names mode: buildNameVariants', () => {
     assert.deepEqual(buildNameVariants('Lock 3'), ['Lock 3'])
   })
   it('rung 0 is always the original name, verbatim, at index 0 (not just present anywhere in the ladder)', () => {
-    const prose = 'Pro Football Hall of Fame Museum in Canton'
+    // Deliberately a name that does NOT clean to itself. 'Pro Football Hall of
+    // Fame Museum in Canton' would satisfy this pin even with the push order
+    // reversed, because its cleaned form equals the original, so the assertion
+    // was tautological. 'The Rialto Theatre in Kenmore' cleans to something
+    // different, which is what makes index 0 load-bearing. Rung 0 being the
+    // verbatim original is what the additive guarantee rests on.
+    const prose = 'The Rialto Theatre in Kenmore'
     const variants = buildNameVariants(prose)
     assert.equal(variants[0], prose)
+    assert.notEqual(variants[1], prose)
   })
   it('includes the head-only variant for a name with " in <locality>" (never the tail)', () => {
     const variants = buildNameVariants('The Rialto Theatre in Kenmore')
@@ -355,6 +362,19 @@ describe('names mode: evaluateNameVariantRung (MAJOR 2 + MAJOR 3: the variant wa
     assert.equal(matched, null)
     assert.ok(rejected)
     assert.equal(rejected.why, 'junk class/type (highway/residential)')
+  })
+  it('rung 0 CAN match: a passing first result is accepted and stamped rungIndex 0', () => {
+    // Without this, wrapping the rung-0 match in `if (rungIndex !== 0)` leaves
+    // the whole suite green. Every other rung-0 test asserts matched === null,
+    // so nothing else pins that rung 0 is able to succeed at all.
+    const results = [
+      { class: 'amenity', type: 'theatre', lat: '41.08', lon: '-81.52', namedetails: { name: 'Lock 3' } },
+    ]
+    const { matched } = evaluateNameVariantRung(0, 'Lock 3', results, null, inSummit)
+    assert.ok(matched)
+    assert.equal(matched.rungIndex, 0)
+    assert.equal(matched.result, results[0])
+    assert.equal(matched.variant, 'Lock 3')
   })
   it('a derived rung (rungIndex >= 1) scans past a failing first result to a passing second result', () => {
     const results = [
