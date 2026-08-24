@@ -2,7 +2,7 @@
  * useOrgMetrics.ts
  *
  * The data half of the partner analytics block. Calls one RPC
- * (partner_event_metrics, migration 063) and hands back rows plus a state.
+ * (partner_event_metrics, migration 064) and hands back rows plus a state.
  *
  * There is no admin branch in here, and that is deliberate. The RPC verifies
  * p_org against partner_scope() or is_admin() server side, so the hook never
@@ -16,9 +16,9 @@
  * legitimate answer and rendering a failure as zero would be a quiet lie.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { metricWindow, type MetricRow } from '@/lib/admin/analyticsShared'
+import { metricWindow, UPCOMING_DAYS, type MetricRow, type WindowChoice } from '@/lib/admin/analyticsShared'
 
 /**
  * 'idle' exists so a missing orgId cannot be mistaken for an answer. Without
@@ -51,12 +51,29 @@ function isDenial(err: { code?: string; message?: string } | null): boolean {
   return err.code === '42501' || /insufficient_privilege|not your organization/i.test(err.message ?? '')
 }
 
-export function useOrgMetrics(orgId: string | null, days: number): OrgMetrics {
+export function useOrgMetrics(orgId: string | null, days: WindowChoice): OrgMetrics {
   const [rows, setRows] = useState<MetricRow[]>([])
   const [state, setState] = useState<MetricsState>('loading')
   const [nonce, setNonce] = useState(0)
   const range = metricWindow(days)
   const { from, to } = range
+
+  /**
+   * What the rows on hand were fetched for.
+   *
+   * setState('loading') happens inside an effect, and a passive effect is not
+   * guaranteed to run before paint, so without this there is a committed frame
+   * where `days` and `orgId` are already the new ones, `range` has already been
+   * recomputed, and `rows` are still the previous org's. The UI renders the new
+   * window heading and the new org name over the old numbers, at full fidelity,
+   * with no skeleton. On a window change that also drops or adds the views
+   * disclosure against a total it does not describe.
+   *
+   * A ref compared during render closes it: rows that do not belong to the
+   * current key are not rows yet, they are a load in progress.
+   */
+  const settledFor = useRef<string | null>(null)
+  const key = `${orgId ?? ''}|${from}|${to}|${nonce}`
 
   const reload = useCallback(() => setNonce((n) => n + 1), [])
 
@@ -69,12 +86,17 @@ export function useOrgMetrics(orgId: string | null, days: number): OrgMetrics {
     let cancelled = false
     setState('loading')
     void (async () => {
+      // p_upcoming_days is sent explicitly rather than left to the server
+      // default, so the forward window the UI describes in its copy and the
+      // one the query uses cannot drift apart.
       const { data, error } = await supabase.rpc('partner_event_metrics', {
         p_org: orgId,
         p_from: from,
         p_to: to,
+        p_upcoming_days: UPCOMING_DAYS,
       })
       if (cancelled) return
+      settledFor.current = key
       if (error) {
         setRows([])
         setState(isDenial(error) ? 'denied' : 'error')
@@ -87,7 +109,15 @@ export function useOrgMetrics(orgId: string | null, days: number): OrgMetrics {
       cancelled = true
     }
     // `range` is rebuilt every render; depend on its two primitive fields.
-  }, [orgId, from, to, nonce])
+  }, [orgId, from, to, nonce, key])
+
+  // Anything that has not settled for THIS key is still loading, whatever the
+  // last request left behind. Errors and denials are keyed too, so a refusal
+  // for org A never renders over a request for org B.
+  const settled = settledFor.current === key
+  if (!settled) {
+    return { rows: [], state: orgId ? 'loading' : 'idle', range, reload }
+  }
 
   return { rows, state, range, reload }
 }

@@ -11,6 +11,10 @@
  *      visits are never counted. A number that loses its marker on the way to
  *      the screen becomes a claim Akron Pulse cannot back, and nothing about
  *      that failure is visible in review.
+ *
+ * The SQL guards point at 064, which is the LIVE definition of
+ * partner_event_metrics. 063 stays on disk as history and is not scanned here:
+ * a guard on a superseded file passes while the thing it protects rots.
  */
 
 import { describe, it } from 'node:test'
@@ -21,16 +25,29 @@ import { fileURLToPath } from 'node:url'
 import {
   DEFAULT_WINDOW,
   FLOOR_NOTE,
+  HEADLINE_LABELS,
+  NO_UPCOMING_NOTE,
+  UPCOMING_NOTE,
+  VIEWS_BREAK_LABEL,
+  PAST_SORT,
   SORT_KEYS,
   TRACKING_START,
+  UPCOMING_DAYS,
+  UPCOMING_SORT,
+  VIEWS_BREAK_DATE,
   VISITOR_DAYS_NOTE,
   WINDOW_OPTIONS,
+  crossesViewsBreak,
   emptyKind,
+  floorFigure,
   floorLabel,
   floorNum,
   metricWindow,
+  partitionRows,
   sortRows,
   totals,
+  viewsFigure,
+  windowLabel,
 } from '../../src/lib/admin/analyticsShared.ts'
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url))
@@ -48,6 +65,7 @@ function row(over = {}) {
     outbound_clicks: over.outbound_clicks ?? 0,
     outbound_tickets: over.outbound_tickets ?? 0,
     outbound_source: over.outbound_source ?? 0,
+    is_upcoming: over.is_upcoming ?? false,
   }
 }
 
@@ -91,10 +109,54 @@ describe('metricWindow ends yesterday and never today', () => {
       'instead of silently showing a narrower range than the button claims')
   })
 
-  it('30 is the default and every offered option is a positive integer', () => {
-    assert.equal(DEFAULT_WINDOW, 30)
+  it('a window landing exactly on TRACKING_START counts as clamped', () => {
+    // The boundary case, live from 2026-08-25: a 90 day window resolves to
+    // rawFrom === TRACKING_START. `clamped` is <=, not <, so the UI still says
+    // "as far back as we have", which is true, rather than implying there is
+    // more behind it.
+    const w = metricWindow(90, '2026-08-25')
+    assert.equal(w.from, TRACKING_START)
+    assert.equal(w.clamped, true)
+  })
+
+  it('all time starts at TRACKING_START and still ends yesterday', () => {
+    const w = metricWindow('all', '2026-08-24')
+    assert.equal(w.from, TRACKING_START)
+    assert.equal(w.to, '2026-08-23')
+    assert.equal(w.clamped, true, 'all time is by definition as far back as we have, and the UI says so through ' +
+      'this flag')
+  })
+
+  it('all time never inverts, even on the first day of tracking', () => {
+    const w = metricWindow('all', TRACKING_START)
+    assert.ok(w.from <= w.to, `all time inverted on day one: ${w.from} to ${w.to}`)
+  })
+
+  it('90 is the default, and every option is a positive integer or all time', () => {
+    // 90 rather than 30 or 7: the whole site carries two to twenty five
+    // outbound clicks a DAY, so a short window on one partner's cadence moves
+    // on single events and reads as signal when it is not.
+    assert.equal(DEFAULT_WINDOW, 90)
     assert.ok(WINDOW_OPTIONS.includes(DEFAULT_WINDOW))
-    for (const d of WINDOW_OPTIONS) assert.ok(Number.isInteger(d) && d > 0)
+    assert.ok(WINDOW_OPTIONS.includes('all'), 'the all time option is what a small partner actually has a ' +
+      'non-zero number in')
+    for (const d of WINDOW_OPTIONS) {
+      assert.ok(d === 'all' || (Number.isInteger(d) && d > 0), `bad window option: ${d}`)
+    }
+  })
+
+  it('every option has a label and none of them is blank', () => {
+    for (const d of WINDOW_OPTIONS) {
+      assert.ok(windowLabel(d).trim().length > 0, `no label for window option ${d}`)
+    }
+    assert.equal(windowLabel('all'), 'All time')
+    assert.equal(windowLabel(90), '90 days')
+  })
+
+  it('the forward window is bounded and matches what 064 will accept', () => {
+    assert.ok(Number.isInteger(UPCOMING_DAYS) && UPCOMING_DAYS > 0 && UPCOMING_DAYS <= 400,
+      'an unbounded forward branch returned 1,763 rows for one org before 063 closed it, and 064 caps ' +
+      'p_upcoming_days at 400')
   })
 })
 
@@ -123,6 +185,54 @@ describe('every number carries its floor marker', () => {
   })
 })
 
+describe('a figure decides once what a number claims', () => {
+  it('an ordinary figure is a floor in both halves', () => {
+    const f = floorFigure(412, 'handoffs')
+    assert.equal(f.text, '~412')
+    assert.equal(f.label, 'at least 412 handoffs')
+  })
+
+  it('views inside the corrected era is an ordinary floor', () => {
+    const f = viewsFigure(412, 'views', false)
+    assert.equal(f.text, '~412')
+    assert.ok(f.label.startsWith('at least '))
+  })
+
+  it('views across the break drops the tilde AND the "at least"', () => {
+    // This is the one figure on the surface that is not a floor: before the
+    // break a filter change fired a page_view, so the number runs HIGH. "At
+    // least 412" would be the only claim here pointing the wrong way, and it
+    // would be the biggest number on the page.
+    const f = viewsFigure(412, 'views', true)
+    assert.equal(f.text, '412', 'no tilde: the tilde means "at least", which is false here')
+    assert.ok(!/at least/i.test(f.label), 'the accessible name must not say "at least" either. A correction ' +
+      'further down the page does not un-say a claim already made in the name of the figure.')
+    assert.ok(f.label.includes(VIEWS_BREAK_LABEL), 'and it has to name the date, where the number is')
+  })
+
+  it('never scales or corrects the number itself', () => {
+    for (const crossed of [true, false]) {
+      assert.ok(viewsFigure(412, 'views', crossed).text.includes('412'),
+        'an invented correction factor would be worse than a number that explains itself')
+    }
+    assert.equal(viewsFigure(0, 'views', true).text, '0')
+  })
+
+  it('every figure helper returns both halves, always', () => {
+    const all = [floorFigure(0, 'views'), floorFigure(9, 'views'), viewsFigure(0, 'views', true), viewsFigure(9, 'views', true)]
+    for (const f of all) {
+      assert.ok(f.text.length > 0 && f.label.length > 0, 'a tile with a value and no accessible name is the ' +
+        'exact failure the sr-only twin exists to prevent')
+    }
+  })
+
+  it('the views tile has copy for both eras', () => {
+    assert.ok(HEADLINE_LABELS.views.sub.length > 0)
+    assert.ok(HEADLINE_LABELS.views.subBroken.length > 0,
+      'the tile itself has to say the number runs high, not only the paragraph above it')
+  })
+})
+
 describe('totals', () => {
   it('sums the additive columns', () => {
     const t = totals([
@@ -134,6 +244,17 @@ describe('totals', () => {
     assert.equal(t.clicks, 4)
     assert.equal(t.tickets, 3)
     assert.equal(t.source, 1)
+  })
+
+  it('the roll-up counts upcoming and past together', () => {
+    // The tiles are the headline and the two tables are the detail beneath
+    // them, so a row missing from the total would make the tables disagree
+    // with the number they are supposed to explain.
+    const t = totals([
+      row({ event_id: 'a', page_views: 4, is_upcoming: true }),
+      row({ event_id: 'b', page_views: 6, is_upcoming: false }),
+    ])
+    assert.equal(t.views, 10)
   })
 
   it('notBrokenOut is zero when the split is complete', () => {
@@ -165,17 +286,79 @@ describe('emptyKind tells the two empty states apart', () => {
   })
 
   it('rows that are all zero is no-measured-traffic, NOT null', () => {
-    // This is the state the first real partner is in. It has to be
+    // This is the state both live tenants are in. It has to be
     // distinguishable from "you have no events": the words and the next action
     // are different, and rendering a blank panel here would tell them we do
     // not know about their events, which is false.
     assert.equal(emptyKind([row(), row({ event_id: 'e2' })]), 'no-measured-traffic')
   })
 
+  it('an upcoming event with nothing measured is still no-measured-traffic', () => {
+    // The upcoming branch means rows now arrive for events that have never
+    // been measured at all. That is the common case for a new partner, and it
+    // must not read as "no events".
+    assert.equal(emptyKind([row({ is_upcoming: true })]), 'no-measured-traffic')
+  })
+
   it('any positive figure means not empty', () => {
     assert.equal(emptyKind([row({ page_views: 1 })]), null)
     assert.equal(emptyKind([row({ visitor_days: 1 })]), null)
     assert.equal(emptyKind([row({ outbound_clicks: 1 })]), null)
+  })
+})
+
+describe('partitionRows splits the two tables', () => {
+  const rows = [
+    row({ event_id: 'a', is_upcoming: true }),
+    row({ event_id: 'b', is_upcoming: false }),
+    row({ event_id: 'c', is_upcoming: true }),
+  ]
+
+  it('sorts every row into exactly one section', () => {
+    const { upcoming, past } = partitionRows(rows)
+    assert.deepEqual(upcoming.map((r) => r.event_id), ['a', 'c'])
+    assert.deepEqual(past.map((r) => r.event_id), ['b'])
+    assert.equal(upcoming.length + past.length, rows.length,
+      'every row the RPC returns has to land in a table. A row in neither section is an event we told the ' +
+      'partner nothing about while still counting it in the roll-up above.')
+  })
+
+  it('keeps the RPC order inside each section', () => {
+    assert.deepEqual(partitionRows(rows).upcoming.map((r) => r.event_id), ['a', 'c'])
+  })
+
+  it('trusts the flag rather than re-deriving it from start_at', () => {
+    // The RPC compares start_at against EASTERN today. Re-deriving it in the
+    // browser would give a different answer for up to five hours a day, and
+    // the wrong one would be the client's.
+    const past = row({ event_id: 'x', start_at: '2099-01-01T00:00:00.000Z', is_upcoming: false })
+    assert.equal(partitionRows([past]).past.length, 1)
+    assert.equal(partitionRows([past]).upcoming.length, 0)
+  })
+
+  it('handles an empty result without inventing a section', () => {
+    const { upcoming, past } = partitionRows([])
+    assert.deepEqual(upcoming, [])
+    assert.deepEqual(past, [])
+  })
+})
+
+describe('the views definition break is disclosed', () => {
+  it('a window reaching back before the break says so', () => {
+    assert.equal(crossesViewsBreak('2026-05-27'), true)
+    assert.equal(crossesViewsBreak('2026-08-12'), true)
+  })
+
+  it('a window starting on or after the break does not', () => {
+    assert.equal(crossesViewsBreak(VIEWS_BREAK_DATE), false)
+    assert.equal(crossesViewsBreak('2026-08-20'), false)
+  })
+
+  it('all time always crosses it, so the note is not optional', () => {
+    // Views is the headline figure now. Before 2026-08-13 a filter change fired
+    // a page_view, so views from before then are an OVERCOUNT, which is the one
+    // direction the floor note does not cover.
+    assert.equal(crossesViewsBreak(metricWindow('all', '2026-12-01').from), true)
   })
 })
 
@@ -216,6 +399,18 @@ describe('sortRows', () => {
       assert.ok(k in sample, `SORT_KEYS has "${k}", which is not a column the RPC returns`)
     }
   })
+
+  it('each section starts from a sort its own question asks for', () => {
+    // Upcoming is chronological (what is next), past is busiest first (what
+    // worked). Both keys have to be sortable keys or the header click that
+    // first toggles them throws.
+    assert.equal(UPCOMING_SORT.key, 'start_at')
+    assert.equal(UPCOMING_SORT.dir, 'asc')
+    assert.equal(PAST_SORT.key, 'page_views')
+    assert.equal(PAST_SORT.dir, 'desc')
+    assert.ok(SORT_KEYS.includes(UPCOMING_SORT.key))
+    assert.ok(SORT_KEYS.includes(PAST_SORT.key))
+  })
 })
 
 describe('the honesty rules survive in the component', () => {
@@ -230,9 +425,80 @@ describe('the honesty rules survive in the component', () => {
     )
   })
 
+  it('gates the floor note on the denial ONLY, never on there being numbers', () => {
+    // Checking that the string appears is not enough: move it inside the block
+    // that renders the tiles and it vanishes from both empty states while
+    // every other guard here still passes. Zero is a floor too, and it is the
+    // number most likely to be read as fact.
+    assert.ok(
+      comp.includes('{state !== \'denied\' && <p className="ashell-an-floor">{FLOOR_NOTE}</p>}'),
+      'FLOOR_NOTE must sit at the top level of the block, guarded by nothing but the denial check',
+    )
+  })
+
+  it('puts the views disclosure ABOVE the number it is about', () => {
+    // A correction below the figure does not un-say a claim already made.
+    const note = comp.indexOf('{VIEWS_BREAK_NOTE}')
+    const tile = comp.indexOf('viewsFigure(')
+    assert.ok(note > -1 && tile > -1)
+    assert.ok(note < tile, 'the break note has to render before the views tile, not after it')
+  })
+
+  it('builds every tile through a figure helper rather than a bare number', () => {
+    assert.ok(comp.includes('figure={floorFigure('), 'tiles take a Figure, so the decision about what a ' +
+      'number claims is made once in analyticsShared and cannot be made differently here')
+    assert.ok(comp.includes('figure={viewsFigure('), 'and views takes the helper that knows about the break')
+    assert.ok(!/noun=\{/.test(comp), 'a tile that still takes a noun is a tile still formatting its own number')
+  })
+
+  it('keeps the two sections independent across an org or window change', () => {
+    // Sort and page live inside each section. The key is what resets them: drop
+    // `days` from it and a reader who sorted the past table by title, moved to
+    // page 3, then switched to a 7 day window keeps page 3 of a sort that no
+    // longer matches what is on screen.
+    assert.ok(/key=\{`up-\$\{orgId\}-\$\{days\}`\}/.test(comp),
+      'the upcoming section key must carry BOTH the org and the window')
+    assert.ok(/key=\{`past-\$\{orgId\}-\$\{days\}`\}/.test(comp),
+      'and so must the past section key')
+  })
+
+  it('clamps the page index during render rather than after it', () => {
+    // Pagination renders nothing below one page, so a stale index on a section
+    // that shrank strands the reader on an empty table with no control back.
+    assert.ok(/const safePage = Math\.min\(page, lastPage\)/.test(comp))
+    assert.ok(/page=\{safePage\}/.test(comp), 'and the control has to be handed the clamped index too')
+  })
+
+  it('never shows a section its empty copy while the load is still in flight', () => {
+    // "Nothing on your calendar in the next 90 days" is a factual claim. Said
+    // over a pending request it is a claim about data nobody has yet.
+    assert.ok(/!loading && rows\.length === 0 && <p className="admin-hint" role="status">/.test(comp))
+  })
+
+  it('announces the empty states instead of swapping them in silently', () => {
+    const statuses = (comp.match(/role="status"/g) ?? []).length
+    assert.ok(statuses >= 3, `only ${statuses} role="status" in the component. Every empty state here ` +
+      'replaces a table that was on screen a moment ago.')
+  })
+
+  it('never renders one org or window over another one\'s numbers', () => {
+    const hook = read('src/lib/admin/useOrgMetrics.ts')
+    assert.ok(/settledFor/.test(hook) && /settledFor\.current === key/.test(hook),
+      'setState(loading) happens in an effect, and a passive effect is not guaranteed to run before paint, ' +
+      'so without a key comparison during render there is a committed frame showing the previous org\'s ' +
+      'numbers under the new org name and the new window heading.')
+  })
+
   it('renders the visitor-days note as text', () => {
     assert.ok(comp.includes('{VISITOR_DAYS_NOTE}'))
     assert.ok(!/title=\{?VISITOR_DAYS_NOTE/.test(comp))
+  })
+
+  it('discloses the views break wherever a window reaches back past it', () => {
+    assert.ok(comp.includes('crossesViewsBreak('), 'the component must ASK whether the window crosses the break')
+    assert.ok(comp.includes('{VIEWS_BREAK_NOTE}'), 'and it must render the note when it does. Views is the ' +
+      'headline figure, and before 2026-08-13 it was an overcount, which the floor note does not cover.')
+    assert.ok(!/title=\{?VIEWS_BREAK_NOTE/.test(comp))
   })
 
   it('formats every number through floorNum, never toLocaleString directly', () => {
@@ -271,8 +537,18 @@ describe('the honesty rules survive in the component', () => {
     assert.ok(
       comp.includes('className="sr-only"'),
       'the headline figures must carry their floorLabel in an sr-only element. An aria-label on a bare ' +
-        '<span> is dropped, which silently removes "at least" from the four biggest numbers on the page.',
+        '<span> is dropped, which silently removes "at least" from the biggest numbers on the page.',
     )
+  })
+
+  it('renders both event sections and hides neither', () => {
+    assert.ok(comp.includes('{UPCOMING_TITLE}') || comp.includes('title={UPCOMING_TITLE}'))
+    assert.ok(comp.includes('{PAST_TITLE}') || comp.includes('title={PAST_TITLE}'))
+    assert.ok(comp.includes('partitionRows('), 'the two sections come from partitionRows, not from a filter ' +
+      'written inline that can drift from the flag the RPC set')
+    assert.ok(!/showPast|hidePast|collapsedPast/i.test(comp),
+      'past events are a section, never a disclosure. An event that already happened is the only kind whose ' +
+      'numbers are final, so hiding it hides the only settled data on the page.')
   })
 
   it('never labels visitor days as people', () => {
@@ -280,7 +556,8 @@ describe('the honesty rules survive in the component', () => {
       assert.ok(!comp.includes(bad), `OrgAnalytics uses "${bad}". Visitor days counts a person once per DAY, ` +
         'so any of these labels overstates it and the overstatement is invisible.')
     }
-    assert.ok(comp.includes('Visitor days'))
+    const shared = read('src/lib/admin/analyticsShared.ts')
+    assert.ok(shared.includes("label: 'Visitor days'"))
   })
 
   it('has no em dash in any string it renders', () => {
@@ -298,13 +575,20 @@ describe('the honesty rules survive in the component', () => {
       'useOrgMetrics must distinguish a denial from a transport failure, and neither may fall through to ' +
       'a zero. Zero is a legitimate answer here, so rendering a failure as zero is a quiet lie.')
   })
+
+  it('sends the forward window explicitly rather than trusting the server default', () => {
+    const hook = read('src/lib/admin/useOrgMetrics.ts')
+    assert.ok(/p_upcoming_days:\s*UPCOMING_DAYS/.test(hook),
+      'the copy promises the next 90 days. If the argument is left to the server default, the promise and ' +
+      'the query can drift apart with nothing failing.')
+  })
 })
 
-describe('the migration keeps 062 closed', () => {
+describe('the live migration keeps 062 closed', () => {
   // Comments stripped: the header quotes 062's own "grant select on
   // page_metrics_daily" line while explaining why this migration does NOT do
   // that, and scanning the explanation would fail on the explanation.
-  const sql = read('supabase/migrations/063_partner_metrics_rpc.sql')
+  const sql = read('supabase/migrations/064_partner_metrics_upcoming.sql')
     .split('\n')
     .filter((l) => !l.trimStart().startsWith('--'))
     .join('\n')
@@ -319,13 +603,24 @@ describe('the migration keeps 062 closed', () => {
     assert.ok(/grant execute on function partner_event_metrics[\s\S]*?to authenticated/i.test(sql))
   })
 
+  it('grants and revokes on the four argument signature, not the old three', () => {
+    assert.ok(/grant execute on function partner_event_metrics\(uuid, date, date, int\)/i.test(sql),
+      'a grant written against the dropped three-argument signature fails outright, and one written against ' +
+      'no signature is ambiguous')
+  })
+
+  it('drops the superseded three argument function', () => {
+    assert.ok(/drop function if exists partner_event_metrics\(uuid, date, date\)/i.test(sql),
+      'leaving both signatures in place makes every call ambiguous')
+  })
+
   it('grants nothing on the metrics tables and creates no policy', () => {
     assert.ok(
       !/grant\s+select[\s\S]*?(site_metrics_daily|page_metrics_daily|embed_metrics_daily)/i.test(sql),
-      '063 must not grant select on the metrics tables. 062 deliberately withheld that, and the RPC exists ' +
-        'so it can stay withheld.',
+      'this migration must not grant select on the metrics tables. 062 deliberately withheld that, and the ' +
+        'RPC exists so it can stay withheld.',
     )
-    assert.ok(!/create\s+policy/i.test(sql), '063 must not create any policy')
+    assert.ok(!/create\s+policy/i.test(sql), 'this migration must not create any policy')
   })
 
   it('raises on an unauthorized org rather than returning zero rows', () => {
@@ -335,18 +630,44 @@ describe('the migration keeps 062 closed', () => {
   })
 
   it('rejects a null org before the scope check, which three-valued logic would swallow', () => {
-    assert.ok(/p_org is null/i.test(sql),
-      'a null p_org makes `null = any(scope)` evaluate to NULL, so `if not (NULL or is_admin())` takes the ' +
-      'ELSE branch and the raise never fires. The caller then gets zero rows, which is exactly the silent ' +
-      'refusal this function exists to prevent. Check for null FIRST.')
+    const guard = sql.indexOf('p_org is null')
+    const gate = sql.indexOf('partner_scope()')
+    assert.ok(guard > -1, 'a null p_org makes `null = any(scope)` evaluate to NULL, so `if not (NULL or ' +
+      'is_admin())` takes the ELSE branch and the raise never fires. Check for null FIRST.')
+    assert.ok(guard < gate, 'the null check has to come BEFORE the scope gate, not after it')
   })
 
-  it('bounds the start_at branch on both sides, in Eastern', () => {
+  it('rejects a null forward window rather than treating it as the default', () => {
+    assert.ok(/p_upcoming_days is null/i.test(sql),
+      'the default only applies when the argument is OMITTED. An explicitly null p_upcoming_days would make ' +
+      'every comparison against it NULL, so the forward branch would silently match nothing.')
+  })
+
+  it('bounds all three branches, in Eastern', () => {
     assert.ok(/s\.start_at\s*<\s*\(\(p_to \+ 1\)/.test(sql),
-      'an unbounded start_at branch returns every future event the org ever scheduled regardless of the ' +
-      'window; measured at 1,763 rows for the largest org before this bound was added')
+      'an unbounded backward start_at branch returns every event in history')
+    assert.ok(/s\.start_at\s*<\s*v_up_ts/.test(sql),
+      'the upcoming branch needs an upper bound too. Unbounded, one org returned 1,763 rows for a 30-day ' +
+      'window, 95% of them zero-filled future events.')
+    assert.ok(/p_upcoming_days\s*>\s*400/.test(sql), 'and the forward argument itself has to be capped')
     assert.ok(/America\/New_York/.test(sql),
       'a bare ::timestamptz anchors at UTC midnight, which is 8pm the previous Eastern evening')
+  })
+
+  it('derives today in Eastern, never in UTC', () => {
+    assert.ok(/now\(\) at time zone 'America\/New_York'/i.test(sql),
+      'a UTC today moves an event from upcoming to past up to five hours early')
+  })
+
+  it('flags each row rather than making the client guess', () => {
+    assert.ok(/is_upcoming\s+boolean/i.test(sql), 'the split has to come back from the server, because the ' +
+      'server is where "today" is decided')
+  })
+
+  it('leaves room for the all time window to grow', () => {
+    assert.ok(/p_to - p_from\)\s*>\s*1200/.test(sql),
+      'all time is TRACKING_START through yesterday and grows by a day every day. At the old 400-day cap it ' +
+      'would have started raising a load error in mid-2027.')
   })
 
   it('aggregates by event_id', () => {
@@ -362,10 +683,23 @@ describe('the migration keeps 062 closed', () => {
       'suspended tenant\'s analytics.')
   })
 
+  it('truncates nothing, because the client totals what it is handed', () => {
+    assert.ok(!/\blimit\s+\d+/i.test(sql),
+      'a row cap here would silently shrink the roll-up above the tables. If a library-sized tenant ever ' +
+      'signs up, move the totals into their own RPC FIRST, then cap the list.')
+  })
+
   it('has a rollback that lives outside supabase/migrations', () => {
-    assert.ok(exists('supabase/rollbacks/063_partner_metrics_rpc_rollback.sql'))
-    assert.ok(!exists('supabase/migrations/063_partner_metrics_rpc_rollback.sql'),
+    assert.ok(exists('supabase/rollbacks/064_partner_metrics_upcoming_rollback.sql'))
+    assert.ok(!exists('supabase/migrations/064_partner_metrics_upcoming_rollback.sql'),
       'a rollback inside supabase/migrations is a file the CLI will APPLY')
+  })
+
+  it('the rollback restores the signature it replaced', () => {
+    const back = read('supabase/rollbacks/064_partner_metrics_upcoming_rollback.sql')
+    assert.ok(/drop function if exists partner_event_metrics\(uuid, date, date, int\)/i.test(back))
+    assert.ok(/create or replace function partner_event_metrics\([\s\S]*?p_to\s+date\s*\)/i.test(back),
+      'rolling back has to leave a working three-argument function behind, not just remove the four-argument one')
   })
 })
 
@@ -398,5 +732,22 @@ describe('copy is the plain kind', () => {
 
   it('the visitor-days note explains the once-per-day rule', () => {
     assert.ok(/once per day/i.test(VISITOR_DAYS_NOTE))
+  })
+
+  it('the upcoming copy promises exactly the horizon the query asks for', () => {
+    // The note and the RPC argument are two constants. Change one and the
+    // product promises a window it never queried, with nothing failing.
+    assert.ok(UPCOMING_NOTE.includes(`${UPCOMING_DAYS} days`))
+    assert.ok(NO_UPCOMING_NOTE.includes(`${UPCOMING_DAYS} days`))
+  })
+
+  it('the upcoming copy also admits the events beyond that horizon', () => {
+    // is_upcoming means "has not happened yet", not "inside the forward
+    // window": an event further out that people are already looking at comes
+    // back through the measured branch and lands in this section. Calling it
+    // "already happened" to keep the flag inside 90 days would be a lie about
+    // time, so the copy carries the horizon instead.
+    assert.ok(/further out/i.test(UPCOMING_NOTE),
+      'the section lists more than the next ' + UPCOMING_DAYS + ' days, and has to say so')
   })
 })

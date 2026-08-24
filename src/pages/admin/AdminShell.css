@@ -1302,3 +1302,40 @@
 @media (max-width: 720px) {
   .ashell-an-figs { gap: var(--space-lg); }
 }
+
+/* ── Partner analytics: roll-up split and the two event sections ─────────────
+   Added with migration 064. The roll-up leads the block, the handoff split
+   sits under it at a smaller weight because it is a breakdown of the tile
+   above rather than a peer of it, and the two tables follow as their own
+   labelled sections so "coming up" and "already happened" never read as one
+   list. */
+
+.ashell-an-figs--split {
+  gap: var(--space-lg);
+  margin-top: calc(var(--space-md) * -1);
+  padding-left: var(--space-xs);
+  border-left: 2px solid var(--border);
+}
+.ashell-an-figs--split .ashell-an-fig-big { font-size: var(--text-h5); }
+
+.ashell-an-rollup {
+  margin: 0 0 var(--space-md);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.ashell-an-sect { margin-top: var(--space-lg); }
+
+.ashell-an-sect-title {
+  font-family: var(--font-display);
+  font-size: var(--text-h6);
+  margin: 0 0 2px;
+}
+
+.ashell-an-sect-note {
+  max-width: 68ch;
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--text-muted);
+}

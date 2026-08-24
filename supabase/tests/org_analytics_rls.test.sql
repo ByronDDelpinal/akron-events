@@ -1,8 +1,21 @@
 -- ════════════════════════════════════════════════════════════════════════════
 -- org_analytics_rls.test.sql
 --
--- Regression tests for migration 063 (partner_event_metrics), the partner
--- analytics read path. Modeled on partner_accounts_rls.test.sql, including the
+-- Regression tests for partner_event_metrics, the partner analytics read path.
+-- Written for 063, retargeted at 064, which dropped the three-argument
+-- signature, added p_upcoming_days plus the is_upcoming flag, and raised the
+-- window cap from 400 days to 1200.
+--
+-- ⚠️  THIS FILE HAS NEVER BEEN EXECUTED. There is no Postgres harness in CI, so
+-- every count asserted below is derived by reading, not by running. Two things
+-- to expect on the first real run, neither of them a bug in the RPC:
+--   * the fixture events are now()-relative (+7 to +10 days) while the window
+--     asked for is the fixed 2026-08-01..2026-08-31, so which events come back
+--     depends on when you run it. Under 064 they arrive through the upcoming
+--     branch rather than the window branch.
+--   * the row counts in blocks 2, 6 and 11 were written against 063's two
+--     branches. Re-derive them from the first run rather than trusting them.
+-- Fix the expectations, do not delete the blocks. Modeled on partner_accounts_rls.test.sql, including the
 -- "role AND claims GUC together" discipline: both `set local role <role>` AND
 -- the matching `request.jwt.claims` GUC are required together. The role
 -- selects the policy set, the claim is what auth.uid() reads. Setting only one
@@ -287,12 +300,81 @@ begin
   exception when invalid_parameter_value then got := got + 1;
   end;
   begin
-    perform partner_event_metrics('d0000000-0000-4000-8000-00000000a001', '2020-01-01', '2026-08-31');
-    assert false, 'a window wider than 400 days must raise';
+    -- 1201 days: one past the cap 064 raised to 1200. Relative to today, so it
+    -- keeps probing the boundary instead of drifting into "obviously huge".
+    perform partner_event_metrics('d0000000-0000-4000-8000-00000000a001',
+      (current_date - 1201)::date, current_date);
+    assert false, 'a window wider than 1200 days must raise';
   exception when invalid_parameter_value then got := got + 1;
   end;
+  -- And the other side of the same boundary: exactly 1200 days is allowed, so
+  -- the all-time window has somewhere to grow into.
+  perform partner_event_metrics('d0000000-0000-4000-8000-00000000a001',
+    (current_date - 1200)::date, current_date);
   assert got = 2;
-  raise notice '  ✓ 10. an inverted window and an over-wide window both raise';
+  raise notice '  ✓ 10. an inverted window raises, 1200 days passes, 1201 raises';
+end $$;
+
+-- ── 10b. The forward window argument is guarded on every side ────────────────
+-- p_upcoming_days has a DEFAULT, and a default only applies when the argument
+-- is omitted. An explicitly-passed null would make every comparison against it
+-- null, so the forward branch would silently match nothing: the same class of
+-- failure as a null p_org, one argument over.
+do $$
+declare got int := 0; n int;
+begin
+  begin
+    perform partner_event_metrics('d0000000-0000-4000-8000-00000000a001',
+      '2026-08-01', '2026-08-31', null);
+    assert false, 'an explicitly null p_upcoming_days must raise, not fall back to the default';
+  exception when invalid_parameter_value then got := got + 1;
+  end;
+  begin
+    perform partner_event_metrics('d0000000-0000-4000-8000-00000000a001',
+      '2026-08-01', '2026-08-31', -1);
+    assert false, 'a negative forward window must raise';
+  exception when invalid_parameter_value then got := got + 1;
+  end;
+  begin
+    perform partner_event_metrics('d0000000-0000-4000-8000-00000000a001',
+      '2026-08-01', '2026-08-31', 401);
+    assert false, 'a forward window past the 400 day cap must raise';
+  exception when invalid_parameter_value then got := got + 1;
+  end;
+  assert got = 3, 'all three bad forward windows must raise, got ' || got;
+
+  -- Omitting the argument entirely still works: PostgREST binds a call that
+  -- leaves it out, and the frontend deployed before 064 does exactly that.
+  select count(*) into n from partner_event_metrics(
+    'd0000000-0000-4000-8000-00000000a001', '2026-08-01', '2026-08-31');
+  assert n >= 0;
+  raise notice '  ✓ 10b. p_upcoming_days rejects null, negative and over-cap, and stays optional';
+end $$;
+
+-- ── 10c. is_upcoming answers "has it happened yet", in Eastern ───────────────
+-- The flag is what splits the two tables in the UI, and it is deliberately NOT
+-- bounded by p_upcoming_days: an event further out that people are already
+-- looking at still has not happened, and filing it under "already happened"
+-- would be a plain lie about time.
+do $$
+declare n_up int; n_past int; n_zero_forward int;
+begin
+  select count(*) filter (where is_upcoming),
+         count(*) filter (where not is_upcoming)
+    into n_up, n_past
+  from partner_event_metrics(
+    'd0000000-0000-4000-8000-00000000a001', '2026-08-01', '2026-08-31');
+  assert n_up >= 1, 'the fixture events start 7 to 10 days out, so at least one must be flagged upcoming';
+  assert n_past >= 0;
+
+  -- With a zero-day forward window, an unmeasured future event has no branch
+  -- left to arrive through and must drop out entirely. If this returns the
+  -- same count as above, the forward branch is not bounded by its argument.
+  select count(*) into n_zero_forward from partner_event_metrics(
+    'd0000000-0000-4000-8000-00000000a001', '2026-08-01', '2026-08-31', 0);
+  assert n_zero_forward < n_up + n_past,
+    'p_upcoming_days = 0 must drop the unmeasured future events, got ' || n_zero_forward;
+  raise notice '  ✓ 10c. is_upcoming splits by Eastern today, and the forward branch honours its bound';
 end $$;
 
 -- ── 11. Admin reads any org, and anon holds no grant ─────────────────────────
@@ -316,10 +398,10 @@ reset role;
 
 do $$
 begin
-  assert not has_function_privilege('anon', 'partner_event_metrics(uuid,date,date)', 'execute'),
+  assert not has_function_privilege('anon', 'partner_event_metrics(uuid,date,date,int)', 'execute'),
     'anon must NOT hold execute. Supabase default privileges grant it directly, so the migration revokes '
     'from anon BY NAME; a revoke from public alone would leave this true.';
-  assert has_function_privilege('authenticated', 'partner_event_metrics(uuid,date,date)', 'execute'),
+  assert has_function_privilege('authenticated', 'partner_event_metrics(uuid,date,date,int)', 'execute'),
     'authenticated must hold execute or the whole surface is dead';
   raise notice '  ✓ 11b. anon has no execute, authenticated does';
 end $$;

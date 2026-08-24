@@ -28,6 +28,20 @@
  * undercount. Where the tickets/source split does not add up to the total, the
  * remainder is shown as its own labelled figure rather than hidden or scaled
  * away.
+ *
+ * ── WHAT THE BLOCK SHOWS, AND WHY IT IS SHAPED THIS WAY ─────────────────────
+ *
+ * The org roll-up leads and the per-event tables follow. That order is not a
+ * layout preference, it is what the data supports. Measured 2026-08-24: 62% of
+ * published events in a 30-day window have no measured view at all, the median
+ * event that IS measured has 3 views, and both live tenants have zero measured
+ * rows across every event they have ever run. A per-event table cannot be the
+ * headline when the per-event grain is mostly zero. The roll-up is the first
+ * number on this surface that is reliably not zero.
+ *
+ * Two tables, upcoming above past, and nothing is hidden. An event with nothing
+ * measured still gets a row carrying zeros, because "we have never counted a
+ * visit to this page" is a fact worth showing and an absent row is not.
  */
 
 import { easternTodayIso } from '../easternDate.ts'
@@ -35,13 +49,47 @@ import { easternTodayIso } from '../easternDate.ts'
 /** GA4 data for this property starts here. Nothing before it exists to query. */
 export const TRACKING_START = '2026-05-27'
 
-/** Window sizes the UI offers, in days. 30 is the default, see metricWindow. */
-export const WINDOW_OPTIONS = [7, 30, 90] as const
-export type WindowDays = (typeof WINDOW_OPTIONS)[number]
-export const DEFAULT_WINDOW: WindowDays = 30
+/**
+ * Window sizes the UI offers. 'all' means TRACKING_START through yesterday.
+ *
+ * 90 is the default rather than 30 or 7. This corpus is weekly and monthly
+ * programming on a site whose busiest day carries about 25 outbound clicks in
+ * total, so a short window on a small partner's cadence contains too little to
+ * read as anything. A number that moves because one person clicked twice is
+ * not a signal, and offering it as the default invites reading it as one.
+ */
+export const WINDOW_OPTIONS = [7, 30, 90, 'all'] as const
+export type WindowChoice = (typeof WINDOW_OPTIONS)[number]
+export const DEFAULT_WINDOW: WindowChoice = 90
 
-/** Table page size. Sorting happens over the whole result, not the page. */
+/**
+ * How far forward the upcoming section looks, in days, passed to the RPC as
+ * p_upcoming_days. Bounded on purpose: an unbounded forward branch returned
+ * 1,763 rows for one org before 063 closed it, and 064 caps the argument at
+ * 400 server side.
+ */
+export const UPCOMING_DAYS = 90
+
+/** Table page size, per section. Sorting happens over the whole section. */
 export const ROWS_PER_PAGE = 50
+
+/**
+ * The day the meaning of page_views changed.
+ *
+ * Before this date App.tsx fired a GA page_view on every filter change, not
+ * only on a real navigation (fixed in c156504). Event-page views before it run
+ * about 20% high against the same visitor days. Views is the headline figure
+ * now, so any window reaching back past this date has to say so: it is the one
+ * number on this surface that is not a floor, it is an overcount.
+ */
+export const VIEWS_BREAK_DATE = '2026-08-13'
+
+/** The same day in prose, for copy. Kept beside the ISO one so they cannot drift. */
+export const VIEWS_BREAK_LABEL = 'August 13, 2026'
+
+export function crossesViewsBreak(from: string): boolean {
+  return from < VIEWS_BREAK_DATE
+}
 
 export interface MetricRow {
   event_id: string
@@ -53,6 +101,8 @@ export interface MetricRow {
   outbound_clicks: number
   outbound_tickets: number
   outbound_source: number
+  /** Set by the RPC against Eastern today, never re-derived in the client. */
+  is_upcoming: boolean
 }
 
 export interface MetricWindow {
@@ -75,6 +125,11 @@ function shiftDays(ymd: string, delta: number): string {
   return `${out.getUTCFullYear()}-${mm}-${dd}`
 }
 
+/** The label on a window button. */
+export function windowLabel(choice: WindowChoice): string {
+  return choice === 'all' ? 'All time' : `${choice} days`
+}
+
 /**
  * The date window to ask the RPC for.
  *
@@ -82,19 +137,19 @@ function shiftDays(ymd: string, delta: number): string {
  * partial day that keeps growing), so a window including it would always show
  * a guaranteed-empty final day that reads as an outage.
  *
- * 30 days is the default rather than 7 for two reasons. GA4 keeps revising a
- * day for roughly 48 hours after it closes, which is under 7% of a 30-day
- * window and 29% of a 7-day one, so the shorter window visibly wobbles between
- * refreshes. And this corpus is weekly and monthly programming: a 7-day window
- * on a small partner's cadence often contains no events at all, which is a
- * worse answer than an honest zero.
+ * 'all' starts at TRACKING_START, which is also where every other choice
+ * clamps. That range grows by a day every day; 064 raised the server-side cap
+ * to 1200 days so it has somewhere to grow into.
  *
  * `todayIso` is injectable so tests can pin a date without pinning the clock.
  */
-export function metricWindow(days: number, todayIso: string = easternTodayIso()): MetricWindow {
+export function metricWindow(
+  days: WindowChoice,
+  todayIso: string = easternTodayIso(),
+): MetricWindow {
   const to = shiftDays(todayIso, -1)
-  const rawFrom = shiftDays(to, -(days - 1))
-  const clamped = rawFrom < TRACKING_START
+  const rawFrom = days === 'all' ? TRACKING_START : shiftDays(to, -(days - 1))
+  const clamped = rawFrom <= TRACKING_START
   // The floor is TRACKING_START, but never past `to`: the RPC rejects a window
   // whose end precedes its start, and a caller asking for a range entirely
   // before tracking began should get an empty window, not an error.
@@ -126,6 +181,39 @@ export function floorLabel(n: number, noun: string): string {
   return `at least ${n.toLocaleString('en-US')} ${noun}`
 }
 
+/**
+ * A figure ready to render: the string a reader sees, and the string a screen
+ * reader hears. They are built together, in here, so a tile cannot end up with
+ * one and not the other.
+ */
+export interface Figure {
+  text: string
+  label: string
+}
+
+export function floorFigure(n: number, noun: string): Figure {
+  return { text: floorNum(n), label: floorLabel(n, noun) }
+}
+
+/**
+ * Views, which is the only figure on this surface that is NOT always a floor.
+ *
+ * Before VIEWS_BREAK_DATE a filter change fired a page_view, so views from
+ * before then are an overcount, and "at least N" would be the one claim here
+ * that runs in the wrong direction. When the window reaches back past that
+ * day the tilde and the "at least" both come off and the figure says what it
+ * actually is. It is never scaled or corrected: an invented correction factor
+ * would be worse than a number that explains itself.
+ */
+export function viewsFigure(n: number, noun: string, crossesBreak: boolean): Figure {
+  if (!crossesBreak) return floorFigure(n, noun)
+  const plain = n.toLocaleString('en-US')
+  return {
+    text: plain,
+    label: `${plain} ${noun} counted, and views from before ${VIEWS_BREAK_LABEL} run high`,
+  }
+}
+
 export interface MetricTotals {
   views: number
   visitorDays: number
@@ -141,6 +229,12 @@ export interface MetricTotals {
   notBrokenOut: number
 }
 
+/**
+ * The org roll-up. Sums EVERY row the RPC returned, upcoming and past
+ * together, which is the whole of what was measured for this org in this
+ * window. 064 truncates nothing, and that is what makes this total exact
+ * rather than "exact for the rows that fit".
+ */
 export function totals(rows: MetricRow[]): MetricTotals {
   const t = rows.reduce(
     (acc, r) => ({
@@ -155,6 +249,20 @@ export function totals(rows: MetricRow[]): MetricTotals {
   return { ...t, notBrokenOut: Math.max(0, t.clicks - t.tickets - t.source) }
 }
 
+/**
+ * Split the rows into the two tables the UI renders.
+ *
+ * The flag comes from the RPC, which compares start_at against Eastern today
+ * server side. Deriving it again here would give two answers on either side of
+ * midnight and one of them would be wrong for up to five hours.
+ */
+export function partitionRows(rows: MetricRow[]): { upcoming: MetricRow[]; past: MetricRow[] } {
+  const upcoming: MetricRow[] = []
+  const past: MetricRow[] = []
+  for (const r of rows) (r.is_upcoming ? upcoming : past).push(r)
+  return { upcoming, past }
+}
+
 export type EmptyKind = 'no-events' | 'no-measured-traffic' | null
 
 /**
@@ -162,8 +270,8 @@ export type EmptyKind = 'no-events' | 'no-measured-traffic' | null
  * empty", and that distinction is the whole reason this function exists.
  *
  * no-events: nothing to measure. no-measured-traffic: there are events and
- * every figure is zero, which is the state the first real partner is in right
- * now. They need different words and different next actions.
+ * every figure is zero, which is the state both live tenants are in right now.
+ * They need different words and different next actions.
  */
 export function emptyKind(rows: MetricRow[]): EmptyKind {
   if (rows.length === 0) return 'no-events'
@@ -179,9 +287,19 @@ export type SortKey = (typeof SORT_KEYS)[number]
 export type SortDir = 'asc' | 'desc'
 
 /**
- * Client-side sort over the page the RPC returned. It is not small by
- * construction: the largest org in prod returns about 140 rows for a 30-day
- * window, which is why the table paginates. Stable on ties:
+ * Where each section starts.
+ *
+ * Upcoming reads chronologically because the question there is "what is next
+ * and is anybody finding it". Past reads busiest first because the question
+ * there is "what worked".
+ */
+export const UPCOMING_SORT: { key: SortKey; dir: SortDir } = { key: 'start_at', dir: 'asc' }
+export const PAST_SORT: { key: SortKey; dir: SortDir } = { key: 'page_views', dir: 'desc' }
+
+/**
+ * Client-side sort over one section. It is not small by construction: a
+ * library-sized org returns about 1,300 upcoming rows for a 90-day window,
+ * which is why each table paginates. Stable on ties:
  * Array.prototype.sort is stable in every engine we target, and the comparator
  * returns 0 rather than falling back to another key so the RPC's own order
  * survives underneath.
@@ -215,6 +333,12 @@ export const FLOOR_NOTE =
 export const VISITOR_DAYS_NOTE =
   'Visitor days counts a person once per day, so somebody who comes back on three days counts three times. If an event was renamed partway through, a visitor can also land on both versions of its address in one day and be counted twice. Treat it as a shape, not a headcount.'
 
+export const VIEWS_BREAK_NOTE =
+  `One thing to know before you read the views figure: until ${VIEWS_BREAK_LABEL} we counted a view every time somebody changed a filter on a page, not just when they opened it, so views from before then run high. That is why views is the one number here we do not call a minimum. Visitor days were never counted that way, so they are the steadier number to compare across that date.`
+
+export const ROLLUP_NOTE =
+  'Everything below adds up to these numbers, upcoming and past events together.'
+
 export const NO_EVENTS_NOTE =
   'No events in this window, so there is nothing to measure yet. Add an event or widen the window.'
 
@@ -227,7 +351,36 @@ export const DENIED_NOTE =
 export const LOAD_ERROR_NOTE =
   'Could not load your numbers. This is a problem on our end, not a zero.'
 
+export const UPCOMING_TITLE = 'Coming up'
+export const PAST_TITLE = 'Already happened'
+
+export const UPCOMING_NOTE =
+  `Your events that have not happened yet: everything in the next ${UPCOMING_DAYS} days, plus anything further out that people have already been looking at. A brand new event reads 0 until people start finding it.`
+
+export const PAST_NOTE =
+  'Your events that already happened inside this window, busiest first.'
+
+export const NO_UPCOMING_NOTE =
+  `Nothing on your calendar in the next ${UPCOMING_DAYS} days.`
+
+export const NO_PAST_NOTE =
+  'None of your events happened inside this window.'
+
+/**
+ * The roll-up tiles, in render order. Views leads: it is the most populated
+ * honest figure here, and at two to twenty five outbound clicks a day across
+ * the whole site a handoff headline reads zero most windows.
+ */
 export const HEADLINE_LABELS = {
+  views: {
+    label: 'Views',
+    sub: 'times your event pages were opened',
+    // Used instead of `sub` whenever the window reaches back past the break,
+    // so the tile says what it is at the place somebody reads the number.
+    subBroken: 'times your pages were opened, counted high before Aug 13',
+    noun: 'views',
+  },
+  visitorDays: { label: 'Visitor days', sub: 'one per person per day', noun: 'visitor days' },
   clicks: { label: 'Handoffs', sub: 'people we sent to your links', noun: 'handoffs' },
   tickets: { label: 'Tickets', sub: 'clicks on a ticket link', noun: 'ticket clicks' },
   source: { label: 'Your site', sub: 'clicks through to your own page', noun: 'clicks to your site' },

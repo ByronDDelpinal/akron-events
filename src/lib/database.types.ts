@@ -1052,12 +1052,17 @@ export type Database = {
         }
         Returns: Json
       }
-      // 063_partner_metrics_rpc.sql. Hand-authored alongside the other partner
-      // RPCs (061 did the same): the generator is not run against prod from an
-      // agent session. The bigint columns arrive as JS numbers through
+      // 064_partner_metrics_upcoming.sql. Hand-authored alongside the other
+      // partner RPCs (061 did the same): the generator is not run against prod
+      // from an agent session. The bigint columns arrive as JS numbers through
       // PostgREST's JSON, which is safe at these magnitudes.
+      //
+      // p_upcoming_days is optional here because it is optional in the
+      // function, and PostgREST binds a named-argument call that omits it. The
+      // frontend still sends it explicitly so the horizon the copy promises and
+      // the one the query uses cannot drift.
       partner_event_metrics: {
-        Args: { p_org: string; p_from: string; p_to: string }
+        Args: { p_org: string; p_from: string; p_to: string; p_upcoming_days?: number }
         Returns: {
           event_id: string
           title: string
@@ -1068,6 +1073,7 @@ export type Database = {
           outbound_clicks: number
           outbound_tickets: number
           outbound_source: number
+          is_upcoming: boolean
         }[]
       }
       partner_org_context: {
