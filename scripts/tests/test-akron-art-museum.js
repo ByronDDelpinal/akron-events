@@ -154,11 +154,56 @@ describe('AAM: deriveSourceId', () => {
     )
   })
 
-  it('falls back to a deterministic slugified title-date for non-matching hrefs', () => {
+  it('falls back to a deterministic slugified title (no date) for non-matching hrefs', () => {
     const a = deriveSourceId('https://akronartmuseum.org/calendar/?date=2026-09-01', 'Free Family Day!', '2026-09-01')
     const b = deriveSourceId('https://akronartmuseum.org/calendar/?date=2026-09-01', 'Free Family Day!', '2026-09-01')
-    assert.equal(a, 'free-family-day-2026-09-01')
+    assert.equal(a, 'free-family-day')
     assert.equal(a, b)
+  })
+
+  it('converges: slug branch and fallback branch agree on the same id for one event', () => {
+    const slugId = deriveSourceId(
+      'https://akronartmuseum.org/media/events/curator-tour-naudline-pierre/',
+      'Curator Tour: Naudline Pierre',
+      '2026-09-01'
+    )
+    const fallbackId = deriveSourceId(
+      'https://akronartmuseum.org/calendar/?date=2026-09-01',
+      'Curator Tour: Naudline Pierre',
+      '2026-09-01'
+    )
+    assert.equal(slugId, 'curator-tour-naudline-pierre')
+    assert.equal(fallbackId, 'curator-tour-naudline-pierre')
+    assert.equal(slugId, fallbackId)
+  })
+
+  it('converges for "Take Care: Creative Connections for Adults Living with Dementia"', () => {
+    const title = 'Take Care: Creative Connections for Adults Living with Dementia'
+    const slugId = deriveSourceId(
+      'https://akronartmuseum.org/media/events/take-care-creative-connections-for-adults-living-with-dementia/',
+      title,
+      '2026-09-01'
+    )
+    const fallbackId = deriveSourceId(
+      'https://akronartmuseum.org/calendar/?date=2026-09-01',
+      title,
+      '2026-09-01'
+    )
+    assert.equal(slugId, 'take-care-creative-connections-for-adults-living-with-dementia')
+    assert.equal(fallbackId, 'take-care-creative-connections-for-adults-living-with-dementia')
+    assert.equal(slugId, fallbackId)
+  })
+
+  it('id is invariant across dateStr for the fallback branch', () => {
+    const href = 'https://akronartmuseum.org/calendar/?date=2026-09-01'
+    const title = 'Free Family Day!'
+    const ids = new Set([
+      deriveSourceId(href, title, '2026-09-01'),
+      deriveSourceId(href, title, '2026-10-15'),
+      deriveSourceId(href, title, null),
+    ])
+    assert.equal(ids.size, 1)
+    assert.ok(ids.has('free-family-day'))
   })
 
   it('never emits the raw href', () => {

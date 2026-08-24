@@ -48,14 +48,16 @@ function slugify(str) {
  *
  * Prefer the URL slug: /media/events/<slug>/ (query strings, fragments and
  * trailing slashes ignored, matching the Stan Hywet convention). If the href
- * has no /events/<slug> segment, fall back to slugify(`${title}-${dateStr}`)
- * — never the raw href, whose query strings and encoded entities (&#038;)
- * vary run-to-run and re-mint duplicate events.
+ * has no /events/<slug> segment, fall back to slugify(title), never the raw
+ * href (whose query strings and encoded entities like &#038; vary run-to-run)
+ * and never a date (the listing markup for the same event alternates between
+ * the two branches, and a date-suffixed fallback would mint a duplicate row
+ * every time the branch flips).
  */
-export function deriveSourceId(href, title, dateStr) {
+export function deriveSourceId(href, title, _dateStr) {
   const slugMatch = String(href || '').match(/\/events\/([^/?#]+)/)
   if (slugMatch) return slugMatch[1]
-  return slugify(`${title}-${dateStr}`)
+  return slugify(title)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
