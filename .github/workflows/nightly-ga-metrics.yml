@@ -1,0 +1,216 @@
+# Nightly GA metrics: pulls yesterday's Google Analytics figures into Postgres
+# so the Slack bot (and, later, partner-facing reporting) can answer traffic
+# questions from the database instead of refusing.
+#
+# WHY THIS IS AN ACTIONS JOB AND NOT A COWORK SCHEDULED TASK
+#
+# Same reason the scrape moved here. A Cowork task runs in a cloud session that
+# reaches the repo and `.env` through the desktop bridge, so it only works when
+# the maintainer's laptop is awake with the app open. A metrics pull that
+# silently skips every night the laptop is shut is worse than no metrics pull,
+# because the gap is invisible: the table just stops, and nothing goes red.
+# Actions needs no laptop, already holds the Supabase secrets this uses, and
+# gives a red build when something breaks.
+#
+# WHAT IT RUNS
+#
+#   scripts/ga-to-db.js   runs with no arguments and re-writes a TRAILING 3-DAY
+#                           WINDOW ending yesterday into site_metrics_daily,
+#                           page_metrics_daily and embed_metrics_daily. It
+#                           never writes today.
+#
+# Why a trailing window rather than "just yesterday": GA4 keeps revising a day
+# for roughly 48 hours after it closes, as late hits, session stitching and
+# identity resolution land. Writing yesterday once and never looking again
+# bakes that undercount in permanently. With a 3-day window every date is
+# written on three separate nights, and the last of those writes lands more
+# than 48 hours after the date closed, so every row eventually settles on
+# GA4's final answer. The upserts are keyed on the natural grain
+# (metric_date, or metric_date + page_path / embed_host), so a re-write
+# overwrites in place and can never duplicate a day.
+#
+# SCHEDULE: `0 8 * * *` UTC = 4am EDT / 3am EST.
+#
+# The constraint is only that the Eastern day being written has actually
+# closed, with a few hours of margin for GA4 to ingest. 4am ET clears that
+# easily and lands before the 5:45am morning briefing, so the briefing can read
+# stored figures rather than re-querying Google. DST drifts this an hour
+# earlier in winter, which is the harmless direction: further from midnight ET,
+# not closer.
+#
+# It deliberately does NOT sit inside the Cowork chain (12:45am intake, 1:30am
+# data pipeline, 3:45am fix sweep, 4:45am QA, 5:45am briefing). Those contend
+# for an agent-session token budget; this is a mechanical HTTP pull with no
+# agents in it, and keeping it separate means a GA outage cannot redden a data
+# pipeline and a slow data pipeline cannot delay the metrics.
+#
+# TIMEZONE: Actions runners are UTC, and this codebase has a documented class
+# of bug where a local Date plus toISOString() lands a record on the wrong day.
+# `TZ: America/New_York` at job level makes the runner behave like the machine
+# these scripts were written on. `ga-to-db.js` derives its dates in Eastern
+# explicitly, so this is belt and braces rather than load-bearing. Do not
+# remove it.
+#
+# FAILURE MODES, and which of them are red
+#
+#   GA4 secrets absent   → the script prints NOT_CONFIGURED and exits 0. That
+#                          is the inherited contract from ga-snapshot.js and it
+#                          is deliberate: an unconfigured feature is skipped,
+#                          not failed. The verify step below turns it into a
+#                          loud ::warning:: so it cannot be unconfigured for
+#                          months without anyone noticing.
+#   Supabase secrets absent → red, immediately, at the verify step. Without
+#                          them the job would fetch from Google and then throw
+#                          the answer away.
+#   Google returns an error → red, one line on stderr, no key material.
+#   A single bad row     → red. The loader clamps over-length paths rather than
+#                          dying, so this should mean something structural.
+#
+# Re-running is always safe: every write is an idempotent upsert on a natural
+# key. A failed night self-heals on the next run because of the 3-day window,
+# and a longer gap is repaired with a `from` backfill via workflow_dispatch.
+#
+# Permissions are read-only and there are no git writes. Nothing here commits,
+# branches, or pushes: the maintainer owns version control.
+#
+# NOTE ON GA AS A SOURCE: every figure this stores is a FLOOR, not a count.
+# Ad blockers and tracking protection drop the beacon entirely, and the
+# maintainer's own browser network-blocks google-analytics.com. Anything that
+# renders these numbers must say so.
+
+name: Nightly GA metrics
+
+on:
+  schedule:
+    # 4am EDT / 3am EST, see the SCHEDULE block in the header comment above.
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Trailing window size in days, ending yesterday. Blank = 3.'
+        required: false
+        type: string
+      from:
+        description: 'Backfill start date (YYYY-MM-DD). Overrides days. GA4 data starts 2026-05-27.'
+        required: false
+        type: string
+      to:
+        description: 'Backfill end date (YYYY-MM-DD). Only meaningful with from. Blank = yesterday.'
+        required: false
+        type: string
+      dry_run:
+        description: 'Print the rows that would be written and write nothing.'
+        required: false
+        type: boolean
+        default: false
+      no_rolling:
+        description: 'Skip the per-date rolling PWA distinct-user reports (two GA4 calls per date). Existing stored values are left untouched.'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# One loader at a time. Two concurrent runs would upsert the same natural keys
+# from two different GA4 snapshots taken seconds apart, and last-write-wins
+# would make the stored figure depend on scheduling order.
+concurrency:
+  group: nightly-ga-metrics
+  cancel-in-progress: false
+
+jobs:
+  metrics:
+    name: Load GA4 metrics into Postgres
+    runs-on: ubuntu-latest
+    # A 3-day run takes about ten seconds. A full 88-day backfill measured 75
+    # seconds. Fifteen minutes is generous enough for a GA4 slow patch or a
+    # multi-year backfill without letting a hung request sit all morning.
+    timeout-minutes: 15
+
+    env:
+      TZ: America/New_York
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      # No Puppeteer here, so --ignore-scripts costs nothing and skips the
+      # Chrome download entirely.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Verify required secrets are present
+        env:
+          VITE_SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GA4_PROPERTY_ID:           ${{ secrets.GA4_PROPERTY_ID }}
+          GA4_SA_KEY_B64:            ${{ secrets.GA4_SA_KEY_B64 }}
+        run: |
+          missing=()
+          [ -n "$VITE_SUPABASE_URL" ]         || missing+=("VITE_SUPABASE_URL")
+          [ -n "$SUPABASE_SERVICE_ROLE_KEY" ] || missing+=("SUPABASE_SERVICE_ROLE_KEY")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required repository secrets: ${missing[*]}"
+            echo "Add them under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          # The GA4 pair is handled by the script's own NOT_CONFIGURED contract
+          # (print one line, exit 0) so an unconfigured feature is skipped
+          # rather than failed. Warn loudly, because "skipped" is silent and
+          # this job would otherwise look green while doing nothing at all.
+          if [ -z "$GA4_PROPERTY_ID" ] || [ -z "$GA4_SA_KEY_B64" ]; then
+            echo "::warning::GA4_PROPERTY_ID / GA4_SA_KEY_B64 are not set, so ga-to-db.js will print NOT_CONFIGURED and write nothing."
+          fi
+          echo "Secrets checked. Runner timezone: $(date +'%Z %z')"
+
+      - name: Load GA metrics
+        id: load
+        env:
+          IN_DAYS:       ${{ inputs.days }}
+          IN_FROM:       ${{ inputs.from }}
+          IN_TO:         ${{ inputs.to }}
+          IN_DRY_RUN:    ${{ inputs.dry_run }}
+          IN_NO_ROLLING: ${{ inputs.no_rolling }}
+
+          VITE_SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GA4_PROPERTY_ID:           ${{ secrets.GA4_PROPERTY_ID }}
+          GA4_SA_KEY_B64:            ${{ secrets.GA4_SA_KEY_B64 }}
+        # Inputs are passed through env and assembled into a quoted bash array
+        # rather than interpolated into the script body. Direct `${{ inputs.* }}`
+        # interpolation into `run:` is the most-flagged Actions anti-pattern
+        # (script injection via a crafted input), and an unquoted expansion
+        # word-splits on any value containing whitespace. Same rule as
+        # nightly-scrape.yml.
+        run: |
+          args=()
+          if   [ -n "$IN_FROM" ]; then
+            args+=(--from "$IN_FROM")
+            [ -n "$IN_TO" ] && args+=(--to "$IN_TO")
+          elif [ -n "$IN_DAYS" ]; then
+            args+=(--days "$IN_DAYS")
+          fi
+          [ "$IN_DRY_RUN" = "true" ]    && args+=(--dry-run)
+          [ "$IN_NO_ROLLING" = "true" ] && args+=(--no-rolling)
+          echo "ga-to-db.js ${args[*]}"
+          node scripts/ga-to-db.js "${args[@]}" | tee ga-to-db.out
+          # The script's last stdout line is a JSON summary of what it wrote.
+          { echo '### GA metrics load'; echo; echo '```json'; tail -1 ga-to-db.out; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      # A green run that wrote nothing is the failure this job is most likely
+      # to have and least likely to notice, so it gets its own line on the
+      # summary page rather than being buried in the log.
+      - name: Flag a no-op run
+        if: always()
+        run: |
+          if grep -q '^NOT_CONFIGURED$' ga-to-db.out 2>/dev/null; then
+            echo "::warning::ga-to-db.js printed NOT_CONFIGURED, so the GA4 secrets are missing, nothing was written."
+            echo '⚠️ NOT_CONFIGURED: GA4 secrets missing, nothing written.' >> "$GITHUB_STEP_SUMMARY"
+          fi
