@@ -12,7 +12,7 @@ import {
   expandRecurrenceSet, isRecurrenceOverride,
   applyNeedsReviewHook, icsDateOnlyToNoonIso, withDateOnlyTimeNote,
   DATE_ONLY_TIME_NOTE, MAX_DESCRIPTION, isBotChallenge,
-  emptyFeedOutcome,
+  emptyFeedOutcome, isUrlOnlyDescription, salvagedDescriptionUrl,
 } from '../lib/ics.js'
 // Imported through civicplus.js on purpose: the predicate moved to ics.js and
 // civicplus.js re-exports it, so this also asserts the re-export still works
@@ -584,6 +584,159 @@ describe('ICS: date-only helpers', () => {
     assert.ok(out.length <= MAX_DESCRIPTION)
     assert.ok(out.endsWith(DATE_ONLY_TIME_NOTE))
     assert.equal(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(out), false, 'lone high surrogate')
+  })
+})
+
+describe('ICS: isUrlOnlyDescription', () => {
+  it('is true for a bare http(s) URL and nothing else', () => {
+    for (const u of [
+      'https://www.springfieldtownship.us/calendar.aspx?EID=5152',
+      'http://example.com/events/42',
+      'HTTPS://EXAMPLE.COM/Loud',
+      '  https://example.com/padded  ',
+    ]) assert.equal(isUrlOnlyDescription(u), true, u)
+  })
+
+  it('is false as soon as any prose rides along', () => {
+    // The whole point of the whitespace test: a URL plus one more word is a
+    // real description and must survive untouched.
+    for (const s of [
+      'https://example.com/e/1 Register by Friday.',
+      'Details: https://example.com/e/1',
+      'https://example.com/e/1 https://example.com/e/2',
+      'Join us on the square.',
+    ]) assert.equal(isUrlOnlyDescription(s), false, s)
+  })
+
+  it('is false for empty, blank, null and undefined', () => {
+    for (const v of ['', '   ', null, undefined]) {
+      assert.equal(isUrlOnlyDescription(v), false, JSON.stringify(v))
+    }
+  })
+
+  it('is false for non-http schemes ticket_url could not carry', () => {
+    for (const v of [
+      'mailto:parks@example.com',
+      'tel:+13305551212',
+      'ftp://example.com/flyer.pdf',
+      'www.example.com',
+      'example.com',
+    ]) assert.equal(isUrlOnlyDescription(v), false, v)
+  })
+})
+
+describe('ICS: salvagedDescriptionUrl', () => {
+  it('returns the permalink out of a URL-only DESCRIPTION, stripping HTML first', () => {
+    assert.equal(
+      salvagedDescriptionUrl({ DESCRIPTION: '<p><a href="https://example.com/e/9">https://example.com/e/9</a></p>' }),
+      'https://example.com/e/9'
+    )
+  })
+
+  it('trims trailing sentence punctuation the predicate\'s \\S+ swallowed', () => {
+    // isUrlOnlyDescription still says "yes" to these — a link with a full stop
+    // after it is navigation too, and the predicate is deliberately unchanged.
+    // What must not happen is storing the period as part of the link.
+    for (const [desc, want] of [
+      ['https://example.com/e/1.',   'https://example.com/e/1'],
+      ['https://example.com/e/1,',   'https://example.com/e/1'],
+      ['https://example.com/e/1;',   'https://example.com/e/1'],
+      ['https://example.com/e/1:',   'https://example.com/e/1'],
+      ['https://example.com/e/1)',   'https://example.com/e/1'],
+      ['https://example.com/e/1]',   'https://example.com/e/1'],
+      ['https://example.com/e/1.).', 'https://example.com/e/1'],
+    ]) {
+      assert.equal(isUrlOnlyDescription(desc), true, `predicate: ${desc}`)
+      assert.equal(salvagedDescriptionUrl({ DESCRIPTION: desc }), want, desc)
+    }
+  })
+
+  it('never eats punctuation that is part of the path or query', () => {
+    for (const u of [
+      'https://www.springfieldtownship.us/calendar.aspx?EID=5152',
+      'https://example.com/e/1?a=1&b=2',
+      'https://example.com/a.b.c/page.html',
+      'https://example.com/e/(1)/detail',
+    ]) assert.equal(salvagedDescriptionUrl({ DESCRIPTION: u }), u, u)
+  })
+
+  it('returns null for prose, missing and non-http descriptions', () => {
+    for (const ev of [
+      { DESCRIPTION: 'Bring a lawn chair. https://example.com/e/9' },
+      { DESCRIPTION: 'mailto:parks@example.com' },
+      { DESCRIPTION: '' },
+      {},
+      null,
+      undefined,
+    ]) assert.equal(salvagedDescriptionUrl(ev), null, JSON.stringify(ev))
+  })
+})
+
+describe('ICS: a URL-only DESCRIPTION is salvaged into ticket_url, not stored as prose', () => {
+  it('nulls the description and keeps the link when the VEVENT has no URL', () => {
+    const row = normaliseIcsEvent({
+      SUMMARY: 'Concert in the Park', UID: 'url-only-1',
+      DTSTART: { value: '20260731T190000', params: { TZID: 'America/New_York' } },
+      DESCRIPTION: 'https://www.springfieldtownship.us/calendar.aspx?EID=5152',
+    }, { source: 'test_city' })
+    assert.equal(row.description, null)
+    // Loss-free by construction: the feed's only link survives the drop.
+    assert.equal(row.ticket_url, 'https://www.springfieldtownship.us/calendar.aspx?EID=5152')
+  })
+
+  it('leaves a real VEVENT URL winning over the salvaged one', () => {
+    const row = normaliseIcsEvent({
+      SUMMARY: 'Concert in the Park', UID: 'url-only-2',
+      DTSTART: { value: '20260731T190000', params: { TZID: 'America/New_York' } },
+      URL: 'https://example.com/real-detail-page',
+      DESCRIPTION: 'https://example.com/from-the-description',
+    }, { source: 'test_city' })
+    assert.equal(row.description, null)
+    assert.equal(row.ticket_url, 'https://example.com/real-detail-page')
+  })
+
+  it('catches an <a href>-wrapped permalink, because the check runs after stripHtml', () => {
+    const row = normaliseIcsEvent({
+      SUMMARY: 'Movie Night', UID: 'url-only-3',
+      DTSTART: { value: '20260731T190000', params: { TZID: 'America/New_York' } },
+      DESCRIPTION: '<p><a href="https://example.com/e/9">https://example.com/e/9</a></p>',
+    }, { source: 'test_city' })
+    assert.equal(row.description, null)
+    assert.equal(row.ticket_url, 'https://example.com/e/9')
+  })
+
+  it('stores the link without the sentence-final period', () => {
+    const row = normaliseIcsEvent({
+      SUMMARY: 'Concert in the Park', UID: 'url-only-6',
+      DTSTART: { value: '20260731T190000', params: { TZID: 'America/New_York' } },
+      DESCRIPTION: 'https://example.com/e/1.',
+    }, { source: 'test_city' })
+    assert.equal(row.description, null)
+    assert.equal(row.ticket_url, 'https://example.com/e/1')
+  })
+
+  it('never touches a description that has prose around the link', () => {
+    const row = normaliseIcsEvent({
+      SUMMARY: 'Movie Night', UID: 'url-only-4',
+      DTSTART: { value: '20260731T190000', params: { TZID: 'America/New_York' } },
+      DESCRIPTION: 'Bring a lawn chair. https://example.com/e/9',
+    }, { source: 'test_city' })
+    assert.equal(row.description, 'Bring a lawn chair. https://example.com/e/9')
+    assert.equal(row.ticket_url, null)
+  })
+
+  it('a date-only VEVENT ends up with no description rather than a note on a URL', () => {
+    // withDateOnlyTimeNote(null) returns null: the note is a suffix to real
+    // prose, never a description in its own right. needs_review is still the
+    // caller's audit trail for the invented noon.
+    const row = normaliseIcsEvent({
+      SUMMARY: 'Founders Day', UID: 'url-only-5',
+      DTSTART: { value: '20260731', params: { VALUE: 'DATE' } },
+      DESCRIPTION: 'https://example.com/e/10',
+    }, { source: 'test_city' })
+    assert.equal(row.description, null)
+    assert.equal(row.ticket_url, 'https://example.com/e/10')
+    assert.equal(row.start_at, '2026-07-31T16:00:00.000Z')
   })
 })
 

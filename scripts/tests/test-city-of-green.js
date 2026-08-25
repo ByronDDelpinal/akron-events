@@ -19,6 +19,60 @@ process.env.VITE_SUPABASE_URL        = process.env.VITE_SUPABASE_URL        || '
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
 const { isPublicSpecialEvent, isClosureNotice, parseGreenLocation } = await import('../scrape-city-of-green.js')
+const { parseIcs, normaliseIcsEvent, salvagedDescriptionUrl } = await import('../lib/ics.js')
+
+// 76 of the 283 VEVENTs in the live catID=14 feed carry their permalink as the
+// entire DESCRIPTION. normaliseIcsEvent drops that description (it is
+// navigation, not prose) and its own ticket_url fallback is unreachable here,
+// because every CivicPlus VEVENT sets URL to the broken whole-feed download
+// link. Unlike runCivicPlusScraper this scraper mints no EID deep link, so
+// without the salvage override the permalink would be lost outright.
+describe('City of Green: a permalink-only DESCRIPTION becomes the event link', () => {
+  const FEED = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'BEGIN:VEVENT',
+    'UID:2127',
+    'SUMMARY:Green Farmers Market',
+    'DTSTART;TZID=America/New_York:20260731T160000',
+    'DESCRIPTION:https://www.cityofgreen.org/calendar.aspx?EID=2127',
+    'URL:/common/modules/iCalendar/iCalendar.aspx?catID=14&feed=calendar',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n')
+
+  // Mirrors the scraper's post-normalise ticket_url step.
+  function buildRow(feed) {
+    const [ev] = parseIcs(feed)
+    const row = normaliseIcsEvent(ev, {
+      source: 'city_of_green', linkBaseUrl: 'https://www.cityofgreen.org',
+    })
+    const salvagedUrl = salvagedDescriptionUrl(ev)
+    if (salvagedUrl) {
+      row.ticket_url = salvagedUrl
+      row.source_url = salvagedUrl
+    }
+    return row
+  }
+
+  it('stores no description and links to the permalink, not the feed download', () => {
+    const row = buildRow(FEED)
+    assert.equal(row.description, null)
+    assert.equal(row.ticket_url, 'https://www.cityofgreen.org/calendar.aspx?EID=2127')
+    assert.equal(row.source_url, 'https://www.cityofgreen.org/calendar.aspx?EID=2127')
+  })
+
+  it('leaves a real prose description — and its link — completely alone', () => {
+    // The far more common shape in this feed: prose with the permalink after
+    // it. Nothing is dropped, and nothing is overridden.
+    const row = buildRow(FEED.replace(
+      'DESCRIPTION:https://www.cityofgreen.org/calendar.aspx?EID=2127',
+      'DESCRIPTION:Local produce and crafts. https://www.cityofgreen.org/calendar.aspx?EID=2127'
+    ))
+    assert.equal(row.description, 'Local produce and crafts. https://www.cityofgreen.org/calendar.aspx?EID=2127')
+    assert.match(row.ticket_url, /iCalendar\.aspx/)
+  })
+})
 
 describe('parseGreenLocation: splits the LOCATION field into name + address', () => {
   it('strips stray HTML tags from the name', () => {

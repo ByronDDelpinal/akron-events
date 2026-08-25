@@ -19,7 +19,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY  
 import {
   isPublicCivicPlusEvent, cleanLocationName, parseCivicPlusLocation, civicPlusEventUrl, isDateOnlyIcsEvent,
 } from '../lib/civicplus.js'
-import { normaliseIcsEvent } from '../lib/ics.js'
+import { normaliseIcsEvent, parseIcs, salvagedDescriptionUrl } from '../lib/ics.js'
 
 // ════════════════════════════════════════════════════════════════════════════
 // isPublicCivicPlusEvent
@@ -156,6 +156,117 @@ describe('CivicPlus row: date-only VEVENTs flag needs_review, keep the date', ()
     assert.equal(row.needs_review, undefined)
     // 7:00 PM ET in July (EDT, UTC-4) → 23:00Z — a real, trusted time.
     assert.equal(row.start_at, '2026-07-31T23:00:00.000Z')
+  })
+})
+
+// A real CivicPlus VEVENT: the DESCRIPTION is the event permalink and nothing
+// else. Ingested verbatim it became the event's description, so the card, the
+// RSS item and the SEO meta tag all read as a raw link. These tests run the
+// same two steps runCivicPlusScraper does — normaliseIcsEvent, then the
+// civicPlusEventUrl deep-link overwrite.
+describe('CivicPlus row: permalink-only DESCRIPTION, numeric UID (deep link re-minted)', () => {
+  const ORIGIN = 'https://www.springfieldtownship.us'
+  const FEED = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'BEGIN:VEVENT',
+    'UID:5152',
+    'SUMMARY:Summer Concert Series',
+    'DTSTART;TZID=America/New_York:20260731T190000',
+    'DTEND;TZID=America/New_York:20260731T210000',
+    'DESCRIPTION:https://www.springfieldtownship.us/calendar.aspx?EID=5152',
+    'URL:/common/modules/iCalendar/iCalendar.aspx?catID=14&feed=calendar',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n')
+
+  function buildRow() {
+    const [ev] = parseIcs(FEED)
+    const row = normaliseIcsEvent(ev, { source: 'springfield_township', linkBaseUrl: ORIGIN })
+    const eventUrl = civicPlusEventUrl(ev, ORIGIN)
+    if (eventUrl) {
+      row.ticket_url = eventUrl
+      row.source_url = eventUrl
+    }
+    return row
+  }
+
+  it('stores no description at all', () => {
+    assert.equal(buildRow().description, null)
+  })
+
+  it('still links straight to the event detail page', () => {
+    const row = buildRow()
+    assert.equal(row.ticket_url, 'https://www.springfieldtownship.us/calendar.aspx?EID=5152')
+    assert.equal(row.source_url, 'https://www.springfieldtownship.us/calendar.aspx?EID=5152')
+  })
+
+  it('leaves the rest of the row untouched', () => {
+    const row = buildRow()
+    assert.equal(row.title, 'Summer Concert Series')
+    assert.equal(row.start_at, '2026-07-31T23:00:00.000Z')
+    assert.equal(row.source_id, '5152')
+  })
+})
+
+// The case above passes whether or not the salvage exists: UID 5152 is numeric,
+// so civicPlusEventUrl re-mints the identical link and overwrites ticket_url
+// regardless. THIS block is the one that actually exercises the salvage. A
+// non-numeric UID makes civicPlusEventUrl return null, and every CivicPlus
+// VEVENT sets URL to the broken whole-feed download link — so the permalink
+// that normaliseIcsEvent lifted out of the DESCRIPTION is the only working link
+// left. Delete the `|| salvagedDescriptionUrl(ev)` fallback in civicplus.js and
+// these assertions fail.
+describe('CivicPlus row: permalink-only DESCRIPTION, non-numeric UID (salvage is the only link)', () => {
+  const ORIGIN = 'https://www.springfieldtownship.us'
+  const FEED = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'BEGIN:VEVENT',
+    'UID:abc-123',
+    'SUMMARY:Fall Festival',
+    'DTSTART;TZID=America/New_York:20260731T190000',
+    'DESCRIPTION:https://www.springfieldtownship.us/calendar.aspx?EID=9001',
+    'URL:/common/modules/iCalendar/iCalendar.aspx?catID=14&feed=calendar',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n')
+
+  // Mirrors runCivicPlusScraper's ticket_url step exactly (civicplus.js).
+  function buildRow() {
+    const [ev] = parseIcs(FEED)
+    const row = normaliseIcsEvent(ev, { source: 'springfield_township', linkBaseUrl: ORIGIN })
+    const eventUrl = civicPlusEventUrl(ev, ORIGIN) || salvagedDescriptionUrl(ev)
+    if (eventUrl) {
+      row.ticket_url = eventUrl
+      row.source_url = eventUrl
+    }
+    return row
+  }
+
+  it('cannot re-mint a deep link from a non-numeric UID', () => {
+    const [ev] = parseIcs(FEED)
+    assert.equal(civicPlusEventUrl(ev, ORIGIN), null)
+  })
+
+  it('normaliseIcsEvent alone would keep the broken whole-feed link', () => {
+    // The regression this guards: ev.URL is always truthy on CivicPlus, so
+    // normaliseIcsEvent's own `absolutiseIcsUrl(...) || salvaged` fallback is
+    // dead here and the permalink is lost unless the caller reaches for it.
+    const [ev] = parseIcs(FEED)
+    const row = normaliseIcsEvent(ev, { source: 'springfield_township', linkBaseUrl: ORIGIN })
+    assert.equal(
+      row.ticket_url,
+      'https://www.springfieldtownship.us/common/modules/iCalendar/iCalendar.aspx?catID=14&feed=calendar'
+    )
+  })
+
+  it('the scraper links to the salvaged permalink, not the feed download', () => {
+    const row = buildRow()
+    assert.equal(row.description, null)
+    assert.equal(row.ticket_url, 'https://www.springfieldtownship.us/calendar.aspx?EID=9001')
+    assert.equal(row.source_url, 'https://www.springfieldtownship.us/calendar.aspx?EID=9001')
+    assert.ok(!/iCalendar\.aspx/.test(row.ticket_url))
   })
 })
 

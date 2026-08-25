@@ -247,6 +247,58 @@ export function withDateOnlyTimeNote(base) {
   return `${clampChars(base, room)} ${DATE_ONLY_TIME_NOTE}`
 }
 
+/**
+ * True when a description is nothing but a bare http(s) URL.
+ *
+ * CivicPlus municipal ICS feeds ship a DESCRIPTION that is only the event's
+ * own permalink. Stored verbatim it becomes the event's description, so a raw
+ * link is what the card, the RSS feed and the SEO meta description all show.
+ * That string is navigation, not prose about the event, and the place for it
+ * is ticket_url.
+ *
+ * Deliberately strict, because a false positive DELETES real prose:
+ *   • Any internal whitespace means prose, even when the URL leads
+ *     ("https://… Register by Friday."). This runs AFTER stripHtml, which has
+ *     already flattened every newline and tab to a single space and stripped
+ *     the tags, so one \s test covers them all and an <a href>-wrapped
+ *     permalink is caught in the same pass.
+ *   • http/https only. A mailto:, tel: or bare "example.com" is left alone —
+ *     none of them is a link ticket_url could carry anyway.
+ *
+ * Exported so tests exercise the real predicate.
+ */
+export function isUrlOnlyDescription(text) {
+  const t = (text || '').trim()
+  if (!t || /\s/.test(t)) return false
+  return /^https?:\/\/\S+$/i.test(t)
+}
+
+/**
+ * The permalink hiding in a URL-only DESCRIPTION, or null.
+ *
+ * Single source of truth for the salvage, so a caller that has to override the
+ * broken CivicPlus VEVENT URL (civicplus.js, scrape-city-of-green.js) reads
+ * exactly what normaliseIcsEvent dropped instead of re-deriving it and drifting.
+ *
+ * Takes the raw VEVENT rather than riding along as a field on the normalised
+ * row on purpose: that row is handed to upsertEventSafe verbatim and upserted
+ * into `events`, so an extra enumerable key would be posted to PostgREST as an
+ * unknown column and fail the write for every ICS scraper.
+ *
+ * The predicate's `\S+` happily swallows a sentence-final `.` or `,`, so trailing
+ * punctuation is trimmed off the link here. The predicate itself is left alone:
+ * "https://example.com/e/1." is still nothing but navigation, and still belongs
+ * in ticket_url rather than in the description. No absolutising is needed — the
+ * predicate already requires a `^https?://` prefix, so this is absolute by
+ * construction and absolutiseIcsUrl would be a no-op.
+ */
+export function salvagedDescriptionUrl(ev) {
+  const raw = ev?.DESCRIPTION ?? ''
+  const text = raw ? stripHtml(raw).slice(0, MAX_DESCRIPTION) : ''
+  if (!isUrlOnlyDescription(text)) return null
+  return text.trim().replace(/[.,;:)\]]+$/, '') || null
+}
+
 // ── Date/time conversion ───────────────────────────────────────────────────
 
 /**
@@ -848,6 +900,25 @@ export function normaliseIcsEvent(ev, config = {}) {
   const rawDesc = ev.DESCRIPTION ?? ''
   let description = rawDesc ? stripHtml(rawDesc).slice(0, MAX_DESCRIPTION) || null : null
 
+  // A description that is only a permalink is navigation, not prose. Salvage
+  // the link into ticket_url BEFORE nulling the description, so a feed whose
+  // only link lives in the DESCRIPTION keeps that link.
+  //
+  // The salvage is a FALLBACK, not a preference: a real VEVENT URL still wins
+  // (see ticket_url below), because on a well-formed feed like meetup the URL
+  // field is the canonical event page and a link repeated in the DESCRIPTION
+  // is at best the same page. That ordering is why CivicPlus feeds — whose
+  // VEVENT URL is a known-broken whole-feed download link — cannot rely on it
+  // and override ticket_url themselves via salvagedDescriptionUrl().
+  //
+  // Order matters twice over. It must run before withDateOnlyTimeNote below,
+  // or the note would append itself to the URL and manufacture exactly the
+  // pseudo-prose this removes; run first, the note sees null and returns null,
+  // which is right — a date-only event with no real description gets none, and
+  // needs_review still carries the audit trail for the invented time.
+  const salvagedUrl = salvagedDescriptionUrl(ev)
+  if (salvagedUrl) description = null
+
   // Disclose the invented time in the prose. Never silent: the note is the
   // only signal a reader gets that noon is a placeholder. needs_review is left
   // to the caller's hook — noon is still invented, and the review queue stays
@@ -876,7 +947,7 @@ export function normaliseIcsEvent(ev, config = {}) {
     price_max:       defaultPriceMax,
     age_restriction: ageRestriction,
     image_url,
-    ticket_url:      absolutiseIcsUrl(ev.URL, linkBaseUrl),
+    ticket_url:      absolutiseIcsUrl(ev.URL, linkBaseUrl) || salvagedUrl,
     source,
     source_id:       (ev.UID || '').trim() || null,
     status:          'published',

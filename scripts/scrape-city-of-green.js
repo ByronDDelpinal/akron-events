@@ -52,7 +52,7 @@ import {
   logUpsertResult,
   upsertEventSafe,
 } from './lib/normalize.js'
-import { fetchIcsFeed, parseIcs, normaliseIcsEvent } from './lib/ics.js'
+import { fetchIcsFeed, parseIcs, normaliseIcsEvent, salvagedDescriptionUrl } from './lib/ics.js'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -282,6 +282,22 @@ async function main() {
           linkBaseUrl:     new URL(ICS_FEED_URL).origin,
         })
         if (!row || !row.start_at || !row.source_id) { skipped++; continue }
+
+        // Every City of Green VEVENT sets URL to the whole-feed download link
+        // (the CivicPlus quirk documented on civicPlusEventUrl), so
+        // normaliseIcsEvent's own ticket_url fallback — which only fires when
+        // the VEVENT has no URL at all — can never be reached here. 76 of the
+        // feed's VEVENTs carry their permalink solely in a URL-only
+        // DESCRIPTION, which normaliseIcsEvent now drops; without this
+        // override that link would be thrown away and the row would keep the
+        // broken feed link. Unlike runCivicPlusScraper this scraper mints no
+        // EID deep link of its own, so the salvaged permalink is the only
+        // working event URL available to it.
+        const salvagedUrl = salvagedDescriptionUrl(ev)
+        if (salvagedUrl) {
+          row.ticket_url = salvagedUrl
+          row.source_url = salvagedUrl
+        }
 
         // Per-event venue: parse the LOCATION field into a clean name + address
         // (see parseGreenLocation), fall back to Boettler Park when LOCATION is

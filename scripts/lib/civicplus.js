@@ -33,7 +33,9 @@
  */
 
 import 'dotenv/config'
-import { fetchIcsFeed, parseIcs, normaliseIcsEvent, isDateOnlyIcsEvent } from './ics.js'
+import {
+  fetchIcsFeed, parseIcs, normaliseIcsEvent, isDateOnlyIcsEvent, salvagedDescriptionUrl,
+} from './ics.js'
 import {
   ensureOrganization,
   ensureVenue,
@@ -276,7 +278,15 @@ export async function runCivicPlusScraper(config) {
         // The VEVENT URL field points back at the feed, not the event (a
         // CivicPlus quirk). Replace it with the reconstructed detail-page
         // deep link so the card links straight to the event.
-        const eventUrl = civicPlusEventUrl(ev, origin)
+        //
+        // civicPlusEventUrl returns null when the UID is not a plain numeric
+        // EID, and normaliseIcsEvent cannot help: its own ticket_url fallback
+        // is only reached when the VEVENT has NO URL, and every CivicPlus
+        // VEVENT has one (the broken feed link). So fall back here to the
+        // permalink salvaged out of the URL-only DESCRIPTION — without this,
+        // a non-numeric-UID row would keep the broken whole-feed download link
+        // and the only working link the feed shipped would be thrown away.
+        const eventUrl = civicPlusEventUrl(ev, origin) || salvagedDescriptionUrl(ev)
         if (eventUrl) {
           row.ticket_url = eventUrl
           row.source_url = eventUrl
