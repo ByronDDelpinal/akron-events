@@ -142,7 +142,33 @@ export function initAnalytics(): void {
     // theme masquerade as a popular user choice. localStorage in a third-party
     // iframe is partitioned or blocked, so the hub read would be empty noise
     // besides. Send only surface + embed_host.
-    gtagOptions = { surface, embed_host: host }
+    //
+    // cookie_flags is the reason partner-embed analytics works AT ALL, found
+    // 2026-08-25 after a live test: a partner page had measurable visitors and
+    // GA recorded zero, ever. gtag writes its _ga cookie from inside our
+    // iframe, which is a THIRD-PARTY context on a partner page. Without
+    // SameSite=None that write is rejected under Chromium's SameSite rules,
+    // and without Partitioned (CHIPS) it is rejected whenever third-party
+    // cookies are blocked (Chrome incognito, "block third-party cookies",
+    // Firefox's default total cookie protection). And when GA4's gtag cannot
+    // write its cookie it does not fall back to cookieless hits like UA did.
+    // It sends NOTHING, silently: dataLayer fills, no /g/collect ever leaves.
+    //
+    // Nobody noticed sooner because the embed builder's live preview loads
+    // /embed on OUR origin, where the cookie is first-party and everything
+    // works. Every hit "from the embed" before partners went live was that
+    // preview. The first real cross-site embed shipped and the numbers went
+    // quiet, which read as "no visitors" precisely because zero is this
+    // feature's honest empty state everywhere else.
+    //
+    // Safari still blocks the write (no CHIPS for JS cookies in cross-site
+    // iframes), so embed figures remain a FLOOR with Safari visitors missing.
+    // That is the already-documented posture of every number on this surface.
+    gtagOptions = {
+      surface,
+      embed_host: host,
+      cookie_flags: 'samesite=none;secure;partitioned',
+    }
   } else {
     gtagOptions = {
       surface,
@@ -183,9 +209,14 @@ export function initAnalytics(): void {
   // neighborhood are additionally refreshed by setThemeContext /
   // setNeighborhoodContext; surface and embed_host have no other updater and
   // relied entirely on this call.
+  // send_page_view is a config-only directive and cookie_flags is cookie
+  // configuration; neither is a dimension, so neither belongs on the
+  // persistent `set` that rides every subsequent hit.
   const persistentDims: Record<string, string> = {}
   for (const [key, value] of Object.entries(gtagOptions)) {
-    if (key !== 'send_page_view' && typeof value === 'string') persistentDims[key] = value
+    if (key !== 'send_page_view' && key !== 'cookie_flags' && typeof value === 'string') {
+      persistentDims[key] = value
+    }
   }
   ReactGA.set(persistentDims)
 }
