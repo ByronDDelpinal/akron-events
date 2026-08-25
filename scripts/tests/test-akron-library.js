@@ -672,3 +672,160 @@ describe('feed audience field is `ages`, plural (Glow Party fix 2026-07-08)', as
     assert.equal(mod.parseIsFamily(GLOW_PARTY.age, GLOW_PARTY.tags), undefined)
   })
 })
+
+// ════════════════════════════════════════════════════════════════════════════
+// TESTS: parseLibraryVenue + the venue cache key (2026-08-25 off-site fix)
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Two independent defects put 125 events at a venue they are not held at:
+//
+//   A) the venue cache was keyed on `location_id`. The feed reuses one id for
+//      everything a branch HOSTS, including programs it holds off-site, so the
+//      first row of the run won the id and every later row at that id was
+//      handed the first row's venue before its own name was ever read.
+//   B) the off-site branch of ensureLibraryVenue passed a hardcoded
+//      `city: 'Akron'` and nothing else, so a Macedonia or Tallmadge address
+//      was stored as an Akron venue with no street and no zip.
+//
+// Fixtures below are VERBATIM `venue_description` values from
+// /eeventcaldata (captured 2026-08-25) — every markup shape the feed uses.
+describe('parseLibraryVenue', async () => {
+  const { parseLibraryVenue } = await import('../scrape-akron-library.js')
+
+  it('returns null for a Zoom row so no venue is minted or linked', () => {
+    // isJunkVenueName() catches "Zoom: Highland Square" only by accident (last
+    // token is a street suffix) and misses the other two outright, so the skip
+    // must be explicit here.
+    for (const name of ['Zoom: Highland Square', 'Zoom: Main Library', 'Zoom: Nordonia Hills']) {
+      assert.equal(parseLibraryVenue({ venue_name: name, location: name, venue_description: '' }), null, name)
+    }
+    assert.equal(parseLibraryVenue({ location: 'Virtual Event' }), null)
+    assert.equal(parseLibraryVenue({ location: 'Online Program' }), null)
+  })
+
+  it('returns null when the row names no location at all', () => {
+    assert.equal(parseLibraryVenue({ location: null, venue_name: null }), null)
+    assert.equal(parseLibraryVenue({}), null)
+  })
+
+  it('omits the address key entirely when the description is empty', () => {
+    // Kenmore's external row: venue_description is "" in the live feed.
+    const v = parseLibraryVenue({
+      venue_name: 'Kenmore Branch Library', location: 'Kenmore Branch Library',
+      venue_room: 'In Front of Library on Kenmore Blvd', venue_description: '',
+    })
+    assert.deepEqual(v, { name: 'Kenmore Branch Library', state: 'OH' })
+    assert.ok(!('address' in v), 'must not invent an address')
+    assert.ok(!('city' in v), 'must not invent a city')
+  })
+
+  it('never falls back to a hardcoded Akron for an out-of-town venue', () => {
+    const cases = [
+      // single comma line
+      ['Danbury Senior Living', '<p>73 East Ave., Tallmadge, OH, 44278</p>',
+        { city: 'Tallmadge', zip: '44278', address: '73 East Ave.' }],
+      ['MV Games', '<p>10545 Northfield Rd, Northfield, OH 44067</p>',
+        { city: 'Northfield', zip: '44067', address: '10545 Northfield Rd' }],
+      // <br> lines, with the venue name repeated on the first one
+      ['Macedonia Community Center', '<p>Macedonia Community Center<br />9691 Valley View Road<br />Macedonia, OH 44056</p>',
+        { city: 'Macedonia', zip: '44056', address: '9691 Valley View Road' }],
+      // separate <p> blocks
+      ['Crafted Artisan Meadery', '<p>Crafted Artisan Meadery</p>\n<p>1292 Waterloo Rd</p>\n<p>Mogadore, OH 44260</p>',
+        { city: 'Mogadore', zip: '44260', address: '1292 Waterloo Rd' }],
+    ]
+    for (const [name, desc, expected] of cases) {
+      const v = parseLibraryVenue({ venue_name: name, location: name, venue_description: desc })
+      assert.deepEqual(v, { name, state: 'OH', ...expected }, name)
+      assert.notEqual(v.city, 'Akron', `${name} must not be filed under Akron`)
+    }
+  })
+
+  it('reads a spelled-out "Ohio" and a zip stranded on its own line', () => {
+    const v = parseLibraryVenue({
+      venue_name: 'The Green Dragon Inn',
+      venue_description: '<p>115 E Market St<br />Akron, Ohio<br />44308</p>',
+    })
+    assert.equal(v.state, 'OH', 'Ohio must normalize to the two-letter code')
+    assert.equal(v.city, 'Akron')
+    assert.equal(v.zip, '44308')
+    assert.equal(v.address, '115 E Market St')
+  })
+
+  it('omits the address for a prose "street" that is not one', () => {
+    // "920 Hereford Park." fails looksLikeStreetAddress (no street-type
+    // suffix). The venue stays ungeocodable rather than carrying a bad
+    // address — do NOT loosen that gate to make this test pass.
+    const v = parseLibraryVenue({
+      venue_name: 'Hereford Park',
+      venue_description: '<p>920 Hereford Park.</p>\n<p>Akron, OH 44303</p>',
+    })
+    assert.deepEqual(v, { name: 'Hereford Park', state: 'OH', zip: '44303', city: 'Akron' })
+    assert.ok(!('address' in v))
+  })
+
+  it('needs htmlToText, not stripHtml, to find the boundary between blocks', () => {
+    // stripHtml collapses ALL whitespace by contract, so the <p> boundary is
+    // gone and "…Wedgewood Dr Akron" reads as one line. Pins the choice.
+    const desc = '<p>Ellet Community Center</p>\n<p>2449 Wedgewood Dr</p>\n<p>Akron, OH 44312</p>'
+    assert.ok(!stripHtml(desc).includes('\n'), 'stripHtml would destroy the boundary')
+    const v = parseLibraryVenue({ venue_name: 'Ellet Community Center', venue_description: desc })
+    assert.equal(v.address, '2449 Wedgewood Dr')
+    assert.equal(v.city, 'Akron')
+  })
+
+  it('ignores venue_room, which is sometimes a room and sometimes an address', () => {
+    const withRoom = parseLibraryVenue({
+      venue_name: 'The Green Dragon Inn', venue_room: '115 E Market St Akron, Ohio 44308',
+      venue_description: '',
+    })
+    assert.deepEqual(withRoom, { name: 'The Green Dragon Inn', state: 'OH' })
+  })
+
+  it('does not mistake a street for a city when the city is missing', () => {
+    const v = parseLibraryVenue({ venue_name: 'Somewhere', venue_description: '<p>123 Main St, OH 44444</p>' })
+    assert.ok(!('city' in v), 'a street segment must never be stored as the city')
+    assert.equal(v.address, '123 Main St')
+    assert.equal(v.zip, '44444')
+  })
+})
+
+describe('library venue cache key (mechanism A regression)', async () => {
+  const { parseLibraryVenue, libraryVenueCacheKey } = await import('../scrape-akron-library.js')
+
+  // Both rows are real: location_id 1495 is the Tallmadge branch, which hosts
+  // programs at Danbury Senior Living AND at the Tallmadge Recreation Center.
+  const DANBURY = {
+    location_id: 1495, location: 'Danbury Senior Living', venue_name: 'Danbury Senior Living',
+    venue_description: '<p>73 East Ave., Tallmadge, OH, 44278</p>',
+  }
+  const REC_CENTER = {
+    location_id: 1495, location: 'Tallmadge Recreation Center', venue_name: 'Tallmadge Recreation Center',
+    venue_description: '<p>46 N. Munroe Rd., Tallmadge, OH 44278</p>',
+  }
+
+  it('gives two venues at one location_id two DIFFERENT keys', () => {
+    const a = libraryVenueCacheKey(parseLibraryVenue(DANBURY))
+    const b = libraryVenueCacheKey(parseLibraryVenue(REC_CENTER))
+    assert.ok(a && b)
+    assert.notEqual(
+      a, b,
+      'both rows carry location_id 1495; keying the cache on the id served the ' +
+      'first row\'s venue to the second and mis-filed 125 events',
+    )
+  })
+
+  it('does not vary with location_id at all', () => {
+    const same = { ...DANBURY, location_id: 9999 }
+    assert.equal(libraryVenueCacheKey(parseLibraryVenue(DANBURY)), libraryVenueCacheKey(parseLibraryVenue(same)))
+  })
+
+  it('folds only spelling variants of one name (curly apostrophe, casing)', () => {
+    const a = libraryVenueCacheKey(parseLibraryVenue({ location: "Peoples' Park" }))
+    const b = libraryVenueCacheKey(parseLibraryVenue({ location: "PEOPLES’ PARK " }))
+    assert.equal(a, b)
+  })
+
+  it('is null for a virtual row, which must never occupy a cache slot', () => {
+    assert.equal(libraryVenueCacheKey(parseLibraryVenue({ location: 'Zoom: Main Library' })), null)
+  })
+})

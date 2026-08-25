@@ -18,14 +18,17 @@ import {
   logUpsertResult,
   logScraperError,
   stripHtml,
+  htmlToText,
   fetchSchemaDescription,
   enrichWithImageDimensions,
   upsertEventSafe,
-  linkEventVenue,
+  setEventVenue,
   linkEventOrganization,
   ensureVenue,
   ensureOrganization,
   linkOrganizationVenue,
+  looksLikeStreetAddress,
+  venueNameKey,
   easternToIso,
   easternTodayIso,
 } from './lib/normalize.js'
@@ -238,17 +241,130 @@ export function parseTags(tagStr = '', ageStr = '') {
 
 // ── Venue management ──────────────────────────────────────────────────────
 
-const venueCache = new Map() // locationId → venueId
+// Cache key is the NORMALIZED VENUE NAME, never `location_id`.
+//
+// The feed reuses one `location_id` for every event a branch *hosts*, including
+// the ones it holds somewhere else: id 1495 (Tallmadge) arrives as "Tallmadge
+// Branch Library" on one row and "Danbury Senior Living" on the next, id 1487
+// covers Macedonia Community Center, Macedonia City Center and MV Games. Keying
+// the cache on the id meant the first row of the run won the id outright and
+// every later row at that id was handed the FIRST row's venue before its own
+// name was ever read — 125 events filed at a venue they are not held at.
+const venueCache = new Map() // venueNameKey(name) → venueId
 
-async function ensureLibraryVenue(locationId, locationName, organizerId) {
-  if (venueCache.has(locationId)) return venueCache.get(locationId)
+/** Feed placeholders for an online program. "Zoom: Main Library" is a Zoom
+ *  call, not a room at Main Library, and must never mint or resolve a venue.
+ *  isJunkVenueName() only catches these by accident (it matches "Zoom:
+ *  Highland Square" purely because the last token is a street suffix), so the
+ *  skip has to be explicit. */
+const VIRTUAL_VENUE_RE = /^(zoom|virtual|online)\b/i
 
-  const branchInfo = BRANCH_INFO[locationName]
+/** Cache key for a parsed venue — derived from the name ALONE, so two venues
+ *  sharing a `location_id` can never collide. Pure + exported for tests. */
+export function libraryVenueCacheKey(venue) {
+  return venue ? venueNameKey(venue.name) : null
+}
+
+/**
+ * Parse one feed row into venue fields. Pure: no DB, no network, no defaults
+ * invented from thin air.
+ *
+ * Returns `null` for a virtual/online row (no venue exists to link), otherwise
+ * `{ name, address?, city?, state, zip? }` with the optional keys OMITTED
+ * rather than guessed. The previous code hardcoded `city: 'Akron'` for every
+ * off-site venue, which put Macedonia, Tallmadge and Northfield addresses on
+ * the Akron hub and left them ungeocodable.
+ *
+ * `venue_description` is parsed with htmlToText, NOT stripHtml: the feed writes
+ * the address as `<p>`/`<br>` blocks and stripHtml flattens ALL whitespace by
+ * contract, welding "9691 Valley View Rd" onto "Macedonia, OH 44056" into one
+ * line with no recoverable boundary. Shapes seen live include a single comma
+ * line ("1280 E Aurora Rd, Macedonia, OH 44056"), `<br>`-separated lines with
+ * the zip alone on the last one, and a leading line repeating the venue name.
+ *
+ * `venue_room` is deliberately ignored — it is sometimes a room ("Bistro
+ * Room"), sometimes an unlabeled address, and nothing distinguishes them.
+ *
+ * Exported for tests.
+ */
+export function parseLibraryVenue(ev) {
+  const name = stripHtml(ev?.venue_name || ev?.location || '')
+  if (!name) return null
+  if (VIRTUAL_VENUE_RE.test(name)) return null
+
+  // Every venue in this feed is a Summit-County-area library program site; the
+  // state is the one field the source never varies and never states wrongly.
+  const venue = { name, state: 'OH' }
+
+  const segments = htmlToText(ev?.venue_description || '')
+    .split(/\n+/)
+    .flatMap((line) => line.split(','))
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (!segments.length) return venue
+
+  // The zip turns up glued to the state ("OH 44056"), comma-split off it
+  // ("OH", "44278"), or alone on its own line ("44308"). Peel it off first so
+  // what remains of that segment can still be recognized as the state.
+  let zip = null
+  const parts = []
+  for (const seg of segments) {
+    const m = zip ? null : seg.match(/\b(\d{5}(?:-\d{4})?)$/)
+    if (m) {
+      zip = m[1]
+      const rest = seg.slice(0, m.index).trim().replace(/[.,]$/, '')
+      if (rest) parts.push(rest)
+    } else {
+      parts.push(seg)
+    }
+  }
+  if (zip) venue.zip = zip
+
+  const stateIdx = parts.findIndex((p) => /^(OH|Ohio)\.?$/i.test(p))
+
+  // City is the segment before the state — and only if it actually reads like
+  // a place name. A description that skips the city ("123 Main St, OH 44444")
+  // must yield no city rather than a street masquerading as one.
+  let cityIdx = -1
+  if (stateIdx > 0) {
+    const candidate = parts[stateIdx - 1]
+    if (!/\d/.test(candidate) && !looksLikeStreetAddress(candidate)) {
+      cityIdx = stateIdx - 1
+      venue.city = candidate
+    }
+  }
+
+  // Street is the LAST address-shaped segment ahead of the city, which skips a
+  // leading line that merely repeats the venue name. looksLikeStreetAddress is
+  // the gate and stays strict: "920 Hereford Park." is prose, not an address,
+  // so that venue is emitted with no address at all rather than a bad one.
+  const limit = cityIdx >= 0 ? cityIdx : (stateIdx >= 0 ? stateIdx : parts.length)
+  for (let i = limit - 1; i >= 0; i--) {
+    if (looksLikeStreetAddress(parts[i])) {
+      venue.address = parts[i]
+      break
+    }
+  }
+
+  return venue
+}
+
+async function ensureLibraryVenue(ev, organizerId) {
+  const parsed = parseLibraryVenue(ev)
+  if (!parsed) return null   // online-only program: there is no venue to link
+
+  const cacheKey = libraryVenueCacheKey(parsed)
+  if (venueCache.has(cacheKey)) return venueCache.get(cacheKey)
+
+  // Branch on a BRANCH_INFO hit, not on the feed's `venue_type`: it labels some
+  // branch-hosted rows "external" (and is null on others), while the branch
+  // table is the thing that actually knows the address and coordinate.
+  const branchInfo = BRANCH_INFO[parsed.name]
 
   let venueId
   if (branchInfo) {
     // Known library branch — create with full branch-specific details
-    venueId = await ensureVenue(locationName, {
+    venueId = await ensureVenue(parsed.name, {
       address:       branchInfo.address,
       // Branches outside Akron proper carry their real municipality so they
       // surface on the correct city / regional hub (Green, Tallmadge, Fairlawn,
@@ -268,16 +384,17 @@ async function ensureLibraryVenue(locationId, locationName, organizerId) {
       await linkOrganizationVenue(organizerId, venueId)
     }
   } else {
-    // Off-site / external venue — create with generic info only;
-    // do NOT stamp it with library website/description
-    // do NOT link to organization as these are external venues
-    venueId = await ensureVenue(locationName, {
-      city:  'Akron',
-      state: 'OH',
-    })
+    // Off-site / external venue — carry whatever the feed actually published
+    // and nothing more. No library website/description (it is not a library
+    // building) and no organization link (it is not a library venue).
+    const details = { state: parsed.state }
+    if (parsed.address) details.address = parsed.address
+    if (parsed.city)    details.city    = parsed.city
+    if (parsed.zip)     details.zip     = parsed.zip
+    venueId = await ensureVenue(parsed.name, details)
   }
 
-  venueCache.set(locationId, venueId)
+  venueCache.set(cacheKey, venueId)
   return venueId
 }
 
@@ -319,7 +436,9 @@ async function processEvents(rawEvents, organizerId) {
 
   for (const ev of rawEvents) {
     try {
-      const venueId = await ensureLibraryVenue(ev.location_id, ev.location || 'Akron-Summit County Public Library', organizerId)
+      // May be null — an online-only program, or a name the venue guards
+      // refuse to mint. The event is still worth publishing without a venue.
+      const venueId = await ensureLibraryVenue(ev, organizerId)
 
       const title    = stripHtml(ev.title || '')
       const category = parseCategory(ev.tags, title)
@@ -369,7 +488,10 @@ async function processEvents(rawEvents, organizerId) {
         console.warn(`  ⚠ Upsert failed for "${row.title}":`, error.message)
         skipped++
       } else {
-        await linkEventVenue(upserted.id, venueId)
+        // setEventVenue, not linkEventVenue: a library event has exactly one
+        // venue, and add-only linking leaves every venue this event was ever
+        // mis-filed under attached to it forever.
+        if (venueId) await setEventVenue(upserted.id, venueId)
         await linkEventOrganization(upserted.id, organizerId)
         inserted++
       }
