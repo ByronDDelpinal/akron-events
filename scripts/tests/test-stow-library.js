@@ -133,10 +133,27 @@ describe('resolveVenue', () => {
     assert.equal(v.details.address, '3300 Darrow Rd')
     assert.equal(v.details.city, 'Stow')
   })
-  it('returns null for online / empty / off-site-placeholder', () => {
+  it('returns null for online / off-site-placeholder', () => {
     assert.equal(resolveVenue('Community Room', true), null)
-    assert.equal(resolveVenue(''), null)
+    assert.equal(resolveVenue('', true), null)
     assert.equal(resolveVenue('Off Site Location'), null)
+  })
+  it('resolves a blank in-person location to the library venue', () => {
+    assert.equal(resolveVenue('').name, 'Stow-Munroe Falls Public Library')
+    // shouldDropForGeo and the linkOrganizationVenue gate both key off
+    // `=== MAIN_VENUE` reference identity, not just the venue's shape.
+    assert.equal(resolveVenue(''), resolveVenue('Community Room'))
+  })
+  it('resolves other falsy locations to the library venue too', () => {
+    assert.equal(resolveVenue(null), resolveVenue('Community Room'))
+    assert.equal(resolveVenue(undefined), resolveVenue('Community Room'))
+    assert.equal(resolveVenue('   '), resolveVenue('Community Room'))
+  })
+  it('returns null for a blank location tagged an off-site category', () => {
+    assert.equal(resolveVenue('', false, ['Off-Site Community Event']), null)
+    assert.equal(resolveVenue('   ', false, ['Off-Site Community Event']), null)
+    // A non-blank location still wins even if the category also says off-site.
+    assert.equal(resolveVenue('Community Room', false, ['Off-Site Community Event']).name, 'Stow-Munroe Falls Public Library')
   })
 })
 

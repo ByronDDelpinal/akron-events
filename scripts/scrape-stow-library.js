@@ -54,7 +54,7 @@ import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
 import {
   logUpsertResult, logScraperError, htmlToText, easternToIso,
-  enrichWithImageDimensions, upsertEventSafe, linkEventVenue, linkEventOrganization,
+  enrichWithImageDimensions, upsertEventSafe, setEventVenue, linkEventOrganization,
   ensureVenue, ensureOrganization, linkOrganizationVenue,
 } from './lib/normalize.js'
 // The date-only default-time disclosure lives in lib/ics.js next to the other
@@ -162,17 +162,26 @@ export function parsePrice(cost = '') {
 
 /**
  * Resolve a LibCal `location` string to a venue.
- *   • online / empty / "Off Site Location" → null (event ingested venue-less)
+ *   • online / "Off Site Location" → null (event ingested venue-less)
+ *   • blank → the library (a booked room is optional, the building is not) —
+ *     UNLESS the feed's own controlled category vocabulary already says the
+ *     event is off-site ("Off-Site Community Event", see the CATEGORY_MAP
+ *     header note), in which case a blank location means "no building to
+ *     assert" and resolves to null too
  *   • an addressed off-site location ("Name, 5344 Fishcreek Rd, Stow, OH 44224")
  *     → its own venue, parsing name/address/city/state/zip
  *   • anything else is an internal room name → the one library venue
  * The address heuristic requires a comma followed by a house number, so
  * multi-room strings like "Pavilion, Stow-Munroe Falls Room" stay internal.
  */
-export function resolveVenue(location = '', online = false) {
+export function resolveVenue(location = '', online = false, categoryNames = []) {
   const loc = String(location || '').replace(/\s+/g, ' ').trim()
-  if (online || !loc) return null
+  if (online) return null
   if (/^off.?site\b/i.test(loc)) return null
+  if (!loc) {
+    const cats = Array.isArray(categoryNames) ? categoryNames.join(' ') : String(categoryNames || '')
+    if (/off.?site/i.test(cats)) return null
+  }
 
   if (/,\s*\d+\s+\S/.test(loc)) {
     const parts = loc.split(',').map((s) => s.trim()).filter(Boolean)
@@ -248,7 +257,7 @@ export function buildRow(e = {}) {
   if (isAllDay && endAt && Date.parse(endAt) <= Date.parse(startAt)) endAt = null
 
   const online = e.online_event === true
-  const venue = resolveVenue(e.location, online)
+  const venue = resolveVenue(e.location, online, categoryNames)
   const { price_min, price_max } = parsePrice(e.registration_cost)
   let desc = e.description ? htmlToText(e.description).slice(0, 5000) || null : null
   // Disclose the invented time. The note text and the reserve-then-append
@@ -366,7 +375,7 @@ async function main() {
             venueCache.set(vKey, venueId)
             if (built.venue === MAIN_VENUE && organizerId && venueId) await linkOrganizationVenue(organizerId, venueId)
           }
-          if (venueId) await linkEventVenue(upserted.id, venueId)
+          if (venueId) await setEventVenue(upserted.id, venueId)
         }
         if (organizerId) await linkEventOrganization(upserted.id, organizerId)
         inserted++
