@@ -67,10 +67,54 @@ const injectSupabasePreconnect = (supabaseUrl) => ({
   },
 })
 
+/**
+ * Dev-only: render the share card locally instead of proxying it.
+ *
+ * `vite dev` does not run Vercel functions, so /api/og/event/[id] used to 404
+ * (empty preview in the share dialog) and then, once /api was proxied to
+ * production, it served the DEPLOYED renderer — which meant local edits to the
+ * card were invisible and ?size= silently came back as the 1200x630 link card
+ * in a story-shaped frame. @vercel/og runs fine on Node, so the real handler
+ * can just be imported and called here.
+ *
+ * Every failure path calls next(), which falls through to the /api proxy
+ * below: a mistake in this plugin costs you the deployed card, never the dev
+ * server.
+ */
+const serveOgInDev = (viteEnv) => ({
+  name: 'serve-og-in-dev',
+  apply: 'serve',
+  configureServer(server) {
+    server.middlewares.use('/api/og/event', async (req, res, next) => {
+      try {
+        // The handler reads these off process.env the way it does on Vercel.
+        process.env.VITE_SUPABASE_URL ||= viteEnv.VITE_SUPABASE_URL
+        process.env.VITE_SUPABASE_ANON_KEY ||= viteEnv.VITE_SUPABASE_ANON_KEY
+
+        const mod = await server.ssrLoadModule('/api/og/event/[id].js')
+        const handler = mod.default
+        if (typeof handler !== 'function') return next()
+
+        const url = new URL(req.url || '/', 'http://localhost')
+        const response = await handler(new Request(`http://localhost/api/og/event${url.pathname}${url.search}`))
+        const body = Buffer.from(await response.arrayBuffer())
+        res.statusCode = response.status
+        res.setHeader('content-type', response.headers.get('content-type') || 'image/png')
+        res.setHeader('cache-control', 'no-store')
+        res.end(body)
+      } catch (err) {
+        server.config.logger.warn(`[serve-og-in-dev] falling through to the proxy: ${err.message}`)
+        next()
+      }
+    })
+  },
+})
+
 export default defineConfig({
   plugins: [
     react(),
     stripBootShellInDev(),
+    serveOgInDev(env),
     injectSupabasePreconnect(env.VITE_SUPABASE_URL),
 
     /**

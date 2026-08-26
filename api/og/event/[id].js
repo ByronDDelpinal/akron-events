@@ -87,12 +87,17 @@ const THEME_GRADIENTS = {
 }
 
 /**
- * Text on the card is near-white, and a few palettes put a light stop in the
- * middle of the ramp (Prime Time's #FFB400, Boardwalk's #FBB13C). A bottom
- * scrim keeps the title readable on every one of them without darkening the
- * brand colours anybody chose.
+ * Text on the card is near-white, and several palettes put a LIGHT stop mid
+ * ramp (Prime Time's #FFB400, Boardwalk's #FBB13C, Olive Grove's #A6A867).
+ * White on those is about 2:1, under the 3:1 floor for large text, and the
+ * title sits exactly there.
+ *
+ * So the veil covers the whole frame, not just the foot: ~20% at the top
+ * where the ramps are already dark, ~30% through the text band, ~52% at the
+ * bottom where the CTA sits. It costs a little saturation on the dark
+ * palettes and buys legibility on every one of the fifteen.
  */
-const SCRIM = 'linear-gradient(0deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.18) 45%, rgba(0,0,0,0) 100%)'
+const SCRIM = 'linear-gradient(0deg, rgba(0,0,0,0.52) 0%, rgba(0,0,0,0.30) 45%, rgba(0,0,0,0.20) 100%)'
 
 /** ?theme=, validated against the table. Anything unknown falls back to null. */
 function resolveThemeGradient(raw) {
@@ -142,14 +147,26 @@ const SIZES = {
     width: 1080, height: 1920,
     // Deep top and bottom padding: the Stories UI puts a profile row over
     // the top and a reply bar over the bottom of every frame.
-    padding: '260px 84px 300px',
+    padding: '220px 88px 260px',
     markFont: '42px', markDot: 18,
     titleTiers: ['116px', '92px', '70px'],
     titleBreaks: [36, 60],
-    subFont: '42px', tagFont: '28px',
+    subFont: '46px', tagFont: '30px',
     gap: '34px', tagGap: '56px',
-    maxTextWidth: '912px',
-    center: true,
+    maxTextWidth: '904px',
+    /**
+     * A story is a POSTER, not a wide card with margins.
+     *
+     * Anchoring the text like the other two left 1,920px of frame with a
+     * paragraph floating in the upper third and nothing else, which is what
+     * an unfinished slide looks like. This composition spreads three blocks
+     * across the whole height (mark at the top safe line, the event in the
+     * optical centre, the address at the bottom one) so the gradient reads as
+     * a designed surface rather than an oversized background.
+     */
+    composition: 'poster',
+    dateFont: '54px',
+    ctaFont: '34px',
   },
 }
 
@@ -293,6 +310,69 @@ export default async function handler(req) {
       title.length > size.titleBreaks[1] ? size.titleTiers[2] :
       title.length > size.titleBreaks[0] ? size.titleTiers[1] :
                                            size.titleTiers[0]
+
+    // ── Poster (story) ────────────────────────────────────────────────
+    // Three blocks, spread across the full height. Date gets its own line
+    // and its own size: in a story the only question a viewer answers in the
+    // two seconds it is on screen is "when, and can I go".
+    if (size.composition === 'poster') {
+      return new ImageResponse(
+        h('div', {
+          style: {
+            width: '100%', height: '100%',
+            display: 'flex', flexDirection: 'column',
+            justifyContent: 'space-between',
+            padding: size.padding,
+            background: gradient,
+            color: '#FCFAF4',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            position: 'relative',
+          },
+        },
+          h('div', {
+            style: {
+              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+              display: 'flex', background: SCRIM,
+            },
+          }),
+
+          brandMark({ fontSize: size.markFont, dotPx: size.markDot }),
+
+          h('div', {
+            style: { display: 'flex', flexDirection: 'column', gap: '28px', maxWidth: size.maxTextWidth },
+          },
+            h('div', {
+              style: {
+                display: 'flex', fontSize: titleSize, fontWeight: 700,
+                lineHeight: 1.06, letterSpacing: '-0.025em',
+              },
+            }, title),
+            dateLine && h('div', {
+              style: { display: 'flex', fontSize: size.dateFont, fontWeight: 600, letterSpacing: '-0.01em' },
+            }, dateLine),
+            venueName && h('div', {
+              style: { display: 'flex', fontSize: size.subFont, fontWeight: 400, opacity: 0.82 },
+            }, venueName),
+          ),
+
+          h('div', {
+            style: { display: 'flex', flexDirection: 'column', gap: '18px' },
+          },
+            // A hairline instead of a box: it separates the address from the
+            // event without adding a second shape to a frame that is carrying
+            // one idea.
+            h('div', { style: { display: 'flex', width: '140px', height: '3px', background: '#FCFAF4', opacity: 0.5 } }),
+            h('div', {
+              style: {
+                display: 'flex', fontSize: size.ctaFont, opacity: 0.82,
+                letterSpacing: '0.02em',
+              },
+            }, 'Full details at akronpulse.com'),
+          ),
+        ),
+        { width: size.width, height: size.height },
+      )
+    }
 
     return new ImageResponse(
       h('div', {
