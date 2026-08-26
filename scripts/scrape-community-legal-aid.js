@@ -129,14 +129,15 @@ export function parseLocation(raw) {
   if (/^online\b/i.test(s)) return { online: true }
 
   const segs = s.split(',').map((t) => t.trim()).filter(Boolean)
-  // Drop a trailing "Ohio 44224" / "OH 44224" / bare zip segment.
-  if (/^(ohio|oh)\b/i.test(segs[segs.length - 1] || '') || /^\d{5}/.test(segs[segs.length - 1] || '')) {
-    segs.pop()
-  }
+  // Capture then drop a trailing "Ohio 44224" / "OH 44224" / bare zip segment.
+  const lastSeg = segs[segs.length - 1] || ''
+  const zip = (lastSeg.match(/\b(\d{5})\b/) || [])[1] || null
+  if (/^(ohio|oh)\b/i.test(lastSeg) || /^\d{5}/.test(lastSeg)) segs.pop()
+
   const city = segs[segs.length - 1] || null
   const name = segs[0] || null
   const address = segs.slice(1, -1).find((p) => /^\d/.test(p)) || null
-  return { online: false, name, address, city, state: 'OH', zip: null }
+  return { online: false, name, address, city, state: 'OH', zip }
 }
 
 /**
@@ -185,7 +186,7 @@ export function buildRow(item) {
   const citySlug = (loc.city || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
   return {
-    venueSpec: { name: loc.name, address: loc.address, city: loc.city, state: 'OH' },
+    venueSpec: { name: loc.name, address: loc.address, city: loc.city, state: 'OH', zip: loc.zip || null },
     row: {
       title: item.title,
       description: 'Free legal clinic hosted by Community Legal Aid. Open to eligible ' +
@@ -278,11 +279,16 @@ async function main() {
         if (venueSpec?.name) {
           if (venueCache.has(venueSpec.name)) venueId = venueCache.get(venueSpec.name)
           else {
+            // allowGenericName: these are real institutions (Municipal Court,
+            // Library, Church, Foodbank) that arrive WITH a street address, but
+            // the junk-name guard false-positives on names ending in a street
+            // suffix ("…Court"). This is a curated first-party source, so opt out.
             venueId = await ensureVenue(venueSpec.name, {
               address: venueSpec.address || undefined,
               city: venueSpec.city,
               state: venueSpec.state,
-            })
+              zip: venueSpec.zip || undefined,
+            }, { allowGenericName: true })
             venueCache.set(venueSpec.name, venueId)
             if (venueId && organizerId) await linkOrganizationVenue(organizerId, venueId)
           }

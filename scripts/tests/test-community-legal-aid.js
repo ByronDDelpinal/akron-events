@@ -59,11 +59,12 @@ describe('parseLocation', () => {
     assert.deepEqual(parseLocation('Family Matters Resource Center, 425 E. Market St., Alliance'),
       { online: false, name: 'Family Matters Resource Center', address: '425 E. Market St.', city: 'Alliance', state: 'OH', zip: null })
   })
-  it('strips a trailing "Ohio 44224" segment', () => {
+  it('strips a trailing "Ohio 44224" segment but keeps the zip', () => {
     const l = parseLocation('Stow Municipal Court, 4400 Courthouse Blvd., Stow, Ohio 44224')
     assert.equal(l.city, 'Stow')
     assert.equal(l.name, 'Stow Municipal Court')
     assert.equal(l.address, '4400 Courthouse Blvd.')
+    assert.equal(l.zip, '44224')
   })
   it('flags Online as virtual', () => assert.deepEqual(parseLocation('Online'), { online: true }))
 })
@@ -111,5 +112,10 @@ describe('buildRow — the Summit gate', () => {
     assert.equal(row.featured, false)
     assert.equal(venueSpec.name, 'Stow Municipal Court')
     assert.equal(venueSpec.city, 'Stow')
+    // Institutional venue whose name ends in a street suffix ("Court"): must
+    // still carry its real address + zip so ensureVenue mints it (with
+    // allowGenericName) instead of the junk-name guard dropping it.
+    assert.equal(venueSpec.address, '4400 Courthouse Blvd.')
+    assert.equal(venueSpec.zip, '44224')
   })
 })
