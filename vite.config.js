@@ -176,4 +176,26 @@ export default defineConfig({
       '@': '/src',
     },
   },
+
+  /**
+   * Dev-only: send /api/* to production.
+   *
+   * Everything under api/ is a Vercel function, and `vite dev` does not run
+   * Vercel functions — it serves the SPA and 404s the rest. So in dev the
+   * share dialog's card (/api/og/event/[id]) never loads, the link-preview
+   * route cannot be opened, and the only way to see any of it was to deploy.
+   *
+   * Proxying to the live site is safe here because every route under api/ is
+   * a read-only GET (og, preview, pageviews, events-first-page, events-hub,
+   * feed.xml, sitemap.xml). Nothing under it writes. `vercel dev` runs them
+   * locally instead if you are actually editing a function.
+   */
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://akronpulse.com',
+        changeOrigin: true,
+      },
+    },
+  },
 })

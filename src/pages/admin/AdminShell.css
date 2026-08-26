@@ -106,11 +106,31 @@
 }
 
 .admin-shell {
+  /* One measure for every explanatory line in the shell. Notes used to set
+     their own width or none at all, so the same sentence wrapped on one
+     surface and ran edge to edge on the next. Every note class below opts
+     into this and nothing sets its own. */
+  --ashell-measure: 60ch;
   display: flex;
   min-height: 100vh;
   background: var(--bg-page);
   color: var(--text-primary);
 }
+
+/* Every secondary line the partner surfaces render, held to one measure. */
+.ashell-why-p,
+.ashell-empty p,
+.ashell-an-window,
+.ashell-an-sect-note,
+.ashell-an-err p,
+.ashell-an .admin-hint,
+.ashell-pform .admin-hint,
+.ashell-pvenue .admin-hint,
+.ashell-work .admin-hint {
+  max-width: var(--ashell-measure);
+}
+.ashell-empty p { margin-left: auto; margin-right: auto; }
+
 .admin-shell .ashell-grow { flex: 1; }
 
 .admin-shell :is(button, a, input, [tabindex]):focus-visible {
@@ -313,10 +333,45 @@
 
 /* ── Overview band ─────────────────────────────────────────────── */
 .ashell-band { padding: var(--space-sm) 0 0; }
+
+/* Both number rows carry one of these. The band used to have no label at
+   all, which left the analytics heading below doing the work of explaining
+   that it was a different kind of thing. Two peers, two labels. */
+.ashell-band-lbl,
+.ashell-an-lbl {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 10px;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ashell-band-note {
+  margin: 0 0 var(--space-md);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  max-width: var(--ashell-measure);
+}
+
 .ashell-tiles {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
+}
+/* The traffic row is three wide, same tile, same gap, same grid. */
+.ashell-tiles--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 900px) {
+  .ashell-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ashell-tiles--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .ashell-tiles,
+  .ashell-tiles--3 { grid-template-columns: minmax(0, 1fr); }
 }
 .ashell-tile {
   position: relative;
@@ -358,10 +413,36 @@
 }
 .ashell-tile-sub {
   font-size: var(--text-xs);
+  line-height: 1.35;
   color: var(--text-muted);
   margin-top: auto;
+  /* Two lines, always. These are four tiles in one grid row, so a sub that
+     wraps in one tile and not the next used to move that tile's baseline
+     away from its neighbours'. Reserving the box makes wrapping invisible. */
+  min-height: 2.7em;
 }
 .ashell-tile-sub b { font-weight: var(--font-weight-medium); color: var(--text-secondary); }
+
+/* The headline figure in a traffic row: same tile, one step louder. */
+.ashell-tile--lead .ashell-tile-big { color: var(--amber); }
+
+/* Layer one of a caveat: brief, critical, and ON the number it is about
+   (OSR dashboard guidance). Everything longer than this belongs in the
+   counted-how row under the tiles. */
+.ashell-tile-caution {
+  align-self: flex-start;
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--tag-nonprofit-txt);
+  background: var(--tag-nonprofit-bg);
+  border-radius: var(--radius-full);
+  padding: 2px 9px;
+}
+.ashell-tile-caution::before { content: '\26A0'; font-size: 10px; }
 .ashell-warntx { color: var(--tag-nonprofit-txt); font-weight: var(--font-weight-medium); }
 
 /* Pulse divider: the site's "living pulse" treatment (the financials
@@ -1121,17 +1202,65 @@
 }
 .ashell-pmint-actions { display: flex; gap: var(--space-sm); }
 
-/* Create flow. */
-.ashell-pcreate { max-width: 720px; }
+/* Create flow.
+
+   Two columns wherever there is room for them. At 720px in one column the
+   form ran past the fold on a screen with two thirds of its width empty, and
+   the venue control -- the field most likely to need a second try -- was the
+   part below it. The split is by question: what the event IS on the left,
+   when/where/how much on the right. */
+.ashell-pcreate { max-width: 1160px; }
 .ashell-pform {
   display: grid;
-  gap: var(--space-md);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-lg) var(--space-xl);
+  align-items: start;
   background: var(--bg-card);
   border: var(--border-width-thin) solid var(--border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-card);
   padding: var(--space-lg);
 }
+.ashell-pform-col {
+  display: grid;
+  gap: var(--space-md);
+  align-content: start;
+  min-width: 0;
+}
+/* .admin-field carries its own bottom margin for the single-column drawers.
+   In here the grid gap is the spacing, and both together is what made this
+   form twice as tall as it needed to be. */
+.ashell-pform .admin-field { margin-bottom: 0; }
+.ashell-pform .admin-hint { margin-bottom: 0; }
+
+.ashell-pform-lbl {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 2px;
+  padding-bottom: var(--space-sm);
+  border-bottom: var(--border-width-thin) solid var(--border);
+}
+
+.ashell-pform-foot {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: var(--border-width-thin) solid var(--border);
+}
+
+/* One column below the width where two would squeeze the datetime inputs. */
+@media (max-width: 1000px) {
+  .ashell-pform { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The outcome panel is a paragraph of good news, not a form: it keeps the
+   old measure rather than stretching to the widened card. */
+.ashell-pcreate .ashell-empty { max-width: 640px; margin-inline: auto; }
 .ashell-pcreate-links { margin-top: var(--space-md) !important; }
 
 /* Admin Partners roster. */
@@ -1181,6 +1310,170 @@
   .ashell-pcol-orgs, .ashell-pcol-status { display: none; }
 }
 
+/* ── Share kit dialog (PartnerShareDialog) ───────────────────────────────
+   Sized to hold a story-ratio preview beside a nine-line caption without
+   either one scrolling. Reuses .ashell-an-winbtn for both segmented
+   controls so the toggles here and in the traffic band are one control. */
+
+.ashell-share-card {
+  background: var(--bg-card);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-xxl);
+  width: 100%;
+  max-width: 840px;
+  margin-top: 72px;
+  box-shadow: var(--shadow-modal);
+  overflow: hidden;
+}
+
+.ashell-share-hd {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--bg-nav);
+  border-bottom: var(--border-width-thin) solid var(--border);
+}
+.ashell-share-hd h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-bold);
+  /* The event title beside it is the elastic half. Without this the two
+     share the squeeze and the dialog's own name wraps to two lines. */
+  flex: none;
+  white-space: nowrap;
+}
+.ashell-share-ev {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.ashell-share-x {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 22px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+.ashell-share-x:hover { color: var(--text-primary); }
+
+.ashell-share-body { padding: var(--space-lg); display: grid; gap: var(--space-md); }
+
+.ashell-share-split {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+.ashell-share-prev { display: grid; gap: var(--space-sm); justify-items: start; }
+/* One frame, three ratios. The image fills its box at every size, so the
+   preview is the real crop rather than a letterboxed approximation. */
+.ashell-share-frame {
+  border: var(--border-width-thin) solid var(--border-mid);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  background: var(--bg-secondary);
+}
+.ashell-share-frame { display: flex; align-items: center; justify-content: center; }
+.ashell-share-frame img { display: block; width: 100%; height: 100%; object-fit: contain; }
+/* The card is rendered on demand and can be slow or fail; the frame says
+   which of those happened instead of sitting empty. */
+.ashell-share-frame-msg {
+  padding: 0 var(--space-sm);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  text-align: center;
+  color: var(--text-muted);
+}
+/* Explicit boxes rather than aspect-ratio: the three previews sit in one
+   column and a ratio-driven box makes the tall one 391px, which pushes the
+   dialog past a laptop viewport. Each is the true ratio, scaled to fit. */
+.ashell-share-frame--link   { width: 220px; height: 116px; }
+.ashell-share-frame--square { width: 220px; height: 220px; }
+.ashell-share-frame--story  { width: 176px; height: 313px; }
+.ashell-share-dims {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ashell-share-cap { display: grid; gap: var(--space-sm); min-width: 0; }
+.ashell-share-cap-hd { display: flex; align-items: baseline; gap: var(--space-md); }
+.ashell-share-lbl {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.ashell-share-note { margin-left: auto; font-size: var(--text-xs); color: var(--text-muted); }
+
+.ashell-share-text {
+  width: 100%;
+  resize: vertical;
+  background: var(--bg-nav);
+  color: var(--text-secondary);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.ashell-share-acts { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+/* .ashell-edit-link carries margin-left:auto for the row it was written
+   for (an action bar that pushes it right). Here the two links are a pair
+   at the start of their own row, so that margin is cancelled. */
+.ashell-share-links { display: flex; gap: var(--space-lg); flex-wrap: wrap; }
+.ashell-share-links .ashell-edit-link { margin-left: 0; }
+.ashell-share-hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--text-muted);
+  max-width: var(--ashell-measure);
+}
+
+@media (max-width: 700px) {
+  .ashell-share-split { grid-template-columns: minmax(0, 1fr); }
+  /* Widening the frame without releasing the desktop HEIGHTS squashed every
+     preview to the wrong shape here: story showed as 260x313 (9:16 wants
+     260x462), so the one screen where a partner actually posts was the one
+     lying about the crop. Ratio drives the box on this breakpoint; the cap
+     keeps story from eating the whole viewport, and shrinks the width with
+     it rather than letterboxing. */
+  .ashell-share-frame { width: 100%; max-width: 260px; height: auto; }
+  .ashell-share-frame--link   { height: auto; aspect-ratio: 1200 / 630; }
+  .ashell-share-frame--square { height: auto; aspect-ratio: 1 / 1; }
+  .ashell-share-frame--story  { height: auto; aspect-ratio: 1080 / 1920; max-height: 58vh; }
+
+  /* This flow is phone-first by its own copy ("On a phone, Download hands the
+     image straight to Instagram"), so every control it offers has to be
+     thumb-sized. Scoped to the dialog: the same segmented button serves the
+     traffic band, and that one is not a touch-primary surface. */
+  .ashell-share-card .ashell-an-winbtn { padding: 10px 14px; font-size: var(--text-sm); min-height: 44px; }
+  .ashell-share-card .ashell-btn { min-height: 44px; }
+  /* The Facebook caption runs 255px here once the URL wraps, so nine rows
+     clipped the last line of the thing the partner is about to post. */
+  .ashell-share-text { min-height: 264px; }
+  .ashell-share-x {
+    min-width: 44px;
+    min-height: 44px;
+    margin: calc(var(--space-sm) * -1) calc(var(--space-sm) * -1) calc(var(--space-sm) * -1) auto;
+  }
+}
+
 /* Cancelled-is-final note in the drawer's action row (no republish
    affordance for partners; restore is admin-only). */
 .ashell-cancel-final {
@@ -1209,11 +1502,18 @@
   gap: var(--space-md);
 }
 
-.ashell-an-title {
-  font-family: var(--font-display);
-  font-size: var(--text-h5);
-  margin: 0;
+.ashell-an-lbl-org,
+.ashell-an-lbl-win {
+  font-family: var(--font-body);
+  letter-spacing: 0.04em;
+  text-transform: none;
+  font-weight: var(--font-weight-medium);
+  font-size: 12px;
 }
+.ashell-an-lbl-org { color: var(--text-secondary); }
+.ashell-an-lbl-win { color: var(--text-muted); }
+.ashell-an-lbl-org::before,
+.ashell-an-lbl-win::before { content: '\00B7'; margin-right: 8px; color: var(--text-muted); }
 
 .ashell-an-controls {
   display: flex;
@@ -1221,9 +1521,6 @@
   gap: var(--space-md);
   flex-wrap: wrap;
 }
-
-.ashell-an-ctl { display: inline-flex; align-items: center; gap: var(--space-xs); }
-.ashell-an-ctl-lbl { font-size: var(--text-xs); color: var(--text-muted); }
 
 .ashell-an-win { display: inline-flex; gap: 2px; }
 
@@ -1240,6 +1537,15 @@
   border-color: var(--amber);
   color: var(--amber);
 }
+/* Org names run long ("North Hill Community Development Corporation"), and a
+   toggle the width of a paragraph stops reading as a toggle. Full name on
+   hover and to assistive tech via the title. */
+.ashell-an-winbtn--org {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .ashell-an-window {
   margin: var(--space-xs) 0 var(--space-md);
@@ -1247,35 +1553,74 @@
   color: var(--text-muted);
 }
 
-.ashell-an-figs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xl);
-  margin-bottom: var(--space-md);
+/* Every caveat, folded into one row under the figures. A <details>, not a
+   tooltip: the text is in the document and one click from the numbers. */
+.ashell-an-counted {
+  margin: var(--space-md) 0 var(--space-lg);
+  border-top: var(--border-width-thin) solid var(--border);
+  border-bottom: var(--border-width-thin) solid var(--border);
 }
-
-.ashell-an-fig { display: flex; flex-direction: column; gap: 2px; }
-.ashell-an-fig-lbl {
+.ashell-an-counted > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 10px 2px;
   font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
   color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.ashell-an-fig-big { font-family: var(--font-display); font-size: var(--text-h4); }
-.ashell-an-fig--big .ashell-an-fig-big { font-size: var(--text-h2); color: var(--amber); }
-.ashell-an-fig-sub { font-size: var(--text-xs); color: var(--text-secondary); }
-
-/* The floor note. Permanently visible in every state, including both empty
-   states and the error state, and never collapsed behind a disclosure: it is
-   the one piece of copy this whole feature is obligated to show. */
-.ashell-an-floor,
-.ashell-an-foot {
-  max-width: 68ch;
+.ashell-an-counted > summary::-webkit-details-marker { display: none; }
+.ashell-an-counted > summary::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--transition-fast);
+}
+.ashell-an-counted[open] > summary::before { transform: rotate(45deg); }
+.ashell-an-counted > summary:hover { color: var(--text-secondary); }
+.ashell-an-counted-body {
+  display: grid;
+  gap: var(--space-sm);
+  padding: 0 2px var(--space-md);
+}
+.ashell-an-counted-body p {
+  margin: 0;
+  max-width: var(--ashell-measure);
   font-size: var(--text-xs);
   line-height: 1.6;
   color: var(--text-muted);
-  margin: 0 0 var(--space-md);
 }
+
+/* The state both live tenants are in. Tiles above stay (a zero is a fact);
+   this replaces the four notes and two zero-filled tables that used to
+   follow them. */
+.ashell-an-quiet {
+  display: grid;
+  gap: 4px;
+  margin: var(--space-md) 0;
+}
+.ashell-an-quiet p {
+  margin: 0;
+  max-width: var(--ashell-measure);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.ashell-an-quiet-next { color: var(--text-muted) !important; font-size: var(--text-xs) !important; }
+
+.ashell-an-more > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--text-xs);
+  color: var(--amber);
+  padding: 4px 2px;
+}
+.ashell-an-more > summary::-webkit-details-marker { display: none; }
+.ashell-an-more > summary::before { content: '\203A'; margin-right: 7px; }
+.ashell-an-more > summary:hover { color: var(--amber-hover); }
 
 .ashell-an-err {
   display: flex;
@@ -1299,10 +1644,6 @@
 .ashell-an-skel td { color: var(--text-muted); }
 .admin-td-num { text-align: right; font-variant-numeric: tabular-nums; }
 
-@media (max-width: 720px) {
-  .ashell-an-figs { gap: var(--space-lg); }
-}
-
 /* ── Partner analytics: roll-up split and the two event sections ─────────────
    Added with migration 064. The roll-up leads the block, the handoff split
    sits under it at a smaller weight because it is a breakdown of the tile
@@ -1310,19 +1651,15 @@
    labelled sections so "coming up" and "already happened" never read as one
    list. */
 
-.ashell-an-figs--split {
-  gap: var(--space-lg);
-  margin-top: calc(var(--space-md) * -1);
-  padding-left: var(--space-xs);
-  border-left: 2px solid var(--border);
+/* The handoff split is a breakdown of the tile above it, not a peer of it:
+   same grid, quieter surface, smaller number. */
+.ashell-tiles--split { margin-top: 10px; }
+.ashell-tiles--split .ashell-tile {
+  background: var(--bg-secondary);
+  box-shadow: none;
+  min-height: 86px;
 }
-.ashell-an-figs--split .ashell-an-fig-big { font-size: var(--text-h5); }
-
-.ashell-an-rollup {
-  margin: 0 0 var(--space-md);
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-}
+.ashell-tiles--split .ashell-tile-big { font-size: 21px; }
 
 .ashell-an-sect { margin-top: var(--space-lg); }
 
@@ -1333,7 +1670,6 @@
 }
 
 .ashell-an-sect-note {
-  max-width: 68ch;
   margin: 0 0 var(--space-sm);
   font-size: var(--text-xs);
   line-height: 1.6;

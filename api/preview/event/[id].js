@@ -19,14 +19,6 @@ const SITE_NAME = 'Akron Pulse'
 const SITE_ORIGIN = 'https://akronpulse.com'
 const SITE_TAGLINE = 'Everything happening in Akron & Summit County'
 
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-]
-const DAYS = [
-  'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
-]
-
 function escapeHtml(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
@@ -131,19 +123,35 @@ function buildRelatedItemListSchema(events, origin, categoryLabel) {
   }
 }
 
+/**
+ * "Wednesday, November 18 · 6 PM", read in EASTERN.
+ *
+ * Was getUTC* until 2026-08-25, which ran every card and every unfurl 4-5
+ * hours late and rolled anything from 8 PM onward onto the next DAY: the
+ * Ward 2 meeting at 6 PM Eastern rendered "November 18 · 11 PM". Every event
+ * in this corpus happens in Akron, so the card is written for a reader
+ * standing there, never in UTC and never in the viewer's own zone.
+ *
+ * Intl with an explicit timeZone rather than a fixed -4/-5 offset: an offset
+ * constant is wrong for the hours around each DST switch. Mirrors
+ * src/lib/admin/shareShared.ts's shareDateLine and src/lib/easternDate.ts,
+ * which cannot be imported here (Edge bundle, no src/ alias).
+ */
+const EASTERN_PARTS = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York',
+  weekday: 'long', month: 'long', day: 'numeric',
+  hour: 'numeric', minute: '2-digit', hour12: true,
+})
+
 function formatDateLine(iso) {
   if (!iso) return ''
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
-  const day   = DAYS[d.getUTCDay()]
-  const month = MONTHS[d.getUTCMonth()]
-  const date  = d.getUTCDate()
-  let hours   = d.getUTCHours()
-  const mins  = d.getUTCMinutes()
-  const ampm  = hours >= 12 ? 'PM' : 'AM'
-  hours       = hours % 12 || 12
-  const minStr = mins === 0 ? '' : `:${String(mins).padStart(2, '0')}`
-  return `${day}, ${month} ${date} · ${hours}${minStr} ${ampm}`
+  const parts = EASTERN_PARTS.formatToParts(d)
+  const get = (t) => parts.find((p) => p.type === t)?.value ?? ''
+  const minute = get('minute')
+  const time = `${get('hour')}${minute === '00' ? '' : `:${minute}`} ${get('dayPeriod')}`
+  return `${get('weekday')}, ${get('month')} ${get('day')} · ${time}`
 }
 
 // Fallback HTML when something goes wrong — minimal brand chrome so
