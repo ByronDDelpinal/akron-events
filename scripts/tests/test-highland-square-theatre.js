@@ -15,6 +15,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ||
 const {
   buildDescription,
   parseDatePart,
+  parseHomepage,
   resolveYear,
   getUnmappedMonthCount,
   resetUnmappedMonthCount,
@@ -72,5 +73,89 @@ describe('Highland Square month abbreviations (regression)', () => {
     const result = parseDatePart('Monday Foo 1')
     assert.deepStrictEqual(result, [])
     assert.strictEqual(getUnmappedMonthCount(), 1)
+  })
+})
+
+// ── parseHomepage fixtures ────────────────────────────────────────────────
+//
+// Captured shape of the live homepage: WordPress chrome (header logo <img>,
+// inline <script>/<style>), then one block per film — poster <img>, quoted
+// title, "Rated:", "(NNN min)", and one or more showtime lines. Film A packs
+// two day segments onto a single text line; film B uses a "thru" range.
+//
+// This fixture LOCKS the selector. The nightly failures this file guards are
+// bad response BODIES, not markup drift, so loosening the parse to make a
+// challenge page "work" would convert a loud failure into a silent partial —
+// exactly the wrong trade. A challenge body must still yield zero films.
+const GOOD_HOMEPAGE_HTML = `
+<!doctype html><html><head>
+<style>.poster{width:100%}</style>
+<script>window.dataLayer=[];</script>
+</head><body>
+<header><img src="https://highlandsquaretheatre.com/wp-content/uploads/logo.png" alt="Highland Square Theatre"></header>
+<div class="entry-content">
+  <p><img src="https://highlandsquaretheatre.com/wp-content/uploads/wallis-island.jpg" alt="poster"></p>
+  <p>&ldquo;The Ballad of Wallis Island&rdquo;</p>
+  <p>Rated: PG13</p>
+  <p>(100 min)</p>
+  <p>Monday Aug 4: 4:15, 7:00&nbsp;&nbsp;Tuesday Aug 5: 4:15, 7:00</p>
+  <p><img src="https://highlandsquaretheatre.com/wp-content/uploads/superman.jpg" alt="poster"></p>
+  <p>"Superman"</p>
+  <p>Rated: PG13</p>
+  <p>(130 min)</p>
+  <p>Mon thru Wed, Aug 11-13: 7:00</p>
+  <p>All times are PM unless otherwise noted.</p>
+</div>
+</body></html>`
+
+// A Cloudflare-style interstitial served with HTTP 200 — the actual nightly
+// failure mode behind the old "markup may have changed" message.
+const BOT_CHALLENGE_HTML = `
+<!doctype html><html><head><title>Just a moment...</title></head>
+<body class="no-js">
+<div class="main-wrapper"><h1>Checking your browser before accessing highlandsquaretheatre.com</h1>
+<p>Please enable JavaScript and cookies to continue.</p>
+<p>Ray ID: 8f2c1a9b0e4d7c31 &middot; Performance &amp; security by Cloudflare</p></div>
+</body></html>`
+
+describe('Highland Square parseHomepage', () => {
+  it('returns [] on a bot-challenge body (loud failure, never a silent partial)', () => {
+    resetUnmappedMonthCount()
+    assert.deepStrictEqual(parseHomepage(BOT_CHALLENGE_HTML), [])
+  })
+
+  it('returns [] on empty/nullish HTML', () => {
+    assert.deepStrictEqual(parseHomepage(''), [])
+    assert.deepStrictEqual(parseHomepage(null), [])
+  })
+
+  it('parses films, ratings, runtimes, posters and showtimes from the good fixture', () => {
+    resetUnmappedMonthCount()
+    const movies = parseHomepage(GOOD_HOMEPAGE_HTML)
+
+    assert.strictEqual(movies.length, 2, 'two film blocks')
+    assert.deepStrictEqual(movies.map(m => m.title), [
+      'The Ballad of Wallis Island',
+      'Superman',
+    ])
+
+    const [wallis, superman] = movies
+    assert.strictEqual(wallis.rating, 'PG13')
+    assert.strictEqual(wallis.runtimeMin, 100)
+    assert.ok(wallis.imageUrl?.endsWith('wallis-island.jpg'), 'poster wins over the header logo')
+    // Packed line: two day segments x two times each
+    assert.strictEqual(wallis.showtimes.length, 4)
+    assert.deepStrictEqual([...new Set(wallis.showtimes.map(s => s.timeStr24))].sort(), [
+      '16:15:00', '19:00:00',
+    ])
+
+    assert.strictEqual(superman.runtimeMin, 130)
+    assert.ok(superman.imageUrl?.endsWith('superman.jpg'))
+    // "Mon thru Wed, Aug 11-13: 7:00" expands to three dates, one time each
+    assert.strictEqual(superman.showtimes.length, 3)
+    assert.strictEqual(new Set(superman.showtimes.map(s => s.dateYmd)).size, 3)
+    assert.ok(superman.showtimes.every(s => s.timeStr24 === '19:00:00'))
+
+    assert.strictEqual(getUnmappedMonthCount(), 0, 'no month token should fail to map')
   })
 })

@@ -3,7 +3,7 @@
  *
  * Fetches upcoming showtimes from Highland Square Theatre.
  *
- * Platform: WordPress (server-rendered HTML — plain fetch, no headless browser)
+ * Platform: WordPress (server-rendered HTML — no headless browser; fetchWithRetry)
  * Site:     https://highlandsquaretheatre.com
  * Venue:    826 W. Market Street, Akron, OH 44303
  *
@@ -41,6 +41,8 @@ import {
   linkOrganizationVenue,
   easternToIso,
 } from './lib/normalize.js'
+import { fetchWithRetry } from './lib/http.js'
+import { isBotChallenge } from './lib/ics.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -63,8 +65,6 @@ const MONTH_MAP = {
   oct: 10, nov: 11, dec: 12,
 }
 
-const USER_AGENT = 'Mozilla/5.0 (compatible; AkronPulse-bot/1.0; +https://akronpulse.com)'
-
 // Count of date segments whose month token failed MONTH_MAP lookup — surfaced
 // in the run summary next to inserted/skipped so a markup/format drift shows
 // up in nightly output instead of silently thinning the results.
@@ -80,13 +80,31 @@ export function getUnmappedMonthCount() {
 
 // ── HTTP ──────────────────────────────────────────────────────────────────
 
+// Sporadic nightly failures (4 in 30 days) were never a markup change: the
+// parser handles the live homepage unmodified. The old hand-rolled fetch had no
+// retry, no timeout and shipped a self-identifying `AkronPulse-bot/1.0` UA — the
+// exact self-inflicted WAF trigger lib/http.js was written to remove. Any 200
+// whose body isn't the film grid flowed straight into parseHomepage → [].
+//
+// Egress stays direct on purpose: `useProxy` is NOT set, because the proxy
+// secret is the standing suspect-unset one in GitHub Actions, and opting in here
+// would trade one sporadic failure mode for two.
+const FETCH_OPTS = {
+  retries:                      3,
+  timeoutMs:                    20_000,
+  treatBotChallengeAsRetryable: true,
+}
+
+/** Delay before the single bounded re-fetch when a parse yields 0 films. */
+const REFETCH_DELAY_MS = 3_000
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+/** Fetch the homepage. Returns { html, status } so a 0-film run can be diagnosed. */
 async function fetchHtml(url) {
-  const res = await fetch(url, {
-    headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,*/*;q=0.8' },
-    redirect: 'follow',
-  })
+  const res = await fetchWithRetry(url, FETCH_OPTS)
   if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`)
-  return res.text()
+  return { html: await res.text(), status: res.status }
 }
 
 // ── Date helpers ──────────────────────────────────────────────────────────
@@ -339,8 +357,18 @@ async function main() {
 
     if (organizerId && venueId) await linkOrganizationVenue(organizerId, venueId)
 
-    const html   = await fetchHtml(BASE_URL)
-    const movies = parseHomepage(html)
+    let { html, status } = await fetchHtml(BASE_URL)
+    let movies = parseHomepage(html)
+
+    // One bounded re-fetch. The observed failure is a sporadic 200 carrying the
+    // wrong body, not a selector drift, so re-parsing a second response clears
+    // it. Exactly one retry — a persistent 0 must still fail loudly.
+    if (movies.length === 0) {
+      console.warn(`  ⚠ 0 films parsed (HTTP ${status}, ${Buffer.byteLength(html)}b) — re-fetching once…`)
+      await sleep(REFETCH_DELAY_MS)
+      ;({ html, status } = await fetchHtml(BASE_URL))
+      movies = parseHomepage(html)
+    }
 
     const totalShowtimes = movies.reduce((s, m) => s + m.showtimes.length, 0)
     console.log(`  Found ${movies.length} film(s), ${totalShowtimes} total showtimes`)
@@ -348,7 +376,7 @@ async function main() {
     if (movies.length === 0) {
       await logUpsertResult(SOURCE_KEY, 0, 0, 0, {
         status:       'error',
-        errorMessage: 'No films parsed from homepage — markup may have changed.',
+        errorMessage: `No films parsed from homepage — HTTP ${status} · ${Buffer.byteLength(html)}b · botChallenge=${isBotChallenge(html)}`,
         durationMs:   Date.now() - start,
         eventsFound:  0,
       })
