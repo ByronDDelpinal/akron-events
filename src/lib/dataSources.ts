@@ -610,6 +610,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'community_legal_aid',
+    method:      'HTML scrape',
+    methodDetail:'communitylegalaid.org/events (Drupal 10) — server-rendered, paginated list; each event is a <div class="item"> with per-field .title/.date/.time/.location blocks. Walks ?page=0..N. STRICT Summit gate: this regional legal-aid firm serves Summit/Portage/Stark/Medina/Wayne, so most clinics (Canton, Alliance, Medina, Ravenna) and all "Online" clinics are dropped; only events whose parsed city is in Summit County publish.',
+    venue:       'Varies — Summit clinics only (e.g. Stow Municipal Court, Twinsburg, the Duck Club in Akron)',
+    notes:       "Free legal clinics (price 0), category civic. Recurring clinics reuse one detail URL across dates, so the source_id carries the date. Time strings are messy ('9 a.m. to noon', '1:00 - 4:00 PM', '7:45 to 9 a.m.') — parsed to a normalized start time. Low Summit yield (~2-4 of ~28 events) by design; most of the firm's footprint is Stark/Portage/Medina. Built after Community Legal Aid's pending-org complaint (2026-08-26) so their in-county events reach the calendar directly.",
+    status:      'active',
+  },
+  {
     key:         'music_western_reserve',
     method:      'HTML scrape',
     methodDetail:'musicwr.org homepage (Wix site, NOT Wix Events) — the season is a hand-rendered list of <h1><a href="/tickets"> concert headings whose text Wix fragments across nested spans + <br>. Parsed from the flattened page text (htmlToText) rather than the brittle markup; the season\'s start year is read from the "2026–2027" range and Sep–Dec map to it while Jan–Aug map to the next year.',
@@ -1662,6 +1670,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   village_of_mogadore: 'ics',
   village_of_peninsula: 'html',
   music_western_reserve: 'html',
+  community_legal_aid: 'html',
   habitat_summit:      'html',
   ohio_festivals:      'html',
   summit_county_fairgrounds: 'html',
