@@ -7,7 +7,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 
 import { stripHtml } from '../lib/normalize.js'
 import { preloadSummitCountyBoundary } from '../lib/summit-county.js'
-import { classifySource, isAllDayEntry, resolveLocality, slugIdFromUrl, pickCanonicalEntry } from '../scrape-uakron-calendar.js'
+import { classifySource, isAllDayEntry, resolveLocality, slugIdFromUrl, pickCanonicalEntry, fetchEvents, isStaleLastModified, LAST_MODIFIED_MAX_AGE_MS, MIN_EXPECTED_EVENTS, COMPLETE_RENDER_MIN_EVENTS, MAX_FETCH_ATTEMPTS } from '../scrape-uakron-calendar.js'
 import { EJ_THOMAS_EVENT, GENERAL_UAKRON_EVENT, LECTURE_EVENT, MISSING_TITLE, MISSING_DATE, PAID_EVENT, PERFORMANCE_CONCERT, MYERS_ART_EVENT, CHP_EVENT, NUMERIC_COST_EVENT, TIERED_COST_EVENT, OBJECT_COST_EVENT, WAYNE_ORRVILLE_COORDS_EVENT, WAYNE_NO_COORDS_EVENT, SOPA_ORIGINAL_26852, LIVE_COPY_26855, CHP_ORIGINAL_26863, CHP_LIVE_COPY_26864, ALL_FIXTURES } from './fixtures/uakron-events.js'
 
 // resolveLocality's coordinate branch needs the county polygon loaded — same
@@ -439,5 +439,250 @@ describe('UAkron: Batch Processing', () => {
       assert.ok(row.tags.includes('university'))
       assert.ok(row.tags.includes('uakron'))
     }
+  })
+})
+
+// ── Stale-snapshot guard ─────────────────────────────────────────────────
+//
+// LiveWhale alternates between a live render (~334 events, current
+// `last-modified`) and a frozen 2026-06-14 CDN snapshot (~163 events,
+// months-old `last-modified`). fetchEvents takes fetch/clock/sleep by
+// injection precisely so this is exercisable with no network and no waiting.
+
+const NOW    = Date.parse('2026-08-26T12:00:00Z')
+const FRESH  = new Date(NOW - 5 * 60 * 1000).toUTCString()          // 5 min old
+const STALE  = new Date(Date.parse('2026-06-14T10:00:00Z')).toUTCString()
+
+const FRESH_COUNT = 334   // observed live render
+const STALE_COUNT = 163   // observed poisoned snapshot — ALSO a plausible honest
+                          // off-season count, which is why it must clear the floor
+const SUB_FLOOR_COUNT = MIN_EXPECTED_EVENTS - 1
+
+function makeEvents(n) {
+  return Array.from({ length: n }, (_, i) => ({
+    id:       String(20000 + i),
+    title:    `Event ${i}`,
+    date_iso: '2026-09-01T19:00:00-04:00',
+  }))
+}
+
+/** Minimal stand-in for the bits of Response that fetchEvents touches. */
+function fakeResponse({ lastModified = null, events = [], ok = true, status = 200, body = null } = {}) {
+  const payload = body ?? events
+  return {
+    ok,
+    status,
+    headers: { get: (name) => (String(name).toLowerCase() === 'last-modified' ? lastModified : null) },
+    json: async () => payload,
+    text: async () => JSON.stringify(payload),
+  }
+}
+
+/**
+ * Build an injectable fetch that replays `responses` in order (the last one
+ * repeats), recording every URL it was called with.
+ */
+function scriptedFetch(responses) {
+  const urls = []
+  const impl = async (url) => {
+    urls.push(url)
+    return responses[Math.min(urls.length - 1, responses.length - 1)]
+  }
+  impl.urls = urls
+  return impl
+}
+
+/** Run fn with console.log/warn muted — the retry path is chatty by design. */
+async function quiet(fn) {
+  const { log, warn } = console
+  console.log = () => {}
+  console.warn = () => {}
+  try {
+    return await fn()
+  } finally {
+    console.log = log
+    console.warn = warn
+  }
+}
+
+const deps = (fetchImpl, sleepCalls = []) => ({
+  fetchImpl,
+  now: () => NOW,
+  sleepImpl: async (ms) => { sleepCalls.push(ms) },
+})
+
+describe('UAkron: isStaleLastModified', () => {
+  it('flags the frozen June 14 snapshot header', () => {
+    assert.equal(isStaleLastModified(STALE, NOW), true)
+  })
+
+  it('passes a header rendered minutes ago', () => {
+    assert.equal(isStaleLastModified(FRESH, NOW), false)
+  })
+
+  it('uses a 24h threshold', () => {
+    const justInside  = new Date(NOW - LAST_MODIFIED_MAX_AGE_MS + 60_000).toUTCString()
+    const justOutside = new Date(NOW - LAST_MODIFIED_MAX_AGE_MS - 60_000).toUTCString()
+    assert.equal(isStaleLastModified(justInside, NOW), false)
+    assert.equal(isStaleLastModified(justOutside, NOW), true)
+  })
+
+  it('cannot judge a missing or unparseable header (false — the count floor is the backstop)', () => {
+    assert.equal(isStaleLastModified(null, NOW), false)
+    assert.equal(isStaleLastModified(undefined, NOW), false)
+    assert.equal(isStaleLastModified('', NOW), false)
+    assert.equal(isStaleLastModified('not-a-date', NOW), false)
+  })
+})
+
+describe('UAkron: fetchEvents stale-snapshot guard', () => {
+  it('returns a fresh payload unchanged, on one request, with no cache-buster', async () => {
+    const events = makeEvents(FRESH_COUNT)
+    const f = scriptedFetch([fakeResponse({ lastModified: FRESH, events })])
+    const out = await quiet(() => fetchEvents(deps(f)))
+
+    assert.equal(out.length, FRESH_COUNT)
+    assert.deepEqual(out, events)
+    assert.equal(f.urls.length, 1, 'a fresh render must not trigger a retry')
+    assert.ok(!f.urls[0].includes('&_='), 'first attempt uses the bare URL')
+  })
+
+  it('retries with a fresh cache-buster when last-modified is stale, then returns the live render', async () => {
+    const fresh = makeEvents(FRESH_COUNT)
+    const sleeps = []
+    const f = scriptedFetch([
+      fakeResponse({ lastModified: STALE, events: makeEvents(STALE_COUNT) }),
+      fakeResponse({ lastModified: FRESH, events: fresh }),
+    ])
+    const out = await quiet(() => fetchEvents(deps(f, sleeps)))
+
+    assert.equal(f.urls.length, 2, 'stale response must trigger exactly one retry here')
+    assert.ok(f.urls[1].includes('&_='), 'the retry carries a cache-buster')
+    assert.notEqual(f.urls[0], f.urls[1], 'the retry URL must differ from the first')
+    assert.equal(sleeps.length, 1, 'one backoff between the two attempts')
+    assert.ok(sleeps[0] > 0)
+    assert.equal(out.length, FRESH_COUNT)
+    assert.deepEqual(out, fresh, 'the fresh payload passes through untouched')
+  })
+
+  it('throws on exhaustion rather than returning the stale body', async () => {
+    const sleeps = []
+    const f = scriptedFetch([fakeResponse({ lastModified: STALE, events: makeEvents(STALE_COUNT) })])
+
+    await assert.rejects(
+      () => quiet(() => fetchEvents(deps(f, sleeps))),
+      /stale cached snapshot on all 5 attempts/,
+      'exhaustion must throw — never resolve with the poisoned snapshot',
+    )
+    assert.equal(f.urls.length, MAX_FETCH_ATTEMPTS, 'exactly 5 attempts, no more')
+    assert.equal(sleeps.length, MAX_FETCH_ATTEMPTS - 1, 'no pointless sleep after the final attempt')
+    // Every retry gets its own buster; none may repeat a previous URL.
+    assert.equal(new Set(f.urls).size, MAX_FETCH_ATTEMPTS)
+  })
+
+  it('throws on a sub-floor event count even when last-modified looks fresh', async () => {
+    // The backstop for the day last-modified stops tracking the render.
+    const f = scriptedFetch([fakeResponse({ lastModified: FRESH, events: makeEvents(SUB_FLOOR_COUNT) })])
+
+    await assert.rejects(
+      () => quiet(() => fetchEvents(deps(f))),
+      new RegExp(`only ${SUB_FLOOR_COUNT} events, below the ${MIN_EXPECTED_EVENTS} floor`),
+    )
+    assert.equal(f.urls.length, 1, 'the floor is fatal, not retryable')
+  })
+
+  it('applies the floor when the header is absent entirely', async () => {
+    const short = scriptedFetch([fakeResponse({ lastModified: null, events: makeEvents(10) })])
+    await assert.rejects(
+      () => quiet(() => fetchEvents(deps(short))),
+      new RegExp(`below the ${MIN_EXPECTED_EVENTS} floor`),
+    )
+
+    // ...but a healthy count with no header is still accepted.
+    const healthy = scriptedFetch([fakeResponse({ lastModified: null, events: makeEvents(FRESH_COUNT) })])
+    const out = await quiet(() => fetchEvents(deps(healthy)))
+    assert.equal(out.length, FRESH_COUNT)
+  })
+
+  it('accepts a count exactly at the floor and rejects one below it', async () => {
+    const atFloor = scriptedFetch([fakeResponse({ lastModified: FRESH, events: makeEvents(MIN_EXPECTED_EVENTS) })])
+    const out = await quiet(() => fetchEvents(deps(atFloor)))
+    assert.equal(out.length, MIN_EXPECTED_EVENTS)
+
+    const below = scriptedFetch([fakeResponse({ lastModified: FRESH, events: makeEvents(MIN_EXPECTED_EVENTS - 1) })])
+    await assert.rejects(
+      () => quiet(() => fetchEvents(deps(below))),
+      new RegExp(`below the ${MIN_EXPECTED_EVENTS} floor`),
+    )
+  })
+
+  it('the floor sits below the off-season baseline, so a lean-but-fresh feed passes', async () => {
+    // Regression guard for the seasonal false-failure: the June render is a
+    // legitimate ~163 events. A floor calibrated on the August peak would
+    // hard-fail all four sources every night through the summer trough.
+    assert.ok(MIN_EXPECTED_EVENTS < STALE_COUNT, 'floor must clear the honest off-season count')
+    const f = scriptedFetch([fakeResponse({ lastModified: FRESH, events: makeEvents(STALE_COUNT) })])
+    const out = await quiet(() => fetchEvents(deps(f)))
+    assert.equal(out.length, STALE_COUNT)
+    assert.equal(f.urls.length, 1)
+  })
+
+  it('unwraps the { events: [...] } envelope shape', async () => {
+    const events = makeEvents(FRESH_COUNT)
+    const f = scriptedFetch([fakeResponse({ lastModified: FRESH, body: { events } })])
+    const out = await quiet(() => fetchEvents(deps(f)))
+    assert.equal(out.length, FRESH_COUNT)
+  })
+
+  it('still throws immediately on a non-2xx response', async () => {
+    const f = scriptedFetch([fakeResponse({ ok: false, status: 503, events: [] })])
+    await assert.rejects(() => quiet(() => fetchEvents(deps(f))), /LiveWhale API error 503/)
+    assert.equal(f.urls.length, 1, 'HTTP errors are not part of the stale-retry loop')
+  })
+})
+
+describe('UAkron: complete-render short-circuit over a stale header', () => {
+  it('accepts a full render on the first attempt even when last-modified is months old', async () => {
+    // LiveWhale may simply not re-render for >24h, or last-modified may track
+    // content change rather than render time. Burning 5 attempts and then
+    // discarding 334 good events is the wrong trade.
+    const events = makeEvents(FRESH_COUNT)
+    const sleeps = []
+    const f = scriptedFetch([fakeResponse({ lastModified: STALE, events })])
+
+    const out = await quiet(() => fetchEvents(deps(f, sleeps)))
+
+    assert.equal(out.length, FRESH_COUNT)
+    assert.deepEqual(out, events, 'the payload passes through untouched')
+    assert.equal(f.urls.length, 1, 'a complete body must not trigger a retry')
+    assert.equal(sleeps.length, 0, 'and must not sleep')
+  })
+
+  it('accepts exactly at COMPLETE_RENDER_MIN_EVENTS but still retries one below it', async () => {
+    const at = scriptedFetch([fakeResponse({ lastModified: STALE, events: makeEvents(COMPLETE_RENDER_MIN_EVENTS) })])
+    const out = await quiet(() => fetchEvents(deps(at)))
+    assert.equal(out.length, COMPLETE_RENDER_MIN_EVENTS)
+    assert.equal(at.urls.length, 1)
+
+    const below = scriptedFetch([
+      fakeResponse({ lastModified: STALE, events: makeEvents(COMPLETE_RENDER_MIN_EVENTS - 1) }),
+      fakeResponse({ lastModified: FRESH, events: makeEvents(FRESH_COUNT) }),
+    ])
+    const recovered = await quiet(() => fetchEvents(deps(below, [])))
+    assert.equal(below.urls.length, 2, 'one below the bar is still treated as suspect')
+    assert.equal(recovered.length, FRESH_COUNT)
+  })
+
+  it('does NOT let the short-circuit swallow the ~163 poisoned snapshot', async () => {
+    // The whole point: 163 clears the 100 floor, so only the header guard
+    // catches it — the short-circuit bar must stay above the snapshot size.
+    assert.ok(COMPLETE_RENDER_MIN_EVENTS > STALE_COUNT, 'short-circuit bar must sit above the poisoned snapshot')
+    const f = scriptedFetch([fakeResponse({ lastModified: STALE, events: makeEvents(STALE_COUNT) })])
+
+    await assert.rejects(
+      () => quiet(() => fetchEvents(deps(f, []))),
+      /stale cached snapshot on all 5 attempts/,
+    )
+    assert.equal(f.urls.length, MAX_FETCH_ATTEMPTS)
   })
 })

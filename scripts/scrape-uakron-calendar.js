@@ -282,22 +282,135 @@ async function fetchEventDescription(href) {
   }
 }
 
-async function fetchEvents() {
+// ── Stale-snapshot guard ─────────────────────────────────────────────────────────────────────────
+//
+// The LiveWhale endpoint intermittently serves a poisoned CDN snapshot: a
+// frozen 2026-06-14 render of ~163 events in place of the live ~334. The
+// stale body arrives with `x-smart-cache: cached` and a months-old
+// `last-modified`; a fresh render carries `x-smart-cache: no-cache` and a
+// `last-modified` within minutes of now. 12 timed probes returned 7 fresh /
+// 5 stale, and a cache-buster alone does NOT reliably dodge it — so we
+// detect it by header age, retry, and THROW rather than ingest the short
+// feed. Silently dropping ~190 events a night across all four sub-calendars
+// while the run exits `success` is far worse than a red run: main()'s catch
+// routes the throw to logScraperError + exit 1, which is the intent.
+//
+// Both guards are deliberately header-and-count pure, so they unit-test with
+// no network.
+//
+// COUNT IS THE PRIMARY SIGNAL; THE HEADER IS ADVISORY. Two thresholds, and
+// they are not interchangeable:
+//
+//   MIN_EXPECTED_EVENTS (100) - the hard floor. Fatal, never retried. It sits
+//     deliberately FAR below the August peak of ~334 because the live
+//     `days=365` window is seasonal: the poisoned body is itself a real
+//     June 14 render of 163 events, which is direct evidence that the honest
+//     off-season feed lives well under 250. A floor at 250 would hard-fail
+//     all four sources every night through the summer trough and train
+//     everyone to ignore the red. 100 follows the convention in
+//     scrape-jadfa-house.js (MIN_EXPECTED_MEETINGS = 5 against a baseline of
+//     7): low enough never to fire in a normal season, high enough to catch a
+//     structural break.
+//
+//   COMPLETE_RENDER_MIN_EVENTS (250) - the "this body is obviously complete"
+//     short-circuit. A payload at or above it is accepted regardless of how
+//     old `last-modified` looks, because the poisoned snapshot is always
+//     ~163: no complete render has ever arrived stale, so this costs zero
+//     detection power. It exists for the case where LiveWhale simply does not
+//     re-render for >24h, or `last-modified` starts tracking content change
+//     rather than render time - otherwise we would burn all 5 attempts and
+//     then discard 334 perfectly good events.
+
+export const LAST_MODIFIED_MAX_AGE_MS   = 24 * 60 * 60 * 1000
+export const MIN_EXPECTED_EVENTS        = 100
+export const COMPLETE_RENDER_MIN_EVENTS = 250
+export const MAX_FETCH_ATTEMPTS         = 5
+const RETRY_BACKOFF_MS = 1000
+
+/**
+ * Does this `last-modified` header carry the fingerprint of the poisoned
+ * snapshot — i.e. is the render older than 24h? Pure.
+ *
+ * A missing or unparseable header returns false: freshness cannot be judged
+ * from it, and MIN_EXPECTED_EVENTS is the backstop for the day LiveWhale
+ * stops emitting a render timestamp.
+ */
+export function isStaleLastModified(lastModified, now = Date.now()) {
+  if (!lastModified) return false
+  const renderedAt = Date.parse(lastModified)
+  if (!Number.isFinite(renderedAt)) return false
+  return now - renderedAt > LAST_MODIFIED_MAX_AGE_MS
+}
+
+const defaultSleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+/**
+ * Fetch the LiveWhale feed, refusing the stale-snapshot response.
+ *
+ * Dependencies are injected purely so the guard is testable offline:
+ *   fetchImpl — global fetch by default
+ *   now       — Date.now by default (clock + cache-buster source)
+ *   sleepImpl — retry backoff; tests pass a no-op
+ *
+ * Throws on retry exhaustion and on a sub-floor event count. It never
+ * returns a payload it believes is stale.
+ */
+export async function fetchEvents({ fetchImpl = fetch, now = Date.now, sleepImpl = defaultSleep } = {}) {
   console.log('\n🔍  Fetching University of Akron events via LiveWhale API…')
 
-  const res = await fetch(API_URL, {
-    headers: {
-      Accept:       'application/json',
-      'User-Agent': 'Mozilla/5.0 (compatible; The330-bot/1.0)',
-    },
-  })
+  let lastSeenModified = null
+  let lastSeenCount    = null
 
-  if (!res.ok) throw new Error(`UAkron LiveWhale API error ${res.status}: ${await res.text()}`)
+  for (let attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt++) {
+    // Attempt 1 uses the bare URL; each retry gets a unique cache-buster so
+    // the CDN cannot hand back the byte-identical cached body.
+    const url = attempt === 1 ? API_URL : `${API_URL}&_=${now()}-${attempt}`
 
-  const data = await res.json()
-  const events = Array.isArray(data) ? data : (data.events ?? [])
-  console.log(`  Received ${events.length} events`)
-  return events
+    const res = await fetchImpl(url, {
+      headers: {
+        Accept:       'application/json',
+        'User-Agent': 'Mozilla/5.0 (compatible; The330-bot/1.0)',
+      },
+    })
+
+    if (!res.ok) throw new Error(`UAkron LiveWhale API error ${res.status}: ${await res.text()}`)
+
+    const lastModified = res.headers?.get?.('last-modified') ?? null
+    const data         = await res.json()
+    const events       = Array.isArray(data) ? data : (data.events ?? [])
+
+    lastSeenModified = lastModified
+    lastSeenCount    = events.length
+
+    // The count outranks the header: a body this complete is not the ~163
+    // snapshot no matter what `last-modified` claims, so take it rather than
+    // burn the remaining attempts and throw away good events.
+    const completeRender = events.length >= COMPLETE_RENDER_MIN_EVENTS
+
+    if (!completeRender && isStaleLastModified(lastModified, now())) {
+      console.warn(`  ⚠ Attempt ${attempt}/${MAX_FETCH_ATTEMPTS}: stale LiveWhale snapshot (last-modified: ${lastModified}, ${events.length} events) — retrying with a fresh cache-buster`)
+      if (attempt < MAX_FETCH_ATTEMPTS) {
+        await sleepImpl(RETRY_BACKOFF_MS * attempt)
+        continue
+      }
+      break
+    }
+
+    if (completeRender && isStaleLastModified(lastModified, now())) {
+      console.warn(`  ⚠ last-modified looks stale (${lastModified}) but the body carries ${events.length} events (≥ ${COMPLETE_RENDER_MIN_EVENTS}) — accepting it; the poisoned snapshot is always ~163`)
+    }
+
+    // Hard floor: a fresh-looking header over a truncated body is the same
+    // data loss. Covers last-modified ceasing to be a render stamp.
+    if (events.length < MIN_EXPECTED_EVENTS) {
+      throw new Error(`UAkron LiveWhale feed returned only ${events.length} events, below the ${MIN_EXPECTED_EVENTS} floor (last-modified: ${lastModified ?? 'absent'}) — refusing to ingest a truncated feed`)
+    }
+
+    console.log(`  Received ${events.length} events (last-modified: ${lastModified ?? 'absent'})`)
+    return events
+  }
+
+  throw new Error(`UAkron LiveWhale served the stale cached snapshot on all ${MAX_FETCH_ATTEMPTS} attempts (last-modified: ${lastSeenModified ?? 'absent'}, ${lastSeenCount} events) — refusing to ingest it`)
 }
 
 // ── Intra-feed duplicate suppression ───────────────────────────────────────
@@ -531,7 +644,24 @@ async function main() {
 
     console.log(`\n✅  Done in ${(durationMs / 1000).toFixed(1)}s`)
   } catch (err) {
-    await logScraperError('uakron_calendar', err, start)
+    // Log the failure against EVERY source this script owns. Logging only
+    // 'uakron_calendar' left the three sub-calendars with no scraper_runs row
+    // at all, so scraper-health read them as "never ran" (quiet) rather than
+    // "failed" (loud) — the same blind spot the stale-snapshot guard closes.
+    //
+    // Each call is isolated: a rejecting logScraperError (Supabase blip, RLS,
+    // network) must not abort the loop, must not mask `err` with its own
+    // message, and must not skip process.exit(1) by escaping as an unhandled
+    // rejection. One failed log costs one row, not the whole signal.
+    const ownedSources = [DEFAULT_SOURCE, ...SUB_CALENDARS.map(sub => sub.source)]
+    for (const source of ownedSources) {
+      try {
+        await logScraperError(source, err, start)
+      } catch (logErr) {
+        console.error(`⚠ Failed to record the failed run for '${source}': ${logErr?.message ?? logErr}`)
+      }
+    }
+    console.error(`❌ UAkron scrape failed: ${err?.stack ?? err?.message ?? err}`)
     process.exit(1)
   }
 }
