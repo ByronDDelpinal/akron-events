@@ -87,6 +87,9 @@ export const VIEWS_BREAK_DATE = '2026-08-13'
 /** The same day in prose, for copy. Kept beside the ISO one so they cannot drift. */
 export const VIEWS_BREAK_LABEL = 'August 13, 2026'
 
+/** And the tile-chip form, which has about twenty characters to work with. */
+export const VIEWS_BREAK_SHORT = 'Aug 13'
+
 export function crossesViewsBreak(from: string): boolean {
   return from < VIEWS_BREAK_DATE
 }
@@ -326,63 +329,97 @@ export function sortRows(rows: MetricRow[], key: SortKey, dir: SortDir): MetricR
 // Informal, plain, second person. "We" is Pulse, "you" is the partner. No em
 // dashes. Never apologise for the numbers being low and never editorialise
 // about them being good.
+//
+// And SHORT. A partner reads this surface to find a number, not to be taught
+// how analytics works. Every note here is one or two sentences; if a caveat
+// needs a third, the caveat is wrong, not the space it was given.
 
 export const FLOOR_NOTE =
-  'These come from Google Analytics, so read every number as a minimum. Ad blockers and privacy settings stop a lot of visits from ever being counted, which means the real numbers are higher than what you see here. The last couple of days are still settling.'
+  'Read every number as a minimum. Ad blockers stop a lot of visits from being counted, and the last couple of days are still settling.'
 
 export const VISITOR_DAYS_NOTE =
-  'Visitor days counts a person once per day, so somebody who comes back on three days counts three times. If an event was renamed partway through, a visitor can also land on both versions of its address in one day and be counted twice. Treat it as a shape, not a headcount.'
+  'Visitor days counts a person once per day, so three days of visits count three times.'
 
 export const VIEWS_BREAK_NOTE =
-  `One thing to know before you read the views figure: until ${VIEWS_BREAK_LABEL} we counted a view every time somebody changed a filter on a page, not just when they opened it, so views from before then run high. That is why views is the one number here we do not call a minimum. Visitor days were never counted that way, so they are the steadier number to compare across that date.`
+  `Views before ${VIEWS_BREAK_LABEL} run high: filter changes counted as views back then. Visitor days did not, so they compare better across that date.`
+
+/**
+ * The same warning, shrunk to ride ON the views tile.
+ *
+ * This is the layer-one half of the views break (OSR dashboard guidance: a
+ * brief critical warning goes where the number is, the detail goes one
+ * interaction away). It is deliberately not a summary of VIEWS_BREAK_NOTE --
+ * it is the part a reader must not be able to miss while looking straight at
+ * the figure. The full explanation lives under COUNTED_TITLE.
+ */
+export const VIEWS_BREAK_CHIP = `runs high before ${VIEWS_BREAK_SHORT}`
+
+/**
+ * The one row every caveat now lives behind. Named as a question a partner
+ * would actually ask, not as "notes" or "about this data": the label has to
+ * be worth the click on its own.
+ */
+export const COUNTED_TITLE = 'How these numbers are counted'
 
 export const ROLLUP_NOTE =
-  'Everything below adds up to these numbers, upcoming and past events together.'
+  'Upcoming and past events, added together.'
 
 export const NO_EVENTS_NOTE =
-  'No events in this window, so there is nothing to measure yet. Add an event or widen the window.'
+  'No events in this window. Add one, or widen the window.'
 
 export const NO_TRAFFIC_NOTE =
-  'Nothing measured yet for these events. That does not mean nobody looked. It means Google Analytics has not recorded a visit to these pages in this window.'
+  'No visits recorded for these events in this window.'
+
+/**
+ * The zero state's next step. Both live tenants sit at zero across every event
+ * they have ever run, so this is the copy most partners actually read, and a
+ * flat zero with nothing to do about it is where a partner stops coming back.
+ * It says what makes a number move, without promising that it will.
+ */
+export const NO_TRAFFIC_NEXT =
+  'Views count when somebody opens your event page. Handoffs count when they click through to your ticket or site link.'
+
+/** The fold over the zero-filled tables. Nothing is hidden, only shut. */
+export const SHOW_ANYWAY = 'Show every event anyway'
 
 export const DENIED_NOTE =
-  'This account cannot see that organization right now. If that is a surprise, your access may have changed since you signed in. Sign out and back in, and email us if it persists.'
+  'This account cannot see that organization. Sign out and back in, and email us if it persists.'
 
 export const LOAD_ERROR_NOTE =
-  'Could not load your numbers. This is a problem on our end, not a zero.'
+  'Could not load your numbers. That is a problem on our end, not a zero.'
 
 export const UPCOMING_TITLE = 'Coming up'
 export const PAST_TITLE = 'Already happened'
 
 export const UPCOMING_NOTE =
-  `Your events that have not happened yet: everything in the next ${UPCOMING_DAYS} days, plus anything further out that people have already been looking at. A brand new event reads 0 until people start finding it.`
+  `The next ${UPCOMING_DAYS} days, plus anything further out people are already viewing.`
 
 export const PAST_NOTE =
-  'Your events that already happened inside this window, busiest first.'
+  'Events already past, busiest first.'
 
 export const NO_UPCOMING_NOTE =
-  `Nothing on your calendar in the next ${UPCOMING_DAYS} days.`
+  `Nothing scheduled in the next ${UPCOMING_DAYS} days.`
 
 export const NO_PAST_NOTE =
-  'None of your events happened inside this window.'
+  'None of your events happened in this window.'
 
 /**
  * The roll-up tiles, in render order. Views leads: it is the most populated
  * honest figure here, and at two to twenty five outbound clicks a day across
  * the whole site a handoff headline reads zero most windows.
+ *
+ * Every `sub` is a fragment of four words or fewer on purpose. These render as
+ * a row of equal-width tiles, and a sub long enough to wrap in one tile and not
+ * the next is what made the row look broken.
  */
 export const HEADLINE_LABELS = {
-  views: {
-    label: 'Views',
-    sub: 'times your event pages were opened',
-    // Used instead of `sub` whenever the window reaches back past the break,
-    // so the tile says what it is at the place somebody reads the number.
-    subBroken: 'times your pages were opened, counted high before Aug 13',
-    noun: 'views',
-  },
-  visitorDays: { label: 'Visitor days', sub: 'one per person per day', noun: 'visitor days' },
-  clicks: { label: 'Handoffs', sub: 'people we sent to your links', noun: 'handoffs' },
-  tickets: { label: 'Tickets', sub: 'clicks on a ticket link', noun: 'ticket clicks' },
-  source: { label: 'Your site', sub: 'clicks through to your own page', noun: 'clicks to your site' },
-  notBrokenOut: { label: 'Not broken out', sub: 'clicks we could not split', noun: 'unsplit clicks' },
+  // No `subBroken` twin any more: the break warning is VIEWS_BREAK_CHIP,
+  // which renders as a caution chip on this tile whenever the window crosses
+  // the break. One warning, on the number, in one place.
+  views: { label: 'Views', sub: 'event pages opened', noun: 'views' },
+  visitorDays: { label: 'Visitor days', sub: 'one per person daily', noun: 'visitor days' },
+  clicks: { label: 'Handoffs', sub: 'sent to your links', noun: 'handoffs' },
+  tickets: { label: 'Tickets', sub: 'ticket link clicks', noun: 'ticket clicks' },
+  source: { label: 'Your site', sub: 'clicks to your site', noun: 'clicks to your site' },
+  notBrokenOut: { label: 'Not broken out', sub: 'could not be split', noun: 'unsplit clicks' },
 } as const

@@ -16,6 +16,7 @@
 import type { LooseRow } from '@/types'
 import { useMemo, useState } from 'react'
 import { format } from 'date-fns'
+import { eventPath } from '@/lib/slug.js'
 import { supabase } from '@/lib/supabase'
 import { CATEGORIES, AGE_OPTIONS } from '@/lib/admin/constants'
 import { toDatetimeLocalValue, fromDatetimeLocalValue } from '@/lib/datetimeLocal'
@@ -26,6 +27,8 @@ import {
   type PartnerPatch,
 } from '@/lib/admin/partnerShared'
 import PartnerVenueControl, { type VenueOption } from '@/pages/admin/partner/PartnerVenueControl'
+import PartnerShareDialog from '@/pages/admin/partner/PartnerShareDialog'
+import type { ShareEvent } from '@/lib/admin/shareShared'
 
 // Same reassignment options as the admin drawer: everything except 'other'.
 const TAG_OPTIONS = CATEGORIES.filter((c) => c.value !== 'other')
@@ -114,6 +117,7 @@ export default function PartnerEventDrawer({
   const [savedVenueId, setSavedVenueId] = useState<string | null>(initialVenueId)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [sharing, setSharing] = useState(false)
 
   const published = ev.status === 'published'
   const multiVenue = ((ev.event_venues ?? []) as LooseRow[]).length > 1
@@ -196,11 +200,30 @@ export default function PartnerEventDrawer({
     if (Object.keys(applied).length > 0) onApplied(applied)
     if (statusAfter && statusAfter !== ev.status && statusAfter === 'pending_review') {
       // Moderation can demote an edited row; say so plainly, never silently.
-      showToast('Saved. This event went back to Akron Pulse for review.')
+      showToast('Saved. Back to Akron Pulse for review.')
     } else {
       showToast('Saved.')
     }
   }
+
+  /**
+   * The row, projected into the pure shape the share kit reads. Built from
+   * the SAVED row rather than the form: a caption promising an 8pm start
+   * that is still sitting unsaved in the drawer would be a caption about an
+   * event the public page does not describe.
+   */
+  const shareEvent: ShareEvent = useMemo(() => ({
+    id: String(ev.id),
+    title: ev.title ?? 'Event',
+    path: eventPath({ id: ev.id, title: ev.title, start_at: ev.start_at }),
+    startAt: ev.start_at ?? null,
+    venueName: ((ev.event_venues ?? []) as LooseRow[])[0]?.venue?.name ?? null,
+    priceMin: typeof ev.price_min === 'number' ? ev.price_min : null,
+    priceMax: typeof ev.price_max === 'number' ? ev.price_max : null,
+    categories: ((ev.event_categories ?? []) as LooseRow[])
+      .map((ec) => ec.category)
+      .filter(Boolean) as string[],
+  }), [ev.id, ev.title, ev.start_at, ev.event_venues, ev.price_min, ev.price_max, ev.event_categories])
 
   const orgNames = ((ev.event_organizations ?? []) as LooseRow[])
     .map((eo) => eo.organization?.name)
@@ -216,13 +239,12 @@ export default function PartnerEventDrawer({
         {!canWrite && (
           <p className="ashell-why-p ashell-pro-note" role="note">
             Co-hosted with {unwritableNames.length > 0 ? unwritableNames.join(', ') : 'another organization'}.
-            Contact Akron Pulse to change this event.
+            Contact Akron Pulse to edit it.
           </p>
         )}
         {canWrite && importedFrom && (
           <p className="ashell-why-p ashell-pro-note" role="note">
-            This event was originally imported from {importedFrom}&apos;s calendar feed.
-            Your edit takes precedence and is protected from future imports.
+            Imported from {importedFrom}&apos;s feed. Your edits win over future imports.
           </p>
         )}
         <dl className="ashell-kv">
@@ -257,7 +279,7 @@ export default function PartnerEventDrawer({
             selectedIds={selection}
             onChange={canWrite ? onSelectionChange : () => {}}
             max={2}
-            maxHint="Only two categories can be selected at a time"
+            maxHint="Two at a time"
           />
           {isAutoSaving && <span className="ashell-autosave" role="status">Saving…</span>}
         </div>
@@ -309,8 +331,8 @@ export default function PartnerEventDrawer({
               disabled={disabled}
               readOnlyReason={
                 multiVenue
-                  ? 'This event has multiple venues. Contact Akron Pulse to change them.'
-                  : !canWrite ? 'Venue changes need write access to this event.' : null
+                  ? 'Multiple venues. Contact Akron Pulse to change them.'
+                  : !canWrite ? 'Venue changes need write access.' : null
               }
             />
           </FormField>
@@ -332,13 +354,13 @@ export default function PartnerEventDrawer({
                 className="ashell-btn ashell-btn--danger-ghost"
                 onClick={onCancelEvent}
                 disabled={saving}
-                title="Cancel this event permanently; only Akron Pulse can restore it. A confirm follows"
+                title="Cancel this event. Permanent; a confirm follows"
               >
                 Cancel event…
               </button>
             ) : ev.status === 'cancelled' ? (
               <span className="ashell-pro-note ashell-cancel-final" role="note">
-                Cancelled for good. Contact Akron Pulse to restore it.
+                {CANCELLED_FINAL_COPY}
               </span>
             ) : (
               <button
@@ -346,7 +368,7 @@ export default function PartnerEventDrawer({
                 className="ashell-btn ashell-btn--primary"
                 onClick={onPublish}
                 disabled={saving}
-                title="Publish this event; a confirm follows"
+                title="Publish this event. A confirm follows"
               >
                 Publish…
               </button>
@@ -356,11 +378,31 @@ export default function PartnerEventDrawer({
               className="ashell-btn"
               onClick={handleUpdate}
               disabled={saving || !dirty}
-              title="Save your changes to this event"
             >
               {saving ? 'Saving…' : 'Update'}
             </button>
+            {/* Published rows only. An unpublished event has no public page,
+                so every link in the kit would 404 and the image would render
+                over a row the crawler cannot read. */}
+            {published && (
+              <button
+                type="button"
+                className="ashell-btn"
+                onClick={() => setSharing(true)}
+                title="Get an image and caption for Facebook or Instagram"
+              >
+                Share…
+              </button>
+            )}
           </div>
+        )}
+
+        {sharing && (
+          <PartnerShareDialog
+            ev={shareEvent}
+            onClose={() => setSharing(false)}
+            showToast={showToast}
+          />
         )}
       </div>
     </div>
@@ -373,7 +415,7 @@ function drawerNarrative(ev: LooseRow): string {
   }
   if (ev.status === 'cancelled') {
     // Cancelled is final for partners; restoring is admin-only.
-    return `${CANCELLED_FINAL_COPY} It is off the public site and stays cancelled until Akron Pulse restores it.`
+    return `${CANCELLED_FINAL_COPY} It is off the public site.`
   }
-  return 'Live on the public site. Changes you save here update the public page.'
+  return 'Live on the public site.'
 }

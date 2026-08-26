@@ -217,7 +217,7 @@ export function PartnerEventsSurface({ orgFilter = null }: PartnerEventsSurfaceP
             if (committed.length > 0) {
               selectionsRef.current = { ...selectionsRef.current, [ev.id]: committed }
               setSelections((s) => ({ ...s, [ev.id]: committed }))
-              showToast('A published event keeps at least one category. Your change was reverted.')
+              showToast('A published event keeps one category. Reverted.')
             }
           } else if (!sameSet(cats, committed)) {
             const org = writeOrgId(linkedOrgIds(freshRow(ev)), scopeIds)
@@ -326,9 +326,9 @@ export function PartnerEventsSurface({ orgFilter = null }: PartnerEventsSurfaceP
     if (target === 'cancelled') {
       // Cancelled is final for partners (fix-pass finding 5); say so now,
       // not when they later look for a republish button.
-      showToast(`Cancelled "${truncate(row.title)}". Only Akron Pulse can restore it.`)
+      showToast(`Cancelled "${truncate(row.title)}".`)
     } else if (result.status === 'published') {
-      showToast(`Published "${truncate(row.title)}". It is live on the public site.`)
+      showToast(`Published "${truncate(row.title)}".`)
     } else {
       // The RPC resolved publish to review. That covers a tenant's
       // auto_publish rule (review_required_by names the org) AND the
@@ -353,7 +353,7 @@ export function PartnerEventsSurface({ orgFilter = null }: PartnerEventsSurfaceP
     }
     const blocker = predictedReviewBlocker(linkedOrgIds(c.ev), orgs)
     return blocker
-      ? `Publish "${c.ev.title}"? ${blocker}'s events are reviewed first, so this will go to Akron Pulse for review.`
+      ? `Publish "${c.ev.title}"? ${blocker}'s events go to Akron Pulse for review first.`
       : `Publish "${c.ev.title}" to the public site?`
   }
 
@@ -370,11 +370,11 @@ export function PartnerEventsSurface({ orgFilter = null }: PartnerEventsSurfaceP
         <IncludePastToggle includePast={includePast} onChange={setIncludePast} showHint={false} />
       </div>
 
-      {loading && <div className="admin-loading">Loading your events…</div>}
+      {loading && <div className="admin-loading">Loading…</div>}
 
       {!loading && fetchError && (
         <div className="admin-review-error" role="alert">
-          <p>Could not load your events. This is a fetch failure, not an empty list.</p>
+          <p>Could not load your events. This is an error, not an empty list.</p>
           <p className="admin-review-error-detail">{fetchError}</p>
           <button className="btn-admin-ghost btn-admin-sm" onClick={fetchEvents}>
             Retry
@@ -386,7 +386,7 @@ export function PartnerEventsSurface({ orgFilter = null }: PartnerEventsSurfaceP
         <div className="ashell-empty">
           <div className="ashell-empty-ring" aria-hidden="true">✓</div>
           <h3>No events in this view</h3>
-          <p>Nothing upcoming here yet. New event in the rail starts one.</p>
+          <p>Use New event in the rail to start one.</p>
         </div>
       )}
 

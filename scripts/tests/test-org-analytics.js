@@ -26,6 +26,8 @@ import {
   DEFAULT_WINDOW,
   FLOOR_NOTE,
   HEADLINE_LABELS,
+  VIEWS_BREAK_CHIP,
+  VIEWS_BREAK_SHORT,
   NO_UPCOMING_NOTE,
   UPCOMING_NOTE,
   VIEWS_BREAK_LABEL,
@@ -228,8 +230,14 @@ describe('a figure decides once what a number claims', () => {
 
   it('the views tile has copy for both eras', () => {
     assert.ok(HEADLINE_LABELS.views.sub.length > 0)
-    assert.ok(HEADLINE_LABELS.views.subBroken.length > 0,
-      'the tile itself has to say the number runs high, not only the paragraph above it')
+    // The broken-era copy is the chip, not a second sub. The tile itself has
+    // to say the number runs high, and it has to name the day it changed, or
+    // a reader cannot tell whether their own window is affected.
+    assert.ok(VIEWS_BREAK_CHIP.length > 0)
+    assert.ok(VIEWS_BREAK_CHIP.includes(VIEWS_BREAK_SHORT))
+    assert.ok(VIEWS_BREAK_LABEL.includes(VIEWS_BREAK_SHORT.split(' ')[0]),
+      'the long and short forms of the break date must name the same month')
+    assert.ok(VIEWS_BREAK_CHIP.length < 32, 'the chip has a tile corner to fit into')
   })
 })
 
@@ -425,23 +433,41 @@ describe('the honesty rules survive in the component', () => {
     )
   })
 
-  it('gates the floor note on the denial ONLY, never on there being numbers', () => {
-    // Checking that the string appears is not enough: move it inside the block
-    // that renders the tiles and it vanishes from both empty states while
-    // every other guard here still passes. Zero is a floor too, and it is the
-    // number most likely to be read as fact.
-    assert.ok(
-      comp.includes('{state !== \'denied\' && <p className="ashell-an-floor">{FLOOR_NOTE}</p>}'),
-      'FLOOR_NOTE must sit at the top level of the block, guarded by nothing but the denial check',
-    )
+  it('gates the counted-how row on the denial ONLY, never on there being numbers', () => {
+    // The floor note lives in the counted-how <details> since the 2026-08-25
+    // hierarchy pass. What has to hold is unchanged: move that row inside the
+    // block that renders the tiles and it vanishes from both empty states and
+    // the error state while every other guard here still passes. Zero is a
+    // floor too, and it is the number most likely to be read as fact.
+    const row = comp.indexOf('{state !== \'denied\' && (')
+    const details = comp.indexOf('<details className="ashell-an-counted">')
+    assert.ok(row > -1, 'the counted-how row must be guarded by the denial check and nothing else')
+    assert.ok(details > row && details - row < 200,
+      'and that guard has to be the one wrapping the <details>, not some other block')
+    assert.ok(comp.indexOf('{FLOOR_NOTE}') > details,
+      'FLOOR_NOTE belongs inside that row')
   })
 
-  it('puts the views disclosure ABOVE the number it is about', () => {
-    // A correction below the figure does not un-say a claim already made.
-    const note = comp.indexOf('{VIEWS_BREAK_NOTE}')
-    const tile = comp.indexOf('viewsFigure(')
-    assert.ok(note > -1 && tile > -1)
-    assert.ok(note < tile, 'the break note has to render before the views tile, not after it')
+  it('keeps the caveats on the page, never behind a tooltip or a link away', () => {
+    // <details> is the layer-two device the OSR dashboard guidance calls for:
+    // in the document, in the flow, findable by ctrl-F, one click from the
+    // number. A title attribute or an href would be neither.
+    assert.ok(comp.includes('<details className="ashell-an-counted">'))
+    assert.ok(!/href=/.test(comp), 'no caveat may be a link off this surface')
+  })
+
+  it('puts the views warning ON the number it is about, not near it', () => {
+    // A correction below the figure does not un-say a claim already made, and
+    // a paragraph above it is read before the reader knows what it applies to.
+    // The warning is a chip on the views tile, fed by the break check.
+    assert.ok(/caution=\{broken \? VIEWS_BREAK_CHIP : null\}/.test(comp),
+      'the views tile must carry the break warning itself, conditioned on the window crossing it')
+    const caution = comp.indexOf('caution={broken')
+    const tile = comp.indexOf('figure={viewsFigure(')
+    assert.ok(caution > -1 && tile > -1 && Math.abs(tile - caution) < 400,
+      'and the chip has to be on the SAME tile as the views figure')
+    assert.ok(!/caution=/.test(comp.split('floorFigure(')[1] ?? ''),
+      'no other tile carries a break warning: the break is about views only')
   })
 
   it('builds every tile through a figure helper rather than a bare number', () => {

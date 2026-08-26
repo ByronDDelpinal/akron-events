@@ -182,8 +182,8 @@ export function predictedReviewBlocker(
  */
 export function reviewOutcomeCopy(reviewRequiredBy: string | null): string {
   return reviewRequiredBy
-    ? `${reviewRequiredBy}'s rules sent this to Akron Pulse for review. It will publish once a human approves it.`
-    : 'This went to Akron Pulse for review. It will publish once a human approves it.'
+    ? `${reviewRequiredBy}'s rules sent this to Akron Pulse for review. It publishes once approved.`
+    : 'This went to Akron Pulse for review. It publishes once approved.'
 }
 
 /**
@@ -197,7 +197,7 @@ export const CANCELLED_FINAL_COPY =
   'Cancelled. Contact Akron Pulse to restore.'
 
 export function cancelConfirmCopy(title: string): string {
-  return `Cancel "${title}"? It comes off the public site and shows as cancelled. This is permanent: only Akron Pulse can restore a cancelled event.`
+  return `Cancel "${title}"? This is permanent: only Akron Pulse can restore it.`
 }
 
 /**

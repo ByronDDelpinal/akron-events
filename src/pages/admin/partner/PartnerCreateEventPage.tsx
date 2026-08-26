@@ -88,7 +88,7 @@ export default function PartnerCreateEventPage() {
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     if (!orgId) {
-      setError('Choose which organization this event belongs to.')
+      setError('Choose an organization.')
       return
     }
     if (!title.trim()) {
@@ -97,7 +97,7 @@ export default function PartnerCreateEventPage() {
     }
     const startIso = fromDatetimeLocalValue(startAt)
     if (!startIso) {
-      setError('The event needs a start date and time.')
+      setError('The event needs a start time.')
       return
     }
     if (cats.length < 1 || cats.length > 2) {
@@ -165,7 +165,7 @@ export default function PartnerCreateEventPage() {
           {outcome.status === 'published' ? (
             <>
               <h3>Event published</h3>
-              <p>It is live on the public site now, credited to {outcome.orgName}.</p>
+              <p>Live on the public site, credited to {outcome.orgName}.</p>
             </>
           ) : (
             <>
@@ -173,7 +173,6 @@ export default function PartnerCreateEventPage() {
               {/* Name the org only when the RPC named it -- a moderation
                   demotion is not the org's rules, and we never guess. */}
               <p>{reviewOutcomeCopy(outcome.reviewRequiredBy)}</p>
-              <p>You can keep editing it from your events list while it waits.</p>
             </>
           )}
           <p className="ashell-pcreate-links">
@@ -189,92 +188,104 @@ export default function PartnerCreateEventPage() {
       <div className="ashell-surface-hd">
         <h2>New event</h2>
       </div>
+      {/* Two columns on anything wide enough for them. One column of fields
+          on a 2600px screen meant scrolling past the fold to reach the venue
+          on a form that fits a laptop screen whole. The split is by question,
+          not by field count: what the event IS on the left, when and where
+          and how much on the right. */}
       <form className="ashell-pform" onSubmit={submit}>
-        {orgs.length > 1 && (
-          <FormField label="Organization">
-            <FormSelect
-              value={orgId}
-              onChange={(e) => { setOrgId(e.target.value); setError(null) }}
-              options={orgs.map((o) => ({ value: o.organization_id, label: o.name }))}
-              placeholder="Choose an organization…"
-              required
-            />
-            <p className="admin-hint">
-              The event is credited to this organization permanently.
+        <div className="ashell-pform-col">
+          <h3 className="ashell-pform-lbl">The event</h3>
+
+          {orgs.length > 1 && (
+            <FormField label="Organization">
+              <FormSelect
+                value={orgId}
+                onChange={(e) => { setOrgId(e.target.value); setError(null) }}
+                options={orgs.map((o) => ({ value: o.organization_id, label: o.name }))}
+                placeholder="Choose an organization…"
+                required
+              />
+              <p className="admin-hint">Credited permanently to this organization.</p>
+            </FormField>
+          )}
+          {chosenOrg && !chosenOrg.auto_publish && (
+            <p className="admin-hint" role="note">
+              New events from {chosenOrg.name} are reviewed before they go public.
             </p>
-          </FormField>
-        )}
-        {chosenOrg && !chosenOrg.auto_publish && (
-          <p className="admin-hint" role="note">
-            Akron Pulse reviews new events from {chosenOrg.name} before they
-            appear on the public site.
-          </p>
-        )}
+          )}
 
-        <FormField label="Title">
-          <FormInput value={title} onChange={(e) => { setTitle(e.target.value); setError(null) }} maxLength={200} required />
-        </FormField>
-        <FormField label="Description">
-          <FormTextarea value={description} onChange={(e) => setDescription(e.target.value)} rows={5} />
-        </FormField>
-        <FormFieldRow>
-          <FormField label="Starts">
-            <FormInput type="datetime-local" value={startAt} onChange={(e) => { setStartAt(e.target.value); setError(null) }} required />
+          <FormField label="Title">
+            <FormInput value={title} onChange={(e) => { setTitle(e.target.value); setError(null) }} maxLength={200} required />
           </FormField>
-          <FormField label="Ends (optional)">
-            <FormInput type="datetime-local" value={endAt} onChange={(e) => setEndAt(e.target.value)} />
+          <FormField label="Description">
+            <FormTextarea value={description} onChange={(e) => setDescription(e.target.value)} rows={8} />
           </FormField>
-        </FormFieldRow>
-        <FormFieldRow>
-          <FormField label="Price from ($)">
-            <FormInput type="number" min="0" step="0.01" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} />
+          <FormField label="Categories">
+            <ChipSelector
+              items={TAG_OPTIONS.map((c) => ({ id: c.value, name: c.label }))}
+              selectedIds={cats}
+              onChange={(ids) => { setCats(ids); setError(null) }}
+              max={2}
+              maxHint="Two at a time"
+            />
           </FormField>
-          <FormField label="Price to ($)">
-            <FormInput type="number" min="0" step="0.01" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} placeholder="free or same" />
-          </FormField>
-          <FormField label="Ages">
-            <FormSelect value={age} onChange={(e) => setAge(e.target.value)} options={[...AGE_OPTIONS]} />
-          </FormField>
-        </FormFieldRow>
-        <FormField label="Categories">
-          <ChipSelector
-            items={TAG_OPTIONS.map((c) => ({ id: c.value, name: c.label }))}
-            selectedIds={cats}
-            onChange={(ids) => { setCats(ids); setError(null) }}
-            max={2}
-            maxHint="Only two categories can be selected at a time"
-          />
-        </FormField>
-        <FormField label="Venue">
-          <PartnerVenueControl
-            orgId={orgId}
-            venues={venues}
-            value={venueId}
-            onChange={setVenueId}
-            onVenueKnown={addVenueOption}
-            disabled={!orgId}
-            readOnlyReason={!orgId ? 'Choose an organization first.' : null}
-          />
-        </FormField>
-        <FormField label="Ticket link">
-          <FormInput type="url" value={ticketUrl} onChange={(e) => setTicketUrl(e.target.value)} placeholder="https://…" />
-        </FormField>
-        <FormFieldRow>
-          <FormField label="Event page link">
-            <FormInput type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://…" />
-          </FormField>
-          <FormField label="Image link">
-            <FormInput type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…" />
-          </FormField>
-        </FormFieldRow>
+        </div>
 
-        {error && <p className="ashell-row-error" role="alert">{error}</p>}
+        <div className="ashell-pform-col">
+          <h3 className="ashell-pform-lbl">When, where, how much</h3>
 
-        <div className="ashell-dactions">
-          <button type="submit" className="ashell-btn ashell-btn--primary" disabled={busy}>
-            {busy ? 'Creating…' : 'Create event'}
-          </button>
-          <Link className="ashell-edit-link" to="/admin/events">Back to your events</Link>
+          <FormFieldRow>
+            <FormField label="Starts">
+              <FormInput type="datetime-local" value={startAt} onChange={(e) => { setStartAt(e.target.value); setError(null) }} required />
+            </FormField>
+            <FormField label="Ends (optional)">
+              <FormInput type="datetime-local" value={endAt} onChange={(e) => setEndAt(e.target.value)} />
+            </FormField>
+          </FormFieldRow>
+          <FormField label="Venue">
+            <PartnerVenueControl
+              orgId={orgId}
+              venues={venues}
+              value={venueId}
+              onChange={setVenueId}
+              onVenueKnown={addVenueOption}
+              disabled={!orgId}
+              readOnlyReason={!orgId ? 'Choose an organization first.' : null}
+            />
+          </FormField>
+          <FormFieldRow>
+            <FormField label="Price from ($)">
+              <FormInput type="number" min="0" step="0.01" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} />
+            </FormField>
+            <FormField label="Price to ($)">
+              <FormInput type="number" min="0" step="0.01" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} placeholder="free or same" />
+            </FormField>
+            <FormField label="Ages">
+              <FormSelect value={age} onChange={(e) => setAge(e.target.value)} options={[...AGE_OPTIONS]} />
+            </FormField>
+          </FormFieldRow>
+          <FormField label="Ticket link">
+            <FormInput type="url" value={ticketUrl} onChange={(e) => setTicketUrl(e.target.value)} placeholder="https://…" />
+          </FormField>
+          <FormFieldRow>
+            <FormField label="Event page link">
+              <FormInput type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://…" />
+            </FormField>
+            <FormField label="Image link">
+              <FormInput type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…" />
+            </FormField>
+          </FormFieldRow>
+        </div>
+
+        <div className="ashell-pform-foot">
+          {error && <p className="ashell-row-error" role="alert">{error}</p>}
+          <div className="ashell-dactions">
+            <button type="submit" className="ashell-btn ashell-btn--primary" disabled={busy}>
+              {busy ? 'Creating…' : 'Create event'}
+            </button>
+            <Link className="ashell-edit-link" to="/admin/events">Back to your events</Link>
+          </div>
         </div>
       </form>
     </div>

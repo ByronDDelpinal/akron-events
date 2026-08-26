@@ -54,7 +54,7 @@ export default function PartnerVenueControl({
   const mint = async (e: FormEvent) => {
     e.preventDefault()
     if (!name.trim()) {
-      setMintError('Type the venue’s name first.')
+      setMintError('Name the venue first.')
       return
     }
     setMinting(true)
@@ -82,8 +82,8 @@ export default function PartnerVenueControl({
     onChange(result.venue_id)
     setMintNote(
       result.created
-        ? 'Venue added. Akron Pulse reviews new venues, but your event can use it right away.'
-        : `We already know that venue, so we linked the existing entry: ${result.name}.`,
+        ? 'Venue added. You can use it right away.'
+        : `Linked the venue we already had: ${result.name}.`,
     )
     setAdding(false)
     setName('')
@@ -132,7 +132,7 @@ export default function PartnerVenueControl({
           <FormInput
             value={name}
             onChange={(e) => { setName(e.target.value); setMintError(null) }}
-            placeholder="Venue name (not the address)"
+            placeholder="Venue name, not the address"
             aria-label="Venue name"
             disabled={minting}
           />
@@ -146,7 +146,7 @@ export default function PartnerVenueControl({
           <FormInput
             value={city}
             onChange={(e) => setCity(e.target.value)}
-            placeholder="City (Akron if blank)"
+            placeholder="City, Akron if blank"
             aria-label="Venue city"
             disabled={minting}
           />

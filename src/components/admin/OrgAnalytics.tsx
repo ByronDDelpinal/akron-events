@@ -5,22 +5,26 @@ import { useOrgMetrics } from '@/lib/admin/useOrgMetrics'
 import {
   DEFAULT_WINDOW,
   ROWS_PER_PAGE,
+  COUNTED_TITLE,
   FLOOR_NOTE,
   HEADLINE_LABELS,
   LOAD_ERROR_NOTE,
   DENIED_NOTE,
   NO_EVENTS_NOTE,
   NO_PAST_NOTE,
+  NO_TRAFFIC_NEXT,
   NO_TRAFFIC_NOTE,
   NO_UPCOMING_NOTE,
   PAST_NOTE,
   PAST_SORT,
   PAST_TITLE,
   ROLLUP_NOTE,
+  SHOW_ANYWAY,
   TRACKING_START,
   UPCOMING_NOTE,
   UPCOMING_SORT,
   UPCOMING_TITLE,
+  VIEWS_BREAK_CHIP,
   VIEWS_BREAK_NOTE,
   VISITOR_DAYS_NOTE,
   WINDOW_OPTIONS,
@@ -43,14 +47,21 @@ import {
 
 interface OrgAnalyticsProps {
   /**
-   * The orgs this block may show. Renders its own picker only when there is
-   * more than one. PartnersPage passes exactly one.
+   * The orgs this block may show. PartnersPage passes exactly one.
    */
   orgs: { organization_id: string; name: string }[]
+  /**
+   * The page's scope, when the page has one. Non-null locks this block to
+   * that org and hides its own switch: the page-level control is then the
+   * only thing choosing an org, which is the whole point of passing it.
+   * Null means "the page is showing everything", and since the RPC takes
+   * exactly one org, the block picks one and offers a quiet switch.
+   */
+  focusId?: string | null
 }
 
 /**
- * OrgAnalytics -- the partner analytics block, rendered in exactly two places:
+ * OrgAnalytics -- the partner traffic block, rendered in exactly two places:
  * PartnerHomePage (a partner looking at their own orgs) and the expanded
  * tenant card on PartnersPage (an admin looking at one org).
  *
@@ -59,46 +70,94 @@ interface OrgAnalyticsProps {
  * the org it was handed. That is what keeps this one component rather than two
  * implementations that drift.
  *
- * The org picker here is deliberately NOT wired to PartnerHomePage's chip
- * strip. That strip is a multi-select filter where empty means all; this needs
- * exactly one org because the RPC takes exactly one, and coupling a
- * multi-select to a single-select is where the bug would live.
- *
  * SHAPE: the org roll-up leads, then upcoming events, then past events. The
  * roll-up leads because the per-event grain is mostly zero (62% of published
  * events have no measured view in a 30-day window, and the median measured
  * event has 3 views), so a table of per-event numbers cannot carry the answer
- * on its own. Nothing is hidden below it: an event with nothing measured still
- * gets a row of zeros in whichever section it belongs to.
+ * on its own.
+ *
+ * ── HIERARCHY PASS, 2026-08-25 ──────────────────────────────────────────────
+ *
+ * Three things changed and the honesty rules survived all of them.
+ *
+ * 1. The figures render through the SAME tile as the overview band above.
+ *    They used to be bare text sized by their own caption, so the longest
+ *    caption set the column width and the row read as a mistake.
+ *
+ * 2. The caveats are LAYERED rather than stacked. Four notes in three
+ *    positions used to surround three digits. Now: the one caveat that is
+ *    about a specific number rides ON that number as a caution chip, and the
+ *    rest sit in one open-able row directly under the figures. This is the
+ *    OSR dashboard model (brief critical warning where the number is, detail
+ *    one interaction away, nothing buried further). It is NOT a tooltip and
+ *    it is NOT off-page: <details> is on the page, in the flow, one click,
+ *    and it renders in every state including both empty ones and the error.
+ *
+ * 3. The no-measured-traffic state stops rendering the whole apparatus. Both
+ *    live tenants are in that state, so it is the default view, and it used
+ *    to spend ~700px of notes and zero-filled tables to report nothing. The
+ *    zeros stay (a zero is a fact) and the tables stay reachable.
  *
  * On the honesty rules that shape every number here, see analyticsShared.ts.
- * The short version: GA under-counts, so everything is a floor, the floor note
- * renders in every state including the empty ones, and nothing is ever scaled
- * up to compensate.
+ * The short version: GA under-counts, so everything is a floor, nothing is
+ * ever scaled up to compensate, and the floor note is never more than one
+ * click from any number it describes.
  */
-export default function OrgAnalytics({ orgs }: OrgAnalyticsProps) {
-  const [orgId, setOrgId] = useState<string | null>(orgs[0]?.organization_id ?? null)
+export default function OrgAnalytics({ orgs, focusId = null }: OrgAnalyticsProps) {
+  const [orgId, setOrgId] = useState<string | null>(
+    focusId ?? orgs[0]?.organization_id ?? null,
+  )
   const [days, setDays] = useState<WindowChoice>(DEFAULT_WINDOW)
 
-  // Re-sync when the caller's org list changes. Both call sites are stable
-  // today, but a selection that silently outlives the list it came from is the
-  // kind of thing that surfaces later as one partner seeing another's name in
-  // a picker.
+  // Re-sync when the caller's org list or page scope changes. A selection that
+  // silently outlives the list it came from is the kind of thing that surfaces
+  // later as one partner seeing another's name in a picker.
   const orgKey = orgs.map((o) => o.organization_id).join(',')
   useEffect(() => {
-    setOrgId((prev) => (prev && orgs.some((o) => o.organization_id === prev)
-      ? prev
-      : orgs[0]?.organization_id ?? null))
+    setOrgId((prev) => {
+      if (focusId && orgs.some((o) => o.organization_id === focusId)) return focusId
+      if (prev && orgs.some((o) => o.organization_id === prev)) return prev
+      return orgs[0]?.organization_id ?? null
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgKey])
+  }, [orgKey, focusId])
 
   const orgName = orgs.find((o) => o.organization_id === orgId)?.name ?? null
+  // The block offers its own switch ONLY when the page is not already
+  // scoping it. Two controls choosing the same thing is what this replaced.
+  const canSwitch = focusId == null && orgs.length > 1
+
   const { rows, state, range, reload } = useOrgMetrics(orgId, days)
   const t = useMemo(() => totals(rows), [rows])
   const { upcoming, past } = useMemo(() => partitionRows(rows), [rows])
   const empty = state === 'ready' ? emptyKind(rows) : null
   const loading = state === 'loading' || state === 'idle'
   const showNumbers = state !== 'error' && state !== 'denied' && empty !== 'no-events'
+  const broken = crossesViewsBreak(range.from)
+  const quiet = empty === 'no-measured-traffic'
+
+  const tables = (
+    <>
+      <MetricSection
+        key={`up-${orgId}-${days}`}
+        title={UPCOMING_TITLE}
+        note={UPCOMING_NOTE}
+        emptyNote={NO_UPCOMING_NOTE}
+        rows={upcoming}
+        loading={loading}
+        initial={UPCOMING_SORT}
+      />
+      <MetricSection
+        key={`past-${orgId}-${days}`}
+        title={PAST_TITLE}
+        note={PAST_NOTE}
+        emptyNote={NO_PAST_NOTE}
+        rows={past}
+        loading={loading}
+        initial={PAST_SORT}
+      />
+    </>
+  )
 
   return (
     // The org name is in the region label because the admin call site renders
@@ -109,22 +168,35 @@ export default function OrgAnalytics({ orgs }: OrgAnalyticsProps) {
       aria-label={orgName ? `Traffic and handoffs for ${orgName}` : 'Traffic and handoffs'}
     >
       <div className="ashell-an-head">
-        <h2 className="ashell-an-title">What your events did</h2>
+        {/* Peer of the band's "Right now" overline, deliberately. Two rows of
+            the same kind of tile, each with a label saying what its numbers
+            are about. */}
+        <h2 className="ashell-an-lbl">
+          Traffic
+          {/* Named here only when nothing else on the row names it: with the
+              switch visible the org is already on screen twice otherwise. */}
+          {orgName && orgs.length > 1 && !canSwitch && (
+            <span className="ashell-an-lbl-org">{orgName}</span>
+          )}
+          <span className="ashell-an-lbl-win">{windowLabel(days)}</span>
+        </h2>
 
         <div className="ashell-an-controls">
-          {orgs.length > 1 && (
-            <label className="ashell-an-ctl">
-              <span className="ashell-an-ctl-lbl">Organization</span>
-              <select
-                className="admin-select"
-                value={orgId ?? ''}
-                onChange={(e) => setOrgId(e.target.value)}
-              >
-                {orgs.map((o) => (
-                  <option key={o.organization_id} value={o.organization_id}>{o.name}</option>
-                ))}
-              </select>
-            </label>
+          {canSwitch && (
+            <div className="ashell-an-win" role="group" aria-label="Organization">
+              {orgs.map((o) => (
+                <button
+                  key={o.organization_id}
+                  type="button"
+                  className={`ashell-an-winbtn ashell-an-winbtn--org ${o.organization_id === orgId ? 'ashell-an-winbtn--on' : ''}`}
+                  aria-pressed={o.organization_id === orgId}
+                  onClick={() => setOrgId(o.organization_id)}
+                  title={o.name}
+                >
+                  {o.name}
+                </button>
+              ))}
+            </div>
           )}
 
           <div className="ashell-an-win" role="group" aria-label="Date window">
@@ -145,7 +217,7 @@ export default function OrgAnalytics({ orgs }: OrgAnalyticsProps) {
 
       <p className="ashell-an-window">
         {range.from} to {range.to}
-        {range.clamped && `, which is as far back as we have. Tracking starts ${TRACKING_START}.`}
+        {range.clamped && `, back to when tracking started on ${TRACKING_START}.`}
       </p>
 
       {state === 'error' && (
@@ -161,16 +233,6 @@ export default function OrgAnalytics({ orgs }: OrgAnalyticsProps) {
         </div>
       )}
 
-      {/* Views is the headline, and views is the one figure here that is not a
-          floor before 2026-08-13: it was an OVERCOUNT. So the disclosure sits
-          ABOVE the number rather than below it, and viewsFigure drops the tilde
-          and the "at least" from the tile itself for any window that reaches
-          back past that day. A correction three paragraphs down does not
-          un-say a claim already made. */}
-      {state !== 'denied' && crossesViewsBreak(range.from) && (
-        <p className="ashell-an-floor">{VIEWS_BREAK_NOTE}</p>
-      )}
-
       {/* The roll-up. This is the headline, not the tables: it is the one
           figure on this surface that is reliably not zero for a small partner,
           and it is exact because 064 truncates nothing. Views leads because at
@@ -178,14 +240,18 @@ export default function OrgAnalytics({ orgs }: OrgAnalyticsProps) {
           handoff headline reads zero most windows. */}
       {showNumbers && (
         <>
-          <div className="ashell-an-figs">
+          <div className="ashell-tiles ashell-tiles--3">
             <Fig
               big
               label={HEADLINE_LABELS.views.label}
-              sub={crossesViewsBreak(range.from)
-                ? HEADLINE_LABELS.views.subBroken
-                : HEADLINE_LABELS.views.sub}
-              figure={viewsFigure(t.views, HEADLINE_LABELS.views.noun, crossesViewsBreak(range.from))}
+              sub={HEADLINE_LABELS.views.sub}
+              // Views is the one figure here that is not a floor before
+              // 2026-08-13: it was an OVERCOUNT. The warning therefore rides
+              // ON the tile rather than in a paragraph nearby, so it cannot be
+              // read after the number it corrects. The full explanation is one
+              // click away in the counted-how row below.
+              caution={broken ? VIEWS_BREAK_CHIP : null}
+              figure={viewsFigure(t.views, HEADLINE_LABELS.views.noun, broken)}
               loading={loading}
             />
             <Fig
@@ -208,7 +274,7 @@ export default function OrgAnalytics({ orgs }: OrgAnalyticsProps) {
               total (GA's link_type dimension can be unregistered), the
               shortfall gets its own figure and is never scaled away. */}
           {!loading && t.clicks > 0 && (
-            <div className="ashell-an-figs ashell-an-figs--split">
+            <div className="ashell-tiles ashell-tiles--3 ashell-tiles--split">
               <Fig
                 label={HEADLINE_LABELS.tickets.label}
                 sub={HEADLINE_LABELS.tickets.sub}
@@ -231,47 +297,53 @@ export default function OrgAnalytics({ orgs }: OrgAnalyticsProps) {
               )}
             </div>
           )}
-
-          <p className="ashell-an-rollup">{ROLLUP_NOTE}</p>
         </>
       )}
 
-      {/* Permanently visible wherever numbers are, including both empty states
-          and the error state. Not a tooltip, not behind a disclosure, not
-          dismissible: zero is a floor too, and it is the number most likely to
-          be read as fact. The one exception is a denial, where there are no
-          numbers on the page and telling somebody how to read them is noise. */}
-      {state !== 'denied' && <p className="ashell-an-floor">{FLOOR_NOTE}</p>}
+      {quiet && (
+        <div className="ashell-an-quiet" role="status">
+          <p>{NO_TRAFFIC_NOTE}</p>
+          <p className="ashell-an-quiet-next">{NO_TRAFFIC_NEXT}</p>
+        </div>
+      )}
+
+      {/* Every caveat, in one row, directly under the figures, open-able in
+          one click and rendered in EVERY state that has numbers in it --
+          including both empty ones and the error, because zero is a floor too
+          and it is the number most likely to be read as fact. The only state
+          without it is a denial, where there are no numbers on the page and
+          telling somebody how to read them is noise.
+
+          This is a <details>, not a tooltip and not a link off the page: the
+          text is in the document, in the flow, findable by ctrl-F, and one
+          interaction from any number it describes. */}
+      {state !== 'denied' && (
+        <details className="ashell-an-counted">
+          <summary>{COUNTED_TITLE}</summary>
+          <div className="ashell-an-counted-body">
+            <p>{FLOOR_NOTE}</p>
+            <p>{VISITOR_DAYS_NOTE}</p>
+            {broken && <p>{VIEWS_BREAK_NOTE}</p>}
+            <p>{ROLLUP_NOTE}</p>
+          </div>
+        </details>
+      )}
 
       {/* role="status" because these replace a table that was there a moment
           ago. Without it a window change swaps the whole answer with nothing
           announced. */}
       {empty === 'no-events' && <p className="admin-hint" role="status">{NO_EVENTS_NOTE}</p>}
-      {empty === 'no-measured-traffic' && <p className="admin-hint" role="status">{NO_TRAFFIC_NOTE}</p>}
 
-      {showNumbers && (
-        <>
-          <MetricSection
-            key={`up-${orgId}-${days}`}
-            title={UPCOMING_TITLE}
-            note={UPCOMING_NOTE}
-            emptyNote={NO_UPCOMING_NOTE}
-            rows={upcoming}
-            loading={loading}
-            initial={UPCOMING_SORT}
-          />
-          <MetricSection
-            key={`past-${orgId}-${days}`}
-            title={PAST_TITLE}
-            note={PAST_NOTE}
-            emptyNote={NO_PAST_NOTE}
-            rows={past}
-            loading={loading}
-            initial={PAST_SORT}
-          />
-          <p className="ashell-an-foot">{VISITOR_DAYS_NOTE}</p>
-        </>
+      {/* Nothing is hidden, only folded: an event with nothing measured still
+          has a row of zeros waiting in here. What changed is that the fold is
+          shut by default in the state where every row is zeros. */}
+      {showNumbers && quiet && (
+        <details className="ashell-an-more">
+          <summary>{SHOW_ANYWAY}</summary>
+          <div className="ashell-an-more-body">{tables}</div>
+        </details>
       )}
+      {showNumbers && !quiet && tables}
     </section>
   )
 }
@@ -415,34 +487,43 @@ function Th({ label, k, onSort, sort }: {
 }
 
 /**
- * One roll-up tile.
+ * One roll-up tile -- the SAME .ashell-tile the overview band renders, so the
+ * two number rows on the partner home page read as one system rather than a
+ * card row followed by loose text.
  *
  * It takes a Figure rather than a number, so the decision about what a number
  * claims is made once, in analyticsShared, and cannot be made differently here.
  * That is what lets the views tile drop its floor marker on a window that
  * crosses the 2026-08-13 break while every other tile keeps it.
  */
-function Fig({ label, sub, figure, loading, big }: {
+function Fig({ label, sub, figure, loading, big, caution }: {
   label: string
   sub: string
   figure: Figure
   loading: boolean
   big?: boolean
+  caution?: string | null
 }) {
   return (
-    <div className={`ashell-an-fig ${big ? 'ashell-an-fig--big' : ''}`}>
-      <span className="ashell-an-fig-lbl">{label}</span>
+    <div className={`ashell-tile ${big ? 'ashell-tile--lead' : ''}`}>
+      <span className="ashell-tile-lbl">{label}</span>
       {/* aria-label on a role-less <span> is ignored by browsers and screen
           readers, so the marker would be silently dropped on the biggest
           numbers on the page. The visually-hidden twin is the version that
           actually reaches assistive tech, and it renders while loading too:
           a tile that announces its label and no value reads as a value of
           nothing. */}
-      <span className="ashell-an-fig-big">
+      <span className="ashell-tile-big">
         <span aria-hidden="true">{loading ? '…' : figure.text}</span>
         <span className="sr-only">{loading ? 'loading' : figure.label}</span>
       </span>
-      <span className="ashell-an-fig-sub">{sub}</span>
+      {/* aria-hidden because figure.label above already carries this fact to a
+          screen reader in a full sentence. The chip is the visual half of the
+          same disclosure, not a second one. */}
+      {caution && (
+        <span className="ashell-tile-caution" aria-hidden="true">{caution}</span>
+      )}
+      <span className="ashell-tile-sub">{sub}</span>
     </div>
   )
 }
