@@ -201,6 +201,65 @@
   border-radius: var(--radius-md);
 }
 
+/* ── Multi-day festivals only. Every rule below is reached exclusively
+ * through .festival-day / .festival-day-heading. Neither renders on a
+ * single-day festival in 'slot' mode, which is every single-day festival
+ * the registry allows: test-festivals.js's registry-hygiene case forbids
+ * `schedule: 'day'` on an entry with no endDateKey (a single day has no day
+ * breaks to group by). So PorchRokr and Akron Pride are untouched by this
+ * whole block. Note the narrower claim: .festival-day-heading alone is
+ * gated on multiDay, while the 'day'-mode branch emits the .festival-day
+ * wrapper unconditionally.
+ *
+ * The day heading is the same .date-heading / .date-label / .today-badge /
+ * .date-line markup every heading in the app uses (HomePage.css,
+ * components/DateHeading.tsx), turned up so the day break actually reads
+ * while scrolling past it: a heading-scale label instead of body scale,
+ * real room above it, and a 2px rule instead of the hairline a slot
+ * heading gets. Same tokens, same colors, no new ones. ── */
+
+.festival-day {
+  /* Day sections are jump-bar targets in 'day' mode, so they need the same
+   * sticky-header offset .festival-slot uses (64px site header + ~48px
+   * sticky jump bar). */
+  scroll-margin-top: calc(120px + env(safe-area-inset-top, 0px));
+}
+.festival-day-heading { margin: var(--space-2xl) 0 var(--space-lg); }
+.festival-day-heading .date-label { font-size: var(--text-h4); }
+.festival-day-heading .date-line { height: 2px; }
+
+/* "Up next" as a CARD state, for 'day' mode only: with no per-slot heading
+ * there is no badge to carry it. Mirrors .festival-card--live exactly and
+ * swaps amber for the green the "Up next" badge already uses. */
+.festival-card--next {
+  outline: 2px solid var(--green-mid);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+/* The badge that names that state on the card, 'day' mode only. It is the
+ * same .today-badge pill the slot headings use; this rule only makes its
+ * padding occupy vertical space (.today-badge is otherwise inline, so its
+ * box would overlap the card) and gives it a gap. The outline colors are
+ * reinforcement; THIS is the actual signal. */
+.festival-card-state { display: inline-block; margin-bottom: var(--space-2xs); }
+
+/* The 'slot'-mode jump bar's day label, sitting between two
+ * .festival-jump-chip pills: borrows the chip's font and vertical box and
+ * differs only by being unstyled text. */
+.festival-jump-day {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: var(--space-xs) 0;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 @media (min-width: 720px) {
   .festival-header { flex-direction: row; align-items: flex-start; }
   .festival-poster { width: 280px; flex: 0 0 auto; }

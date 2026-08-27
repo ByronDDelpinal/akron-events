@@ -1,0 +1,97 @@
+{
+  "_comment": "Rubber City Jazz & Blues Festival 2026 lineup, transcribed from the schedule poster on 2026-08-27. 17 poster sets plus the pre-existing Ticketmaster Lock 3 show (tagged, never upserted) per the ADR at docs/festival-playbook.md's pointer for rubber-city-jazz-2026. Consumed by scripts/import-festival.js.",
+  "_schema": "Every start and end is an EASTERN wall clock ('h:mm AM/PM') read against the enclosing day's 'date'. A set that starts after Eastern midnight therefore belongs on the NEXT day's entry, under its own true Eastern date, NOT at the tail of the previous night's list: the importer binds both ends of a set to its day's date and orders each venue-day bucket by wall clock, so a 12:30 AM set filed on the previous day would start 24 hours early and inherit an end time from the 11 PM set. buildPlan refuses any derived span that is non-positive or longer than 6 hours, which is what that mistake looks like. Festival-specific copy lives in this file, never in the importer: 'city' and 'presentedBy' build the 'Part of the X, <range> in <city>, presented by <presenter>.' sentence (each clause is dropped when its key is absent) and 'extraTags' are the genre tags every set carries.",
+  "festival": {
+    "slug": "rubber-city-jazz-2026",
+    "name": "Rubber City Jazz & Blues Festival",
+    "tag": "rubber-city-jazz-2026",
+    "startDate": "2026-09-10",
+    "endDate": "2026-09-12",
+    "website": "https://www.rubbercityjazz.org/",
+    "source": "rubber_city_jazz",
+    "umbrella": {
+      "source": "ohio_festivals",
+      "source_id": "rubber-city-jazz-and-blues-festival-2026-09-10"
+    },
+    "city": "Akron",
+    "presentedBy": "Open Tone Music",
+    "extraTags": ["jazz"],
+    "logisticsMarker": "Rubber City Jazz & Blues Festival 2026 guide:",
+    "logistics": "Three days of jazz and blues across five downtown Akron venues: BLU Jazz+, the Akron Summit Library Main Branch, the Mustill Store / Water Wheel site at Cascade Locks Park, the Akron Art Museum, and Lock 3. Full schedule and set times at rubbercityjazz.org.",
+    "umbrellaImageUrl": "https://images.squarespace-cdn.com/content/v1/63d9dec8f9f9404df3bd92ef/61763249-450c-4769-b90e-60b4fd979696/Rubber+City+Jazz+and+Blues+Fest+2026-10-3840x2160+Digital+Billboard.png",
+    "categories": ["music", "festival"],
+    "umbrellaCategories": ["festival", "music"]
+  },
+  "venues": [
+    {
+      "key": "blu-jazz",
+      "venueId": "8b16e050-d179-4611-9cba-2529b6619902",
+      "expectName": "BLU Jazz+",
+      "label": "BLU Jazz+",
+      "tags": ["downtown-akron"]
+    },
+    {
+      "key": "main-library",
+      "venueId": "e7d91bc3-d6f3-42f1-aa2a-243c357f2a67",
+      "expectName": "Akron Summit Library (Main Branch)",
+      "label": "Akron Summit Library (Main Branch)",
+      "tags": ["downtown-akron"]
+    },
+    {
+      "key": "water-wheel",
+      "venueId": "e129795a-8eb6-4631-8e0a-18f67cfadc9b",
+      "expectName": "Mustill Store Museum & Trailhead",
+      "label": "Mustill Store Museum & Trailhead",
+      "tags": ["cascade-valley"]
+    },
+    {
+      "key": "art-museum",
+      "venueId": "d5e6ab34-723e-40e1-8f7f-d14588731e47",
+      "expectName": "Akron Art Museum",
+      "label": "Akron Art Museum",
+      "tags": ["downtown-akron"]
+    },
+    {
+      "key": "lock-3",
+      "venueId": "9c43e261-5b34-4dbe-aa3a-96fae9b7792a",
+      "expectName": "Lock 3",
+      "label": "Lock 3",
+      "tags": ["downtown-akron"]
+    }
+  ],
+  "days": [
+    {
+      "date": "2026-09-10",
+      "sets": [
+        { "venue": "blu-jazz", "start": "7:00 PM", "title": "UA Jazz Group lead by Sam Ross" },
+        { "venue": "blu-jazz", "start": "8:15 PM", "title": "Nathan-Paul" },
+        { "venue": "blu-jazz", "start": "9:30 PM", "title": "Jam Session lead by Chris Coles" }
+      ]
+    },
+    {
+      "date": "2026-09-11",
+      "sets": [
+        { "venue": "main-library", "start": "5:30 PM", "title": "Sam Blakeslee Large Group", "price": { "min": 0, "max": null } },
+        { "venue": "main-library", "start": "6:45 PM", "title": "Chris Coles Presents: Dave Morgan's Way of the Sly Man ft. Jack Schantz", "end": "8:00 PM", "price": { "min": 0, "max": null } },
+        { "venue": "blu-jazz", "start": "8:00 PM", "title": "Rachel Osherow & The Hangout" },
+        { "venue": "blu-jazz", "start": "9:30 PM", "title": "Resolve" }
+      ]
+    },
+    {
+      "date": "2026-09-12",
+      "sets": [
+        { "venue": "water-wheel", "start": "10:45 AM", "title": "Ellet HS Jazz Group" },
+        { "venue": "water-wheel", "start": "11:30 AM", "title": "Open Tone Group" },
+        { "venue": "water-wheel", "start": "12:30 PM", "title": "Nate Yingling Trio ft. Steve Kortyka" },
+        { "venue": "water-wheel", "start": "1:45 PM", "title": "Esther Fitz" },
+        { "venue": "art-museum", "start": "1:00 PM", "title": "UA Steel Drum Group" },
+        { "venue": "art-museum", "start": "2:30 PM", "title": "Liz Bullock" },
+        { "venue": "art-museum", "start": "4:00 PM", "title": "Aaron Smith's Project 6" },
+        { "venue": "art-museum", "start": "5:30 PM", "title": "Umojah Nation" },
+        { "venue": "lock-3", "start": "7:00 PM", "title": "Gerald Albright", "existing": { "source": "ticketmaster", "source_id": "vv17fZ_kGkUMKDYU" } },
+        { "venue": "blu-jazz", "start": "7:30 PM", "title": "Helen Welch & Friends" },
+        { "venue": "blu-jazz", "start": "9:00 PM", "title": "Vanessa Rubin and the Cliff Barnes Organ Trio" }
+      ]
+    }
+  ]
+}

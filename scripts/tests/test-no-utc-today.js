@@ -243,11 +243,15 @@ const ALLOWLIST = [
   },
   {
     root: 'src', file: 'lib/festivals.ts', match: "toLocaleDateString('en-US', { weekday: 'long' })",
-    reason: 'festivalDayLabel: display-only weekday name; the today/tomorrow decision itself is pure Eastern date-key math (easternDateKeyDiffDays) on the line above',
+    reason: 'festivalDayLabel/weekdayLabel: display-only weekday name; the today/tomorrow decision itself is pure Eastern date-key math (easternDateKeyDiffDays) on the line above',
   },
   {
-    root: 'src', file: 'pages/FestivalPage.tsx', match: 'const dateLabel = new Date(`${festival.dateKey}T12:00:00`).toLocaleDateString([],',
-    reason: 'display-only date label built from an already-resolved festival.dateKey, not a clock read',
+    root: 'src', file: 'lib/festivals.ts', match: 'new Date(`${dateKey}T12:00:00`).toLocaleDateString([], opts)',
+    reason: 'festivalDateRangeLabel: display-only range label built from already-resolved registry date keys, not a clock read',
+  },
+  {
+    root: 'src', file: 'pages/FestivalPage.tsx', match: 'new Date(`${dateKey}T12:00:00`).toLocaleDateString([], opts)',
+    reason: 'dayLabel(): the multi-day jump-bar and section-heading day labels, built from an already-resolved Eastern day key (schedule.days), not a clock read',
   },
 ]
 

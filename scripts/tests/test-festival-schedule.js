@@ -24,8 +24,11 @@ import {
   stripVenuePrefix,
   toFestivalMapPins,
   plannedVenueIds,
+  dayItems,
 } from '../../src/lib/festivalSchedule.ts'
 import { DATA_PATH, buildPlan } from '../import-porchrokr.js'
+import { dataPathFor, buildPlan as buildFestivalPlan } from '../import-festival.js'
+import { easternToIso } from '../lib/normalize.js'
 
 // ── Fixture: hub rows exactly as the importer would produce them ────────────
 
@@ -159,6 +162,137 @@ describe('slot grouping & ordering (real importer plan as fixture)', () => {
     assert.equal(firstVenue(rows[1])?.lat, 41.09)
     assert.equal(firstVenue({ ...rows[1], event_venues: [] }), null)
     assert.equal(firstVenue({ ...rows[1], event_venues: undefined }), null)
+  })
+})
+
+describe('schedule.days: single-day PorchRokr fixture', () => {
+  it('exactly one day, dateKey 2026-08-15, matching schedule.slots exactly', () => {
+    assert.equal(schedule.days.length, 1)
+    assert.equal(schedule.days[0].dateKey, '2026-08-15')
+    assert.deepEqual(schedule.days[0].slots, schedule.slots)
+  })
+})
+
+describe('schedule.days: cross-midnight Eastern grouping (the load-bearing case)', () => {
+  it('a 9:30 PM ET Thursday set (01:30 UTC Friday) groups under the EASTERN day, not the UTC day', () => {
+    const rows = [
+      { id: 'a', title: 'A', start_at: '2026-09-11T01:30:00.000Z', end_at: null, tags: ['stage-blu-jazz'], status: 'published' },
+      { id: 'b', title: 'B', start_at: '2026-09-10T23:00:00.000Z', end_at: null, tags: ['stage-blu-jazz'], status: 'published' },
+    ]
+    const sched = buildFestivalSchedule(rows)
+    assert.equal(sched.days.length, 1)
+    assert.equal(sched.days[0].dateKey, '2026-09-10')
+    assert.equal(sched.days[0].slots.length, 2)
+  })
+})
+
+// ── Fixture: the real 3-day Rubber City Jazz plan, module scope so both the
+// day-grouping cases and the day-mode dayItems cases below share one build.
+const rcjData = JSON.parse(readFileSync(dataPathFor('rubber-city-jazz-2026'), 'utf8'))
+const rcjPlan = buildFestivalPlan(rcjData)
+const rcjRows = rcjPlan.planned.map(({ row }) => ({
+  id: row.source_id,
+  title: row.title,
+  start_at: row.start_at,
+  end_at: row.end_at,
+  tags: row.tags,
+  status: row.status,
+  description: row.description,
+}))
+// The Lock 3 headliner is an "existing" set: owned by the ticketmaster
+// scraper, tagged into the festival but never upserted, so buildPlan puts
+// it in plan.existing rather than plan.planned. The HUB still renders it
+// (it carries the festival tag and a stage-* column tag), so the fixture
+// has to include it or the Saturday count would be one short of the real
+// page. Its columns come from the plan; its instant is the poster's 7:00
+// PM Eastern, via the same easternToIso the importer would use.
+for (const ex of rcjPlan.existing) {
+  rcjRows.push({
+    id: `${ex.existing.source}-${ex.existing.source_id}`,
+    title: ex.set.title,
+    start_at: easternToIso(ex.date, ex.set.start),
+    end_at: null,
+    tags: ex.tagsToAdd,
+    status: 'published',
+  })
+}
+const rcjSchedule = buildFestivalSchedule(rcjRows)
+
+describe('schedule.days: 3-day Rubber City Jazz fixture (real data file via import-festival.js buildPlan)', () => {
+  it('days.length === 3, ascending day keys', () => {
+    assert.deepEqual(rcjSchedule.days.map((d) => d.dateKey), ['2026-09-10', '2026-09-11', '2026-09-12'])
+  })
+
+  it('per-day slot counts 3 / 4 / 11 (one slot per set: no two sets share a start instant)', () => {
+    assert.deepEqual(rcjSchedule.days.map((d) => d.slots.length), [3, 4, 11])
+    // 18 children total: the 17 the importer plans plus the tag-only
+    // ticketmaster row.
+    assert.equal(rcjSchedule.slots.length, 18)
+  })
+
+  it('slot starts ascending within each day', () => {
+    for (const day of rcjSchedule.days) {
+      const starts = day.slots.map((s) => s.startMs)
+      assert.deepEqual(starts, [...starts].sort((a, b) => a - b))
+    }
+  })
+
+  it('parseColumnTag resolves all five new stage tags', () => {
+    assert.deepEqual(parseColumnTag(['stage-blu-jazz']), { key: 'stage-blu-jazz', kind: 'stage', stage: 'blu-jazz', label: 'Blu Jazz Stage' })
+    assert.deepEqual(parseColumnTag(['stage-main-library']), { key: 'stage-main-library', kind: 'stage', stage: 'main-library', label: 'Main Library Stage' })
+    assert.deepEqual(parseColumnTag(['stage-water-wheel']), { key: 'stage-water-wheel', kind: 'stage', stage: 'water-wheel', label: 'Water Wheel Stage' })
+    assert.deepEqual(parseColumnTag(['stage-art-museum']), { key: 'stage-art-museum', kind: 'stage', stage: 'art-museum', label: 'Art Museum Stage' })
+    assert.deepEqual(parseColumnTag(['stage-lock-3']), { key: 'stage-lock-3', kind: 'stage', stage: 'lock-3', label: 'Lock 3 Stage' })
+  })
+
+  it('toFestivalMapPins glyphs on the five stage keys: B, M, W, A, L, all distinct', () => {
+    const venue = (id, name) => [{ venues: { id, name, lat: 41.08, lng: -81.52 } }]
+    const pinRows = [
+      { id: '1', title: 'x', start_at: '2026-09-10T23:00:00.000Z', end_at: null, tags: ['stage-blu-jazz'], status: 'published', event_venues: venue('v-blu', 'BLU Jazz+') },
+      { id: '2', title: 'x', start_at: '2026-09-11T21:30:00.000Z', end_at: null, tags: ['stage-main-library'], status: 'published', event_venues: venue('v-lib', 'Akron Summit Library (Main Branch)') },
+      { id: '3', title: 'x', start_at: '2026-09-12T14:45:00.000Z', end_at: null, tags: ['stage-water-wheel'], status: 'published', event_venues: venue('v-ww', 'Mustill Store Museum & Trailhead') },
+      { id: '4', title: 'x', start_at: '2026-09-12T17:00:00.000Z', end_at: null, tags: ['stage-art-museum'], status: 'published', event_venues: venue('v-am', 'Akron Art Museum') },
+      { id: '5', title: 'x', start_at: '2026-09-12T23:00:00.000Z', end_at: null, tags: ['stage-lock-3'], status: 'published', event_venues: venue('v-l3', 'Lock 3') },
+    ]
+    const pins = toFestivalMapPins(buildFestivalSchedule(pinRows))
+    const glyphs = pins.map((p) => p.glyph).sort()
+    assert.deepEqual(glyphs, ['A', 'B', 'L', 'M', 'W'])
+    assert.equal(new Set(glyphs).size, 5)
+  })
+})
+
+describe("dayItems: the flat per-day card list the 'day' schedule mode renders", () => {
+  it('the PorchRokr single-day fixture flattens to every item, slot order preserved', () => {
+    const items = dayItems(schedule.days[0])
+    const fromSlots = schedule.slots.flatMap((s) => s.items)
+    assert.deepEqual(items, fromSlots)
+    assert.equal(items.length, fromSlots.length)
+  })
+
+  it('starts are non-decreasing across the flattened list', () => {
+    const starts = dayItems(schedule.days[0]).map((i) => i.startMs)
+    assert.deepEqual(starts, [...starts].sort((a, b) => a - b))
+  })
+
+  it('the 3-day Rubber City Jazz fixture: per-day item counts match the slot counts', () => {
+    // Every RCJ slot holds exactly one card (no two sets share a start), so
+    // the day-mode grid length equals the slot-mode heading count: 17
+    // headings become one grid of 17 cards, which is the point of the mode.
+    const perDay = rcjSchedule.days.map((d) => dayItems(d).length)
+    assert.deepEqual(perDay, [3, 4, 11])
+    assert.equal(perDay.reduce((a, b) => a + b, 0), 18)
+  })
+
+  it('each day\'s items are exactly that day\'s slots flattened, in order', () => {
+    for (const day of rcjSchedule.days) {
+      assert.deepEqual(dayItems(day), day.slots.flatMap((s) => s.items))
+      const starts = dayItems(day).map((i) => i.startMs)
+      assert.deepEqual(starts, [...starts].sort((a, b) => a - b))
+    }
+  })
+
+  it('an empty day yields an empty list rather than throwing', () => {
+    assert.deepEqual(dayItems({ dateKey: '2026-09-10', slots: [] }), [])
   })
 })
 

@@ -134,13 +134,22 @@ describe('filter shape — against a stub builder recording .or() arguments', ()
     }
   })
 
-  it('the real (2-entry) registry, default args, matches docs/umbrella-child-hiding.md §1.3\'s worked example', () => {
+  // The literal 2-entry string docs/umbrella-child-hiding.md §1.3 works
+  // through is pinned by the '2-entry registry' case above. This case pins
+  // the DEFAULT-ARGS path instead: calling with no festivalTags must encode
+  // the real registry, however many entries it has today (it grew to three
+  // with the first multi-day festival, rubber-city-jazz-2026). Deriving the
+  // expectation from FESTIVALS keeps the shape assertion honest without
+  // re-breaking on every new festival.
+  it('the real registry, default args, encodes every registry tag in the §1.3 shape', () => {
     const stub = stubBuilder()
     applyBrowseVisibility(stub)
     assert.equal(stub.calls.length, 1)
+    const tags = FESTIVALS.map((f) => f.tag)
+    assert.ok(tags.length >= 2, 'this case assumes the and(...) wrapper branch')
     assert.equal(
       stub.calls[0],
-      'and(tags.not.cs.{porchrokr-2026},tags.not.cs.{akron-pride-2026}),tags.cs.{festival-umbrella}',
+      `and(${tags.map((t) => `tags.not.cs.{${t}}`).join(',')}),tags.cs.{${FESTIVAL_UMBRELLA_TAG}}`,
     )
   })
 })

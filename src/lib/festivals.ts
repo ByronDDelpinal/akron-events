@@ -61,8 +61,32 @@ export interface Festival {
   name: string
   /** Eastern calendar date of the festival day, 'yyyy-MM-dd'. Compare via
    *  dayPlanDate.ts's easternDateKey/easternTodayIso — never a UTC-derived
-   *  "today", never a Date-vs-string compare. */
+   *  "today", never a Date-vs-string compare. For a multi-day festival this
+   *  is the FIRST day; see endDateKey. */
   dateKey: string
+  /** Eastern calendar date of the festival's LAST day, 'yyyy-MM-dd'. Omit
+   *  for a single-day festival (festivalEndDateKey then returns dateKey).
+   *  Must be >= dateKey. Route every range question through
+   *  festivalEndDateKey / isFestivalDateKey / festivalDateKeys /
+   *  festivalDayCount below rather than doing the range math at the call
+   *  site. */
+  endDateKey?: string
+  /** How the hub lays out the schedule. Omit for 'slot'.
+   *
+   *  'slot' (default): one heading per distinct start time, each holding the
+   *  cards that share that instant. Right when many sets share few start
+   *  times, which is what makes the time the useful grouping (PorchRokr:
+   *  161 sets across 6 slots).
+   *
+   *  'day': one heading per Eastern day, holding that day's cards as a
+   *  single grid in start order. Right when starts are mostly unique, where
+   *  per-slot headings would degenerate into one heading per card and a very
+   *  long scroll (Rubber City Jazz: 18 sets across 17 distinct starts). The
+   *  card already shows its own date, time and venue, so nothing is lost.
+   *
+   *  Read it through festivalScheduleMode() rather than the raw field, so
+   *  the default lives in exactly one place. */
+  schedule?: 'slot' | 'day'
   /** events.tags value that marks every row belonging to this festival
    *  (per-set events AND the umbrella, which additionally carries
    *  'festival-umbrella'). Also the ONLY source for
@@ -88,6 +112,73 @@ export const FESTIVALS: Festival[] = RAW_FESTIVALS
 export function festivalBySlug(slug: string | undefined): Festival | null {
   if (!slug) return null
   return FESTIVALS.find((f) => f.slug === slug) ?? null
+}
+
+// ── Multi-day range helpers ──────────────────────────────────────────────
+//
+// dateKey stays the FIRST day for every festival (single-day and multi-day
+// alike); endDateKey is the LAST day, omitted (and so equal to dateKey) for
+// a single-day entry. Every range question routes through these four pure
+// helpers so no consumer ever repeats the range math itself.
+
+/** The hub's schedule layout for this festival: 'slot' unless the entry says
+ *  otherwise. The ONE place the default lives, so a missing field and an
+ *  explicit `schedule: 'slot'` can never drift apart. */
+export function festivalScheduleMode(f: Festival): 'slot' | 'day' {
+  return f.schedule ?? 'slot'
+}
+
+/** The festival's last Eastern day; `dateKey` itself when `endDateKey` is absent. */
+export function festivalEndDateKey(f: Festival): string {
+  return f.endDateKey ?? f.dateKey
+}
+
+/** True when `dateKey` falls within the festival's run, inclusive both ends.
+ *  Plain string comparison: ISO 'yyyy-MM-dd' keys sort lexicographically,
+ *  so this needs no Date construction and reads no clock. */
+export function isFestivalDateKey(f: Festival, dateKey: string): boolean {
+  return dateKey >= f.dateKey && dateKey <= festivalEndDateKey(f)
+}
+
+/** Every Eastern day of the festival's run, ascending, e.g.
+ *  ['2026-09-10', '2026-09-11', '2026-09-12']. One key for a single-day
+ *  festival. Walks the range on a fixed-local-noon Date (never
+ *  toISOString), the same technique dayPlanDate.ts's own diff uses, so a
+ *  day boundary is never crossed by a UTC offset during the walk. */
+export function festivalDateKeys(f: Festival): string[] {
+  const end = festivalEndDateKey(f)
+  const spanDays = easternDateKeyDiffDays(f.dateKey, end)
+  const startNoon = new Date(`${f.dateKey}T12:00:00`)
+  const keys: string[] = []
+  for (let i = 0; i <= spanDays; i++) {
+    const noon = new Date(startNoon.getTime() + i * 86_400_000)
+    const y = noon.getFullYear()
+    const m = noon.getMonth()
+    const d = noon.getDate()
+    keys.push(`${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`)
+  }
+  return keys
+}
+
+/** Number of Eastern days the festival spans; 1 for a single-day festival. */
+export function festivalDayCount(f: Festival): number {
+  return festivalDateKeys(f).length
+}
+
+/** Display-only date label built from an already-resolved registry date
+ *  key, never a clock read. Single day: unchanged shape ("Saturday, August
+ *  15, 2026"). Multi-day: "Thursday, September 10 to Saturday, September
+ *  12, 2026": the word "to", never an em dash, between the endpoints. */
+export function festivalDateRangeLabel(f: Festival): string {
+  const end = festivalEndDateKey(f)
+  const labelFmt = (dateKey: string, opts: Intl.DateTimeFormatOptions) =>
+    new Date(`${dateKey}T12:00:00`).toLocaleDateString([], opts)
+  if (end === f.dateKey) {
+    return labelFmt(f.dateKey, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+  }
+  const start = labelFmt(f.dateKey, { weekday: 'long', month: 'long', day: 'numeric' })
+  const endLabel = labelFmt(end, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+  return `${start} to ${endLabel}`
 }
 
 // ── Search-shortcut candidate derivation ─────────────────────────────────
@@ -179,7 +270,9 @@ export function resolveFestivalSlug(
   const matches = index.get(needle)
   if (!matches || matches.length === 0) return null
   if (matches.length === 1) return matches[0].slug
-  const upcoming = matches.filter((f) => f.dateKey >= todayIso)
+  // A festival mid-run is still "upcoming": compare against its LAST day,
+  // not its first.
+  const upcoming = matches.filter((f) => festivalEndDateKey(f) >= todayIso)
   const pool = upcoming.length > 0 ? upcoming : matches
   // Smallest absolute day diff picks the nearest upcoming date when the pool
   // is upcoming, and the most recent past date when everything is past.
@@ -194,17 +287,21 @@ export function resolveFestivalSlug(
 // ── Homepage banner window math ──────────────────────────────────────────
 
 /**
- * The festival to promote on the homepage banner: dateKey within [0, 7]
- * days of the Eastern today (inclusive on both ends — festival day itself
- * through a week out). Multiple in-window festivals: earliest dateKey wins.
+ * The festival to promote on the homepage banner: its FIRST day is within
+ * [0, 7] days of the Eastern today AND its LAST day has not yet passed,
+ * inclusive on both ends, so a single-day festival collapses to the old
+ * [0, 7]-of-dateKey rule exactly, and a multi-day festival stays in window
+ * for its whole run instead of dropping off the homepage on day 2. Multiple
+ * in-window festivals: earliest dateKey wins.
  */
 export function upcomingFestival(
   todayIso: string = easternTodayIso(),
   registry: Festival[] = FESTIVALS,
 ): Festival | null {
   const inWindow = registry.filter((f) => {
-    const diff = easternDateKeyDiffDays(todayIso, f.dateKey)
-    return diff >= 0 && diff <= 7
+    const startDiff = easternDateKeyDiffDays(todayIso, f.dateKey)
+    const endDiff = easternDateKeyDiffDays(todayIso, festivalEndDateKey(f))
+    return startDiff <= 7 && endDiff >= 0
   })
   if (inWindow.length === 0) return null
   return [...inWindow].sort((a, b) => a.dateKey.localeCompare(b.dateKey))[0]
@@ -221,4 +318,35 @@ export function festivalDayLabel(dateKey: string, todayIso: string = easternToda
   if (diff === 0) return 'today'
   if (diff === 1) return 'tomorrow'
   return new Date(`${dateKey}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long' })
+}
+
+/** Display-only weekday name, same construction festivalDayLabel's own
+ *  fallback uses (shares that allowlist entry in test-no-utc-today.js). */
+function weekdayLabel(dateKey: string): string {
+  return new Date(`${dateKey}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long' })
+}
+
+/**
+ * The banner headline phrase HomePage interpolates after "{name} is ".
+ * Single day: byte-identical to festivalDayLabel (today / tomorrow /
+ * weekday). Multi-day, per the run's position relative to today:
+ *   - before it starts:  "{festivalDayLabel(start)} through {weekday(end)}"
+ *   - on its first day:  "today through {weekday(end)}"
+ *   - mid-run:           "on now through {weekday(end)}"
+ *   - on its last day:   "on its final day"
+ *   - after it ended:    the plain weekday form, same as a single-day past
+ *     festival. Unreachable from HomePage (which only ever passes
+ *     upcomingFestival's output, and that excludes a finished run), but the
+ *     helper is exported: "on now through Saturday" is the wrong thing to
+ *     say about a festival that is over, so it must not be the fallthrough.
+ * No em dash in any phrase.
+ */
+export function festivalBannerPhrase(f: Festival, todayIso: string = easternTodayIso()): string {
+  const end = festivalEndDateKey(f)
+  if (end === f.dateKey) return festivalDayLabel(f.dateKey, todayIso)
+  if (todayIso > end) return festivalDayLabel(f.dateKey, todayIso)
+  if (todayIso === end) return 'on its final day'
+  if (todayIso === f.dateKey) return `today through ${weekdayLabel(end)}`
+  if (todayIso > f.dateKey) return `on now through ${weekdayLabel(end)}`
+  return `${festivalDayLabel(f.dateKey, todayIso)} through ${weekdayLabel(end)}`
 }

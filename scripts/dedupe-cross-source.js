@@ -141,6 +141,7 @@ export const SOURCE_PRIORITY = [
   'ohio_shakespeare',
   'painting_twist',
   'porchrokr',               // first-party festival importer (PorchRokr per-set events; sub-source of highland_square)
+  'rubber_city_jazz',        // first-party festival importer (Rubber City Jazz per-set sets; sub-source of ohio_festivals)
   'rubberducks',
   'stan_hywet',              // first-party venue calendar
   'summit_artspace',

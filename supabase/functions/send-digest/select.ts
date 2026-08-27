@@ -334,7 +334,7 @@ export function withoutTimeNote(description: string): string {
 // │  the full 3,479-event false positive this guards against.         │
 // └───────────────────────────────────────────────────────────────────┘
 export const FESTIVAL_UMBRELLA_TAG = 'festival-umbrella'
-export const FESTIVAL_TAGS: readonly string[] = ['porchrokr-2026', 'akron-pride-2026']
+export const FESTIVAL_TAGS: readonly string[] = ['porchrokr-2026', 'akron-pride-2026', 'rubber-city-jazz-2026']
 
 /**
  * True when `tags` marks a festival child that should be hidden from the

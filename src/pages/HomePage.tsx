@@ -8,7 +8,7 @@ import type { AppEvent } from '@/hooks/useEvents'
 import { INTENTS, SEARCH_SUGGESTIONS } from '@/lib/intents'
 import { CITIES, REGIONS } from '@/lib/cities'
 import { NEIGHBORHOODS } from '@/lib/neighborhoods'
-import { resolveFestivalSlug, upcomingFestival, festivalDayLabel } from '@/lib/festivals'
+import { resolveFestivalSlug, upcomingFestival, festivalBannerPhrase } from '@/lib/festivals'
 import { trackEvent, EVENTS } from '@/lib/analytics'
 import {
   SEO,
@@ -402,7 +402,7 @@ export default function HomePage() {
                           <div className="grid-promo-col">
                             <span className="grid-promo-icon">🎪</span>
                             <div className="grid-promo-text">
-                              <strong>{bannerFestival.name} is {festivalDayLabel(bannerFestival.dateKey)}.</strong>
+                              <strong>{bannerFestival.name} is {festivalBannerPhrase(bannerFestival)}.</strong>
                               <p>Browse the full schedule and plan your day.</p>
                             </div>
                             <Link

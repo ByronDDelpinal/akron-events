@@ -48,6 +48,7 @@ const SUB_SOURCE_LABELS: Record<string, string> = {
   uakron_myers_art: 'Myers School of Art',
   uakron_chp: 'Cummings Center',
   porchrokr: 'PorchRokr Festival Sets',
+  rubber_city_jazz: 'Rubber City Jazz Festival Sets',
 }
 
 /** key → display label for every known source (manifest first, then subs). */
@@ -1375,6 +1376,16 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     notes:       "Per-set schedule for PorchRokr, HSNA's annual porch-music-and-arts festival. The lineup exists only as a printed/PDF brochure, so the schedule (~160 thirty-minute porch sets plus stage sets and the headliner) is transcribed into a checked-in data file and ingested by an idempotent importer rather than a scraper; there is nothing to re-scrape, and the importer re-run IS the re-scrape. Porch venues are minted unlisted and carry an advisory manual_overrides provenance stamp for the post-festival consolidation; porches 38/39 reuse the existing House Three Thirty venue. Rides on the highland_square umbrella event for festival-level logistics.",
     status:      'active',
   },
+  {
+    key:         'rubber_city_jazz',
+    subOf:       'ohio_festivals',
+    label:       'Rubber City Jazz Festival Sets',
+    method:      'Curated import',
+    methodDetail:'Checked-in poster data (scripts/data/rubber-city-jazz-2026.json) + scripts/import-festival.js',
+    venue:       'Five downtown Akron venues: BLU Jazz+, Akron Summit Library Main Branch, the Mustill Store / Water Wheel site at Cascade Locks Park, the Akron Art Museum, and Lock 3',
+    notes:       "Per-set schedule for the Rubber City Jazz & Blues Festival, the three-day jazz and blues festival presented by Open Tone Music. The lineup is published only as a schedule poster on a Squarespace site with no first-party scraper, so the sets are transcribed into a checked-in data file and ingested by an idempotent importer; there is nothing to re-scrape, and the importer re-run IS the re-scrape. Every venue is an existing listed venue referenced by id, so nothing is minted. The Lock 3 headline show stays owned by the ticketmaster scraper and is only tagged into the festival. Rides on the ohio_festivals umbrella event for festival-level logistics.",
+    status:      'active',
+  },
 
   // ── Aggregators ────────────────────────────────────────────────────────
   {
@@ -1727,6 +1738,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   runsignup:           'runsignup',
   akron_dance_festival:'curated',
   porchrokr:           'curated',
+  rubber_city_jazz:    'curated',
   gather_round_games:  'wix',
   bath_business_assoc: 'wix',
   release_yoga:        'html',

@@ -21,6 +21,13 @@ import {
   resolveFestivalSlug,
   upcomingFestival,
   festivalDayLabel,
+  festivalEndDateKey,
+  isFestivalDateKey,
+  festivalDateKeys,
+  festivalDayCount,
+  festivalDateRangeLabel,
+  festivalBannerPhrase,
+  festivalScheduleMode,
 } from '../../src/lib/festivals.ts'
 
 /** Minimal valid Festival fixture; override what the case needs. */
@@ -34,6 +41,19 @@ function fixture(overrides) {
     landmarks: [],
     ...overrides,
   }
+}
+
+/** Minimal 3-day fixture mirroring the Rubber City Jazz 2026 registry entry. */
+function multiDayFixture(overrides) {
+  return fixture({
+    slug: 'rubber-city-jazz-2026',
+    name: 'Rubber City Jazz & Blues Festival',
+    dateKey: '2026-09-10',
+    endDateKey: '2026-09-12',
+    tag: 'rubber-city-jazz-2026',
+    mapBounds: [-81.528, 41.075, -81.511, 41.1],
+    ...overrides,
+  })
 }
 
 describe('normalizeQueryLabel', () => {
@@ -215,10 +235,205 @@ describe('festivalDayLabel: today / tomorrow / weekday selection', () => {
   })
 })
 
+describe('festivalEndDateKey', () => {
+  it('returns dateKey when endDateKey is absent', () => {
+    assert.equal(festivalEndDateKey(fixture()), '2026-08-15')
+  })
+
+  it('returns endDateKey when present', () => {
+    assert.equal(festivalEndDateKey(multiDayFixture()), '2026-09-12')
+  })
+})
+
+describe('festivalDateKeys / festivalDayCount', () => {
+  it('a 3-day fixture returns exactly the three Eastern day keys', () => {
+    assert.deepEqual(festivalDateKeys(multiDayFixture()), ['2026-09-10', '2026-09-11', '2026-09-12'])
+    assert.equal(festivalDayCount(multiDayFixture()), 3)
+  })
+
+  it('a single-day fixture returns one key', () => {
+    assert.deepEqual(festivalDateKeys(fixture()), ['2026-08-15'])
+    assert.equal(festivalDayCount(fixture()), 1)
+  })
+})
+
+describe('isFestivalDateKey', () => {
+  it('true for every day in a 3-day run, false just outside it', () => {
+    const f = multiDayFixture()
+    assert.ok(isFestivalDateKey(f, '2026-09-10'))
+    assert.ok(isFestivalDateKey(f, '2026-09-11'))
+    assert.ok(isFestivalDateKey(f, '2026-09-12'))
+    assert.ok(!isFestivalDateKey(f, '2026-09-09'))
+    assert.ok(!isFestivalDateKey(f, '2026-09-13'))
+  })
+
+  it('single-day: true only on dateKey itself', () => {
+    const f = fixture()
+    assert.ok(isFestivalDateKey(f, '2026-08-15'))
+    assert.ok(!isFestivalDateKey(f, '2026-08-14'))
+    assert.ok(!isFestivalDateKey(f, '2026-08-16'))
+  })
+})
+
+describe('upcomingFestival: multi-day window', () => {
+  const registry = [multiDayFixture()] // 2026-09-10 through 2026-09-12
+
+  it('in window for every todayIso from 7 days before the start through the end day', () => {
+    for (const today of [
+      '2026-09-03', // start - 7
+      '2026-09-04', '2026-09-05', '2026-09-06', '2026-09-07', '2026-09-08', '2026-09-09',
+      '2026-09-10', // start itself
+      '2026-09-11', // mid-run
+      '2026-09-12', // end day
+    ]) {
+      assert.equal(upcomingFestival(today, registry)?.slug, 'rubber-city-jazz-2026', `today=${today}`)
+    }
+  })
+
+  it('out of window one day before the 7-day mark, and the day after the run ends', () => {
+    assert.equal(upcomingFestival('2026-09-02', registry), null)
+    assert.equal(upcomingFestival('2026-09-13', registry), null)
+  })
+
+  it('single-day regression: the existing [0, 7] table still passes unchanged', () => {
+    const single = [fixture()] // dateKey 2026-08-15
+    for (const today of [
+      '2026-08-15', '2026-08-14', '2026-08-13', '2026-08-12',
+      '2026-08-11', '2026-08-10', '2026-08-09', '2026-08-08',
+    ]) {
+      assert.equal(upcomingFestival(today, single)?.slug, 'porchrokr-2026', `today=${today}`)
+    }
+    assert.equal(upcomingFestival('2026-08-07', single), null)
+    assert.equal(upcomingFestival('2026-08-16', single), null)
+  })
+})
+
+describe('resolveFestivalSlug: a multi-day festival mid-run still counts as upcoming', () => {
+  it('day 2 of a 3-day run resolves, not falls back to a past tie-break', () => {
+    const registry = [
+      multiDayFixture({ slug: 'rubber-city-jazz-2025', tag: 'rubber-city-jazz-2025', dateKey: '2025-09-11', endDateKey: '2025-09-13' }),
+      multiDayFixture(),
+    ]
+    assert.equal(resolveFestivalSlug('rubber city jazz', '2026-09-11', registry), 'rubber-city-jazz-2026')
+  })
+})
+
+describe('festivalDateRangeLabel', () => {
+  it('single day: unchanged shape', () => {
+    assert.equal(festivalDateRangeLabel(fixture()), 'Saturday, August 15, 2026')
+  })
+
+  it('multi-day: "<start> to <end>"', () => {
+    assert.equal(
+      festivalDateRangeLabel(multiDayFixture()),
+      'Thursday, September 10 to Saturday, September 12, 2026',
+    )
+  })
+
+  it('never contains an em dash', () => {
+    assert.ok(!festivalDateRangeLabel(fixture()).includes(String.fromCharCode(0x2014)))
+    assert.ok(!festivalDateRangeLabel(multiDayFixture()).includes(String.fromCharCode(0x2014)))
+  })
+})
+
+describe('festivalBannerPhrase', () => {
+  it('single day: byte-identical to festivalDayLabel', () => {
+    for (const today of ['2026-08-15', '2026-08-14', '2026-08-09']) {
+      assert.equal(festivalBannerPhrase(fixture(), today), festivalDayLabel('2026-08-15', today))
+    }
+  })
+
+  it('multi-day, before it starts: "<festivalDayLabel(start)> through <weekday(end)>"', () => {
+    // 2026-09-10 is a Thursday, 2026-09-12 a Saturday.
+    assert.equal(festivalBannerPhrase(multiDayFixture(), '2026-09-06'), 'Thursday through Saturday')
+    assert.equal(festivalBannerPhrase(multiDayFixture(), '2026-09-09'), 'tomorrow through Saturday')
+  })
+
+  it('multi-day, on its first day: "today through <weekday(end)>"', () => {
+    assert.equal(festivalBannerPhrase(multiDayFixture(), '2026-09-10'), 'today through Saturday')
+  })
+
+  it('multi-day, mid-run: "on now through <weekday(end)>"', () => {
+    assert.equal(festivalBannerPhrase(multiDayFixture(), '2026-09-11'), 'on now through Saturday')
+  })
+
+  it('multi-day, on its last day: "on its final day"', () => {
+    assert.equal(festivalBannerPhrase(multiDayFixture(), '2026-09-12'), 'on its final day')
+  })
+
+  it('multi-day, AFTER the run ended: the plain weekday form, never "on now"', () => {
+    // Unreachable from HomePage (upcomingFestival excludes a finished run),
+    // but the helper is exported and "on now" about a finished festival is
+    // the worst thing it could say.
+    for (const today of ['2026-09-13', '2026-09-20']) {
+      const phrase = festivalBannerPhrase(multiDayFixture(), today)
+      assert.ok(!phrase.includes('on now'), `today=${today}: ${phrase}`)
+      assert.equal(phrase, festivalDayLabel('2026-09-10', today))
+    }
+  })
+
+  it('never contains an em dash', () => {
+    for (const today of ['2026-09-06', '2026-09-10', '2026-09-11', '2026-09-12']) {
+      assert.ok(!festivalBannerPhrase(multiDayFixture(), today).includes(String.fromCharCode(0x2014)))
+    }
+  })
+})
+
+describe('festivalScheduleMode: the hub layout switch', () => {
+  it("defaults to 'slot' when the field is absent", () => {
+    assert.equal(festivalScheduleMode(fixture()), 'slot')
+    assert.equal(festivalScheduleMode(multiDayFixture()), 'slot')
+  })
+
+  it("returns 'day' when the entry asks for it", () => {
+    assert.equal(festivalScheduleMode(multiDayFixture({ schedule: 'day' })), 'day')
+  })
+
+  it("an explicit 'slot' and an omitted field are indistinguishable", () => {
+    assert.equal(
+      festivalScheduleMode(fixture({ schedule: 'slot' })),
+      festivalScheduleMode(fixture()),
+    )
+  })
+})
+
 describe('registry hygiene for the derivation the features rely on', () => {
   it('every real registry entry derives at least one candidate', () => {
     for (const f of FESTIVALS) {
       assert.ok(festivalSearchCandidates(f).length > 0, `${f.slug} derives no candidates`)
     }
+  })
+
+  it('every entry with endDateKey satisfies endDateKey >= dateKey', () => {
+    for (const f of FESTIVALS) {
+      if (f.endDateKey) assert.ok(f.endDateKey >= f.dateKey, `${f.slug}: endDateKey < dateKey`)
+    }
+  })
+
+  it("every entry's schedule field is absent, 'slot' or 'day', and nothing else", () => {
+    // A typo ('days', 'Day', 'timeslot') would silently fall through
+    // festivalScheduleMode's ?? and render the WRONG layout rather than
+    // failing, so the registry is where it has to be caught.
+    for (const f of FESTIVALS) {
+      assert.ok(
+        f.schedule === undefined || f.schedule === 'slot' || f.schedule === 'day',
+        `${f.slug}: schedule must be undefined, 'slot' or 'day' (got ${JSON.stringify(f.schedule)})`,
+      )
+      assert.ok(['slot', 'day'].includes(festivalScheduleMode(f)), f.slug)
+    }
+  })
+
+  it('the single-day entries stay on the default slot layout', () => {
+    for (const f of FESTIVALS) {
+      if (!f.endDateKey) {
+        assert.equal(festivalScheduleMode(f), 'slot',
+          `${f.slug}: a single-day festival has no day breaks to group by`)
+      }
+    }
+  })
+
+  it('rubber-city-jazz-2026 is the day-mode entry', () => {
+    const rcj = FESTIVALS.find((f) => f.slug === 'rubber-city-jazz-2026')
+    assert.equal(festivalScheduleMode(rcj), 'day')
   })
 })

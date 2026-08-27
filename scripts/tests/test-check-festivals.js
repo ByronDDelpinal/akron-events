@@ -30,6 +30,42 @@ const PRIDE = {
   landmarks: [],
 }
 
+const RCJ = {
+  slug: 'rubber-city-jazz-2026',
+  name: 'Rubber City Jazz & Blues Festival',
+  dateKey: '2026-09-10',
+  endDateKey: '2026-09-12',
+  tag: 'rubber-city-jazz-2026',
+  mapBounds: [-81.528, 41.075, -81.511, 41.1],
+  landmarks: [],
+}
+
+/** A healthy RCJ umbrella row on the festival's FIRST day. */
+function rcjUmbrellaRow(overrides) {
+  return {
+    id: 'rcj-umb-1',
+    title: 'Rubber City Jazz & Blues Festival',
+    status: 'published',
+    start_at: '2026-09-10T16:00:00+00:00', // noon ET, 2026-09-10
+    tags: ['rubber-city-jazz-2026', UMBRELLA_TAG],
+    manual_overrides: { tags: { at: '2026-08-27T12:00:00Z', by: 'import-festival' } },
+    ...overrides,
+  }
+}
+
+/** A per-set RCJ child row (non-umbrella). */
+function rcjSetRow(overrides) {
+  return {
+    id: 'rcj-set-1',
+    title: 'Nathan-Paul',
+    status: 'published',
+    start_at: '2026-09-11T00:15:00+00:00', // 8:15 PM ET on 2026-09-10
+    tags: ['rubber-city-jazz-2026', 'stage-blu-jazz'],
+    manual_overrides: {},
+    ...overrides,
+  }
+}
+
 /** A healthy PorchRokr umbrella row; override what the case needs.
  *  2026-08-15T15:00:00Z is 11:00 EDT on the festival day. */
 function umbrellaRow(overrides) {
@@ -255,6 +291,79 @@ describe('check f: off-date hidden rows (docs/umbrella-child-hiding.md)', () => 
       [umbrellaRow({ start_at: '2026-08-16T15:00:00+00:00' })], [PORCHROKR], QUIET_TODAY,
     )
     assert.equal(findings.filter((f) => f.check === 'off-date-hidden').length, 0)
+  })
+})
+
+describe('multi-day festival (Rubber City Jazz, dateKey through endDateKey)', () => {
+  it('children on 2026-09-11 and 2026-09-12 produce no off-date-hidden finding', () => {
+    const friChild = rcjSetRow({ id: 'fri-child', start_at: '2026-09-12T00:00:00+00:00' }) // 8:00 PM ET 09-11
+    const satChild = rcjSetRow({ id: 'sat-child', start_at: '2026-09-12T21:30:00+00:00' }) // 5:30 PM ET 09-12
+    const findings = evaluateFestivalInvariants(
+      [rcjUmbrellaRow(), rcjSetRow(), friChild, satChild], [RCJ], QUIET_TODAY,
+    )
+    assert.equal(findings.filter((f) => f.check === 'off-date-hidden').length, 0)
+  })
+
+  it('a child on 2026-09-13 (one day past the run) produces one off-date-hidden FAIL', () => {
+    const strayChild = rcjSetRow({ id: 'stray-1', start_at: '2026-09-14T00:00:00+00:00' }) // 8:00 PM ET 09-13
+    const findings = evaluateFestivalInvariants(
+      [rcjUmbrellaRow(), rcjSetRow(), strayChild], [RCJ], QUIET_TODAY,
+    )
+    const off = findings.filter((f) => f.check === 'off-date-hidden')
+    assert.equal(off.length, 1)
+    assert.equal(off[0].level, 'FAIL')
+    assert.deepEqual(off[0].eventIds, ['stray-1'])
+    assert.match(off[0].message, /2026-09-13/)
+  })
+
+  it('an umbrella starting 2026-09-11 (day 2) still FAILs umbrella-date (dateKey is day 1, strictly)', () => {
+    const findings = evaluateFestivalInvariants(
+      [rcjUmbrellaRow({ start_at: '2026-09-11T16:00:00+00:00' }), rcjSetRow()], [RCJ], QUIET_TODAY,
+    )
+    const date = findings.find((f) => f.check === 'umbrella-date')
+    assert.ok(date, 'expected an umbrella-date finding')
+    assert.equal(date.level, 'FAIL')
+    assert.match(date.message, /2026-09-11/)
+  })
+
+  it('empty-window WARN fires for todayIso in [2026-09-03, 2026-09-12] and not at the boundaries outside it', () => {
+    for (const today of ['2026-09-03', '2026-09-06', '2026-09-10', '2026-09-12']) {
+      const findings = evaluateFestivalInvariants([rcjUmbrellaRow()], [RCJ], today)
+      assert.equal(findings.length, 1, `today=${today}`)
+      assert.equal(findings[0].level, 'WARN')
+      assert.equal(findings[0].check, 'empty-window')
+    }
+    for (const today of ['2026-09-02', '2026-09-13']) {
+      const findings = evaluateFestivalInvariants([rcjUmbrellaRow()], [RCJ], today)
+      assert.deepEqual(findings, [], `today=${today}`)
+    }
+  })
+
+  it('the single-day PorchRokr and Pride cases are unchanged when RCJ is in the same registry', () => {
+    // Pride is single-day (dateKey 2026-08-22, no endDateKey), so it is the
+    // regression case: the range-aware checks must collapse to the old
+    // dateKey-only behavior for it even with a multi-day entry alongside.
+    const prideUmbrella = {
+      id: 'pride-umb-1',
+      title: 'Akron Pride Festival',
+      status: 'published',
+      start_at: '2026-08-22T15:00:00+00:00', // 11:00 EDT on the festival day
+      tags: ['akron-pride-2026', UMBRELLA_TAG],
+      manual_overrides: { tags: { at: '2026-08-01T12:00:00Z', by: 'akron-pride-2026-import' } },
+    }
+    const prideSet = {
+      id: 'pride-set-1',
+      title: 'A Pride set',
+      status: 'published',
+      start_at: '2026-08-22T18:00:00+00:00', // 2:00 PM EDT, same day
+      tags: ['akron-pride-2026', 'stage-main'],
+      manual_overrides: {},
+    }
+    const findings = evaluateFestivalInvariants(
+      [umbrellaRow(), setRow(), prideUmbrella, prideSet, rcjUmbrellaRow(), rcjSetRow()],
+      [PORCHROKR, PRIDE, RCJ], QUIET_TODAY,
+    )
+    assert.deepEqual(findings, [])
   })
 })
 

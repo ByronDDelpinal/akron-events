@@ -32,6 +32,24 @@ function bbox(west, south, east, north) {
   return [west, south, east, north]
 }
 
+// Same INFERENCE problem as bbox(), same fix: a bare 'day' literal in this
+// plain-JS file widens to `string`, which does not satisfy the
+// `'slot' | 'day'` union Festival.schedule declares, so festivals.ts's
+// `FESTIVALS: Festival[]` annotation errors. The `@returns` below is what
+// fixes that, by making the property's inferred type the union.
+//
+// It does NOT validate the argument: tsconfig.json sets `checkJs: false`,
+// so TypeScript never checks this file's own body and `schedule('days')`
+// type-checks clean. The guard against a typo is
+// scripts/tests/test-festivals.js's registry-hygiene case, which asserts
+// every entry's raw `schedule` is undefined, 'slot' or 'day'. That test is
+// load-bearing: festivalScheduleMode's `??` would pass 'days' straight
+// through and the hub would silently render slot mode.
+/** @returns {'slot' | 'day'} */
+function schedule(mode) {
+  return mode
+}
+
 export const FESTIVALS = [
   {
     slug: 'porchrokr-2026',
@@ -66,5 +84,28 @@ export const FESTIVALS = [
     website: 'https://akronpridefestival.org/',
     // No childLabel entry: falls back to the default 'event' / 'events'
     // noun (browseVisibility.js / EventCard.tsx).
+  },
+  {
+    slug: 'rubber-city-jazz-2026',
+    // Short display name (playbook step 1): the hub title and banner copy
+    // read "{name} is Thursday through Saturday."
+    name: 'Rubber City Jazz & Blues Festival',
+    dateKey: '2026-09-10',
+    // FIRST multi-day entry: dateKey is day 1, endDateKey is the last day.
+    endDateKey: '2026-09-12',
+    // 18 sets across 17 distinct start times, so a per-slot layout would be
+    // one heading per card. Group by day instead; each card carries its own
+    // time and venue. See the `schedule` doc comment in festivals.ts.
+    schedule: schedule('day'),
+    tag: 'rubber-city-jazz-2026',
+    // Downtown corridor seed box covering Lock 3 (41.0796, -81.5212) north to
+    // the Mustill Store / Water Wheel site (41.0951, -81.5205). Camera seed
+    // only; pins drive fitBounds once the lineup lands.
+    mapBounds: bbox(-81.528, 41.075, -81.511, 41.1),
+    landmarks: [],
+    website: 'https://www.rubbercityjazz.org/',
+    // Umbrella card copy noun (docs/umbrella-child-hiding.md §3.3): "18 sets
+    // on the schedule", not "18 events".
+    childLabel: { singular: 'set', plural: 'sets' },
   },
 ]

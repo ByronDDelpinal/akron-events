@@ -37,14 +37,15 @@
  * straight past the map to the live slot and who therefore never pays for
  * tiles at all.
  */
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { SEO } from '@/lib/seo'
 import { eventPath } from '@/lib/slug'
-import { festivalBySlug } from '@/lib/festivals'
+import { festivalBySlug, festivalDateRangeLabel, festivalScheduleMode, isFestivalDateKey } from '@/lib/festivals'
 import {
   buildFestivalSchedule,
+  dayItems,
   firstVenue,
   happeningNowSlots,
   isHappeningNow,
@@ -79,6 +80,15 @@ const DESKTOP_QUERY = '(min-width: 900px)'
 function slotTimeLabel(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
+
+/** Display-only day label built from an already-resolved Eastern day key,
+ *  never a clock read. Shared by the jump bar's short form ("Thu Sep 10")
+ *  and the multi-day section heading's long form ("Thursday, September 10"). */
+function dayLabel(dateKey: string, opts: Intl.DateTimeFormatOptions): string {
+  return new Date(`${dateKey}T12:00:00`).toLocaleDateString([], opts)
+}
+const SHORT_DAY_OPTS: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' }
+const LONG_DAY_OPTS: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'long', day: 'numeric' }
 
 /** Display name for an act: the title minus the importer's " - PorchRokr…" suffix. */
 function actName(title: string): string {
@@ -170,7 +180,12 @@ export default function FestivalPage() {
   }, [])
 
   const schedule = useMemo(() => buildFestivalSchedule(rows ?? []), [rows])
-  const isFestivalDay = festival ? easternTodayIso() === festival.dateKey : false
+  const todayIso = easternTodayIso()
+  const isFestivalDay = festival ? isFestivalDateKey(festival, todayIso) : false
+  // 'slot' (a heading per start time) or 'day' (a heading per day, cards in
+  // one grid). Registry-driven; 'slot' is the default and every existing
+  // festival keeps it.
+  const scheduleMode = festival ? festivalScheduleMode(festival) : 'slot'
 
   // The map's pins and planned-ring venue set (both pure derivations in
   // festivalSchedule.ts; no second query, the map renders what the
@@ -198,16 +213,19 @@ export default function FestivalPage() {
   })
   const showMap = pins.length > 0 && (isDesktop || mapInView)
 
-  // Slot sections register themselves here (keyed by slot startAt) for the
-  // jump bar and the day-of auto-scroll below.
-  const slotRefs = useRef(new Map<string, HTMLElement>())
-  const registerSlot = useCallback((startAt: string, el: HTMLElement | null) => {
-    if (el) slotRefs.current.set(startAt, el)
-    else slotRefs.current.delete(startAt)
+  // Schedule sections register themselves here for the jump bar and the
+  // day-of auto-scroll below. The key is whatever the jump bar's chips
+  // address: a slot's startAt in 'slot' mode, a day's dateKey in 'day'
+  // mode. Both are unique strings within one festival, so one map serves
+  // both layouts.
+  const sectionRefs = useRef(new Map<string, HTMLElement>())
+  const registerSection = useCallback((key: string, el: HTMLElement | null) => {
+    if (el) sectionRefs.current.set(key, el)
+    else sectionRefs.current.delete(key)
   }, [])
 
-  const scrollToSlot = useCallback((startAt: string) => {
-    slotRefs.current.get(startAt)?.scrollIntoView({
+  const scrollToSection = useCallback((key: string) => {
+    sectionRefs.current.get(key)?.scrollIntoView({
       block: 'start',
       behavior: prefersReducedMotion() ? 'auto' : 'smooth',
     })
@@ -215,6 +233,9 @@ export default function FestivalPage() {
 
   // Day-of auto-scroll: once, when the rows settle on the festival's
   // Eastern day, jump to the live slot (or the up-next slot between slots).
+  // In 'day' mode the sections ARE days, so the same target slot resolves to
+  // the day section holding it: the reader still lands on the live set's
+  // grid, one screen higher.
   // Fires at most ONCE per mount (autoScrolledRef), never re-triggers on
   // the 60s tick (nowMs is read inside, not a dependency), and yields to a
   // reader who has already scrolled (only fires with the window still near
@@ -228,11 +249,15 @@ export default function FestivalPage() {
     const now = Date.now()
     const target = happeningNowSlots(schedule, now)[0] ?? upNextSlot(schedule, now)
     if (!target) return
-    slotRefs.current.get(target.startAt)?.scrollIntoView({
+    const targetKey = scheduleMode === 'day'
+      ? schedule.days.find((d) => d.slots.includes(target))?.dateKey
+      : target.startAt
+    if (!targetKey) return
+    sectionRefs.current.get(targetKey)?.scrollIntoView({
       block: 'start',
       behavior: prefersReducedMotion() ? 'auto' : 'smooth',
     })
-  }, [loading, isFestivalDay, schedule])
+  }, [loading, isFestivalDay, schedule, scheduleMode])
 
   if (!festival) {
     return (
@@ -245,10 +270,9 @@ export default function FestivalPage() {
 
   const nextSlot = isFestivalDay ? upNextSlot(schedule, nowMs) : null
   const umbrella = schedule.umbrella
+  const multiDay = schedule.days.length > 1
 
-  const dateLabel = new Date(`${festival.dateKey}T12:00:00`).toLocaleDateString([], {
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-  })
+  const dateLabel = festivalDateRangeLabel(festival)
 
   return (
     <div className="page-festival">
@@ -341,24 +365,54 @@ export default function FestivalPage() {
         )}
       </div>
 
-      {/* ── Slot-jump bar: sticky under the site header; one chip per
-          slot, live chip gets the "Happening now" treatment on the day ── */}
+      {/* ── Jump bar: sticky under the site header. 'slot' mode gets one
+          chip per start time (with a day label ahead of each day's run when
+          the festival spans days); 'day' mode gets one chip per day, since
+          the day sections are what there is to jump to. Either way the live
+          chip gets the "Happening now" treatment on the day. ── */}
       {schedule.slots.length > 0 && (
-        <nav className="festival-jump-bar" aria-label="Jump to a schedule time">
-          {schedule.slots.map((slot) => {
-            const chipLive = isFestivalDay && slot.items.some((i) => isHappeningNow(i, nowMs))
-            return (
-              <button
-                key={slot.startAt}
-                type="button"
-                className={`festival-jump-chip${chipLive ? ' festival-jump-chip--live' : ''}`}
-                aria-current={chipLive ? 'true' : undefined}
-                onClick={() => scrollToSlot(slot.startAt)}
-              >
-                {slotTimeLabel(slot.startAt)}
-              </button>
-            )
-          })}
+        <nav
+          className="festival-jump-bar"
+          aria-label={scheduleMode === 'day' ? 'Jump to a schedule day' : 'Jump to a schedule time'}
+        >
+          {scheduleMode === 'day'
+            ? schedule.days.map((day) => {
+              const chipLive = isFestivalDay && dayItems(day).some((i) => isHappeningNow(i, nowMs))
+              return (
+                <button
+                  key={day.dateKey}
+                  type="button"
+                  className={`festival-jump-chip${chipLive ? ' festival-jump-chip--live' : ''}`}
+                  aria-current={chipLive ? 'true' : undefined}
+                  onClick={() => scrollToSection(day.dateKey)}
+                >
+                  {dayLabel(day.dateKey, SHORT_DAY_OPTS)}
+                </button>
+              )
+            })
+            : schedule.days.map((day) => (
+              <Fragment key={day.dateKey}>
+                {multiDay && (
+                  <span className="festival-jump-day" aria-hidden="true">
+                    {dayLabel(day.dateKey, SHORT_DAY_OPTS)}
+                  </span>
+                )}
+                {day.slots.map((slot) => {
+                  const chipLive = isFestivalDay && slot.items.some((i) => isHappeningNow(i, nowMs))
+                  return (
+                    <button
+                      key={slot.startAt}
+                      type="button"
+                      className={`festival-jump-chip${chipLive ? ' festival-jump-chip--live' : ''}`}
+                      aria-current={chipLive ? 'true' : undefined}
+                      onClick={() => scrollToSection(slot.startAt)}
+                    >
+                      {slotTimeLabel(slot.startAt)}
+                    </button>
+                  )
+                })}
+              </Fragment>
+            ))}
         </nav>
       )}
 
@@ -368,39 +422,105 @@ export default function FestivalPage() {
         <p className="festival-status-line">The full schedule hasn&apos;t been published yet. Check back soon.</p>
       )}
 
-      {/* ── Time-major schedule — shared compact-view components ── */}
-      {schedule.slots.map((slot) => {
-        const isNext = nextSlot?.startMs === slot.startMs
-        const slotLive = isFestivalDay && slot.items.some((i) => isHappeningNow(i, nowMs))
-        return (
-          <section
-            key={slot.startAt}
-            className="festival-slot"
-            ref={(el) => { registerSlot(slot.startAt, el) }}
-          >
-            <h2 className="date-heading">
-              <span className="date-label">{slotTimeLabel(slot.startAt)}</span>
-              {slotLive && <span className="today-badge">Happening now</span>}
-              {isNext && !slotLive && (
-                <span className="today-badge" style={{ background: 'var(--green-mid)' }}>Up next</span>
+      {/* ── The schedule. Both modes render the SAME EventCard in the SAME
+          .cards-grid--efficient; they differ only in what gets a heading.
+
+          'slot' (default, PorchRokr and Pride): a heading per start time,
+          holding the cards that share that instant. Single-day output is
+          byte-identical to before day grouping existed, and multi-day only
+          inserts a day heading ahead of each day's run of slots.
+
+          'day' (Rubber City Jazz): a heading per day, holding the whole
+          day's cards as one grid in start order. With 17 distinct starts
+          across 18 sets, per-slot headings would be one heading per card;
+          the card already carries its own date, time and venue, so the
+          per-slot boundary buys nothing and costs a very long scroll. ── */}
+      {schedule.days.map((day) => {
+        const dayHeading = multiDay && (
+          <h2 className="date-heading festival-day-heading">
+            <span className="date-label">{dayLabel(day.dateKey, LONG_DAY_OPTS)}</span>
+            {day.dateKey === todayIso && <span className="today-badge">Today</span>}
+            <div className="date-line" />
+          </h2>
+        )
+
+        // Card states are per ROW in both modes: "live" is a per-item
+        // instant test, and "up next" is membership of the single up-next
+        // slot. Slot mode says both in the slot HEADING (badge text) and
+        // uses the card outline as reinforcement. Day mode has no slot
+        // heading, so the badge moves onto the card itself: the state has
+        // to be carried by TEXT, not by outline hue alone, or a screen
+        // reader gets nothing and a sighted reader is told apart amber from
+        // green (WCAG 1.4.1). Same .today-badge pill, same green inline
+        // style the "Up next" heading badge already uses.
+        const card = (item: FestivalScheduleItem) => {
+          const live = isFestivalDay && isHappeningNow(item, nowMs)
+          const isNext = scheduleMode === 'day' && !live && nextSlot?.startMs === item.startMs
+          return (
+            <div
+              key={item.event.id}
+              className={live ? 'festival-card--live' : isNext ? 'festival-card--next' : undefined}
+            >
+              {scheduleMode === 'day' && live && (
+                <span className="today-badge festival-card-state">Happening now</span>
               )}
-              <div className="date-line" />
-            </h2>
-            <div className="cards-grid--efficient">
-              {slot.items.map((item) => {
-                const live = isFestivalDay && isHappeningNow(item, nowMs)
-                return (
-                  <div key={item.event.id} className={live ? 'festival-card--live' : undefined}>
-                    <EventCard
-                      event={toAppEvent(item, festival.venueNamePrefix)}
-                      viewMode="efficient"
-                      planSurface="festival_hub"
-                      subtitle={genreFromDescription(item.event.description)}
-                    />
-                  </div>
-                )
-              })}
+              {isNext && (
+                <span
+                  className="today-badge festival-card-state"
+                  style={{ background: 'var(--green-mid)' }}
+                >Up next</span>
+              )}
+              <EventCard
+                event={toAppEvent(item, festival.venueNamePrefix)}
+                viewMode="efficient"
+                planSurface="festival_hub"
+                subtitle={genreFromDescription(item.event.description)}
+              />
             </div>
+          )
+        }
+
+        if (scheduleMode === 'day') {
+          return (
+            <section
+              key={day.dateKey}
+              className="festival-day"
+              ref={(el) => { registerSection(day.dateKey, el) }}
+            >
+              {dayHeading}
+              <div className="cards-grid--efficient">{dayItems(day).map(card)}</div>
+            </section>
+          )
+        }
+
+        const daySlots = day.slots.map((slot) => {
+          const isNext = nextSlot?.startMs === slot.startMs
+          const slotLive = isFestivalDay && slot.items.some((i) => isHappeningNow(i, nowMs))
+          return (
+            <section
+              key={slot.startAt}
+              className="festival-slot"
+              ref={(el) => { registerSection(slot.startAt, el) }}
+            >
+              <h2 className="date-heading">
+                <span className="date-label">{slotTimeLabel(slot.startAt)}</span>
+                {slotLive && <span className="today-badge">Happening now</span>}
+                {isNext && !slotLive && (
+                  <span className="today-badge" style={{ background: 'var(--green-mid)' }}>Up next</span>
+                )}
+                <div className="date-line" />
+              </h2>
+              <div className="cards-grid--efficient">{slot.items.map(card)}</div>
+            </section>
+          )
+        })
+
+        if (!multiDay) return <Fragment key={day.dateKey}>{daySlots}</Fragment>
+
+        return (
+          <section key={day.dateKey} className="festival-day">
+            {dayHeading}
+            {daySlots}
           </section>
         )
       })}

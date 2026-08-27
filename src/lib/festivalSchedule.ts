@@ -12,7 +12,13 @@
  * (scripts/import-porchrokr.js): every per-set event carries exactly one
  * 'porch-NN' or 'stage-<key>' tag; the festival umbrella event carries
  * 'festival-umbrella' instead. Garbage tags are ignored, never guessed at.
+ *
+ * Slots are also grouped into `days` by the slot's EASTERN calendar date
+ * (easternDateKey), never the UTC date: a 9:30 PM Eastern set is already
+ * past midnight UTC, and grouping on the UTC date would file it under the
+ * wrong day and split that night's schedule in half.
  */
+import { easternDateKey } from './easternDate.ts'
 
 export interface FestivalVenueRef {
   id: string
@@ -67,10 +73,23 @@ export interface FestivalSlot {
   items: FestivalScheduleItem[]
 }
 
+/** One Eastern calendar day of a multi-day festival's schedule. */
+export interface FestivalDay {
+  /** Eastern date key ('yyyy-MM-dd') of every slot in this group. */
+  dateKey: string
+  slots: FestivalSlot[]
+}
+
 export interface FestivalSchedule {
   umbrella: FestivalEventRow | null
   columns: FestivalColumn[]
+  /** Flat, ascending, spans every day; unchanged shape for every existing
+   *  consumer (toFestivalMapPins, plannedVenueIds, upNextSlot,
+   *  happeningNowSlots all keep operating on this). */
   slots: FestivalSlot[]
+  /** slots grouped by Eastern day key, ascending; one entry for a
+   *  single-day festival. */
+  days: FestivalDay[]
 }
 
 /** Fixed display order for known stages; unknown stage keys sort after,
@@ -171,7 +190,33 @@ export function buildFestivalSchedule(rows: FestivalEventRow[]): FestivalSchedul
   for (const slot of slots) slot.items.sort((a, b) => compareColumns(a.column, b.column))
 
   const columns = [...columnsByKey.values()].sort(compareColumns)
-  return { umbrella, columns, slots }
+
+  // Group into days by the slot's EASTERN date (see the file docstring for
+  // why: a late-night set is a next-day UTC instant). Slot order within a
+  // day is preserved from the already-ascending `slots`.
+  const daysByKey = new Map<string, FestivalDay>()
+  for (const slot of slots) {
+    const dateKey = easternDateKey(slot.startAt)
+    let day = daysByKey.get(dateKey)
+    if (!day) {
+      day = { dateKey, slots: [] }
+      daysByKey.set(dateKey, day)
+    }
+    day.slots.push(slot)
+  }
+  const days = [...daysByKey.values()].sort((a, b) => a.dateKey.localeCompare(b.dateKey))
+
+  return { umbrella, columns, slots, days }
+}
+
+/** Every set on one day as a single flat list, ascending by start instant.
+ *  Slot order is preserved exactly (slots are already ascending, and items
+ *  within a slot are already column-ordered), so this is the same sequence
+ *  the per-slot layout renders, just without the per-slot boundaries. This
+ *  is what the hub's 'day' schedule mode lays out as one card grid; the
+ *  per-slot layout keeps using `day.slots` directly. */
+export function dayItems(day: FestivalDay): FestivalScheduleItem[] {
+  return day.slots.flatMap((slot) => slot.items)
 }
 
 /** True while a set is live: now >= start AND now < end. Items with no end

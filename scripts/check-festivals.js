@@ -10,18 +10,23 @@
  *      renders the EARLIEST-starting match as the page header
  *      (src/lib/festivalSchedule.ts buildFestivalSchedule takes the first
  *      umbrella of the start_at-ascending query in FestivalPage.tsx).
- *   b. The umbrella's Eastern calendar date equals the registry dateKey
- *      (easternDateKey, never toISOString).
+ *   b. The umbrella's Eastern calendar date equals the registry dateKey,
+ *      the festival's FIRST day (easternDateKey, never toISOString). For a
+ *      multi-day festival this check stays strict: the umbrella belongs on
+ *      day 1, not merely somewhere inside the run.
  *   c. The umbrella's manual_overrides.tags pin exists (any by value);
  *      without it the owning scraper strips the hub tags on its next run.
  *   d. No published row tagged 'festival-umbrella' matches NO registry
  *      festival tag (orphan umbrellas left behind by retired entries).
- *   e. WARN (not fail) when a festival inside its 7-day homepage banner
- *      window has zero non-umbrella rows carrying its tag: the hub would
- *      show its empty state during peak interest.
+ *   e. WARN (not fail) when a festival inside its homepage banner window
+ *      (its first day within 7 days out AND its last day not yet passed;
+ *      endDateKey when present, else dateKey) has zero non-umbrella rows
+ *      carrying its tag: the hub would show its empty state during peak
+ *      interest.
  *   f. Every published, upcoming (Eastern date >= today) row carrying a
- *      registry tag WITHOUT 'festival-umbrella' must fall on that festival's
- *      dateKey (docs/umbrella-child-hiding.md). Such a row is now hidden
+ *      registry tag WITHOUT 'festival-umbrella' must fall somewhere within
+ *      that festival's date range, dateKey through endDateKey inclusive
+ *      (docs/umbrella-child-hiding.md). Such a row is now hidden
  *      from the browse grid, the map/calendar, the feed, and the digest by
  *      src/lib/browseVisibility.js's predicate — a row tagged
  *      'porchrokr-2026' sitting on an unrelated date is invisible in browse
@@ -55,7 +60,7 @@
 
 import 'dotenv/config'
 import { pathToFileURL } from 'node:url'
-import { FESTIVALS } from '../src/lib/festivals.ts'
+import { FESTIVALS, festivalEndDateKey, isFestivalDateKey } from '../src/lib/festivals.ts'
 import { easternDateKey, easternTodayIso, easternDateKeyDiffDays } from '../src/lib/dayPlanDate.ts'
 
 const RED = '\x1b[31m', GREEN = '\x1b[32m', YELLOW = '\x1b[33m'
@@ -137,15 +142,22 @@ export function evaluateFestivalInvariants(rows, registry, todayIso) {
       }
     }
 
-    // e. banner-window emptiness (WARN only)
+    // e. banner-window emptiness (WARN only), same predicate as
+    // upcomingFestival in src/lib/festivals.ts: first day within
+    // BANNER_WINDOW_DAYS out, AND last day (endDateKey when present, else
+    // dateKey) not yet passed. Collapses to the old [0, 7]-of-dateKey rule
+    // for a single-day festival.
     const nonUmbrella = tagged.filter((r) => !hasTag(r, UMBRELLA_TAG))
-    const diff = easternDateKeyDiffDays(todayIso, f.dateKey)
-    if (diff >= 0 && diff <= BANNER_WINDOW_DAYS) {
+    const startDiff = easternDateKeyDiffDays(todayIso, f.dateKey)
+    const endDiff = easternDateKeyDiffDays(todayIso, festivalEndDateKey(f))
+    if (startDiff <= BANNER_WINDOW_DAYS && endDiff >= 0) {
       if (nonUmbrella.length === 0) {
         findings.push({
           level: 'WARN', check: 'empty-window', festival: f.slug, eventIds: [],
-          message: `festival is ${diff} day(s) out (inside the [0, ${BANNER_WINDOW_DAYS}] homepage ` +
-            `banner window) but zero non-umbrella rows carry '${f.tag}': the hub shows ` +
+          message: `festival ${startDiff > 0 ? `starts in ${startDiff} day(s)` : startDiff === 0 ? 'starts today' : `started ${-startDiff} day(s) ago`}` +
+            `${endDiff > 0 ? ` and runs for ${endDiff} more day(s)` : ', on its last day'} ` +
+            `(inside the ${BANNER_WINDOW_DAYS}-day homepage banner window, which now stays open ` +
+            `through the final day) but zero non-umbrella rows carry '${f.tag}': the hub shows ` +
             `its empty state during peak interest. Import the lineup.`,
         })
       }
@@ -153,19 +165,20 @@ export function evaluateFestivalInvariants(rows, registry, todayIso) {
 
     // f. off-date hidden rows (docs/umbrella-child-hiding.md) — a non-umbrella
     // row carrying this festival's tag is hidden from browse, and hidden on
-    // the WRONG day is a silent disappearance, not merely odd tagging. Only
-    // "upcoming" rows (Eastern start date >= today) matter: a past-dated row
-    // is already excluded from every browse path by its own start_at >= now
-    // clause, so it was never actually hidden-in-error.
+    // a day outside the festival's run is a silent disappearance, not merely
+    // odd tagging. Only "upcoming" rows (Eastern start date >= today) matter:
+    // a past-dated row is already excluded from every browse path by its own
+    // start_at >= now clause, so it was never actually hidden-in-error.
     for (const r of nonUmbrella) {
       const rDateKey = easternDateKey(r.start_at)
-      if (rDateKey >= todayIso && rDateKey !== f.dateKey) {
+      if (rDateKey >= todayIso && !isFestivalDateKey(f, rDateKey)) {
+        const range = f.endDateKey ? `${f.dateKey} to ${f.endDateKey}` : f.dateKey
         findings.push({
           level: 'FAIL', check: 'off-date-hidden', festival: f.slug, eventIds: [r.id],
           message: `"${r.title}" (${r.id}) carries '${f.tag}' without '${UMBRELLA_TAG}' but falls ` +
-            `on Eastern date ${rDateKey}, not the registry dateKey ${f.dateKey}. It is invisible ` +
+            `on Eastern date ${rDateKey}, outside the registry range ${range}. It is invisible ` +
             `in browse (docs/umbrella-child-hiding.md's src/lib/browseVisibility.js) on a day ` +
-            `nobody would think to look — remove the tag or fix the registry dateKey.`,
+            `nobody would think to look. Remove the tag or fix the registry dateKey/endDateKey.`,
         })
       }
     }
@@ -248,7 +261,8 @@ async function main() {
     const mine = findings.filter((x) => x.festival === f.slug)
     const hidden = countHiddenChildren(rows, f, todayIso)
     if (mine.length === 0) {
-      console.log(`  ${GREEN}✓${R} ${f.slug} ${DIM}(tag '${f.tag}', dateKey ${f.dateKey})${R}`)
+      const range = f.endDateKey ? `${f.dateKey} to ${f.endDateKey}` : f.dateKey
+      console.log(`  ${GREEN}✓${R} ${f.slug} ${DIM}(tag '${f.tag}', ${range})${R}`)
     } else {
       console.log(`  ${mine.some((x) => x.level === 'FAIL') ? RED + '✖' : YELLOW + '⚠'}${R} ${f.slug}`)
       for (const x of mine) {
