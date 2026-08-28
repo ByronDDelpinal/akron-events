@@ -34,6 +34,7 @@ const {
   canonicalVenueName,
   venueNameKey,
   isJunkVenueName,
+  isProseContactVenueName,
   looksLikeStreetAddress,
   ensureVenue,
   orgNameKey,
@@ -1220,6 +1221,34 @@ describe('isJunkVenueName', () => {
   })
 })
 
+describe('isProseContactVenueName', () => {
+  it('flags emails, URLs, phones, contact phrasing, and sentence-shaped strings', () => {
+    assert.equal(isProseContactVenueName('For venue details reach us at: info@kogniora.com'), true)
+    assert.equal(isProseContactVenueName('info@kogniora.com'), true)
+    assert.equal(isProseContactVenueName('Visit www.kogniora.com for details'), true)
+    assert.equal(isProseContactVenueName('Please call (330) 555-1234 to RSVP'), true)
+    // sentence-shaped: >=8 tokens AND internal punctuation
+    assert.equal(isProseContactVenueName('Doors open at 7, tickets at the door, see you there: Akron'), true)
+  })
+
+  it('does NOT flag real venue names, punctuated or digit-bearing', () => {
+    assert.equal(isProseContactVenueName("Mrs. B's"), false)      // ". " but only 2 tokens
+    assert.equal(isProseContactVenueName('R. Shea Brewing'), false)
+    assert.equal(isProseContactVenueName('Lock 3'), false)
+    assert.equal(isProseContactVenueName('Musica!'), false)
+    assert.equal(isProseContactVenueName("Jilly's Music Room"), false)
+    assert.equal(isProseContactVenueName('Akron-Summit County Public Library Main Branch'), false)
+    assert.equal(isProseContactVenueName('The 3-2-1 Club'), false) // hyphenated digits ≠ phone
+  })
+
+  it('empty / non-string input → false', () => {
+    assert.equal(isProseContactVenueName(''), false)
+    assert.equal(isProseContactVenueName(null), false)
+    assert.equal(isProseContactVenueName(undefined), false)
+    assert.equal(isProseContactVenueName(42), false)
+  })
+})
+
 // Venues mock for ensureVenue: name lookup resolves via .limit(1), insert via
 // .insert().select('id').single(). Extended (venue-alias-hop work) to serve:
 //   • allVenues  — [{ id, name, address?, neighborhood_slug? }] backing the
@@ -1316,6 +1345,18 @@ describe('ensureVenue — junk-name mint gate', () => {
       assert.equal(id, 'v-ohio')
       assert.equal(calls.insert, 1)
       assert.equal(calls.insertRow.name, 'Ohio')
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('refuses a prose contact string as a venue name: returns null, no insert', async () => {
+    const { client, calls } = makeVenuesMock({ existingRows: [] })
+    __setClientForTests(client)
+    try {
+      const id = await ensureVenue('For venue details reach us at: info@kogniora.com')
+      assert.equal(id, null)
+      assert.equal(calls.insert, 0)
     } finally {
       __setClientForTests(null)
     }

@@ -1014,6 +1014,37 @@ export function isJunkVenueName(name) {
   return STREET_SUFFIXES.has(STREET_SUFFIX_MAP[last] ?? last)
 }
 
+/**
+ * True when a would-be venue NAME is really a prose contact string — an email
+ * address, URL, phone number, "reach us / for more info" phrasing, or a full
+ * sentence that leaked out of a description field (e.g. Eventbrite's "For
+ * venue details reach us at: info@kogniora.com", which minted junk venue row
+ * 2463e178). Kept SEPARATE from isJunkVenueName on purpose: that predicate's
+ * contract is closed exact-token families (states, virtual markers, street
+ * fragments); this one is pattern-shaped and open-ended.
+ * Pure + exported for tests. Consumed by ensureVenue BEFORE any lookup —
+ * a contact string is never a real venue's name, so it must not resolve to an
+ * existing junk row either.
+ */
+export function isProseContactVenueName(name) {
+  if (!name || typeof name !== 'string') return false
+  const key = decodeEntities(name).toLowerCase().replace(/\s+/g, ' ').trim()
+  if (!key) return false
+  // Email address anywhere in the string
+  if (/\S+@\S+\.\S{2,}/.test(key)) return true
+  // URL (scheme or bare www.)
+  if (/\bhttps?:\/\/|\bwww\./i.test(key)) return true
+  // Phone number with separators — bare digit runs like "The 3-2-1 Club" don't match
+  if (/\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}/.test(key)) return true
+  // Contact-us phrasing
+  if (/\b(reach|contact|call|email|text)\s+us\b|\bfor\s+(venue|more)\s+(details|info(rmation)?)\b|\bplease\s+(call|contact|email)\b/i.test(key)) return true
+  // Sentence-shaped: long AND internally punctuated. Both required, so short
+  // punctuated names ("Mrs. B's", "R. Shea Brewing") never match.
+  const tokens = key.split(/\s+/).filter(Boolean)
+  if (tokens.length >= 8 && /[;:]|\. /.test(key)) return true
+  return false
+}
+
 // normalizedAddress → venueId, built once per process from the venues table.
 let _venueAddressIndex = null
 
@@ -1363,6 +1394,21 @@ export async function ensureVenue(name, details = {}, opts = {}) {
   // Fold known name variants onto the canonical venue before any lookup, so a
   // second row is never minted for a place we already have (see VENUE_NAME_ALIASES).
   trimmed = canonicalVenueName(trimmed)
+
+  // Guard: never treat a prose contact string as a venue name — not even for
+  // LOOKUP. This runs before the cache and exact-name queries on purpose: a
+  // contact string is never a real venue's name, and an early return stops
+  // re-scrapes from resolving to an already-minted junk row by exact name.
+  // opts.allowProseName mirrors allowGenericName as an escape hatch; no
+  // caller passes it today.
+  if (!opts.allowProseName && isProseContactVenueName(trimmed)) {
+    console.warn(
+      `  ⚠ Refusing to use prose contact string as venue name "${trimmed}". ` +
+      `Event left venue-less; pass opts.allowProseName to override.`,
+    )
+    _venueNameCache.set(venueNameKey(trimmed), null)
+    return null
+  }
 
   // Drop malformed website strings before they reach the DB. See
   // sanitizeWebsite() for rationale.
