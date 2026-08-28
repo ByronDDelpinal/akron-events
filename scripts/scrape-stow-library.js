@@ -209,6 +209,51 @@ export function resolveVenue(location = '', online = false, categoryNames = []) 
 }
 
 /**
+ * Recover a real venue from the event PROSE for "Off Site Location"
+ * placeholder rows (whose `location` string carries no address at all).
+ * Conservative by design: the description must contain exactly ONE distinct
+ * street address (a multi-address series like the fall Silent Book Club tour
+ * is ambiguous → null) AND a capitalized venue name immediately preceding it
+ * (no name → null — we never mint address-named venues). City is Munroe Falls
+ * when the name or nearby prose says so, else Stow (the library's service
+ * area); state OH. No lat/lng — the geocoder owns coordinates.
+ */
+export function resolveOffsiteVenueFromDescription(descriptionHtml = '') {
+  // \s matches \u00A0, so this also folds the feed's pervasive &nbsp;s.
+  const text = htmlToText(String(descriptionHtml || '')).replace(/\s+/g, ' ').trim()
+  if (!text) return null
+
+  const addressRe = /(\d{1,5})\s+[NSEW]?\.?\s*[A-Z][A-Za-z.' ]{2,40}\b(?:St|Street|Rd|Road|Ave|Avenue|Blvd|Dr|Drive|Ln|Pkwy)\b\.?/g
+  const matches = [...text.matchAll(addressRe)]
+  const unique = new Map()
+  for (const m of matches) {
+    const key = m[0].toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ').trim()
+    if (!unique.has(key)) unique.set(key, m)
+  }
+  if (unique.size !== 1) return null
+
+  const m = [...unique.values()][0]
+  const address = m[0].replace(/\.$/, '').trim()
+
+  const before = text.slice(0, m.index)
+  const nameMatch = before.match(/([A-Z][\w'&.-]+(?: [A-Z][\w'&.-]+){0,5})(?:,| at| -)?\s*$/)
+  if (!nameMatch) return null
+  const name = nameMatch[1]
+  // Sentence-initial capitals also match the name pattern and would mint junk
+  // venues ("Meet at 4141 Darrow Rd." → "Meet"; "…in Munroe Falls, 9 S. Main
+  // St." → "Munroe Falls"). Reject when the capture is a lone token, the bare
+  // service-area city, or starts with a sentence-opening verb. A real recovered
+  // venue ("Munroe Falls Center") is multi-token and none of these.
+  if (!/ /.test(name)) return null
+  if (/^(?:stow|munroe falls)$/i.test(name)) return null
+  if (/^(?:Meet|Join|Visit|Come|Stop|Located)\b/i.test(name)) return null
+
+  const around = text.slice(Math.max(0, m.index - 80), m.index + m[0].length + 80)
+  const city = (/munroe falls/i.test(name) || /munroe falls/i.test(around)) ? 'Munroe Falls' : 'Stow'
+  return { name, details: { address, city, state: 'OH' } }
+}
+
+/**
  * Geo decision for a resolved venue. The library and venue-less events always
  * publish (Summit institution). Off-site venues are dropped only when their
  * EXPLICIT city is known non-Summit; unknown-city off-site venues publish
@@ -257,7 +302,13 @@ export function buildRow(e = {}) {
   if (isAllDay && endAt && Date.parse(endAt) <= Date.parse(startAt)) endAt = null
 
   const online = e.online_event === true
-  const venue = resolveVenue(e.location, online, categoryNames)
+  let venue = resolveVenue(e.location, online, categoryNames)
+  // An "Off Site Location" placeholder resolves to null above, but the prose
+  // often names the real venue — recover it when it does so unambiguously.
+  // Blank-location and off-site-category nulls (39433de) are NOT revisited.
+  if (venue === null && !online && /^off.?site\b/i.test(String(e.location || '').trim())) {
+    venue = resolveOffsiteVenueFromDescription(e.description)
+  }
   const { price_min, price_max } = parsePrice(e.registration_cost)
   let desc = e.description ? htmlToText(e.description).slice(0, 5000) || null : null
   // Disclose the invented time. The note text and the reserve-then-append

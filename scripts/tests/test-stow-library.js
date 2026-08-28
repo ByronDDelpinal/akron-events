@@ -15,7 +15,8 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ||
 
 const {
   mapCategory, isSkippable, parseIsFamily, parseTags, parsePrice,
-  resolveVenue, shouldDropForGeo, buildRow, SOURCE_KEY,
+  resolveVenue, resolveOffsiteVenueFromDescription, shouldDropForGeo,
+  buildRow, SOURCE_KEY,
 } = await import('../scrape-stow-library.js')
 // The real shared constant, not a copy: the digest subtracts this exact string.
 const { DATE_ONLY_TIME_NOTE } = await import('../lib/ics.js')
@@ -38,6 +39,15 @@ const storyTime = {
   online_event: false,
   recurring_event: true,
 }
+
+// Real feed prose (verbatim) from live "Off Site Location" rows.
+// id 16482030 — Bookmobile Visit: Munroe Falls. Exactly ONE street address in
+// the prose, with the venue named immediately before it.
+const bookmobileDescription = '<p>Our Bookmobile is a traveling library, bringing the joy of reading and more right to your neighborhood! With easy access to books, movies, and other materials for all ages &ndash; and best of all, it&rsquo;s completely free &ndash; you can enjoy the library wherever you are.</p>\n\n<p>At the Bookmobile, you can:</p>\n\n<ul>\n\t<li>Sign up for a library card</li>\n\t<li>Browse a variety of books and movies</li>\n\t<li>Check out and return materials</li>\n\t<li>Place holds on your favorite items</li>\n\t<li>Get personalized reading recommendations</li>\n</ul>\n\n<p>The Bookmobile will visit Munroe Falls Center at 9 S. Main St. (the intersection with Munroe Falls Ave.),&nbsp;every Monday.&nbsp;</p>\n\n<p>Don&#39;t miss this convenient way to stay connected to your library!</p>'
+
+// id 17308603 — Read and Recharge: Silent Book Club. TWO distinct street
+// addresses (a multi-park fall tour) → ambiguous, must resolve to null.
+const silentBookClubDescription = '<p>Tues., September 1, 5 - 6 PM<br />\nSherwood Neighborhood Park&nbsp;<br />\n4344 Foresthill Rd.</p>\n\n<p><br />\nTues., October 6, 5 - 6 PM<br />\nSilver Springs Park, Lakeview Shelter<br />\n4995 Stow Rd.</p>\n\n<p>Free program for all ages&nbsp;<br />\nRead and Recharge&nbsp;on select Tuesday&nbsp;evenings this fall.&nbsp;Join the Bookmobile&nbsp;at City of Stow parks&nbsp;for an hour of reading&nbsp;in the community. In case of inclement weather, we will meet at the Stow Community and Senior Center. To register, call&nbsp;(330) 688-3295, ext. 4, visit events.smfpl.org, or&nbsp;stop by the library.</p>\n'
 
 describe('mapCategory (controlled vocab + title)', () => {
   it('maps program-type names first-match-wins', () => {
@@ -154,6 +164,50 @@ describe('resolveVenue', () => {
     assert.equal(resolveVenue('   ', false, ['Off-Site Community Event']), null)
     // A non-blank location still wins even if the category also says off-site.
     assert.equal(resolveVenue('Community Room', false, ['Off-Site Community Event']).name, 'Stow-Munroe Falls Public Library')
+  })
+})
+
+describe('resolveOffsiteVenueFromDescription', () => {
+  it('recovers a single prose-named venue (Bookmobile → Munroe Falls Center)', () => {
+    const v = resolveOffsiteVenueFromDescription(bookmobileDescription)
+    assert.equal(v.name, 'Munroe Falls Center')
+    // The one address, entity-folded and trailing-period-normalized.
+    assert.equal(v.details.address, '9 S. Main St')
+    // "Munroe Falls" in the name/nearby prose beats the Stow default.
+    assert.equal(v.details.city, 'Munroe Falls')
+    assert.equal(v.details.state, 'OH')
+    // No lat/lng — the geocoder owns coordinates.
+    assert.equal('lat' in v.details, false)
+    assert.equal('lng' in v.details, false)
+  })
+  it('returns null when the prose lists TWO addresses (Silent Book Club tour)', () => {
+    assert.equal(resolveOffsiteVenueFromDescription(silentBookClubDescription), null)
+  })
+  it('returns null with no address at all', () => {
+    assert.equal(resolveOffsiteVenueFromDescription('<p>Join us for reading fun around town!</p>'), null)
+    assert.equal(resolveOffsiteVenueFromDescription(''), null)
+    assert.equal(resolveOffsiteVenueFromDescription(), null)
+  })
+  // Review P2: sentence-initial capitals must not mint junk venues.
+  it('rejects a lone-token capture (sentence-start word before the address)', () => {
+    assert.equal(resolveOffsiteVenueFromDescription('<p>Held at Heritage, 4141 Darrow Rd.</p>'), null)
+  })
+  it('rejects the bare service-area city as a venue name', () => {
+    assert.equal(resolveOffsiteVenueFromDescription('<p>We will gather in Munroe Falls, 9 S. Main St. for the parade.</p>'), null)
+  })
+  it('rejects a sentence-start verb capture, even multi-token', () => {
+    // Single-token verb (the reviewer's exact repro).
+    assert.equal(resolveOffsiteVenueFromDescription('<p>Meet at 4141 Darrow Rd.</p>'), null)
+    // Multi-token capture that still starts with a verb.
+    assert.equal(resolveOffsiteVenueFromDescription('<p>Visit Downtown Stow at 3760 Darrow Rd. with us.</p>'), null)
+  })
+  it('dedupes a repeated identical address to one and still resolves', () => {
+    const v = resolveOffsiteVenueFromDescription(
+      '<p>Munroe Falls Center, 9 S. Main St. Enter from the lot behind 9 S. Main St.</p>',
+    )
+    assert.equal(v.name, 'Munroe Falls Center')
+    assert.equal(v.details.address, '9 S. Main St')
+    assert.equal(v.details.city, 'Munroe Falls')
   })
 })
 
@@ -294,6 +348,47 @@ describe('buildRow', () => {
     assert.equal(venue, null)
     assert.equal(row.category, 'learning')
     assert.ok(row.tags.includes('online'))
+  })
+
+
+  it('recovers the prose venue for an in-person "Off Site Location" row', () => {
+    const { row, venue } = buildRow({
+      id: 16482030, title: 'Bookmobile Visit: Munroe Falls',
+      startdt: '2026-08-31 15:30:00', all_day: false, ymd: '20260831',
+      url: 'https://events.smfpl.org/event/16482030',
+      location: 'Off Site Location', description: bookmobileDescription,
+      audiences: [{ name: 'All Ages' }], categories_arr: [{ name: 'Off-Site Community Event' }],
+      registration_cost: '', online_event: false,
+    })
+    assert.equal(venue.name, 'Munroe Falls Center')
+    assert.equal(venue.details.city, 'Munroe Falls')
+    assert.equal(row.status, 'published')
+    // Munroe Falls is in-county: the recovered venue must survive the geo gate.
+    assert.equal(shouldDropForGeo(venue), false)
+  })
+
+  it('does NOT recover a prose venue for an ONLINE off-site row', () => {
+    const { venue } = buildRow({
+      id: 16482030, title: 'Bookmobile Visit: Munroe Falls',
+      startdt: '2026-08-31 15:30:00', all_day: false, ymd: '20260831',
+      url: 'https://events.smfpl.org/event/16482030',
+      location: 'Off Site Location', description: bookmobileDescription,
+      audiences: [{ name: 'All Ages' }], categories_arr: [],
+      registration_cost: '', online_event: true,
+    })
+    assert.equal(venue, null)
+  })
+
+  it('leaves an ambiguous multi-address off-site row venue-less', () => {
+    const { venue } = buildRow({
+      id: 17308603, title: 'Read and Recharge: Silent Book Club',
+      startdt: '2026-09-01 17:00:00', all_day: false, ymd: '20260901',
+      url: 'https://events.smfpl.org/event/17308603',
+      location: 'Off Site Location', description: silentBookClubDescription,
+      audiences: [{ name: 'All Ages' }], categories_arr: [],
+      registration_cost: '', online_event: false,
+    })
+    assert.equal(venue, null)
   })
 
   it('skips internal Board of Trustees meetings', () => {
