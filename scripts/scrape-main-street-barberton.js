@@ -63,6 +63,11 @@ export function parseLocation(loc = '') {
   if (!parts.length) return null
   const name = parts[0]
   if (/^\d/.test(name)) return null // bare address → default venue
+  // Region-only LOCATION ("Ohio, United States") has no real venue name in
+  // parts[0] and doesn't start with a digit, so it slips past the bare-
+  // address guard above — route it to the default venue too.
+  const REGION_ONLY = new Set(['ohio', 'oh', 'united states', 'usa', 'us'])
+  if (REGION_ONLY.has(name.toLowerCase())) return null // bare region → default venue
   // The concert series LOCATION bakes the cross-streets into the name
   // ("Lake Anna W. Park Ave/6th St NW") — canonicalize to the park record
   // instead of minting an address-in-name venue (first live run 2026-07-08).

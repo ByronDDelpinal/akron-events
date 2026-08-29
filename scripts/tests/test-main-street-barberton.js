@@ -51,6 +51,9 @@ describe('parseLocation (Tribe iCal LOCATION)', () => {
   it('bare street addresses fall back to the default venue (no address-named venues)', () => {
     assert.equal(parseLocation('576 W Park Avenue'), null)
   })
+  it('region-only LOCATION falls back to the default venue (no address-named venues)', () => {
+    assert.equal(parseLocation('Ohio, United States'), null)
+  })
   it('single-segment names pass through without an address', () => {
     const p = parseLocation('Barberton Public Library')
     assert.equal(p.name, 'Barberton Public Library')
