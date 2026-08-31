@@ -107,3 +107,4 @@ data/moderation/
 .worktrees/
 .tmp-*
 .claude/settings.local.json
+supabase/.temp/
