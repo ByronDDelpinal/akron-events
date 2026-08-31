@@ -65,6 +65,7 @@ const PartnersPage = lazy(() => import('@/pages/admin/partners/PartnersPage'))
 const PartnerHomePage = lazy(() => import('@/pages/admin/partner/PartnerHomePage'))
 const PartnerEventsPage = lazy(() => import('@/pages/admin/partner/PartnerEventsPage'))
 const PartnerCreateEventPage = lazy(() => import('@/pages/admin/partner/PartnerCreateEventPage'))
+const PartnerOrgEditPage = lazy(() => import('@/pages/admin/partner/PartnerOrgEditPage'))
 
 import { trackPageView } from '@/lib/analytics'
 import { historyEntryKey } from '@/lib/historyKey'
@@ -299,6 +300,7 @@ function AppInner() {
             <Route path="organizations"      element={<RoleSwitch admin={<OrganizationsListPage />} />} />
             <Route path="organizations/new"  element={<RoleSwitch admin={<OrgEditPage />} />} />
             <Route path="organizations/:id/edit" element={<RoleSwitch admin={<OrgEditPage />} />} />
+            <Route path="organization"       element={<RoleSwitch partner={<PartnerOrgEditPage />} />} />
             <Route path="areas"              element={<RoleSwitch admin={<AreasListPage />} />} />
             <Route path="areas/new"          element={<RoleSwitch admin={<AreaEditPage />} />} />
             <Route path="areas/:id/edit"     element={<RoleSwitch admin={<AreaEditPage />} />} />

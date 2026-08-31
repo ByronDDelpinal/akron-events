@@ -1261,7 +1261,16 @@
 /* The outcome panel is a paragraph of good news, not a form: it keeps the
    old measure rather than stretching to the widened card. */
 .ashell-pcreate .ashell-empty { max-width: 640px; margin-inline: auto; }
-.ashell-pcreate-links { margin-top: var(--space-md) !important; }
+/* Outcome panel centers in the work column, independent of the form grid. */
+.ashell-pcreate--outcome { display: flex; justify-content: center; }
+.ashell-org-photo { display: flex; gap: var(--space-sm); align-items: center; margin-bottom: var(--space-sm); }
+.ashell-pcreate-links {
+  margin-top: var(--space-md) !important;
+  display: flex;
+  gap: var(--space-lg);
+  justify-content: center;
+  flex-wrap: wrap;
+}
 
 /* Admin Partners roster. */
 .ashell-tenant {

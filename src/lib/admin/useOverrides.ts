@@ -79,5 +79,15 @@ export function useOverrides(initial: unknown = {}) {
     })
   }, [])
 
-  return { overrides, toggleOverride }
+  /**
+   * Idempotently PIN a field (add it to manual_overrides) without ever
+   * clearing an existing lock -- so auto-pinning an edited field never
+   * overwrites the timestamp of a lock that is already there. Distinct
+   * from toggleOverride, which flips.
+   */
+  const pin = useCallback((field: string) => {
+    setOverrides((prev) => (prev[field] ? prev : { ...prev, [field]: { at: new Date().toISOString() } }))
+  }, [])
+
+  return { overrides, toggleOverride, pin }
 }

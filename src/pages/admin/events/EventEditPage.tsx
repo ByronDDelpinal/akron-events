@@ -5,6 +5,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { CATEGORIES, STATUSES, AGE_OPTIONS } from '@/lib/admin/constants'
 import { toDatetimeLocalValue, fromDatetimeLocalValue } from '@/lib/datetimeLocal'
+import DateTimeField from '@/components/DateTimeField'
+import { deriveEndForStart } from '@/lib/eventTimes'
 import { useFormState } from '@/lib/admin/useFormState'
 import { useOverrides } from '@/lib/admin/useOverrides'
 import {
@@ -115,6 +117,17 @@ interface EventFormProps {
 }
 
 /** Inner form component — only mounts once seed data is ready. */
+// Form-key -> manual_overrides lock-key for the scraper-overwritten fields
+// that carry an override toggle. Editing one auto-pins it so a re-scrape
+// cannot revert the human value. The ChipSelector writes form.categories
+// but the scraper lock is 'category' (singular). Mirrors FormField `field=`.
+const EVENT_PIN_ON_EDIT: Record<string, string> = {
+  title: 'title', categories: 'category', start_at: 'start_at', end_at: 'end_at',
+  description: 'description', price_min: 'price_min', price_max: 'price_max',
+  source_url: 'source_url', ticket_url: 'ticket_url', image_url: 'image_url',
+  is_family: 'is_family',
+}
+
 function EventForm({
   seed, isNew, allVenues, allOrgs, allAreas,
   linkedVenueIds, setLinkedVenueIds,
@@ -122,8 +135,14 @@ function EventForm({
   linkedAreaIds, setLinkedAreaIds,
   onNavigateBack, eventId,
 }: EventFormProps) {
-  const { form, setField } = useFormState(seed)
-  const { overrides, toggleOverride } = useOverrides(seed.manual_overrides)
+  const { form, setField: rawSetField } = useFormState(seed)
+  const { overrides, toggleOverride, pin } = useOverrides(seed.manual_overrides)
+
+  const setField = useCallback<typeof rawSetField>((key, val) => {
+    rawSetField(key, val)
+    const lockKey = EVENT_PIN_ON_EDIT[key as string]
+    if (lockKey) pin(lockKey)
+  }, [rawSetField, pin])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -215,17 +234,21 @@ function EventForm({
 
         <FormFieldRow>
           <FormField label="Start" field="start_at" overrides={overrides} onToggleOverride={toggleOverride}>
-            <FormInput
-              type="datetime-local"
+            <DateTimeField
               value={toDatetimeLocalValue(form.start_at)}
-              onChange={(e) => setField('start_at', fromDatetimeLocalValue(e.target.value))}
+              onChange={(v) => {
+                setField('start_at', fromDatetimeLocalValue(v))
+                setField('end_at', fromDatetimeLocalValue(deriveEndForStart(v, toDatetimeLocalValue(form.end_at))))
+              }}
+              ariaLabel="Event start date and time"
             />
           </FormField>
           <FormField label="End" field="end_at" overrides={overrides} onToggleOverride={toggleOverride}>
-            <FormInput
-              type="datetime-local"
+            <DateTimeField
               value={toDatetimeLocalValue(form.end_at)}
-              onChange={(e) => setField('end_at', fromDatetimeLocalValue(e.target.value))}
+              onChange={(v) => setField('end_at', fromDatetimeLocalValue(v))}
+              min={toDatetimeLocalValue(form.start_at)}
+              ariaLabel="Event end date and time"
             />
           </FormField>
         </FormFieldRow>

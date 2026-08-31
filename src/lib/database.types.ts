@@ -1085,6 +1085,22 @@ export type Database = {
           auto_publish: boolean
         }[]
       }
+      partner_org_details: {
+        Args: { p_org: string }
+        Returns: {
+          organization_id: string
+          name: string
+          description: string | null
+          website: string | null
+          contact_email: string | null
+          image_url: string | null
+          address: string | null
+          city: string | null
+          state: string | null
+          zip: string | null
+          photos: string[] | null
+        }[]
+      }
       partner_scope: { Args: never; Returns: string[] }
       partner_set_event_categories: {
         Args: { p_event: string; p_org: string; p_slugs: string[] }
@@ -1096,6 +1112,10 @@ export type Database = {
       }
       partner_set_event_venue: {
         Args: { p_event: string; p_org: string; p_venue: string }
+        Returns: Json
+      }
+      partner_update_org: {
+        Args: { p_org: string; p_patch: Json }
         Returns: Json
       }
       partner_upsert_event: {

@@ -14,6 +14,14 @@ import {
 
 type Row = LooseRow
 
+// Form-key -> manual_overrides lock-key for the scraper-overwritten fields
+// that carry an override toggle. Editing one auto-pins it so the next
+// ensureVenue cannot revert the human value (memory: ensureVenue OVERWRITES
+// addr/desc among others). Keys mirror the FormField `field=` props below.
+const VENUE_PIN_ON_EDIT: Record<string, string> = {
+  name: 'name', address: 'address', description: 'description', image_url: 'image_url',
+}
+
 const DEFAULT_VENUE: Row = {
   name: '', status: 'published', address: '', city: 'Akron', state: 'OH',
   zip: '', description: '', website: '', lat: null, lng: null,
@@ -72,8 +80,16 @@ interface VenueFormProps {
 }
 
 function VenueForm({ seed, isNew, allOrgs, venueId, areas, onAreasChange, onNavigateBack }: VenueFormProps) {
-  const { form, setField } = useFormState(seed)
-  const { overrides, toggleOverride } = useOverrides(seed.manual_overrides)
+  const { form, setField: rawSetField } = useFormState(seed)
+  const { overrides, toggleOverride, pin } = useOverrides(seed.manual_overrides)
+
+  // Auto-pin any overridable field the moment it is edited; the manual
+  // toggle still lets an operator unlock a field deliberately.
+  const setField = useCallback<typeof rawSetField>((key, val) => {
+    rawSetField(key, val)
+    const lockKey = VENUE_PIN_ON_EDIT[key as string]
+    if (lockKey) pin(lockKey)
+  }, [rawSetField, pin])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()

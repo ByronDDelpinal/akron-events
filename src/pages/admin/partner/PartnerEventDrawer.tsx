@@ -20,6 +20,8 @@ import { eventPath } from '@/lib/slug.js'
 import { supabase } from '@/lib/supabase'
 import { CATEGORIES, AGE_OPTIONS } from '@/lib/admin/constants'
 import { toDatetimeLocalValue, fromDatetimeLocalValue } from '@/lib/datetimeLocal'
+import DateTimeField from '@/components/DateTimeField'
+import { deriveEndForStart } from '@/lib/eventTimes'
 import { ChipSelector, FormField, FormFieldRow, FormInput, FormSelect, FormTextarea } from '@/components/admin'
 import {
   diffPartnerPatch, rpcFriendlyMessage, isImportedSource, reviewOutcomeCopy,
@@ -293,10 +295,21 @@ export default function PartnerEventDrawer({
           </FormField>
           <FormFieldRow>
             <FormField label="Starts">
-              <FormInput type="datetime-local" value={form.start_at} onChange={(e) => set('start_at')(e.target.value)} disabled={disabled} />
+              <DateTimeField
+                value={form.start_at}
+                onChange={(v) => { setForm((f) => ({ ...f, start_at: v, end_at: deriveEndForStart(v, f.end_at) })); setSaveError(null) }}
+                disabled={disabled}
+                ariaLabel="Event start date and time"
+              />
             </FormField>
             <FormField label="Ends">
-              <FormInput type="datetime-local" value={form.end_at} onChange={(e) => set('end_at')(e.target.value)} disabled={disabled} />
+              <DateTimeField
+                value={form.end_at}
+                onChange={(v) => set('end_at')(v)}
+                min={form.start_at}
+                disabled={disabled}
+                ariaLabel="Event end date and time"
+              />
             </FormField>
           </FormFieldRow>
           <FormFieldRow>

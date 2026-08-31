@@ -6,6 +6,8 @@ import { SEO } from '@/lib/seo'
 import { ADMIN_CATEGORIES as CATEGORIES } from '@/lib/categories'
 import { INTAKE_MAILTO } from '@/lib/intakeEmail'
 import { fromDatetimeLocalValue } from '@/lib/datetimeLocal'
+import DateTimeField from '@/components/DateTimeField'
+import { deriveEndForStart } from '@/lib/eventTimes'
 import { trackEvent, EVENTS } from '@/lib/analytics'
 import './SubmitPage.css'
 
@@ -41,6 +43,13 @@ export default function SubmitPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+
+    // Start is required; the custom date control carries no native `required`.
+    if (!form.start_at) {
+      setStatus('error')
+      setError('Please choose a start date and time.')
+      return
+    }
 
     // Categories are a chip group, not a native <select required> — validate here.
     if (!form.categories || form.categories.length === 0) {
@@ -204,11 +213,21 @@ export default function SubmitPage() {
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Start date &amp; time <span className="req">*</span></label>
-            <input className="form-input" type="datetime-local" required value={form.start_at} onChange={(e) => set('start_at', e.target.value)} />
+            <DateTimeField
+              value={form.start_at}
+              onChange={(v) => setForm((f) => ({ ...f, start_at: v, end_at: deriveEndForStart(v, f.end_at) }))}
+              required
+              ariaLabel="Start date and time"
+            />
           </div>
           <div className="form-group">
             <label className="form-label">End time</label>
-            <input className="form-input" type="datetime-local" value={form.end_at} onChange={(e) => set('end_at', e.target.value)} />
+            <DateTimeField
+              value={form.end_at}
+              onChange={(v) => set('end_at', v)}
+              min={form.start_at}
+              ariaLabel="End date and time"
+            />
           </div>
         </div>
 

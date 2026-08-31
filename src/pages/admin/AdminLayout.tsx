@@ -171,6 +171,8 @@ const PARTNER_RAIL_ITEMS: RailItem[] = [
     icon: railIcon(<><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10h18" /></>) },
   { to: '/admin/events/new', label: 'New event',
     icon: railIcon(<><circle cx="12" cy="12" r="9" /><path d="M12 8v8M8 12h8" /></>) },
+  { to: '/admin/organization', label: 'Your organization',
+    icon: railIcon(<path d="M3 21h18M6 21V8l6-4 6 4v13M10 12h4M10 16h4" />) },
 ]
 
 const PAW_ICON = railIcon(

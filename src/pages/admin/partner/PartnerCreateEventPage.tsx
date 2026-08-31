@@ -22,6 +22,9 @@ import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { CATEGORIES, AGE_OPTIONS } from '@/lib/admin/constants'
 import { fromDatetimeLocalValue } from '@/lib/datetimeLocal'
+import DateTimeField from '@/components/DateTimeField'
+import { deriveEndForStart } from '@/lib/eventTimes'
+import { eventPath } from '@/lib/slug'
 import { ChipSelector, FormField, FormFieldRow, FormInput, FormSelect, FormTextarea } from '@/components/admin'
 import { usePartnerContext } from '@/lib/admin/usePartnerContext'
 import { reviewOutcomeCopy, rpcFriendlyMessage, type PartnerPatch } from '@/lib/admin/partnerShared'
@@ -40,6 +43,7 @@ interface Outcome {
   status: string
   reviewRequiredBy: string | null
   orgName: string
+  eventUrl: string
 }
 
 export default function PartnerCreateEventPage() {
@@ -141,6 +145,7 @@ export default function PartnerCreateEventPage() {
       status: result.status,
       reviewRequiredBy: result.review_required_by,
       orgName,
+      eventUrl: eventPath({ id: result.id, title: title.trim(), start_at: startIso }),
     })
 
     if (result.status === 'pending_review') {
@@ -159,7 +164,7 @@ export default function PartnerCreateEventPage() {
 
   if (outcome) {
     return (
-      <div className="ashell-work ashell-pcreate" role="status">
+      <div className="ashell-work ashell-pcreate ashell-pcreate--outcome" role="status">
         <div className="ashell-empty">
           <div className="ashell-empty-ring" aria-hidden="true">✓</div>
           {outcome.status === 'published' ? (
@@ -176,6 +181,9 @@ export default function PartnerCreateEventPage() {
             </>
           )}
           <p className="ashell-pcreate-links">
+            {outcome.status === 'published' && (
+              <Link className="ashell-edit-link" to={outcome.eventUrl}>View event →</Link>
+            )}
             <Link className="ashell-edit-link" to="/admin/events">Go to your events →</Link>
           </p>
         </div>
@@ -237,10 +245,20 @@ export default function PartnerCreateEventPage() {
 
           <FormFieldRow>
             <FormField label="Starts">
-              <FormInput type="datetime-local" value={startAt} onChange={(e) => { setStartAt(e.target.value); setError(null) }} required />
+              <DateTimeField
+                value={startAt}
+                onChange={(v) => { setStartAt(v); setEndAt((prev) => deriveEndForStart(v, prev)); setError(null) }}
+                required
+                ariaLabel="Event start date and time"
+              />
             </FormField>
             <FormField label="Ends (optional)">
-              <FormInput type="datetime-local" value={endAt} onChange={(e) => setEndAt(e.target.value)} />
+              <DateTimeField
+                value={endAt}
+                onChange={setEndAt}
+                min={startAt}
+                ariaLabel="Event end date and time"
+              />
             </FormField>
           </FormFieldRow>
           <FormField label="Venue">
