@@ -171,10 +171,6 @@ export default function DateTimeField({
         e.preventDefault()
         pickDay(activeDay)
         return
-      case 'Escape':
-        e.preventDefault()
-        close()
-        return
       default:
         return
     }
@@ -210,7 +206,14 @@ export default function DateTimeField({
       </button>
 
       {open && !disabled && (
-        <div className="dtf-pop" role="dialog" aria-modal="false" aria-label="Choose date and time" id={dialogId}>
+        <div
+          className="dtf-pop"
+          role="dialog"
+          aria-modal="false"
+          aria-label="Choose date and time"
+          id={dialogId}
+          onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close() } }}
+        >
           <div className="dtf-cal-hd">
             <button type="button" className="dtf-nav" aria-label="Previous month" onClick={() => setMonth(addMonths(month, -1))}>‹</button>
             <span className="dtf-month" aria-live="polite">{format(month, 'MMMM yyyy')}</span>

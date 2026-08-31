@@ -7,6 +7,9 @@
 -- partner_scope() inside the body (never trusted from the client), and the
 -- writable surface is a hard ALLOWLIST. status, manual_overrides, slug, id and
 -- venue ownership are NOT reachable here -- those stay admin-only.
+-- Values are sanity-checked like the 061 writes: URLs must be http(s) and
+-- capped, name/description/address capped -- they render verbatim on the
+-- PUBLIC organization page (website as a clickable href).
 --
 -- Two functions: a scope-checked read to seed the form, and the write.
 
@@ -47,6 +50,7 @@ as $$
 declare
   v_name   text;
   v_photos text[];
+  v_txt    text;
 begin
   if p_org is null then
     raise exception 'missing argument p_org' using errcode = 'null_value_not_allowed';
@@ -70,19 +74,68 @@ begin
       raise exception 'organization name cannot be empty'
         using errcode = 'invalid_parameter_value';
     end if;
+    if length(v_name) > 200 then
+      raise exception 'organization name is too long (200 characters max)'
+        using errcode = 'invalid_parameter_value';
+    end if;
+  end if;
+
+  -- URL and length sanity, mirroring partner_upsert_event / partner_mint_venue
+  -- (061): these values land verbatim on the PUBLIC organization page --
+  -- website as a clickable href -- so the scheme check is a security gate,
+  -- not pedantry.
+  if p_patch ? 'website' then
+    v_txt := nullif(btrim(p_patch->>'website'), '');
+    if v_txt is not null and (v_txt !~ '^https?://' or length(v_txt) > 2048) then
+      raise exception 'website must start with http:// or https://'
+        using errcode = 'invalid_parameter_value';
+    end if;
+  end if;
+  if p_patch ? 'image_url' then
+    v_txt := nullif(btrim(p_patch->>'image_url'), '');
+    if v_txt is not null and (v_txt !~ '^https?://' or length(v_txt) > 2048) then
+      raise exception 'image_url must start with http:// or https://'
+        using errcode = 'invalid_parameter_value';
+    end if;
+  end if;
+  if p_patch ? 'contact_email' then
+    v_txt := nullif(btrim(p_patch->>'contact_email'), '');
+    if v_txt is not null and (length(v_txt) > 320 or v_txt !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$') then
+      raise exception 'contact_email must be a plain email address'
+        using errcode = 'invalid_parameter_value';
+    end if;
+  end if;
+  if length(coalesce(p_patch->>'description', '')) > 5000 then
+    raise exception 'description is too long (5000 characters max)'
+      using errcode = 'invalid_parameter_value';
+  end if;
+  if length(coalesce(p_patch->>'address', '')) > 300
+     or length(coalesce(p_patch->>'city', '')) > 120
+     or length(coalesce(p_patch->>'state', '')) > 60
+     or length(coalesce(p_patch->>'zip', '')) > 20 then
+    raise exception 'address is too long'
+      using errcode = 'invalid_parameter_value';
   end if;
 
   if p_patch ? 'photos' then
     -- jsonb array -> text[], trimmed, blanks dropped, capped at 12
     -- (organizations.photos is documented "up to 12 URLs", migration 006).
-    select coalesce(array_agg(t), '{}')
+    -- WITH ORDINALITY + order by: array_agg over a bare subquery does not
+    -- guarantee input order, and photos[1] is load-bearing (it is the
+    -- event-image fallback, scripts/lib/normalize.js orgFallbackPhoto).
+    select coalesce(array_agg(t order by ord), '{}')
       from (
-        select btrim(value) as t
-        from jsonb_array_elements_text(p_patch->'photos')
+        select btrim(value) as t, ordinality as ord
+        from jsonb_array_elements_text(p_patch->'photos') with ordinality
         where btrim(value) <> ''
+        order by ordinality
         limit 12
       ) s
       into v_photos;
+    if exists (select 1 from unnest(v_photos) u where u !~ '^https?://' or length(u) > 2048) then
+      raise exception 'photos must start with http:// or https://'
+        using errcode = 'invalid_parameter_value';
+    end if;
   end if;
 
   update organizations o set

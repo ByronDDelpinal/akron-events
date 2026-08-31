@@ -46,6 +46,8 @@ export default function OrganizationDetailPage() {
 
   const org = organization
   const hasImage = org.image_url && /^https?:\/\//i.test(org.image_url)
+  // Partner-editable field: never render a non-http(s) value as a link.
+  const website = org.website && /^https?:\/\//i.test(org.website) ? org.website : null
   const events: Row[] = org.events ?? []
   const venues: Row[] = org.venues ?? []
 
@@ -130,12 +132,12 @@ export default function OrganizationDetailPage() {
                 </div>
               )}
 
-              {org.website && (
+              {website && (
                 <div className="org-info-section">
                   <p className="org-info-label">Website</p>
-                  <a href={org.website} target="_blank" rel="noopener noreferrer" className="org-info-link">
+                  <a href={website} target="_blank" rel="noopener noreferrer" className="org-info-link">
                     <GlobeIcon />
-                    {org.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                    {website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                   </a>
                 </div>
               )}

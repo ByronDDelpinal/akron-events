@@ -253,6 +253,10 @@ const ALLOWLIST = [
     root: 'src', file: 'pages/FestivalPage.tsx', match: 'new Date(`${dateKey}T12:00:00`).toLocaleDateString([], opts)',
     reason: 'dayLabel(): the multi-day jump-bar and section-heading day labels, built from an already-resolved Eastern day key (schedule.days), not a clock read',
   },
+  {
+    root: 'src', file: 'lib/eventTimes.js', match: "${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}",
+    reason: 'formatLocal(): browser-side form-state formatter -- the datetime-local contract IS the viewer-local wall clock (see the module header), and the Date it formats is always derived from a caller-supplied form value, never a bare `new Date()`',
+  },
 ]
 
 // ── Scan ───────────────────────────────────────────────────────────────────

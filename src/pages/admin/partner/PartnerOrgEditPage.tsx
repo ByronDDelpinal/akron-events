@@ -45,6 +45,10 @@ export default function PartnerOrgEditPage() {
   const [orgId, setOrgId] = useState<string>(orgs.length === 1 ? orgs[0].organization_id : '')
   const [form, setForm] = useState<OrgForm>(EMPTY)
   const [loading, setLoading] = useState(false)
+  // True only once partner_org_details has seeded the form for the chosen
+  // org. The patch always carries every key, so saving an unseeded form
+  // would overwrite real values with blanks -- lock the form until seeded.
+  const [seeded, setSeeded] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -61,6 +65,7 @@ export default function PartnerOrgEditPage() {
   }
 
   useEffect(() => {
+    setSeeded(false)
     if (!orgId) { setForm(EMPTY); return }
     let active = true
     setLoading(true)
@@ -83,9 +88,12 @@ export default function PartnerOrgEditPage() {
         zip: str(row.zip),
         photos: Array.isArray(row.photos) ? (row.photos as string[]) : [],
       })
+      setSeeded(true)
     })
     return () => { active = false }
   }, [orgId])
+
+  const locked = !orgId || loading || !seeded
 
   const photos = form.photos
   const setPhotos = (next: string[]) => setField('photos', next.slice(0, MAX_ORG_PHOTOS))
@@ -93,6 +101,7 @@ export default function PartnerOrgEditPage() {
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     if (!orgId) { setError('Choose an organization.'); return }
+    if (!seeded) { setError('This organization has not loaded yet.'); return }
     if (!form.name.trim()) { setError('The organization needs a name.'); return }
     setBusy(true)
     setError(null)
@@ -150,16 +159,16 @@ export default function PartnerOrgEditPage() {
             </p>
 
             <FormField label="Name">
-              <FormInput value={form.name} onChange={(e) => setField('name', e.target.value)} maxLength={200} required disabled={!orgId || loading} />
+              <FormInput value={form.name} onChange={(e) => setField('name', e.target.value)} maxLength={200} required disabled={locked} />
             </FormField>
             <FormField label="Description">
-              <FormTextarea value={form.description} onChange={(e) => setField('description', e.target.value)} rows={6} disabled={!orgId || loading} />
+              <FormTextarea value={form.description} onChange={(e) => setField('description', e.target.value)} rows={6} disabled={locked} />
             </FormField>
             <FormField label="Website">
-              <FormInput type="url" value={form.website} onChange={(e) => setField('website', e.target.value)} placeholder="https://…" disabled={!orgId || loading} />
+              <FormInput type="url" value={form.website} onChange={(e) => setField('website', e.target.value)} placeholder="https://…" disabled={locked} />
             </FormField>
             <FormField label="Contact email">
-              <FormInput type="email" value={form.contact_email} onChange={(e) => setField('contact_email', e.target.value)} placeholder="hello@example.org" disabled={!orgId || loading} />
+              <FormInput type="email" value={form.contact_email} onChange={(e) => setField('contact_email', e.target.value)} placeholder="hello@example.org" disabled={locked} />
             </FormField>
           </div>
 
@@ -167,22 +176,22 @@ export default function PartnerOrgEditPage() {
             <h3 className="ashell-pform-lbl">Location & images</h3>
 
             <FormField label="Address">
-              <FormInput value={form.address} onChange={(e) => setField('address', e.target.value)} disabled={!orgId || loading} />
+              <FormInput value={form.address} onChange={(e) => setField('address', e.target.value)} disabled={locked} />
             </FormField>
             <FormFieldRow>
               <FormField label="City">
-                <FormInput value={form.city} onChange={(e) => setField('city', e.target.value)} disabled={!orgId || loading} />
+                <FormInput value={form.city} onChange={(e) => setField('city', e.target.value)} disabled={locked} />
               </FormField>
               <FormField label="State">
-                <FormInput value={form.state} onChange={(e) => setField('state', e.target.value)} disabled={!orgId || loading} />
+                <FormInput value={form.state} onChange={(e) => setField('state', e.target.value)} disabled={locked} />
               </FormField>
               <FormField label="Zip">
-                <FormInput value={form.zip} onChange={(e) => setField('zip', e.target.value)} disabled={!orgId || loading} />
+                <FormInput value={form.zip} onChange={(e) => setField('zip', e.target.value)} disabled={locked} />
               </FormField>
             </FormFieldRow>
 
             <FormField label="Logo / image link">
-              <FormInput type="url" value={form.image_url} onChange={(e) => setField('image_url', e.target.value)} placeholder="https://…" disabled={!orgId || loading} />
+              <FormInput type="url" value={form.image_url} onChange={(e) => setField('image_url', e.target.value)} placeholder="https://…" disabled={locked} />
             </FormField>
 
             <FormField label={`Photos (${photos.length}/${MAX_ORG_PHOTOS})`}>
@@ -196,7 +205,7 @@ export default function PartnerOrgEditPage() {
                     value={url}
                     placeholder="https://…"
                     onChange={(e) => setPhotos(photos.map((p, j) => (j === i ? e.target.value : p)))}
-                    disabled={!orgId || loading}
+                    disabled={locked}
                   />
                   <button type="button" className="ashell-edit-link" onClick={() => setPhotos(photos.filter((_, j) => j !== i))}>
                     Remove
@@ -204,7 +213,7 @@ export default function PartnerOrgEditPage() {
                 </div>
               ))}
               {photos.length < MAX_ORG_PHOTOS && (
-                <button type="button" className="ashell-edit-link" onClick={() => setPhotos([...photos, ''])} disabled={!orgId || loading}>
+                <button type="button" className="ashell-edit-link" onClick={() => setPhotos([...photos, ''])} disabled={locked}>
                   + Add photo
                 </button>
               )}
@@ -215,7 +224,7 @@ export default function PartnerOrgEditPage() {
             {error && <p className="ashell-row-error" role="alert">{error}</p>}
             {saved && <p className="admin-hint" role="status">Saved. Your organization is up to date.</p>}
             <div className="ashell-dactions">
-              <button type="submit" className="ashell-btn ashell-btn--primary" disabled={busy || loading || !orgId}>
+              <button type="submit" className="ashell-btn ashell-btn--primary" disabled={busy || locked}>
                 {busy ? 'Saving…' : 'Save changes'}
               </button>
               <Link className="ashell-edit-link" to="/admin">Back to overview</Link>
