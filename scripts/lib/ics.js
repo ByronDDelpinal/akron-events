@@ -1158,6 +1158,40 @@ export function emptyFeedOutcome(config = {}) {
   }
 }
 
+/**
+ * Normalise the return value of a custom `getIcsText()` hook. Pure.
+ *
+ * WHY (2026-09-01): the hook historically returned a bare ICS string, which
+ * left runIcsScraper blind to HOW the text was obtained. akron_symphony's
+ * snapshot fallback served 103-day-old data and the scraper_runs row still
+ * read status=success with no marker — indistinguishable from a healthy run.
+ * Hooks can now return `{ text, degraded, degradedReason }` to disclose a
+ * stale/cached/snapshot source; runIcsScraper writes the reason into
+ * scraper_runs.error_message (status stays 'success' — the pipeline DID
+ * work) so the nightly SQL health checks can spot degraded runs with
+ * `error_message like 'degraded:%'`. A bare string stays valid: every
+ * existing hook keeps working unchanged, and is treated as a live fetch.
+ *
+ * @param {string|{text: string, degraded?: boolean, degradedReason?: string}} result
+ * @returns {{text: string, degraded: boolean, degradedReason: string|null}}
+ */
+export function resolveIcsFetchResult(result) {
+  if (typeof result === 'string') {
+    return { text: result, degraded: false, degradedReason: null }
+  }
+  if (result && typeof result === 'object' && typeof result.text === 'string') {
+    // Explicit-true gate, same convention as allowEmptyFeed: a truthy
+    // accident must not mark a healthy run degraded.
+    const degraded = result.degraded === true
+    return {
+      text: result.text,
+      degraded,
+      degradedReason: degraded ? (result.degradedReason || 'degraded fetch (no reason given)') : null,
+    }
+  }
+  throw new Error('getIcsText must return an ICS string or { text, degraded?, degradedReason? }')
+}
+
 export async function runIcsScraper(config) {
   const { source } = config
   if (!source) throw new Error('runIcsScraper: config.source is required')
@@ -1170,9 +1204,16 @@ export async function runIcsScraper(config) {
     // own fetch/fallback logic (e.g. snapshot files for bot-protected sites).
     // Default path: discover/fetch a feed URL over HTTP.
     let icsText
+    // Non-null when the text came from a degraded source (snapshot file,
+    // stale cache). Threaded into scraper_runs.error_message on BOTH log
+    // paths below so a fallback run is distinguishable from a healthy one.
+    let degradedReason = null
     if (typeof config.getIcsText === 'function') {
       console.log(`\n🔍  Fetching ICS text via custom getIcsText()…`)
-      icsText = await config.getIcsText()
+      const resolved = resolveIcsFetchResult(await config.getIcsText())
+      icsText = resolved.text
+      degradedReason = resolved.degradedReason
+      if (resolved.degraded) console.warn(`  ⚠ Degraded fetch for ${source}: ${degradedReason}`)
     } else {
       let feedUrl = config.feedUrl
       if (!feedUrl && config.discoveryUrl) {
@@ -1208,9 +1249,11 @@ export async function runIcsScraper(config) {
     if (rawEvents.length === 0) {
       const outcome = emptyFeedOutcome(config)
       console.log(`  ${outcome.status === 'success' ? 'ℹ' : '❌'}  ${outcome.reason}`)
+      const emptyNote = [outcome.errorMessage, degradedReason ? `degraded: ${degradedReason}` : null]
+        .filter(Boolean).join(' | ') || null
       await logUpsertResult(source, 0, 0, 0, {
         status: outcome.status,
-        ...(outcome.errorMessage ? { errorMessage: outcome.errorMessage } : {}),
+        ...(emptyNote ? { errorMessage: emptyNote } : {}),
         durationMs: Date.now() - start,
         eventsFound: 0,
       })
@@ -1324,6 +1367,10 @@ export async function runIcsScraper(config) {
     await logUpsertResult(source, inserted, updated, skipped, {
       eventsFound: workEvents.length,
       durationMs,
+      // Degraded-but-working run: status stays 'success', error_message
+      // carries the disclosure so scraper_runs no longer grades stale
+      // snapshot data as a healthy fetch.
+      ...(degradedReason ? { errorMessage: `degraded: ${degradedReason}` } : {}),
     })
     console.log(`\n✅  ${source} done in ${(durationMs / 1000).toFixed(1)}s`)
     return { inserted, updated, skipped, eventsFound: workEvents.length }

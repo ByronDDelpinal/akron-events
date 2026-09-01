@@ -13,6 +13,7 @@ import {
   applyNeedsReviewHook, icsDateOnlyToNoonIso, withDateOnlyTimeNote,
   DATE_ONLY_TIME_NOTE, MAX_DESCRIPTION, isBotChallenge,
   emptyFeedOutcome, isUrlOnlyDescription, salvagedDescriptionUrl,
+  resolveIcsFetchResult,
 } from '../lib/ics.js'
 // Imported through civicplus.js on purpose: the predicate moved to ics.js and
 // civicplus.js re-exports it, so this also asserts the re-export still works
@@ -822,3 +823,42 @@ describe('ICS: emptyFeedOutcome', () => {
   })
 })
 
+describe('ICS: resolveIcsFetchResult (degraded-fetch disclosure)', () => {
+  it('treats a bare string as a live (non-degraded) fetch — legacy hook contract', () => {
+    const out = resolveIcsFetchResult('BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n')
+    assert.equal(out.text, 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n')
+    assert.equal(out.degraded, false)
+    assert.equal(out.degradedReason, null)
+  })
+
+  it('passes through a degraded result with its reason', () => {
+    const out = resolveIcsFetchResult({
+      text: 'ics',
+      degraded: true,
+      degradedReason: 'snapshot fallback (snapshot dated 2026-05-21, 103d old; live fetch failed: HTTP 403)',
+    })
+    assert.equal(out.degraded, true)
+    assert.match(out.degradedReason, /snapshot fallback/)
+    assert.match(out.degradedReason, /2026-05-21/)
+  })
+
+  it('supplies a placeholder reason when a degraded hook forgets one', () => {
+    const out = resolveIcsFetchResult({ text: 'ics', degraded: true })
+    assert.equal(out.degraded, true)
+    assert.match(out.degradedReason, /no reason given/)
+  })
+
+  it('only marks degraded on an explicit true — never on a truthy accident', () => {
+    for (const v of [undefined, null, false, 0, '', 'yes', 1]) {
+      const out = resolveIcsFetchResult({ text: 'ics', degraded: v, degradedReason: 'x' })
+      assert.equal(out.degraded, false, `value: ${JSON.stringify(v)}`)
+      assert.equal(out.degradedReason, null, `value: ${JSON.stringify(v)}`)
+    }
+  })
+
+  it('rejects a hook result with no usable text', () => {
+    for (const v of [undefined, null, 42, {}, { degraded: true }, { text: 123 }]) {
+      assert.throws(() => resolveIcsFetchResult(v), /getIcsText must return/, `value: ${JSON.stringify(v)}`)
+    }
+  })
+})

@@ -141,6 +141,11 @@ async function fetchIcsViaBrowser() {
  * Puppeteer itself can't run. The snapshot at scripts/data/ keeps the
  * pipeline functional when Chrome isn't installed (CI without browsers,
  * old environments) but it's no longer the primary path.
+ *
+ * Returns a bare string on the live path, and a
+ * `{ text, degraded, degradedReason }` object on the snapshot path so
+ * runIcsScraper marks the scraper_runs row as degraded (see
+ * resolveIcsFetchResult in lib/ics.js).
  */
 async function getIcsText() {
   // ── 1. Puppeteer ──
@@ -173,15 +178,26 @@ async function getIcsText() {
   // Warn if snapshot is older than 60 days — events past their dtstart will
   // already be filtered by useEvents (start_at > now), so a stale file
   // gracefully empties itself rather than serving fake events.
-  const age = Date.now() - new Date(snapshot.fetched_at).getTime()
-  const days = Math.round(age / 86400_000)
-  if (days > 60) {
+  const fetchedAtMs = new Date(snapshot.fetched_at).getTime()
+  const days = Number.isFinite(fetchedAtMs) ? Math.round((Date.now() - fetchedAtMs) / 86400_000) : null
+  if (days != null && days > 60) {
     console.warn(`  ⚠ Snapshot is ${days} days old — consider refreshing.`)
   } else {
-    console.log(`  ✓ Snapshot loaded (${snapshot.events?.length ?? 0} events, ${days}d old)`)
+    console.log(`  ✓ Snapshot loaded (${snapshot.events?.length ?? 0} events, ${days ?? '?'}d old)`)
   }
 
-  return snapshotToIcs(snapshot)
+  // Disclose the fallback to runIcsScraper so the scraper_runs row records a
+  // degraded (snapshot-fed) run instead of grading stale data as healthy.
+  // First line of the live error only — Puppeteer errors can be multiline
+  // essays, and error_message should stay one greppable line.
+  const liveCause = (liveError?.message ?? 'unknown error').split('\n')[0].trim()
+  return {
+    text: snapshotToIcs(snapshot),
+    degraded: true,
+    degradedReason:
+      `snapshot fallback (snapshot dated ${snapshot.fetched_at ?? 'unknown'}` +
+      `${days != null ? `, ${days}d old` : ''}; live fetch failed: ${liveCause})`,
+  }
 }
 
 runIcsScraper({
