@@ -1291,6 +1291,15 @@ const VENUE_NAME_ALIASES = new Map([
   // #46); fold both spellings onto the canonical so the split can't reappear.
   ['john, james and clara knight stage',                       'The Knight Stage'],
   ['akron civic theatre - knight stage',                       'The Knight Stage'],
+  // Summit Metro Parks' tribe feed abbreviates the nature center as "SLNC",
+  // which minted the venue under that name; renamed to the canonical below on
+  // 2026-09-01. "Summit Lake, Akron" (ohio_erie_canalway) was merged the same
+  // day but is deliberately NOT aliased here: "Summit Lake" names the lake,
+  // not the building, and its tombstone row + venue_aliases entry already
+  // prevent a re-mint via the alias hop. NOTE: Summit Lake Community Center
+  // (380 W Crosier St) and Summit Lake NorthShore Park (540 W. South St) are
+  // DIFFERENT real places — do not fold them in.
+  ['slnc',                                                     'Summit Lake Nature Center'],
 ])
 
 /**
