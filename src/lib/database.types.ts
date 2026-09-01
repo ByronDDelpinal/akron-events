@@ -391,6 +391,51 @@ export type Database = {
           },
         ]
       }
+      event_series: {
+        Row: {
+          cancelled_at: string | null
+          created_at: string
+          created_by: string | null
+          dtstart_date: string
+          duration_min: number | null
+          exdates: string[]
+          id: string
+          rrule: string
+          source: string
+          start_time: string
+          tz: string
+          updated_at: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          dtstart_date: string
+          duration_min?: number | null
+          exdates?: string[]
+          id?: string
+          rrule: string
+          source?: string
+          start_time: string
+          tz?: string
+          updated_at?: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          dtstart_date?: string
+          duration_min?: number | null
+          exdates?: string[]
+          id?: string
+          rrule?: string
+          source?: string
+          start_time?: string
+          tz?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       events: {
         Row: {
           age_restriction: string
@@ -417,6 +462,7 @@ export type Database = {
           price_min: number | null
           reviewed_at: string | null
           reviewed_by: string | null
+          series_id: string | null
           slug: string | null
           source: string
           source_id: string | null
@@ -455,6 +501,7 @@ export type Database = {
           price_min?: number | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          series_id?: string | null
           slug?: string | null
           source?: string
           source_id?: string | null
@@ -493,6 +540,7 @@ export type Database = {
           price_min?: number | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          series_id?: string | null
           slug?: string | null
           source?: string
           source_id?: string | null
@@ -506,7 +554,15 @@ export type Database = {
           title_normalized?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "events_series_id_fkey"
+            columns: ["series_id"]
+            isOneToOne: false
+            referencedRelation: "event_series"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       feedback_posts: {
         Row: {

@@ -197,6 +197,7 @@ const ALLOWLIST = [
 
   // Comparison operands that are deliberately slack.
   { file: 'scrape-highland-square-theatre.js', match: 'sevenDaysAgo',                 reason: 'a 7-day-slack past cutoff; a one-day UTC skew cannot drop a current showtime' },
+  { file: 'lib/ics.js',                       match: 'const msToYmd',                reason: 'expandRecurrence civil bounds carry one day of slack each side; the exact ms window is applied afterwards in pushOcc, so a UTC skew cannot drop an occurrence' },
 
   // Formatting helpers whose callers control the anchor. `ymd` is a bare
   // UTC formatter, so the allowance is only true while the FLOOR next to it

@@ -49,6 +49,7 @@ import {
   linkEventVenue,
   linkEventOrganization,
   isJunkVenueName,
+  isProseContactVenueName,
 } from './normalize.js'
 
 // ── Public-event filter ────────────────────────────────────────────────────
@@ -306,10 +307,11 @@ export async function runCivicPlusScraper(config) {
             venueId = await ensureVenue(locName, { city: cityLabel, state: stateLabel, address: locAddress })
             venueCache.set(locName, venueId)
           }
-          // A location name was present but rejected as junk at mint time
-          // (isJunkVenueName in ensureVenue) — the event goes in venue-less,
-          // so flag it for a human instead of letting it slip by silently.
-          if (!venueId && isJunkVenueName(locName)) row.needs_review = true
+          // A location name was present but rejected as junk (isJunkVenueName)
+          // or as prose contact text (isProseContactVenueName) at mint time —
+          // the event goes in venue-less, so flag it for a human instead of
+          // letting it slip by silently.
+          if (!venueId && (isJunkVenueName(locName) || isProseContactVenueName(locName))) row.needs_review = true
         }
 
         const enrichedRow = await enrichWithImageDimensions(row, { organizationId })
