@@ -35,6 +35,10 @@
  */
 
 import 'dotenv/config'
+// The recurrence engine is shared with the browser (src/lib/recurrence.js is
+// the single source of truth, same convention as src/lib/sourceTiers.js).
+// parseRrule is re-exported so existing callers keep importing it from here.
+import { parseRrule, expandRuleDates } from '../../src/lib/recurrence.js'
 import {
   logUpsertResult,
   logScraperError,
@@ -415,20 +419,9 @@ function namedTzWallTimeToUtc(wallClock, tzid) {
 // EST↔EDT boundary is resolved per-occurrence (a series spanning a DST change
 // keeps its wall-clock time correctly).
 
-const WEEKDAY_CODE = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 }
 const DAY_MS = 86_400_000
 
-/** Parse an `RRULE:` value string into a plain key→value object. */
-export function parseRrule(rruleStr) {
-  const out = {}
-  if (!rruleStr || typeof rruleStr !== 'string') return out
-  for (const part of rruleStr.split(';')) {
-    const eq = part.indexOf('=')
-    if (eq === -1) continue
-    out[part.slice(0, eq).trim().toUpperCase()] = part.slice(eq + 1).trim()
-  }
-  return out
-}
+export { parseRrule }
 
 /** Parse a DTSTART value into civil date-time parts + form flags. */
 function parseDtStartParts(value) {
@@ -462,31 +455,10 @@ function msToIcsUtcValue(ms) {
     `T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`
 }
 
-// A "civil cursor" is a Date pinned to UTC midnight used purely as a calendar
-// counter — getUTCDay()/setUTCDate() give DST-free date arithmetic. The actual
-// timezone conversion happens later, per occurrence, in icsDateToIso.
-const civilOf = (y, m, d) => new Date(Date.UTC(y, m - 1, d))
-const mondayOf = (cur) => {
-  const wd = cur.getUTCDay()             // 0=Sun … 6=Sat
-  const back = (wd + 6) % 7              // days since Monday
-  return new Date(cur.getTime() - back * DAY_MS)
-}
-
-/** nth weekday of a month (n<0 counts from the end). Returns a civil Date or null. */
-function nthWeekdayOfMonth(year, month, weekday, n) {
-  if (n > 0) {
-    const first = civilOf(year, month, 1)
-    const offset = (weekday - first.getUTCDay() + 7) % 7
-    const day = 1 + offset + (n - 1) * 7
-    const probe = civilOf(year, month, day)
-    return probe.getUTCMonth() === month - 1 ? probe : null
-  }
-  // n < 0: count back from the last day of the month
-  const last = new Date(Date.UTC(year, month, 0))   // day 0 of next month
-  const offset = (last.getUTCDay() - weekday + 7) % 7
-  const day = last.getUTCDate() - offset - (-n - 1) * 7
-  return day >= 1 ? civilOf(year, month, day) : null
-}
+// Civil (calendar) arithmetic lives in src/lib/recurrence.js: it walks a
+// UTC-midnight cursor and returns 'YYYY-MM-DD' strings. The actual timezone
+// conversion happens here, per occurrence, in icsDateToIso.
+const msToYmd = (ms) => new Date(ms).toISOString().slice(0, 10)
 
 /**
  * Expand a single parsed VEVENT into concrete occurrences.
@@ -528,8 +500,7 @@ export function expandRecurrence(ev, opts = {}) {
     return iso ? Date.parse(iso) : null
   }
 
-  const interval = Math.max(1, parseInt(rule.INTERVAL || '1', 10) || 1)
-  const countCap = rule.COUNT ? parseInt(rule.COUNT, 10) : null
+  // INTERVAL and COUNT are honoured inside expandRuleDates.
   // UNTIL is UTC (…Z) or a date per RFC 5545; icsDateToIso handles both forms.
   const untilIso = rule.UNTIL ? icsDateToIso(rule.UNTIL, {}) : null
   const untilMs  = untilIso ? Date.parse(untilIso) : null
@@ -551,15 +522,14 @@ export function expandRecurrence(ev, opts = {}) {
     if (sIso && eIso) durationMs = Date.parse(eIso) - Date.parse(sIso)
   }
 
-  const startCivil = civilOf(dt.y, dt.m, dt.d)
   const occurrences = []   // { y, m, d, ms }
-  let seen = 0             // counts toward COUNT (every generated occurrence)
 
+  // Apply the exact instant checks to one civil date the engine produced.
+  // Returns false once UNTIL is passed (the series has ended).
   const pushOcc = (y, m, d) => {
     const ms = occToMs(y, m, d)
     if (ms == null) return true
     if (untilMs != null && ms > untilMs) return false       // series ended
-    seen++
     if (ms >= windowStartMs && ms <= windowEndMs) {
       const iso = new Date(ms).toISOString()
       if (!exSet.has(iso)) occurrences.push({ y, m, d, ms })
@@ -567,64 +537,20 @@ export function expandRecurrence(ev, opts = {}) {
     return true   // keep going
   }
 
-  if (freq === 'DAILY') {
-    let cur = startCivil
-    for (let i = 0; i < 4000; i++) {
-      if (countCap != null && seen >= countCap) break
-      const cont = pushOcc(cur.getUTCFullYear(), cur.getUTCMonth() + 1, cur.getUTCDate())
-      if (!cont) break
-      if (cur.getTime() > windowEndMs) break
-      cur = new Date(cur.getTime() + interval * DAY_MS)
-    }
-  } else if (freq === 'WEEKLY') {
-    const days = (rule.BYDAY || '')
-      .split(',').map(s => WEEKDAY_CODE[s.trim().replace(/^[+-]?\d+/, '')]).filter(n => n != null)
-    const targetDows = days.length ? days : [startCivil.getUTCDay()]
-    const anchorMonday = mondayOf(startCivil).getTime()
-    let cur = startCivil
-    for (let i = 0; i < 4000; i++) {
-      if (countCap != null && seen >= countCap) break
-      if (cur.getTime() > windowEndMs && cur.getTime() > startCivil.getTime()) break
-      if (targetDows.includes(cur.getUTCDay())) {
-        const weekIdx = Math.round((mondayOf(cur).getTime() - anchorMonday) / (7 * DAY_MS))
-        if (weekIdx >= 0 && weekIdx % interval === 0) {
-          const cont = pushOcc(cur.getUTCFullYear(), cur.getUTCMonth() + 1, cur.getUTCDate())
-          if (!cont) break
-        }
-      }
-      cur = new Date(cur.getTime() + DAY_MS)
-    }
-  } else if (freq === 'MONTHLY') {
-    const byday = (rule.BYDAY || '').split(',').map(s => s.trim()).filter(Boolean)
-    let y = dt.y, m = dt.m
-    for (let step = 0; step < 120; step++) {           // up to 10 years of months
-      if (countCap != null && seen >= countCap) break
-      const firstOfMonthMs = occToMs(y, m, 1)
-      if (firstOfMonthMs != null && firstOfMonthMs > windowEndMs && (y > dt.y || (y === dt.y && m > dt.m))) break
-      if ((step % interval) === 0) {
-        const tokens = byday.length ? byday : null
-        if (tokens) {
-          let ended = false
-          for (const tok of tokens) {
-            const mt = tok.match(/^([+-]?\d+)?([A-Z]{2})$/)
-            if (!mt) continue
-            const ord = mt[1] ? parseInt(mt[1], 10) : 1
-            const wd = WEEKDAY_CODE[mt[2]]
-            if (wd == null) continue
-            const date = nthWeekdayOfMonth(y, m, wd, ord)
-            if (date) {
-              const cont = pushOcc(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate())
-              if (!cont) { ended = true; break }
-            }
-          }
-          if (ended) break
-        } else {
-          const cont = pushOcc(y, m, dt.d)             // BYMONTHDAY-less: same day each month
-          if (!cont) break
-        }
-      }
-      m++; if (m > 12) { m = 1; y++ }
-    }
+  // The civil expansion (COUNT accounting included) is shared with the
+  // browser; see src/lib/recurrence.js. The civil bounds carry one day of
+  // slack on each side because a civil date is wider than an instant; the
+  // ms window, UNTIL instant and EXDATE-by-instant checks are then applied
+  // exactly in pushOcc, so the slack never leaks into the output.
+  const dates = expandRuleDates(rule, `${pad(dt.y, 4)}-${pad(dt.m)}-${pad(dt.d)}`, {
+    fromYmd: msToYmd(windowStartMs - DAY_MS),
+    toYmd: msToYmd(windowEndMs + DAY_MS),
+    untilYmd: untilMs != null ? msToYmd(untilMs + DAY_MS) : undefined,
+    maxOccurrences: 4000,
+  })
+  for (const ymd of dates) {
+    const [y, m, d] = ymd.split('-').map(Number)
+    if (!pushOcc(y, m, d)) break
   }
 
   occurrences.sort((a, b) => a.ms - b.ms)

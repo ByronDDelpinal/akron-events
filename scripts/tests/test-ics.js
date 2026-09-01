@@ -325,6 +325,19 @@ describe('ICS: expandRecurrence', () => {
     )
     assert.deepEqual(starts(out), ['20260105T190000', '20260112T190000'])
   })
+
+  it('skips months too short for a BYDAY-less MONTHLY day (no Feb 31 rollover)', () => {
+    // Before the engine moved to src/lib/recurrence.js this minted a
+    // "20260231" candidate that the Date rollover turned into Mar 3, so the
+    // series had a bogus March 3 occurrence alongside the real March 31.
+    const out = expandRecurrence(
+      { UID: 'eom', SUMMARY: 'Month End', DTSTART: { value: '20260131T190000', params: {} }, RRULE: 'FREQ=MONTHLY' },
+      { windowStartMs: JAN1, windowDays: 120 },
+    )
+    assert.deepEqual(starts(out), ['20260131T190000', '20260331T190000'])
+    assert.ok(!out.some(o => o.UID.endsWith('20260231')), 'no Feb 31 UID')
+    assert.ok(!out.some(o => o.DTSTART.value.startsWith('20260303')), 'no rolled-over Mar 3')
+  })
 })
 
 describe('ICS: RECURRENCE-ID overrides (expandRecurrenceSet)', () => {
