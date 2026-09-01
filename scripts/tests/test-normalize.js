@@ -1229,6 +1229,9 @@ describe('isProseContactVenueName', () => {
     assert.equal(isProseContactVenueName('Please call (330) 555-1234 to RSVP'), true)
     // sentence-shaped: >=8 tokens AND internal punctuation
     assert.equal(isProseContactVenueName('Doors open at 7, tickets at the door, see you there: Akron'), true)
+    // terminal period + modal/imperative wordlist, no internal punctuation needed
+    assert.equal(isProseContactVenueName('Homes wishing to participate should turn on their porch light.'), true)
+    assert.equal(isProseContactVenueName('Please register in advance to reserve your spot.'), true)
   })
 
   it('does NOT flag real venue names, punctuated or digit-bearing', () => {
@@ -1239,6 +1242,10 @@ describe('isProseContactVenueName', () => {
     assert.equal(isProseContactVenueName("Jilly's Music Room"), false)
     assert.equal(isProseContactVenueName('Akron-Summit County Public Library Main Branch'), false)
     assert.equal(isProseContactVenueName('The 3-2-1 Club'), false) // hyphenated digits ≠ phone
+    assert.equal(isProseContactVenueName('Cuyahoga Community College Eastern Campus - Simon and Rose Mandel Theatre'), false)
+    // near-misses: end in "." and contain a former (now-dropped) wordlist tell
+    assert.equal(isProseContactVenueName('Will Smith Live at the Akron Civic Theatre.'), false)
+    assert.equal(isProseContactVenueName('Church of the Nazarene Contact Center Building Inc.'), false)
   })
 
   it('empty / non-string input → false', () => {

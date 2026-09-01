@@ -1042,6 +1042,15 @@ export function isProseContactVenueName(name) {
   // punctuated names ("Mrs. B's", "R. Shea Brewing") never match.
   const tokens = key.split(/\s+/).filter(Boolean)
   if (tokens.length >= 8 && /[;:]|\. /.test(key)) return true
+  // Terminal-period instructional sentences that lack internal punctuation
+  // ("Homes wishing to participate should turn on their porch light.") —
+  // modal/imperative phrasing is the tell, not punctuation density. Wordlist
+  // is deliberately narrow (no "will"/"contact") to avoid flagging real
+  // titles like "Will Smith Live at the Akron Civic Theatre." or org names
+  // like "Church of the Nazarene Contact Center Building Inc." This predicate
+  // runs in ensureVenue for every scraper, so false positives here silently
+  // drop venues repo-wide — keep the wordlist tight, not broad.
+  if (key.endsWith('.') && tokens.length >= 6 && /\b(should|must|please|wishing|participate|residents|register|turn on|bring|wear)\b/.test(key)) return true
   return false
 }
 
