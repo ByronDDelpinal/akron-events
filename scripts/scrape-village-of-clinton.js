@@ -60,6 +60,7 @@ import {
 import { fetchTribeEvents } from './lib/tribe-events.js'
 import { inferCategory } from './lib/category-inference.js'
 import { classifySummitLocation } from './lib/summit-county.js'
+import { withDateOnlyTimeNote } from './lib/ics.js'
 
 export const SOURCE_KEY = 'village_of_clinton'
 const BASE_URL   = 'https://clintonoh.gov/wp-json/tribe/events/v1/events'
@@ -123,6 +124,27 @@ export function isPublicCommunityEvent(title) {
 export function toEasternIso(localDateTime) {
   if (!localDateTime) return null
   return easternToIso(String(localDateTime).replace('T', ' '))
+}
+
+
+/**
+ * Start instant for one feed row, plus whether it is an all-day row.
+ *
+ * SANCTIONED-DEFAULT-TIME — all-day rows (`all_day: true`, start_date
+ * "…00:00:00") carry no clock time, and a row stored at midnight falls out of
+ * every feed at 00:00:01 on the morning it happens because the feeds filter
+ * `start_at >= now()` with no grace window. We default those to NOON Eastern
+ * (two-arg easternToIso: date from the feed, time from us) — the same product
+ * decision as scripts/lib/ics.js and scrape-stow-library.js. It is never
+ * silent: the caller appends DATE_ONLY_TIME_NOTE and sets `needs_review`.
+ * Timed rows are untouched. Exported for tests.
+ */
+export function resolveStartAt(ev = {}) {
+  const allDay = ev.all_day === true
+  const startAt = allDay
+    ? easternToIso(ev.start_date, '12:00:00')
+    : toEasternIso(ev.start_date)
+  return { startAt, allDay }
 }
 
 /**
@@ -227,11 +249,13 @@ async function processEvents(rawEvents, organizerId) {
       if (!title) { skipped++; continue }
       if (!isPublicCommunityEvent(title)) { skipped++; continue }
 
-      const startAt = toEasternIso(ev.start_date)
+      const { startAt, allDay } = resolveStartAt(ev)
       if (!startAt) { skipped++; continue }
       if (new Date(startAt).getTime() < cutoff) { skipped++; continue }
 
-      const description = htmlToText(ev.description ?? '') || null
+      const baseDescription = htmlToText(ev.description ?? '') || null
+      // Noon on an all-day row is ours, not the village's — disclose and review.
+      const description = allDay ? withDateOnlyTimeNote(baseDescription) : baseDescription
       const { price_min, price_max } = parseCostFromTribe(ev.cost, ev.cost_details)
       const venueSpec = resolveVenueSpec(ev.venue)
 
@@ -244,7 +268,7 @@ async function processEvents(rawEvents, organizerId) {
         title,
         description,
         start_at:        startAt,
-        end_at:          ev.all_day ? null : toEasternIso(ev.end_date),
+        end_at:          allDay ? null : toEasternIso(ev.end_date),
         category:        resolveCategory(title, description ?? ''),
         tags:            parseTagsFromTribe(ev.categories, ev.tags, ['village-of-clinton', 'summit-county', 'clinton']),
         price_min,
@@ -255,7 +279,7 @@ async function processEvents(rawEvents, organizerId) {
         source:          SOURCE_KEY,
         source_id:       buildSourceId(ev),
         status:          geo === 'unknown' ? 'pending_review' : 'published',
-        ...(geo === 'unknown' ? { needs_review: true } : {}),
+        ...(allDay || geo === 'unknown' ? { needs_review: true } : {}),
         // NEVER machine-set `featured`. It's a human-only editorial call made
         // in the admin UI; a source flagging its own event says nothing about
         // whether it deserves the digest hero slot. (Was `ev.featured ?? false`.)

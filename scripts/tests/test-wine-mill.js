@@ -13,6 +13,11 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ||
 
 const { includeEvent, parseCategory, buildSourceId, isAllDayEvent, buildRow, SOURCE_KEY } =
   await import('../scrape-wine-mill.js')
+// The digest matches this sentence verbatim (test-digest-selection.js fails on
+// drift), so the test imports the real string rather than copying it.
+const { DATE_ONLY_TIME_NOTE } = await import('../lib/ics.js')
+
+const countNote = (s) => String(s ?? '').split(DATE_ONLY_TIME_NOTE).length - 1
 
 // Captured 2026-07-08 (trimmed)
 const WINE_WEDNESDAY = {
@@ -35,6 +40,7 @@ const ALLDAY_MUSIC_LIVE = {
   start_date: '2026-07-31 00:00:00', end_date: '2026-07-31 23:59:59',
   utc_start_date: '2026-07-31 03:00:00', utc_end_date: '2026-08-01 02:59:59',
   timezone: 'UTC-4',
+  description: 'Weniger &#038; Simon play the patio.',
   categories: [{ name: 'Music', slug: 'music' }],
 }
 const ALLDAY_TRIVIA_EST = {
@@ -85,11 +91,13 @@ describe('isAllDayEvent', () => {
   })
 })
 
-describe('buildRow: all-day rows never publish a fabricated time', () => {
-  it('anchors the EDT all-day row to local midnight ET, not the feed’s 03:00Z', () => {
+describe('buildRow: all-day rows get the sanctioned noon default, disclosed', () => {
+  it('anchors the EDT all-day row to NOON ET on its own date, never midnight', () => {
     const row = buildRow(ALLDAY_MUSIC_LIVE)
-    // 04:00Z == 2026-07-31 00:00 EDT. 03:00Z would be Jul 30 at 11pm ET — the bug.
-    assert.equal(row.start_at, '2026-07-31T04:00:00.000Z')
+    // 16:00Z == 2026-07-31 12:00 EDT. 04:00Z (local midnight) drops the row out
+    // of the feeds at 00:00:01 that morning; 03:00Z is the feed's own -4 bug.
+    assert.equal(row.start_at, '2026-07-31T16:00:00.000Z')
+    assert.notEqual(row.start_at, '2026-07-31T04:00:00.000Z')
     assert.notEqual(row.start_at, '2026-07-31T03:00:00.000Z')
     assert.equal(row.start_at.slice(0, 10), '2026-07-31')
     assert.equal(row.needs_review, true)
@@ -98,10 +106,22 @@ describe('buildRow: all-day rows never publish a fabricated time', () => {
     assert.equal(row.featured, false)
   })
 
-  it('anchors the EST all-day row correctly too (feed says 04:00Z, real is 05:00Z)', () => {
+  it('discloses the invented hour exactly once in the description', () => {
+    const row = buildRow(ALLDAY_MUSIC_LIVE)
+    assert.equal(countNote(row.description), 1)
+    assert.ok(row.description.startsWith('Weniger & Simon play the patio.'))
+    // Re-running over a description that already carries the note must not double it.
+    assert.equal(countNote(buildRow({ ...ALLDAY_MUSIC_LIVE, description: row.description }).description), 1)
+  })
+
+  it('leaves a blank description blank — the note is a suffix, never the prose', () => {
+    assert.equal(buildRow({ ...ALLDAY_MUSIC_LIVE, description: '' }).description, null)
+  })
+
+  it('anchors the EST all-day row to noon EST (17:00Z), not the feed’s 04:00Z', () => {
     const row = buildRow(ALLDAY_TRIVIA_EST)
-    assert.equal(row.start_at, '2026-11-04T05:00:00.000Z')
-    assert.notEqual(row.start_at, '2026-11-04T04:00:00.000Z')
+    assert.equal(row.start_at, '2026-11-04T17:00:00.000Z')
+    assert.notEqual(row.start_at, '2026-11-04T05:00:00.000Z')
     assert.equal(row.needs_review, true)
   })
 
@@ -113,6 +133,7 @@ describe('buildRow: all-day rows never publish a fabricated time', () => {
     assert.notEqual(row.start_at, '2026-12-02T12:00:00Z')
     assert.equal(row.end_at, '2026-12-02T22:00:00.000Z')
     assert.equal(row.needs_review, undefined)
+    assert.equal(countNote(row.description), 0)
   })
 
   it('never writes needs_review: false — normalize.js keeps its own default', () => {

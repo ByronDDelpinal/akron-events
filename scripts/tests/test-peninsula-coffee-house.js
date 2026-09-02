@@ -13,7 +13,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-const { toEasternIso, parseCategory, buildSourceId, parseImage, SOURCE_KEY } =
+const { toEasternIso, resolveStartAt, parseCategory, buildSourceId, parseImage, SOURCE_KEY } =
   await import('../scrape-peninsula-coffee-house.js')
 
 // Captured 2026-07-14 (trimmed)
@@ -37,6 +37,33 @@ const KARAOKE = {
   id: 640, title: 'Karaoke Night', start_date: '2026-07-23 18:00:00', all_day: false,
   categories: [], image: false,
 }
+// All-day row: the feed states the date only, with a 00:00:00 placeholder time.
+const ALL_DAY = {
+  id: 660, title: 'Peninsula Art & Coffee Crawl',
+  start_date: '2026-08-15 00:00:00', end_date: '2026-08-15 23:59:59',
+  all_day: true, categories: [],
+}
+
+describe('resolveStartAt — all-day rows get the sanctioned NOON default', () => {
+  it('an EDT all-day row lands at 12:00 EDT (16:00Z), not midnight', () => {
+    const { startAt, allDay } = resolveStartAt(ALL_DAY)
+    assert.equal(allDay, true)
+    assert.equal(startAt, '2026-08-15T16:00:00.000Z')
+    // 04:00Z is local midnight — the row would vanish from the feeds at
+    // 00:00:01 on the morning it happens (`start_at >= now()`, no grace window).
+    assert.notEqual(startAt, '2026-08-15T04:00:00.000Z')
+    assert.equal(startAt.slice(0, 10), '2026-08-15')
+  })
+  it('an EST all-day row lands at 12:00 EST (17:00Z)', () => {
+    const { startAt } = resolveStartAt({ ...ALL_DAY, start_date: '2026-12-05 00:00:00' })
+    assert.equal(startAt, '2026-12-05T17:00:00.000Z')
+  })
+  it('timed rows are untouched — the feed time wins and allDay is false', () => {
+    const { startAt, allDay } = resolveStartAt(TRIVIA)
+    assert.equal(allDay, false)
+    assert.equal(startAt, toEasternIso(TRIVIA.start_date))
+  })
+})
 
 describe('toEasternIso — misconfigured "UTC+0" feed holds Eastern wall-clock', () => {
   it('treats 18:00 local as 18:00 Eastern (EDT → 22:00 UTC), NOT a raw-Z UTC', () => {

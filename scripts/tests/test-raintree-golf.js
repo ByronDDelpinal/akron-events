@@ -16,9 +16,14 @@ process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         ||
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
 const {
-  parseCategory, shouldSkip, extractTimeToken, resolveStartEnd,
+  parseCategory, shouldSkip, extractTimeToken, resolveStartEnd, buildRow,
   buildSourceId, parseImage, SOURCE_KEY,
 } = await import('../scrape-raintree-golf.js')
+// The digest matches this sentence verbatim (test-digest-selection.js fails on
+// drift), so the test imports the real string rather than copying it.
+const { DATE_ONLY_TIME_NOTE } = await import('../lib/ics.js')
+
+const countNote = (s) => String(s ?? '').split(DATE_ONLY_TIME_NOTE).length - 1
 
 // ── Fixtures (trimmed from the live feed 2026-07-14) ─────────────────────────
 
@@ -52,7 +57,7 @@ const OHIO_HEROES = {
   description: '<h4>September 11, 2026, 9 a.m. Shotgun Start</h4>', image: false,
   categories: [{ name: 'Golf Outing', slug: 'golf-outing' }], tags: [],
 }
-// Hypothetical all-day event with NO time anywhere → documented midnight fallback.
+// Hypothetical all-day event with NO time anywhere → sanctioned noon default.
 const NO_TIME = {
   id: 999, title: 'Fall Scramble', all_day: true,
   start_date: '2026-10-05 00:00:00', description: '<p>Join us for a fun round.</p>',
@@ -77,10 +82,45 @@ describe('resolveStartEnd — start_date is Eastern wall-clock in every tz confi
     assert.equal(r.end_at, '2026-09-11T21:00:00.000Z')
     assert.equal(r.timeSource, 'feed')
   })
-  it('all-day with no prose time falls back to documented midnight-Eastern', () => {
+  it('all-day with no prose time falls back to NOON Eastern, never midnight', () => {
     const r = resolveStartEnd(NO_TIME)
-    assert.equal(r.start_at, '2026-10-05T04:00:00.000Z') // 00:00 EDT
+    assert.equal(r.start_at, '2026-10-05T16:00:00.000Z') // 12:00 EDT
+    assert.notEqual(r.start_at, '2026-10-05T04:00:00.000Z') // 00:00 EDT — vanishes at 00:00:01
+    assert.equal(r.end_at, null)
     assert.equal(r.timeSource, 'all_day')
+  })
+  it('the noon default is EST-correct in winter (17:00Z, not 16:00Z)', () => {
+    const r = resolveStartEnd({ ...NO_TIME, start_date: '2026-12-05 00:00:00' })
+    assert.equal(r.start_at, '2026-12-05T17:00:00.000Z') // 12:00 EST
+    assert.equal(r.timeSource, 'all_day')
+  })
+})
+
+describe('buildRow — only the noon-default branch is disclosed and flagged', () => {
+  it('all-day-with-no-prose-time: noon start, note once, needs_review', () => {
+    const row = buildRow(NO_TIME)
+    assert.equal(row.start_at, '2026-10-05T16:00:00.000Z')
+    assert.equal(row.needs_review, true)
+    assert.equal(countNote(row.description), 1)
+    assert.ok(row.description.startsWith('Join us for a fun round.'))
+    assert.equal(row.featured, false)
+  })
+  it('does not double the note on a description that already carries it', () => {
+    const once = buildRow(NO_TIME).description
+    assert.equal(countNote(buildRow({ ...NO_TIME, description: once }).description), 1)
+  })
+  it('the prose tee-off path is untouched: real time, no note, no review flag', () => {
+    const row = buildRow(WQMX)
+    assert.equal(row.start_at, '2026-08-03T13:00:00.000Z')
+    assert.equal(countNote(row.description), 0)
+    assert.equal(Object.hasOwn(row, 'needs_review'), false)
+  })
+  it('the timed feed path is untouched too', () => {
+    const row = buildRow(OHIO_HEROES)
+    assert.equal(row.start_at, '2026-09-11T13:00:00.000Z')
+    assert.equal(row.end_at, '2026-09-11T21:00:00.000Z')
+    assert.equal(countNote(row.description), 0)
+    assert.equal(Object.hasOwn(row, 'needs_review'), false)
   })
 })
 

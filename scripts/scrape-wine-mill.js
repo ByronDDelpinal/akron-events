@@ -12,9 +12,10 @@
  * Feed notes:
  *   • Most entries are ALL-DAY (`all_day: true`, start_date "…00:00:00",
  *     end_date "…23:59:59"): the venue lists the day, not a set time. There is
- *     NO real start time, so we keep the DATE and flag `needs_review` for a
- *     human to supply the hour — we never publish a fabricated midnight as if
- *     it were the door time.
+ *     NO real start time, so we keep the DATE, default the clock to NOON
+ *     Eastern (the sanctioned default — midnight drops the row out of the
+ *     feeds at 00:00:01 on event day), disclose that in the description and
+ *     flag `needs_review` for a human to supply the real hour.
  *   • Timed entries (`all_day: false`) do carry a real clock time — no review
  *     flag — but their UTC is wrong too, see below.
  *   • NEVER trust `utc_start_date`/`utc_end_date`: the site declares a fixed
@@ -44,6 +45,7 @@ import {
 } from './lib/normalize.js'
 import { fetchTribeEvents } from './lib/tribe-events.js'
 import { fetchWithRetry } from './lib/http.js'
+import { withDateOnlyTimeNote } from './lib/ics.js'
 
 export const SOURCE_KEY = 'wine_mill'
 const BASE_URL   = 'https://www.thewinemill.com/wp-json/tribe/events/v1/events'
@@ -109,17 +111,23 @@ function parseImage(imageObj, descriptionHtml = '') {
  * live 2026-07-27: local 2026-12-02 08:00 was published as 12:00Z, i.e. 07:00
  * EST), and all-day rows come through as 03:00Z — the previous evening in ET.
  *
- * All-day rows additionally get `needs_review`: the DATE is real, the midnight
- * is a placeholder the venue never stated. Never round or invent an hour.
+ * SANCTIONED-DEFAULT-TIME — all-day rows land at NOON Eastern, not midnight.
+ * The DATE is real; the clock time is ours either way, and a midnight row drops
+ * out of every feed at 00:00:01 on the morning it happens because the feeds
+ * filter `start_at >= now()` with no grace window. Same product decision as
+ * scripts/lib/ics.js and scrape-stow-library.js. The default is never silent:
+ * the description carries DATE_ONLY_TIME_NOTE and `needs_review` keeps the
+ * audit trail. Two-arg easternToIso: date from `start_date`, time from us.
  */
 export function buildRow(ev = {}) {
   const { price_min, price_max } = parseCostFromTribe(ev.cost, ev.cost_details)
   const allDay = isAllDayEvent(ev)
+  const baseDescription = stripHtml(ev.description ?? '') || null
 
   return {
     title:           stripHtml(ev.title ?? ''),
-    description:     stripHtml(ev.description ?? '') || null,
-    start_at:        easternToIso(ev.start_date),
+    description:     allDay ? withDateOnlyTimeNote(baseDescription) : baseDescription,
+    start_at:        allDay ? easternToIso(ev.start_date, '12:00:00') : easternToIso(ev.start_date),
     end_at:          allDay ? null : (ev.end_date ? easternToIso(ev.end_date) : null),
     category:        parseCategory(ev.categories),
     tags:            parseTagsFromTribe(ev.categories, ev.tags, ['winery', 'live-music', 'wine-mill', 'peninsula']),
@@ -131,7 +139,7 @@ export function buildRow(ev = {}) {
     source:          SOURCE_KEY,
     source_id:       buildSourceId(ev),
     status:          'published',
-    // No real time of day — surface for a human, never fabricate one.
+    // Noon is a placeholder, not the venue's stated hour — surface it.
     // `undefined` (not false) so normalize.js's own default still applies.
     needs_review:    allDay ? true : undefined,
     featured:        false,

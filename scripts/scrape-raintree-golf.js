@@ -26,8 +26,9 @@
  *     feed stores golf outings as all-day (00:00:00) even though the description
  *     states a "9:00 AM Shotgun Start". We never silently synthesize midnight:
  *     for all-day / midnight events we extract the shotgun/tee-off time from the
- *     description (extractTimeToken) and only fall back to a documented
- *     midnight-Eastern all-day start if the prose carries no time.
+ *     description (extractTimeToken) and only fall back to the sanctioned
+ *     noon-Eastern default (disclosed in the description, needs_review set) if
+ *     the prose carries no time.
  *   • PRICE IS INTENTIONALLY LEFT NULL. The Tribe `cost` range conflates the
  *     per-person / per-foursome entry fee with a ladder of sponsorship tiers
  *     ($100 hole sign … $3,000 title sponsor), so a naive min/max (e.g.
@@ -56,6 +57,7 @@ import {
   easternTodayIso,
 } from './lib/normalize.js'
 import { fetchTribeEvents } from './lib/tribe-events.js'
+import { withDateOnlyTimeNote } from './lib/ics.js'
 
 export const SOURCE_KEY = 'raintree_golf'
 const BASE_URL   = 'https://www.golfraintree.com/wp-json/tribe/events/v1/events'
@@ -132,8 +134,12 @@ export function extractTimeToken(text = '') {
  * is Eastern wall-clock in every timezone config this feed emits (see header),
  * so easternToIso on it is universally correct. For all-day / midnight events we
  * override the time with the description's tee-off time; only when no prose time
- * exists do we fall back to a documented midnight-Eastern all-day start (end
- * unknown). Returns { start_at, end_at, timeSource }. Exported for tests.
+ * exists do we fall back to the SANCTIONED-DEFAULT-TIME of NOON Eastern (end
+ * unknown). Midnight is not usable: the feeds filter `start_at >= now()` with
+ * no grace window, so a midnight row vanishes at 00:00:01 on the morning it
+ * happens. Same decision as scripts/lib/ics.js and scrape-stow-library.js; the
+ * caller discloses it in the description and sets `needs_review`.
+ * Returns { start_at, end_at, timeSource }. Exported for tests.
  */
 export function resolveStartEnd(ev = {}) {
   const startLocal = String(ev.start_date ?? '')
@@ -148,8 +154,8 @@ export function resolveStartEnd(ev = {}) {
     if (token) {
       return { start_at: easternToIso(date, token), end_at: null, timeSource: 'prose' }
     }
-    // Genuinely all-day with no time anywhere: documented midnight-Eastern start.
-    return { start_at: easternToIso(date, ''), end_at: null, timeSource: 'all_day' }
+    // Genuinely all-day with no time anywhere: sanctioned noon-Eastern default.
+    return { start_at: easternToIso(date, '12:00:00'), end_at: null, timeSource: 'all_day' }
   }
 
   return {
@@ -168,6 +174,48 @@ export function buildSourceId(ev = {}) {
 export function parseImage(imageObj, descriptionHtml = '') {
   if (imageObj && imageObj.url) return imageObj.url
   return String(descriptionHtml).match(/<img[^>]+src="([^"]+)"/)?.[1] ?? null
+}
+
+/**
+ * Build an event row from one feed event and its resolved times. Pure (no I/O)
+ * so tests exercise the real all-day path.
+ *
+ * When the time came from the noon default (`timeSource: 'all_day'`) the row
+ * says so: DATE_ONLY_TIME_NOTE is appended to the description and needs_review
+ * is set, so noon never reads as a stated tee-off time. Every other path —
+ * prose tee-off time and real feed time alike — is untouched.
+ */
+export function buildRow(ev = {}, times = resolveStartEnd(ev)) {
+  const { start_at, end_at, timeSource } = times
+  const isAllDayDefault = timeSource === 'all_day'
+  const baseDescription = htmlToText(ev.description ?? '') || null
+  const cat = parseCategory(ev)
+
+  return {
+    title:           stripHtml(ev.title ?? ''),
+    description:     isAllDayDefault ? withDateOnlyTimeNote(baseDescription) : baseDescription,
+    start_at,
+    end_at,
+    ...(isAllDayDefault ? { needs_review: true } : {}),
+    // Golf outings are unambiguously 'sports'; passing a `categories` ARRAY
+    // bypasses upsertEventSafe's text inference for the content axis (the
+    // "buffet dinner"/"silent auction" prose would otherwise mis-tag). When
+    // parseCategory can't classify, we omit it and let inference decide.
+    ...(cat ? { categories: [cat] } : {}),
+    tags:            parseTagsFromTribe(ev.categories, ev.tags, ['golf', 'raintree']),
+    price_min:       null,
+    price_max:       null,
+    age_restriction: 'not_specified',
+    image_url:       parseImage(ev.image, ev.description),
+    ticket_url:      ev.website || ev.url || null,
+    source:          SOURCE_KEY,
+    source_id:       buildSourceId(ev),
+    status:          'published',
+    // NEVER machine-set `featured`. It's a human-only editorial call made
+    // in the admin UI — a source flagging its own event says nothing about
+    // whether it deserves the digest hero slot. (Was `ev.featured ?? false`.)
+    featured:        false,
+  }
 }
 
 // ── Fetch ────────────────────────────────────────────────────────────────────
@@ -201,40 +249,14 @@ async function processEvents(rawEvents, venueId, organizerId) {
       if (!title) { skipped++; continue }
       if (shouldSkip(title)) { skipped++; continue }
 
-      const { start_at, end_at, timeSource } = resolveStartEnd(ev)
-      if (!start_at) { skipped++; continue }
-      if (new Date(start_at).getTime() < cutoff) { skipped++; continue }
-      if (timeSource === 'all_day') {
-        console.warn(`  ⚠ "${title}" has no tee-off time in prose — stored as midnight-Eastern all-day`)
+      const times = resolveStartEnd(ev)
+      if (!times.start_at) { skipped++; continue }
+      if (new Date(times.start_at).getTime() < cutoff) { skipped++; continue }
+      if (times.timeSource === 'all_day') {
+        console.warn(`  ⚠ "${title}" has no tee-off time in prose — stored at the noon-Eastern default`)
       }
 
-      const description = htmlToText(ev.description ?? '') || null
-      const cat = parseCategory(ev)
-
-      const row = {
-        title,
-        description,
-        start_at,
-        end_at,
-        // Golf outings are unambiguously 'sports'; passing a `categories` ARRAY
-        // bypasses upsertEventSafe's text inference for the content axis (the
-        // "buffet dinner"/"silent auction" prose would otherwise mis-tag). When
-        // parseCategory can't classify, we omit it and let inference decide.
-        ...(cat ? { categories: [cat] } : {}),
-        tags:            parseTagsFromTribe(ev.categories, ev.tags, ['golf', 'raintree']),
-        price_min:       null,
-        price_max:       null,
-        age_restriction: 'not_specified',
-        image_url:       parseImage(ev.image, ev.description),
-        ticket_url:      ev.website || ev.url || null,
-        source:          SOURCE_KEY,
-        source_id:       buildSourceId(ev),
-        status:          'published',
-        // NEVER machine-set `featured`. It's a human-only editorial call made
-        // in the admin UI — a source flagging its own event says nothing about
-        // whether it deserves the digest hero slot. (Was `ev.featured ?? false`.)
-        featured:        false,
-      }
+      const row = buildRow(ev, times)
 
       const { data: upserted, error } = await upsertEventSafe(await enrichWithImageDimensions(row))
       if (error) {

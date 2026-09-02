@@ -50,6 +50,7 @@ import {
 } from './lib/normalize.js'
 import { fetchTribeEvents } from './lib/tribe-events.js'
 import { inferCategory } from './lib/category-inference.js'
+import { withDateOnlyTimeNote } from './lib/ics.js'
 
 export const SOURCE_KEY = 'peninsula_coffee_house'
 const BASE_URL   = 'https://peninsulacoffeehouse.com/wp-json/tribe/events/v1/events'
@@ -96,6 +97,27 @@ export function parseCategory(categories = []) {
   return null
 }
 
+
+/**
+ * Start instant for one feed row, plus whether it is an all-day row.
+ *
+ * SANCTIONED-DEFAULT-TIME — all-day rows (`all_day: true`, start_date
+ * "…00:00:00") carry no clock time, and a row stored at midnight falls out of
+ * every feed at 00:00:01 on the morning it happens because the feeds filter
+ * `start_at >= now()` with no grace window. We default those to NOON Eastern
+ * (two-arg easternToIso: date from the feed, time from us) — the same product
+ * decision as scripts/lib/ics.js and scrape-stow-library.js. It is never
+ * silent: the caller appends DATE_ONLY_TIME_NOTE and sets `needs_review`.
+ * Timed rows are untouched. Exported for tests.
+ */
+export function resolveStartAt(ev = {}) {
+  const allDay = ev.all_day === true
+  const startAt = allDay
+    ? easternToIso(ev.start_date, '12:00:00')
+    : toEasternIso(ev.start_date)
+  return { startAt, allDay }
+}
+
 /** Per-occurrence source_id — recurring weekly series reuse the same event id. */
 export function buildSourceId(ev) {
   const day = (ev.start_date ?? ev.utc_start_date ?? '').slice(0, 10)
@@ -135,12 +157,14 @@ async function processEvents(rawEvents, venueId, organizerId) {
 
   for (const ev of rawEvents) {
     try {
-      const title    = stripHtml(ev.title ?? '')
-      const startAt  = toEasternIso(ev.start_date)
+      const title = stripHtml(ev.title ?? '')
+      const { startAt, allDay } = resolveStartAt(ev)
       if (!title || !startAt) { skipped++; continue }
       if (new Date(startAt).getTime() < cutoff) { skipped++; continue }
 
-      const description = stripHtml(ev.description ?? '') || null
+      const baseDescription = stripHtml(ev.description ?? '') || null
+      // Noon on an all-day row is ours, not the venue's — disclose and review.
+      const description = allDay ? withDateOnlyTimeNote(baseDescription) : baseDescription
       const { price_min, price_max } = parseCostFromTribe(ev.cost, ev.cost_details)
       const category = parseCategory(ev.categories) || inferCategory(title, description ?? '')
 
@@ -148,8 +172,9 @@ async function processEvents(rawEvents, venueId, organizerId) {
         title,
         description,
         start_at:        startAt,
-        end_at:          ev.all_day ? null : toEasternIso(ev.end_date),
+        end_at:          allDay ? null : toEasternIso(ev.end_date),
         category,
+        ...(allDay ? { needs_review: true } : {}),
         tags:            parseTagsFromTribe(ev.categories, ev.tags, ['peninsula', 'coffee-house', 'cuyahoga-valley']),
         price_min,
         price_max,

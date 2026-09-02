@@ -25,6 +25,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ||
 import {
   isPublicCommunityEvent,
   toEasternIso,
+  resolveStartAt,
   resolveCategory,
   buildSourceId,
   parseImage,
@@ -88,6 +89,36 @@ describe('toEasternIso', () => {
   it('returns null for empty / null input', () => {
     assert.equal(toEasternIso(''), null)
     assert.equal(toEasternIso(null), null)
+  })
+})
+
+// ── resolveStartAt ───────────────────────────────────────────────────────────
+
+const ALL_DAY = {
+  id: 4100, title: 'Clinton Community Yard Sale',
+  start_date: '2026-08-15 00:00:00', end_date: '2026-08-15 23:59:59',
+  all_day: true,
+}
+
+describe('resolveStartAt — all-day rows get the sanctioned NOON default', () => {
+  it('an EDT all-day row lands at 12:00 EDT (16:00Z), not midnight', () => {
+    const { startAt, allDay } = resolveStartAt(ALL_DAY)
+    assert.equal(allDay, true)
+    assert.equal(startAt, '2026-08-15T16:00:00.000Z')
+    // 04:00Z is local midnight — the row would vanish from the feeds at
+    // 00:00:01 on the morning it happens (`start_at >= now()`, no grace window).
+    assert.notEqual(startAt, '2026-08-15T04:00:00.000Z')
+    assert.equal(startAt.slice(0, 10), '2026-08-15')
+  })
+  it('an EST all-day row lands at 12:00 EST (17:00Z)', () => {
+    const { startAt } = resolveStartAt({ ...ALL_DAY, start_date: '2026-12-05 00:00:00' })
+    assert.equal(startAt, '2026-12-05T17:00:00.000Z')
+  })
+  it('timed rows are untouched — the feed time wins and allDay is false', () => {
+    const ev = { id: 4101, start_date: '2026-07-15 18:00:00', all_day: false }
+    const { startAt, allDay } = resolveStartAt(ev)
+    assert.equal(allDay, false)
+    assert.equal(startAt, '2026-07-15T22:00:00.000Z')
   })
 })
 

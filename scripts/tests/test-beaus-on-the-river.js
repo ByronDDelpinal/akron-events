@@ -14,7 +14,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-const { toEasternIso, parseCategory, shouldSkip, buildSourceId, parseImage, SOURCE_KEY } =
+const { toEasternIso, resolveStartAt, parseCategory, shouldSkip, buildSourceId, parseImage, SOURCE_KEY } =
   await import('../scrape-beaus-on-the-river.js')
 
 // Captured 2026-07-14 (trimmed). Correctly-configured install: start_date is the
@@ -36,6 +36,33 @@ const HAPPY_HOUR = {
   id: 901, title: 'Happy Hour',
   start_date: '2026-08-01 16:00:00', all_day: false, categories: [],
 }
+// All-day row: the feed states the date only, with a 00:00:00 placeholder time.
+const ALL_DAY = {
+  id: 902, title: 'Riverfront Cornhole Tournament',
+  start_date: '2026-08-15 00:00:00', end_date: '2026-08-15 23:59:59',
+  all_day: true, categories: [],
+}
+
+describe('resolveStartAt — all-day rows get the sanctioned NOON default', () => {
+  it('an EDT all-day row lands at 12:00 EDT (16:00Z), not midnight', () => {
+    const { startAt, allDay } = resolveStartAt(ALL_DAY)
+    assert.equal(allDay, true)
+    assert.equal(startAt, '2026-08-15T16:00:00.000Z')
+    // 04:00Z is local midnight — the row would vanish from the feeds at
+    // 00:00:01 on the morning it happens (`start_at >= now()`, no grace window).
+    assert.notEqual(startAt, '2026-08-15T04:00:00.000Z')
+    assert.equal(startAt.slice(0, 10), '2026-08-15')
+  })
+  it('an EST all-day row lands at 12:00 EST (17:00Z)', () => {
+    const { startAt } = resolveStartAt({ ...ALL_DAY, start_date: '2026-12-05 00:00:00' })
+    assert.equal(startAt, '2026-12-05T17:00:00.000Z')
+  })
+  it('timed rows are untouched — the feed time wins and allDay is false', () => {
+    const { startAt, allDay } = resolveStartAt(LIVE_MUSIC)
+    assert.equal(allDay, false)
+    assert.equal(startAt, toEasternIso(LIVE_MUSIC.start_date))
+  })
+})
 
 describe('toEasternIso — wall-clock start_date treated as Eastern (robust either way)', () => {
   it('7:00 PM EDT show → 23:00 UTC', () => {
