@@ -21,10 +21,14 @@ export default function SeriesRecurrenceAndCancellations() {
       </p>
       <p>
         If you are submitting by hand, do not send us fifty separate
-        submissions. Send one and tell us the pattern in plain words. Every
-        Tuesday, 7pm, through the end of the year, skipping Christmas Eve. We
-        will set it up. The skipping part matters, because a series that quietly
-        does not happen on a holiday is worse than no listing.
+        submissions. The submit form has a repeat option right under the start
+        date: pick weekly, every other week, or monthly on the same weekday,
+        then say how many dates it runs for or when it ends. We create the whole
+        run in one go and review it as a batch. If one date in the middle needs
+        to come out, a holiday most often, email{' '}
+        <a href="mailto:intake@akronpulse.com">intake@akronpulse.com</a> and we
+        will take it off. The skipping part matters, because a series that
+        quietly does not happen on a holiday is worse than no listing.
       </p>
       <p>
         One thing to decide up front: is this one event that repeats, or a
@@ -105,7 +109,7 @@ export default function SeriesRecurrenceAndCancellations() {
 
       <h2>The short version</h2>
       <ol>
-        <li>Recurrence belongs in your feed as a rule, not as fifty entries.</li>
+        <li>Recurrence belongs in your feed as a rule, or in the repeat picker, not as fifty entries.</li>
         <li>Edit in place, keep the same ID, never resubmit.</li>
         <li>Email us the cancellation. Do not just delete the row.</li>
         <li>Postponed and cancelled are different words with different outcomes.</li>

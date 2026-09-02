@@ -8,6 +8,12 @@ import { INTAKE_MAILTO } from '@/lib/intakeEmail'
 import { fromDatetimeLocalValue } from '@/lib/datetimeLocal'
 import DateTimeField from '@/components/DateTimeField'
 import { deriveEndForStart } from '@/lib/eventTimes'
+import { easternDateKey, easternTimeKey, easternTodayIso, easternIsoAt } from '@/lib/easternDate'
+import { addDaysYmd, occurrenceSourceId, MAX_SERIES_SPAN_DAYS } from '@/lib/recurrence'
+import {
+  buildSeriesRule, materialiseDates, describeSeries, pickerErrorCopy, occurrenceEndOffset,
+  type PickerState, type RepeatChoice,
+} from '@/lib/seriesPicker'
 import { trackEvent, EVENTS } from '@/lib/analytics'
 import './SubmitPage.css'
 
@@ -26,6 +32,40 @@ interface SubmitForm {
   organizer_name: string
   organizer_email: string
   tags: string
+  // Recurrence picker (ADR-069 slice 3). Kept inside SubmitForm rather than a
+  // second useState object so the existing `set()` helper and every setForm
+  // call keep working unchanged.
+  repeat: RepeatChoice
+  endMode: PickerState['endMode']
+  count: string
+  untilYmd: string
+}
+
+const REPEAT_CHOICES: { value: RepeatChoice; label: string }[] = [
+  { value: 'none',     label: 'Does not repeat' },
+  { value: 'weekly',   label: 'Weekly' },
+  { value: 'biweekly', label: 'Every 2 weeks' },
+  { value: 'monthly',  label: 'Monthly' },
+]
+
+// The summary line quotes the EASTERN wall clock, because that is what gets
+// stored and what appears on the public listing. Outside Eastern the time
+// carries an explicit ET so nobody reads it as their own clock.
+const SHOW_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone !== 'America/New_York'
+
+/**
+ * Fire the operator notification email. Non-blocking by contract: the rows
+ * are already saved, so a failure is a console warning, never an error the
+ * submitter sees. Extracted so the single-event and series paths cannot
+ * drift in what they send or how they fail.
+ */
+async function notifyOperator(body: Record<string, unknown>) {
+  try {
+    const { error: notifyError } = await supabase.functions.invoke('notify-pending-event', { body })
+    if (notifyError) console.warn('[submit] notify-pending-event failed', notifyError)
+  } catch (err) {
+    console.warn('[submit] notify-pending-event threw', err)
+  }
 }
 
 export default function SubmitPage() {
@@ -34,12 +74,38 @@ export default function SubmitPage() {
     venue_name: '', venue_address: '', categories: [], ticket_url: '',
     price_min: '', price_max: '', age_restriction: 'not_specified',
     organizer_name: '', organizer_email: '', tags: '',
+    repeat: 'none', endMode: 'count', count: '8', untilYmd: '',
   })
   const [status, setStatus] = useState<string | null>(null) // null | 'submitting' | 'success' | 'error'
   const [error,  setError]  = useState<string | null>(null)
 
   const set = <K extends keyof SubmitForm>(key: K, val: SubmitForm[K]) =>
     setForm((f) => ({ ...f, [key]: val }))
+
+  // Every rrule field is derived from the EASTERN civil date and time of the
+  // chosen instant, never from the viewer's calendar. A submitter in Los
+  // Angeles picking "Tuesday 10:00 PM" is creating a Wednesday 1:00 AM ET
+  // series, and the BYDAY we derive has to say WE or validateOrganizerRule
+  // rejects it (event_series.dtstart_date / start_time are the Eastern civil
+  // pair, and tz is CHECK-pinned to America/New_York by migration 069).
+  const startIso  = form.start_at ? fromDatetimeLocalValue(form.start_at) : null
+  const endIso    = form.end_at ? fromDatetimeLocalValue(form.end_at) : null
+  const dtstartYmd = startIso ? easternDateKey(startIso) : ''
+  const startHms   = startIso ? easternTimeKey(startIso) : ''
+
+  const built = form.repeat !== 'none' && dtstartYmd ? buildSeriesRule(form, dtstartYmd) : null
+  const expansion = built?.ok ? materialiseDates(built.parts, dtstartYmd, easternTodayIso()) : null
+  // The aria-live hint carries whichever is true right now: the summary of a
+  // valid rule, or the same sentence the submit gate would show. A silent
+  // hint while the picker sits in a state that cannot submit is worse than
+  // either.
+  const summary = expansion
+    ? describeSeries(form, dtstartYmd, startHms, expansion.all, {
+      showZone: SHOW_ZONE, mintedCount: expansion.toMint.length,
+    })
+    : built && !built.ok
+      ? pickerErrorCopy(built.reason, dtstartYmd)
+      : ''
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -55,6 +121,16 @@ export default function SubmitPage() {
     if (!form.categories || form.categories.length === 0) {
       setStatus('error')
       setError('Please pick at least one category.')
+      return
+    }
+
+    // The repeat rule is derived here, not typed by the submitter, so a
+    // rejection means our derivation disagrees with the validator. Keep the
+    // warn: it is the only signal if the two ever drift.
+    if (built && !built.ok) {
+      console.warn('[submit] rrule rejected', built.reason)
+      setStatus('error')
+      setError(pickerErrorCopy(built.reason, dtstartYmd))
       return
     }
 
@@ -90,13 +166,111 @@ export default function SubmitPage() {
         status:          'pending_review',
       }
 
+      // Content categories live in event_categories (up to 2).
+      const cats = [...new Set(form.categories ?? [])].slice(0, 2)
+      const contact = {
+        organizer_name:  form.organizer_name || null,
+        organizer_email: form.organizer_email || null,
+        venue_name:      form.venue_name || null,
+        venue_address:   form.venue_address || null,
+      }
+
+      if (built?.ok && expansion) {
+        // ── Series branch ───────────────────────────────────────────────
+        // Deliberately an early branch, not a generalised "insert N events"
+        // rewrite of the path below: the single submission is the
+        // overwhelming majority of traffic and it works.
+        //
+        // The series id is minted client-side for the same reason the event
+        // id is (above), and one layer more: migration 069 grants anon
+        // INSERT only on event_series and no SELECT at all, so RETURNING is
+        // refused at the grant layer as well as the policy layer.
+        const seriesId = crypto.randomUUID()
+
+        // Occurrence end times reapply the Eastern civil day offset rather
+        // than adding duration_min, so a 10 PM to 1 AM event keeps landing on
+        // the next day and the whole series keeps its wall clock across the
+        // November DST change instead of drifting an hour. A null offset means
+        // End is not actually after Start; that is treated as no End at all,
+        // on the series row and every occurrence alike, rather than minting N
+        // rows that end before they begin.
+        const endHms    = endIso ? easternTimeKey(endIso) : ''
+        const dayOffset = endIso
+          ? occurrenceEndOffset(dtstartYmd, startHms, easternDateKey(endIso), endHms)
+          : null
+
+        // duration_min is what the nightly extender reaches for FIRST when it
+        // sizes a minted occurrence (occurrenceDurationMs, scripts/lib/series.js,
+        // falls back to the template's own start-to-end delta only when the
+        // series has none), so it is load-bearing rather than advisory. A
+        // difference of two instants needs no Eastern conversion; outside the
+        // 069 CHECK's 1..1440 range it collapses to null rather than refusing
+        // a submission over a 25-hour event.
+        let durationMin: number | null =
+          startIso && endIso && dayOffset != null
+            ? Math.round((Date.parse(endIso) - Date.parse(startIso)) / 60000)
+            : null
+        if (durationMin != null && (durationMin < 1 || durationMin > 1440)) durationMin = null
+
+        const { error: seriesError } = await supabase
+          .from('event_series')
+          .insert({
+            id:           seriesId,
+            rrule:        built.rrule,
+            dtstart_date: dtstartYmd,
+            start_time:   startHms,
+            duration_min: durationMin,
+            source:       'manual',
+          } as TablesInsert<'event_series'>)
+        if (seriesError) throw seriesError
+
+        // ONE insert with an array, never a loop. PostgREST compiles this to
+        // a single INSERT ... VALUES (...), (...), so either every occurrence
+        // lands or none does. A loop would make "half a series" the routine
+        // outcome of a flaky connection, and anon has no DELETE grant to
+        // clean up with.
+        const rows = expansion.toMint.map((ymd, i) => ({
+          ...payload,
+          id:        i === 0 ? eventId : crypto.randomUUID(),
+          series_id: seriesId,
+          source_id: occurrenceSourceId(seriesId, ymd),
+          start_at:  easternIsoAt(ymd, startHms),
+          end_at:    dayOffset != null ? easternIsoAt(addDaysYmd(ymd, dayOffset), endHms) : null,
+        }))
+
+        const { error: rowsError } = await supabase
+          .from('events')
+          .insert(rows as TablesInsert<'events'>[])
+        if (rowsError) {
+          // The orphan event_series row left behind is inert by design: with
+          // no occurrences it can never acquire a template, so the nightly
+          // extender skips it forever. Anon cannot delete it, and does not
+          // need to.
+          console.warn('[submit] series occurrence insert failed', rowsError)
+          throw new Error(
+            'Something went wrong saving the dates. Nothing was saved to the calendar. ' +
+            'Please try again, or email intake@akronpulse.com and we will set it up.',
+          )
+        }
+
+        if (cats.length) {
+          const catRows = rows.flatMap((r) => cats.map((category) => ({ event_id: r.id, category })))
+          const { error: catError } = await supabase
+            .from('event_categories')
+            .insert(catRows as TablesInsert<'event_categories'>[])
+          if (catError) console.warn('[submit] event_categories insert failed', catError)
+        }
+
+        await notifyOperator({ event_id: eventId, ...contact, series_count: rows.length })
+        setStatus('success')
+        return
+      }
+
       const { error: insertError } = await supabase
         .from('events')
         .insert(payload as TablesInsert<'events'>)
       if (insertError) throw insertError
 
-      // Content categories live in event_categories (up to 2).
-      const cats = [...new Set(form.categories ?? [])].slice(0, 2)
       if (cats.length) {
         const { error: catError } = await supabase
           .from('event_categories')
@@ -104,21 +278,8 @@ export default function SubmitPage() {
         if (catError) console.warn('[submit] event_categories insert failed', catError)
       }
 
-      // Fire the operator notification email (non-blocking — the row is saved).
-      try {
-        const { error: notifyError } = await supabase.functions.invoke('notify-pending-event', {
-          body: {
-            event_id:        eventId,
-            organizer_name:  form.organizer_name || null,
-            organizer_email: form.organizer_email || null,
-            venue_name:      form.venue_name || null,
-            venue_address:   form.venue_address || null,
-          },
-        })
-        if (notifyError) console.warn('[submit] notify-pending-event failed', notifyError)
-      } catch (err) {
-        console.warn('[submit] notify-pending-event threw', err)
-      }
+      // Fire the operator notification email (non-blocking, the row is saved).
+      await notifyOperator({ event_id: eventId, ...contact })
 
       setStatus('success')
     } catch (err) {
@@ -229,6 +390,75 @@ export default function SubmitPage() {
               ariaLabel="End date and time"
             />
           </div>
+        </div>
+
+        {/* Repeats. Every primitive here already ships (the chip group is the
+            category chips' exact pattern, the nested form-row collapses at
+            500px), so this control adds no CSS. */}
+        <div className="form-group">
+          <label className="form-label">Repeats</label>
+          <div className="submit-chip-group">
+            {REPEAT_CHOICES.map((c) => (
+              <button
+                type="button"
+                key={c.value}
+                className={`submit-chip ${form.repeat === c.value ? 'active' : ''}`}
+                onClick={() => set('repeat', c.value)}
+                disabled={!form.start_at}
+                aria-pressed={form.repeat === c.value}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+          {!form.start_at && (
+            <p className="form-hint">Pick a start date first, then choose how it repeats.</p>
+          )}
+          {form.repeat !== 'none' && (
+            <>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Ends</label>
+                  <select
+                    className="form-select"
+                    value={form.endMode}
+                    onChange={(e) => set('endMode', e.target.value as SubmitForm['endMode'])}
+                  >
+                    <option value="count">Number of dates</option>
+                    <option value="date">End date</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">{form.endMode === 'count' ? 'How many' : 'Last date'}</label>
+                  {form.endMode === 'count' ? (
+                    <input
+                      className="form-input"
+                      type="number"
+                      min="1"
+                      max="52"
+                      step="1"
+                      value={form.count}
+                      onChange={(e) => set('count', e.target.value)}
+                    />
+                  ) : (
+                    /* A bare date input, not DateTimeField: RFC 5545 UNTIL is
+                       a civil date here and DateTimeField always carries a
+                       time. Binding a control that forces a meaningless time
+                       onto a date-only field invites timezone confusion. */
+                    <input
+                      className="form-input"
+                      type="date"
+                      min={dtstartYmd ? addDaysYmd(dtstartYmd, 1) : undefined}
+                      max={dtstartYmd ? addDaysYmd(dtstartYmd, MAX_SERIES_SPAN_DAYS) : undefined}
+                      value={form.untilYmd}
+                      onChange={(e) => set('untilYmd', e.target.value)}
+                    />
+                  )}
+                </div>
+              </div>
+              <p className="form-hint" aria-live="polite">{summary}</p>
+            </>
+          )}
         </div>
 
         <div className="form-group">

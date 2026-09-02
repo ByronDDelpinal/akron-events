@@ -225,6 +225,7 @@ interface EventRow {
   ticket_url: string | null
   source: string
   status: string
+  series_id: string | null
 }
 
 interface SubmitterContext {
@@ -239,9 +240,20 @@ function buildNotificationHtml(
   ctx: SubmitterContext,
   publishUrl: string,
   adminEditUrl: string,
+  /** Number of dates when this submission is a series; null when it is not. */
+  seriesCount: number | null = null,
 ): string {
   const c = THEME.colors
   const f = THEME.fonts
+
+  // A repeating series never gets the one-click button. The GET handler
+  // refuses series occurrences outright, so the button could only ever render
+  // a "could not publish" page; a link straight to the review queue, where the
+  // whole run is published in one action, is the honest CTA. seriesCount rides
+  // along on the function call, so an older client that does not send it still
+  // gets correct (if vaguer) copy.
+  const isSeries = event.series_id != null
+  const seriesLabel = seriesCount != null ? `${seriesCount} dates` : 'this repeating series'
 
   const rows: { label: string; value: string; mono?: boolean }[] = [
     { label: 'Title',       value: escapeHtml(event.title) },
@@ -295,7 +307,9 @@ function buildNotificationHtml(
     New event submission
   </h1>
   <p style="color:${c.textSecondary};font-size:0.92rem;margin:0 0 24px;">
-    A visitor submitted an event for review. Verify the details and publish, or open it in admin to edit first.
+    ${isSeries
+      ? `A visitor submitted a repeating series (${seriesLabel}) for review. Publish or cancel the whole run from the review queue.`
+      : 'A visitor submitted an event for review. Verify the details and publish, or open it in admin to edit first.'}
   </p>
 
   <div style="background:${c.card};border:1px solid ${c.border};border-radius:12px;padding:20px 22px;margin-bottom:24px;">
@@ -314,12 +328,14 @@ function buildNotificationHtml(
   </div>
 
   <div style="text-align:center;margin:28px 0 14px;">
-    <a href="${escapeHtml(publishUrl)}" style="display:inline-block;padding:14px 32px;background:${c.primary};color:${c.white};text-decoration:none;border-radius:10px;font-family:${f.display};font-size:0.95rem;font-weight:700;letter-spacing:0.01em;">
-      Publish now &rarr;
+    <a href="${escapeHtml(isSeries ? `${BASE_URL}/admin/review` : publishUrl)}" style="display:inline-block;padding:14px 32px;background:${c.primary};color:${c.white};text-decoration:none;border-radius:10px;font-family:${f.display};font-size:0.95rem;font-weight:700;letter-spacing:0.01em;">
+      ${isSeries ? `Review ${seriesLabel} &rarr;` : 'Publish now &rarr;'}
     </a>
   </div>
   <p style="text-align:center;color:${c.textMuted};font-size:0.78rem;margin:0 0 24px;">
-    One-click. Link expires in ${PUBLISH_TOKEN_TTL_HOURS} hours.
+    ${isSeries
+      ? 'A repeating series is published as a batch from the review queue, never one date at a time.'
+      : `One-click. Link expires in ${PUBLISH_TOKEN_TTL_HOURS} hours.`}
   </p>
 
   <div style="text-align:center;margin:0 0 32px;">
@@ -329,7 +345,9 @@ function buildNotificationHtml(
   </div>
 
   <div style="border-top:1px solid ${c.border};padding-top:16px;color:${c.textMuted};font-size:0.74rem;line-height:1.55;">
-    Sent because this address is set as <code>ADMIN_NOTIFY_EMAIL</code> for ${THEME.brandName}. The one-click link is HMAC-signed and bound to event <code>${escapeHtml(event.id)}</code> only — anyone with the link can publish this single event until it expires.
+    Sent because this address is set as <code>ADMIN_NOTIFY_EMAIL</code> for ${THEME.brandName}. ${isSeries
+      ? `This submission is one of ${seriesLabel} in series <code>${escapeHtml(String(event.series_id))}</code>, so it carries no one-click publish link.`
+      : `The one-click link is HMAC-signed and bound to event <code>${escapeHtml(event.id)}</code> only, and anyone with the link can publish this single event until it expires.`}
   </div>
 
 </div>
@@ -418,7 +436,7 @@ async function handleNotify(req: Request): Promise<Response> {
   // is readable here even when the public anon read policy excludes it.
   const { data: event, error: fetchErr } = await supabase
     .from('events')
-    .select('id, title, description, start_at, end_at, tags, price_min, price_max, age_restriction, ticket_url, source, status, event_categories(category)')
+    .select('id, title, description, start_at, end_at, tags, price_min, price_max, age_restriction, ticket_url, source, status, series_id, event_categories(category)')
     .eq('id', eventId)
     .single()
 
@@ -461,7 +479,14 @@ async function handleNotify(req: Request): Promise<Response> {
     venue_address:   typeof body?.venue_address   === 'string' ? body.venue_address   : null,
   }
 
-  const emailHtml = buildNotificationHtml(event as EventRow, ctx, publishUrl, adminEditUrl)
+  // series_count rides along on the body from SubmitPage; the function reads
+  // named keys only, so an older client that omits it is still handled.
+  const seriesCount =
+    typeof body?.series_count === 'number' && Number.isFinite(body.series_count)
+      ? body.series_count
+      : null
+
+  const emailHtml = buildNotificationHtml(event as EventRow, ctx, publishUrl, adminEditUrl, seriesCount)
   const subject = `[${THEME.brandName}] Submission needs review: ${event.title}`
 
   const response = await resend.emails.send({
@@ -551,11 +576,21 @@ async function handlePublishClick(req: Request): Promise<Response> {
   // the row was already published (replayed token, or operator
   // already approved via admin), the update simply matches zero rows
   // and we render an "already published" page.
+  //
+  // A series occurrence is EXCLUDED (.is('series_id', null)). Publishing one
+  // date of an unreviewed series is not a cosmetic mistake: the nightly
+  // extender selects the newest PUBLISHED occurrence as its template and
+  // stamps status='published' on every date it mints, so one click here would
+  // turn an unreviewed submission into a series that auto-publishes its
+  // future dates forever while the earlier dates sit in the queue. A series
+  // matches zero rows and falls through to the page below, which points the
+  // operator at the admin dashboard. That is the correct outcome.
   const { data: updated, error: updateErr } = await supabase
     .from('events')
     .update({ status: 'published' })
     .eq('id', eventId)
     .eq('status', 'pending_review')
+    .is('series_id', null)
     .select('id, title')
     .maybeSingle()
 

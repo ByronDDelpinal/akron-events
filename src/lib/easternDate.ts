@@ -86,3 +86,23 @@ export function easternIsoAt(ymd: string, hms: string): string {
   const asIfUtcMs = Date.UTC(year, month - 1, day, hour, minute, second || 0)
   return easternWallMsToUtcIso(asIfUtcMs)
 }
+
+/**
+ * `HH:mm:ss` clock time of an ISO instant, AS OBSERVED IN America/New_York.
+ * The twin of `easternDateKey`: together they give the Eastern civil
+ * date+time pair `event_series` stores (`dtstart_date` / `start_time`, whose
+ * `tz` is CHECK-pinned to America/New_York by migration 069).
+ *
+ * Reads `EASTERN_CLOCK_FORMATTER` through `formatToParts` exactly the way
+ * `easternWallMsToUtcIso` above does. Do not reach for a second
+ * `Intl.DateTimeFormat` with a slightly different option set: a divergent
+ * formatter is the drift this module exists to prevent.
+ */
+export function easternTimeKey(isoInstant: string | Date): string {
+  const d = isoInstant instanceof Date ? isoInstant : new Date(isoInstant)
+  const parts = EASTERN_CLOCK_FORMATTER.formatToParts(d)
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '00'
+  // en-US with hour12:false renders midnight as '24'; normalise to '00'.
+  const hour = String(parseInt(get('hour'), 10) % 24).padStart(2, '0')
+  return `${hour}:${get('minute')}:${get('second')}`
+}

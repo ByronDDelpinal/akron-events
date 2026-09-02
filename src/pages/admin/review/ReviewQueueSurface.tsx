@@ -28,7 +28,8 @@ const AUTOSAVE_DEBOUNCE_MS = 800
 // drawer invents nothing and omits what is null.
 const SELECT_LIST =
   'id, title, start_at, end_at, source, source_id, source_url, status, ' +
-  'needs_review, reviewed_at, created_at, manual_overrides, event_categories ( category )'
+  'needs_review, reviewed_at, created_at, manual_overrides, series_id, ' +
+  'event_categories ( category )'
 
 type Row = LooseRow
 type Facet = 'all' | ReasonId
@@ -58,6 +59,23 @@ interface ConfirmState {
   ev: Row
 }
 
+/**
+ * What the queue RENDERS about one series, fetched once per page load: the
+ * chip's count and the confirm dialog's date range. Nothing more. A batch
+ * action never writes from this snapshot; `handleSeriesTransition` re-reads
+ * the row set immediately before the write, because an operator can change a
+ * row between load and click.
+ *
+ * Not derived from the loaded page either: the queue is server-paginated at
+ * 50, and a 13-date series straddling a page boundary would report a wrong
+ * number to an operator about to act on it.
+ */
+interface SeriesFacts {
+  count: number
+  firstIso: string | null
+  lastIso: string | null
+}
+
 const sameSet = (a: string[], b: string[]) =>
   a.length === b.length && a.every((x) => b.includes(x))
 
@@ -77,6 +95,7 @@ export default function ReviewQueueSurface() {
   const [facet, setFacet]     = useState<Facet>('all')
   const [counts, setCounts]   = useState<FacetCounts>(EMPTY_COUNTS)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [seriesInfo, setSeriesInfo] = useState<Record<string, SeriesFacts>>({})
 
   // Per-row selected categories, saving state, and inline action errors.
   const [selections, setSelections] = useState<Record<string, string[]>>({})
@@ -167,6 +186,7 @@ export default function ReviewQueueSurface() {
   const fetchQueue = useCallback(async () => {
     const seq = ++fetchSeq.current
     setLoading(true)
+    setSeriesInfo({})
     const from = page * PAGE_SIZE
 
     // Membership + (facet) applied to page query and facet counts alike so
@@ -211,6 +231,36 @@ export default function ReviewQueueSurface() {
     setSelected(new Set())
     setRowErrors({})
     setLoading(false)
+
+    // Series facts for every series represented on this page, in one query.
+    // Render-only (see SeriesFacts): the count on the chip and the span in the
+    // confirm. On error we leave seriesInfo empty on purpose: the chip then
+    // renders a bare "Series" and the batch actions fall back to single-row
+    // ones. A guessed count on a destructive confirm is worse than no count.
+    const seriesIds = [...new Set(rows.map((r) => r.series_id).filter(Boolean))] as string[]
+    if (seriesIds.length > 0) {
+      const { data: sData, error: sError } = await supabase
+        .from('events')
+        .select('series_id, start_at')
+        .in('series_id', seriesIds)
+        .is('reviewed_at', null)
+        .order('start_at', { ascending: true })
+      if (seq !== fetchSeq.current) return
+      if (!sError) {
+        const facts: Record<string, SeriesFacts> = {}
+        for (const r of (sData ?? []) as Row[]) {
+          const sid = r.series_id as string
+          if (!facts[sid]) facts[sid] = { count: 0, firstIso: null, lastIso: null }
+          const f = facts[sid]
+          f.count += 1
+          if (r.start_at) {
+            if (f.firstIso == null) f.firstIso = r.start_at
+            f.lastIso = r.start_at
+          }
+        }
+        setSeriesInfo(facts)
+      }
+    }
 
     // Facet counts. When the whole unfaceted queue fits on one page, derive
     // every count from the loaded rows (zero extra round trips); otherwise
@@ -745,6 +795,137 @@ export default function ReviewQueueSurface() {
     showToast(`Cancelled "${truncate(ev.title)}". It will not publish.`)
   }
 
+  /**
+   * Series publish / cancel: one operator decision acting on every unreviewed
+   * occurrence of the series, not just the row that was clicked.
+   *
+   * Written per DISTINCT manual_overrides value, not as one flat
+   * `.eq('series_id', sid)` update. A single UPDATE writes one jsonb value to
+   * every matched row, so if two occurrences carry different locks (one had
+   * its category adjudicated earlier, say) the flat write homogenises them
+   * and silently DROPS the other row's `category` key. Key presence is the
+   * whole protection mechanism the scraper checks, so that row's category
+   * would be overwritten on the next nightly run with no error and no trace.
+   * A freshly submitted series is one group and this reduces to one call.
+   *
+   * The row set is re-read HERE, immediately before the write, never taken
+   * from the page-load snapshot in `seriesInfo`. That snapshot is only for
+   * rendering (the chip count and the confirm's date range). Between load and
+   * click, an operator can Update one occurrence's categories in this very
+   * drawer, which writes that row a `manual_overrides.category` lock and a
+   * `reviewed_at`: grouping on the stale snapshot would file it under `{}`,
+   * homogenise its overrides and clobber the lock, and re-stamp a row the
+   * predicate should already have excluded. This is the same freshness
+   * invariant `latestRow` / `settleAutoSave` enforce for the single-row
+   * actions, and it is why the write keys on the FRESH ids.
+   */
+  async function handleSeriesTransition(ev: Row, kind: 'publish' | 'cancel') {
+    const sid = ev.series_id as string
+    const action: RowAction = kind
+    setRowSaving(ev.id, true)
+    setRowError(ev.id, null)
+
+    // The ADR predicate, evaluated now. A row published by another operator
+    // since this page loaded is simply not in the set, which is the desired
+    // outcome, not a race to defend against.
+    const { data: freshData, error: readError } = await supabase
+      .from('events')
+      .select('id, manual_overrides')
+      .eq('series_id', sid)
+      .is('reviewed_at', null)
+    if (readError) {
+      setRowSaving(ev.id, false)
+      setRowError(ev.id, { message: `Could not read the series: ${readError.message}`, action })
+      return
+    }
+    const fresh = (freshData ?? []) as Row[]
+
+    // The series row goes FIRST on a cancel. extend-series.js filters
+    // `cancelled_at is null`, so a batch that fails halfway leaves an inert
+    // series rather than a live one that keeps minting dates overnight. It is
+    // also the only gate that survives a later hand-publish of one occurrence,
+    // which is why it is stamped even when there are zero rows left to write:
+    // "every date was already reviewed" is exactly the state where a live
+    // series would quietly keep adding new ones.
+    if (kind === 'cancel') {
+      const { error } = await supabase
+        .from('event_series')
+        .update({ cancelled_at: new Date().toISOString() } as TablesUpdate<'event_series'>)
+        .eq('id', sid)
+      if (error) {
+        setRowSaving(ev.id, false)
+        setRowError(ev.id, { message: `Could not cancel: ${error.message}`, action })
+        return
+      }
+    }
+    // Publish deliberately does NOT touch event_series: clearing a
+    // cancelled_at would be a resurrect action with its own semantics.
+
+    if (fresh.length === 0) {
+      // Everything was already adjudicated elsewhere. Resync and say so
+      // rather than reporting a write that touched nothing. On a cancel the
+      // series is now stopped even though no occurrence changed, so the toast
+      // says that too.
+      setRowSaving(ev.id, false)
+      await fetchQueue()
+      refresh()
+      showToast(
+        kind === 'cancel'
+          ? 'Every date in this series has already been reviewed; the series will not add new dates.'
+          : 'Every date in this series has already been reviewed.',
+      )
+      return
+    }
+
+    const groups = new Map<string, Row[]>()
+    for (const r of fresh) {
+      const key = JSON.stringify(normalizeOverrides(r.manual_overrides))
+      const bucket = groups.get(key)
+      if (bucket) bucket.push(r)
+      else groups.set(key, [r])
+    }
+
+    for (const group of groups.values()) {
+      const stamp = triageStamp()
+      const { error } = await supabase
+        .from('events')
+        .update({
+          ...stamp,
+          status: kind === 'publish' ? 'published' : 'cancelled',
+          needs_review: false,
+          manual_overrides: withStatusLock(group[0].manual_overrides),
+        } as TablesUpdate<'events'>)
+        .in('id', group.map((r) => r.id))
+      if (error) {
+        setRowSaving(ev.id, false)
+        // Resync FIRST: an earlier group may already have landed, and
+        // fetchQueue clears rowErrors, so setting the message before it would
+        // wipe the Retry affordance before it ever painted. The toast is the
+        // backstop for the case where the clicked row published in an earlier
+        // group and has left the visible list entirely.
+        await fetchQueue()
+        refresh()
+        setRowError(ev.id, { message: `Could not ${kind}: ${error.message}`, action })
+        showToast(`Could not ${kind} every date of "${truncate(ev.title)}". Some may already have gone through.`)
+        return
+      }
+    }
+
+    setRowSaving(ev.id, false)
+    // Authoritative resync rather than N hand-rolled applyTransition calls:
+    // it cannot drift from that function's delta arithmetic, and it picks up
+    // the occurrences that live on other pages.
+    await fetchQueue()
+    refresh()
+    const n = fresh.length
+    const dates = `${n} ${n === 1 ? 'date' : 'dates'}`
+    showToast(
+      kind === 'publish'
+        ? `Published ${dates} of "${truncate(ev.title)}". They are live on the public site.`
+        : `Cancelled ${dates} of "${truncate(ev.title)}". None of them will publish.`,
+    )
+  }
+
   async function approveWithToast(ev: Row) {
     const ok = await handleApprove(ev)
     if (ok) showToast(`Updated "${truncate(ev.title)}". Category locked against re-scrape.`)
@@ -829,7 +1010,26 @@ export default function ReviewQueueSurface() {
     setConfirm({ kind, ev: freshRow(ev) })
   }
 
+  const seriesFactsFor = (ev: Row): SeriesFacts | null =>
+    (ev.series_id ? seriesInfo[ev.series_id as string] : null) ?? null
+
   const confirmMessage = (c: ConfirmState): string => {
+    const facts = seriesFactsFor(c.ev)
+    if (facts && c.kind !== 'unpublish') {
+      const span = facts.firstIso && facts.lastIso
+        ? `${format(new Date(facts.firstIso), 'MMM d')} through ${format(new Date(facts.lastIso), 'MMM d')}`
+        : null
+      if (c.kind === 'cancel') {
+        return `Cancel all ${facts.count} dates of "${c.ev.title}"? None of them will publish, and the series stops adding new dates.`
+      }
+      // Same moderation caveat the single-row publish carries below: an
+      // extreme-moderation row (status 'cancelled') can sit in the queue via
+      // its cat flag, and publishing would override that call.
+      const moderated = c.ev.status === 'cancelled'
+        ? 'This event was cancelled by moderation. '
+        : ''
+      return `${moderated}Publish all ${facts.count} dates of "${c.ev.title}"? They go live on the public site${span ? `, ${span}` : ''}.`
+    }
     if (c.kind === 'publish') {
       // An extreme-moderation row (status 'cancelled') can sit in the queue
       // via its cat flag; "Publish first" would foreground it, so the
@@ -946,6 +1146,7 @@ export default function ReviewQueueSurface() {
                     isAutoSaving={!!autoSaving[ev.id]}
                     rowError={rowErrors[ev.id] ?? null}
                     selection={selections[ev.id] ?? []}
+                    seriesFacts={seriesFactsFor(ev)}
                     onToggleOpen={() => setOpenId((prev) => (prev === ev.id ? null : ev.id))}
                     onToggleSelected={() => toggleSelected(ev.id)}
                     onSelectionChange={(ids) => changeSelection(ev, ids)}
@@ -1007,8 +1208,10 @@ export default function ReviewQueueSurface() {
             // row as it stands NOW, not as it stood when the dialog opened.
             await settleAutoSave(ev.id)
             const row = freshRow(ev)
-            if (kind === 'publish') handlePublish(row)
-            else if (kind === 'unpublish') handleUnpublish(row)
+            const facts = seriesFactsFor(row)
+            if (kind === 'unpublish') handleUnpublish(row)
+            else if (facts) handleSeriesTransition(row, kind)
+            else if (kind === 'publish') handlePublish(row)
             else handleCancel(row)
           }}
         />
@@ -1028,6 +1231,8 @@ interface QueueRowProps {
   isAutoSaving: boolean
   rowError: RowError | null
   selection: string[]
+  /** Null when the row is not in a series, or the series query failed. */
+  seriesFacts: SeriesFacts | null
   onToggleOpen: () => void
   onToggleSelected: () => void
   onSelectionChange: (ids: string[]) => void
@@ -1040,7 +1245,7 @@ interface QueueRowProps {
 
 function QueueRow({
   ev, nowIso, isOpen, isSelected, isSaving, isAutoSaving, rowError, selection,
-  onToggleOpen, onToggleSelected, onSelectionChange,
+  seriesFacts, onToggleOpen, onToggleSelected, onSelectionChange,
   onApprove, onDismiss, onPublish, onUnpublish, onCancelEvent,
 }: QueueRowProps) {
   const reason = rowReason(ev)
@@ -1131,6 +1336,11 @@ function QueueRow({
           {missingEnd && (
             <span className="ashell-chip ashell-chip--time ashell-chip--mini">no end</span>
           )}
+          {ev.series_id && (
+            <span className="ashell-chip ashell-chip--pend ashell-chip--mini">
+              {seriesFacts ? `Series (${seriesFacts.count})` : 'Series'}
+            </span>
+          )}
         </div>
 
         <div className="ashell-qcol-when ashell-when">
@@ -1181,7 +1391,7 @@ function QueueRow({
           <div className="ashell-drawer-in">
             <div className="ashell-dcol ashell-dcol--why">
               <h4>Why this is in review</h4>
-              <p className="ashell-why-p">{narrative(ev, cat, pend, missingEnd)}</p>
+              <p className="ashell-why-p">{narrative(ev, cat, pend, missingEnd, seriesFacts)}</p>
               <dl className="ashell-kv">
                 <dt>Starts</dt>
                 <dd>{ev.start_at ? format(new Date(ev.start_at), 'MMM d, yyyy · h:mm a') : 'not supplied'}</dd>
@@ -1263,7 +1473,7 @@ function QueueRow({
                     disabled={isSaving}
                     title="Publish this event to the public site; a confirm follows"
                   >
-                    Publish…
+                    {seriesFacts ? `Publish series (${seriesFacts.count})…` : 'Publish…'}
                   </button>
                 )}
                 {/* Published rows have no Update button: tag toggles
@@ -1298,7 +1508,7 @@ function QueueRow({
                     disabled={isSaving}
                     title="Mark this event cancelled so it never publishes; a confirm follows"
                   >
-                    Cancel event…
+                    {seriesFacts ? `Cancel series (${seriesFacts.count})…` : 'Cancel event…'}
                   </button>
                 )}
                 <Link className="ashell-edit-link" to={`/admin/events/${ev.id}/edit`}>
@@ -1324,7 +1534,9 @@ function QueueRow({
   )
 }
 
-function narrative(ev: Row, cat: boolean, pend: boolean, missingEnd: boolean): string {
+function narrative(
+  ev: Row, cat: boolean, pend: boolean, missingEnd: boolean, seriesFacts: SeriesFacts | null,
+): string {
   const parts: string[] = []
   if (cat) {
     parts.push(
@@ -1345,6 +1557,16 @@ function narrative(ev: Row, cat: boolean, pend: boolean, missingEnd: boolean): s
   }
   if (parts.length === 0) {
     parts.push('This row no longer matches a review reason. A refresh should clear it.')
+  }
+  // The rows of a series are NOT contiguous in this list (the sort is
+  // start_at, and other events fall between the dates), so say plainly that
+  // the repetition is a series and that one action covers all of it.
+  if (seriesFacts) {
+    parts.push(
+      `This is 1 of ${seriesFacts.count} dates in a repeating series. ` +
+      `Publishing or cancelling acts on all ${seriesFacts.count}. ` +
+      'To change a single date, open the full editor.',
+    )
   }
   return parts.join(' ')
 }

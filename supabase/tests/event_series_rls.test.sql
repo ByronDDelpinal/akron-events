@@ -8,14 +8,22 @@
 -- moderation_request_role() read. Setting only one tests the wrong principal.
 --
 -- What this file pins:
---   1. anon CAN insert a source='manual' series and an occurrence row that
---      points at it, and CANNOT read the series back (why the submit form
---      mints the uuid client-side instead of INSERT ... RETURNING).
+--   1. anon CAN insert a source='manual' series, the multi-row occurrence
+--      batch the submit form actually sends (full column set) and its
+--      event_categories junction rows, and CANNOT read the series back (why
+--      the submit form mints the uuid client-side instead of
+--      INSERT ... RETURNING).
+--   1b. anon CANNOT insert an occurrence with status='published'.
+--   1c. A mixed multi-row insert (two pending, one published) is refused
+--      ENTIRELY, which is the atomicity the form's one-call batch rests on.
 --   2. anon CANNOT forge a scraper / partner source, insert a
 --      pre-cancelled series, or stamp a foreign created_by.
 --   3. anon CANNOT update or delete a series.
 --   4. A signed-in NON-admin with no partner scope sees no series.
---   5. An admin (admin_users row, 059) can select / update / delete.
+--   5. An admin (admin_users row, 059) can select / update / delete, can
+--      batch-publish exactly the UNREVIEWED occurrences of one series
+--      without re-stamping an already-reviewed one, and can stop a series
+--      by setting cancelled_at.
 --   6. A partner (061 scaffold) sees a series whose occurrence is linked to
 --      one of their orgs and NOT one linked to another org, and cannot
 --      write either (writes are RPC-only per 061).
@@ -99,22 +107,97 @@ set local role anon;
 
 do $$
 declare
-  sid uuid := gen_random_uuid();
-  eid uuid := gen_random_uuid();
+  sid  uuid := gen_random_uuid();
+  eid  uuid := gen_random_uuid();
+  eid2 uuid := gen_random_uuid();
+  eid3 uuid := gen_random_uuid();
 begin
   insert into event_series (id, rrule, dtstart_date, start_time, duration_min, source)
   values (sid, 'FREQ=WEEKLY;BYDAY=TH;COUNT=6', '2026-10-01', '19:00', 120, 'manual');
 
-  insert into events (id, title, description, start_at, source, source_id, status, featured, series_id)
-  values (eid, 'RLS series submit test', 'A perfectly ordinary description.',
-          '2026-10-01T23:00:00Z', 'manual', 'series:' || sid::text || ':2026-10-01',
-          'pending_review', false, sid);
+  -- The exact multi-row shape the submit form sends: one statement, every
+  -- column it actually writes, three occurrences of the one series.
+  insert into events (id, title, description, start_at, end_at, ticket_url, source_url,
+                      price_min, price_max, age_restriction, tags, source, source_id,
+                      status, series_id)
+  values
+    (eid, 'RLS series submit test', 'A perfectly ordinary description.',
+     '2026-10-01T23:00:00Z', '2026-10-02T01:00:00Z', 'https://example.com/tickets',
+     'https://example.com/tickets', 0, null, 'not_specified', array['jazz','outdoor'],
+     'manual', 'series:' || sid::text || ':2026-10-01', 'pending_review', sid),
+    (eid2, 'RLS series submit test', 'A perfectly ordinary description.',
+     '2026-10-08T23:00:00Z', '2026-10-09T01:00:00Z', 'https://example.com/tickets',
+     'https://example.com/tickets', 0, null, 'not_specified', array['jazz','outdoor'],
+     'manual', 'series:' || sid::text || ':2026-10-08', 'pending_review', sid),
+    (eid3, 'RLS series submit test', 'A perfectly ordinary description.',
+     '2026-10-15T23:00:00Z', '2026-10-16T01:00:00Z', 'https://example.com/tickets',
+     'https://example.com/tickets', 0, null, 'not_specified', array['jazz','outdoor'],
+     'manual', 'series:' || sid::text || ':2026-10-15', 'pending_review', sid);
+
+  -- The junction rows for all three, two categories each. This asserts that
+  -- event_is_pending_review() (038) holds for a series occurrence, so the
+  -- form's batched junction write is not blocked.
+  insert into event_categories (event_id, category) values
+    (eid, 'music'), (eid, 'festival'),
+    (eid2, 'music'), (eid2, 'festival'),
+    (eid3, 'music'), (eid3, 'festival');
 
   -- The freshly inserted series is NOT readable back. Either the missing
   -- SELECT grant or the missing SELECT policy refuses it; both are correct.
   begin
     assert not exists (select 1 from event_series where id = sid),
       'anon should not see the series it just inserted';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+
+-- ── 1b. anon cannot publish an occurrence ────────────────────────────────────
+do $$
+declare
+  sid uuid := gen_random_uuid();
+begin
+  insert into event_series (id, rrule, dtstart_date, start_time, duration_min, source)
+  values (sid, 'FREQ=WEEKLY;BYDAY=TH;COUNT=6', '2026-10-01', '19:00', 120, 'manual');
+  begin
+    insert into events (id, title, start_at, source, source_id, status, series_id)
+    values (gen_random_uuid(), 'RLS series published attempt', '2026-10-01T23:00:00Z',
+            'manual', 'series:' || sid::text || ':2026-10-01', 'published', sid);
+    raise exception 'anon insert of a published series occurrence should have been rejected';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+
+-- ── 1c. a mixed multi-row insert is refused ENTIRELY ─────────────────────────
+-- The form batches every occurrence into one statement precisely so that a
+-- partially materialised series is unreachable. If a future policy change
+-- ever let a bulk insert apply row by row, that guarantee would be quietly
+-- false; this pins it.
+do $$
+declare
+  sid2 uuid := gen_random_uuid();
+begin
+  insert into event_series (id, rrule, dtstart_date, start_time, duration_min, source)
+  values (sid2, 'FREQ=WEEKLY;BYDAY=TH;COUNT=6', '2026-10-01', '19:00', 120, 'manual');
+  begin
+    insert into events (id, title, start_at, source, source_id, status, series_id)
+    values
+      (gen_random_uuid(), 'RLS mixed batch 1', '2026-10-01T23:00:00Z',
+       'manual', 'series:' || sid2::text || ':2026-10-01', 'pending_review', sid2),
+      (gen_random_uuid(), 'RLS mixed batch 2', '2026-10-08T23:00:00Z',
+       'manual', 'series:' || sid2::text || ':2026-10-08', 'pending_review', sid2),
+      (gen_random_uuid(), 'RLS mixed batch 3', '2026-10-15T23:00:00Z',
+       'manual', 'series:' || sid2::text || ':2026-10-15', 'published', sid2);
+    raise exception 'a mixed pending/published batch should have been rejected';
+  exception when insufficient_privilege then null;
+  end;
+  -- Not one of the three landed. Read as anon, whose SELECT policy on events
+  -- is published-only, so this assertion is only truly meaningful for the
+  -- third (published) row of the batch: the two pending rows would be
+  -- invisible here whether they landed or not. That is the row the refusal
+  -- was about, and a fuller check belongs to an admin-role block.
+  begin
+    assert not exists (select 1 from events where series_id = sid2),
+      'a refused batch must leave no rows behind';
   exception when insufficient_privilege then null;
   end;
 end $$;
@@ -204,6 +287,49 @@ begin
   -- inserted with.)
   assert (select duration_min = 90 from event_series where id = 'b0000000-0000-4000-8000-0000000069c1'),
     'admin update should be visible';
+
+  -- ── 5b. Batch publish touches ONLY the unreviewed occurrences ─────────────
+  -- The review queue's series action is one UPDATE keyed on
+  -- `series_id = $s and reviewed_at is null`, which is what makes a retry
+  -- after a partial batch safe. Seeded on its own series (SC) rather than SA
+  -- so the fixture occurrence already attached to SA cannot make the row
+  -- count ambiguous.
+  insert into event_series (id, rrule, dtstart_date, start_time, duration_min, source) values
+    ('b0000000-0000-4000-8000-0000000069c3', 'FREQ=WEEKLY;BYDAY=TH;COUNT=6', '2026-10-01', '19:00', 120, 'manual');
+
+  insert into events (id, title, description, start_at, source, source_id, status, series_id, reviewed_at) values
+    ('b0000000-0000-4000-8000-0000000069e3', 'Series Charlie 1', 'A perfectly ordinary description.',
+     '2026-10-01T23:00:00Z', 'manual', 'series:b0000000-0000-4000-8000-0000000069c3:2026-10-01',
+     'pending_review', 'b0000000-0000-4000-8000-0000000069c3', null),
+    ('b0000000-0000-4000-8000-0000000069e4', 'Series Charlie 2', 'A perfectly ordinary description.',
+     '2026-10-08T23:00:00Z', 'manual', 'series:b0000000-0000-4000-8000-0000000069c3:2026-10-08',
+     'pending_review', 'b0000000-0000-4000-8000-0000000069c3', null),
+    ('b0000000-0000-4000-8000-0000000069e5', 'Series Charlie 3', 'A perfectly ordinary description.',
+     '2026-10-15T23:00:00Z', 'manual', 'series:b0000000-0000-4000-8000-0000000069c3:2026-10-15',
+     'pending_review', 'b0000000-0000-4000-8000-0000000069c3', null),
+    ('b0000000-0000-4000-8000-0000000069e6', 'Series Charlie 4', 'A perfectly ordinary description.',
+     '2026-10-22T23:00:00Z', 'manual', 'series:b0000000-0000-4000-8000-0000000069c3:2026-10-22',
+     'published', 'b0000000-0000-4000-8000-0000000069c3', '2026-09-01T12:00:00Z');
+
+  update events
+     set status = 'published', needs_review = false,
+         reviewed_at = now(), reviewed_by = 'b0000000-0000-4000-8000-0000000069f3'
+   where series_id = 'b0000000-0000-4000-8000-0000000069c3'
+     and reviewed_at is null;
+  get diagnostics n = row_count;
+  assert n = 3, 'batch publish should touch exactly the unreviewed occurrences';
+  assert (select reviewed_at = '2026-09-01T12:00:00Z'::timestamptz
+            from events where id = 'b0000000-0000-4000-8000-0000000069e6'),
+    'a previously reviewed occurrence must not be re-stamped by the batch';
+
+  -- ── 5c. The cancel path stops the series itself ──────────────────────────
+  -- Without this the extender would hand a template back to a cancelled
+  -- series the moment any one occurrence were published by hand.
+  update event_series set cancelled_at = now() where id = 'b0000000-0000-4000-8000-0000000069c1';
+  get diagnostics n = row_count;
+  assert n = 1, 'admin must be able to stop a series';
+  assert (select cancelled_at is not null from event_series where id = 'b0000000-0000-4000-8000-0000000069c1'),
+    'cancelled_at must stick on the series row';
 
   delete from event_series where id = 'b0000000-0000-4000-8000-0000000069c2';
   get diagnostics n = row_count;
