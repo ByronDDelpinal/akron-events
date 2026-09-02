@@ -113,6 +113,113 @@ describe('parseGreenLocation: splits the LOCATION field into name + address', ()
   })
 })
 
+// A name-less LOCATION ("- Green OH 44232", sometimes with a leading nbsp or a
+// double space) used to fail the separator match entirely, so the whole string
+// became the venue NAME — that is how the address-string venue d37f6439 was
+// minted on 08-26. A dedicated empty-head branch now handles it, and any head
+// without a letter yields name === null so the caller leaves the event
+// venue-less (and sets needs_review).
+describe('parseGreenLocation: name-less LOCATION values yield a null name', () => {
+  it('splits a bare "- City State Zip" value', () => {
+    const r = parseGreenLocation('- Green OH 44232')
+    assert.equal(r.name, null)
+    assert.equal(r.details.city, 'Green')
+    assert.equal(r.details.zip, '44232')
+    assert.equal(r.details.state, 'OH')
+    // Pre-existing quirk of the (unchanged) details parser: with no double
+    // space there is nothing to split, so the single token lands in address
+    // while city keeps its 'Green' default. Harmless here — the caller never
+    // passes details to ensureVenue when name is null.
+    assert.equal(r.details.address, 'Green')
+  })
+
+  it('splits the same value with leading whitespace', () => {
+    const r = parseGreenLocation('  - Green OH 44232')
+    assert.equal(r.name, null)
+    assert.equal(r.details.city, 'Green')
+    assert.equal(r.details.zip, '44232')
+  })
+
+  it('treats a leading non-breaking space the same as a plain space', () => {
+    const r = parseGreenLocation('\u00a0- Green OH 44232')
+    assert.equal(r.name, null)
+    assert.equal(r.details.city, 'Green')
+    assert.equal(r.details.zip, '44232')
+  })
+
+  it('rejects a bare house number as a venue name', () => {
+    const r = parseGreenLocation('123 - Green OH 44232')
+    assert.equal(r.name, null)
+    assert.equal(r.details.city, 'Green')
+    assert.equal(r.details.zip, '44232')
+  })
+
+  it('still parses a real street address behind an empty name', () => {
+    const r = parseGreenLocation('- 5300 Massillon Rd  Green OH 44232')
+    assert.equal(r.name, null)
+    assert.deepEqual(r.details, { address: '5300 Massillon Rd', city: 'Green', state: 'OH', zip: '44232' })
+  })
+
+  it('still returns null (not a name-less object) for empty input', () => {
+    assert.equal(parseGreenLocation(''), null)
+    assert.equal(parseGreenLocation('   '), null)
+    assert.equal(parseGreenLocation(undefined), null)
+  })
+})
+
+// Regression guard: the separator is deliberately still strict (" - "), so
+// every value that produced a name before must produce the SAME name now,
+// including hyphenated names and the feed's no-space-before-dash rows that
+// have never split. Expectations below were captured by running the pre-fix
+// (git HEAD) parseGreenLocation over the same inputs.
+describe('parseGreenLocation: named values are byte-identical to the pre-fix parser', () => {
+  it('parses the canonical Boettler Park value identically', () => {
+    const r = parseGreenLocation('Boettler Park - 5300 Massillon Rd  Green OH 44232')
+    assert.equal(r.name, 'Boettler Park')
+    assert.deepEqual(r.details, { address: '5300 Massillon Rd', city: 'Green', state: 'OH', zip: '44232' })
+  })
+
+  it('does not split a hyphenated venue name', () => {
+    const r = parseGreenLocation('Central-Hower Field - 55 E Market St  Akron OH 44304')
+    assert.equal(r.name, 'Central-Hower Field')
+    assert.deepEqual(r.details, { address: '55 E Market St', city: 'Akron', state: 'OH', zip: '44304' })
+  })
+
+  it('keeps a hyphenated name intact when there is no address at all', () => {
+    const r = parseGreenLocation('Central-Hower Field')
+    assert.equal(r.name, 'Central-Hower Field')
+    assert.deepEqual(r.details, { address: null, city: 'Green', state: 'OH', zip: null })
+  })
+
+  it('keeps "Raintree Golf & Event Center- …" as one unsplit name', () => {
+    // No space before the dash → not a separator. The pre-fix parser returned
+    // the whole string as the name with no address; a widened separator would
+    // have silently re-split this into a different venue.
+    const r = parseGreenLocation('Raintree Golf & Event Center- 4350 Mayfair Rd  Uniontown OH 44685')
+    assert.equal(r.name, 'Raintree Golf & Event Center- 4350 Mayfair Rd  Uniontown OH 44685')
+    assert.deepEqual(r.details, { address: null, city: 'Green', state: 'OH', zip: null })
+  })
+
+  it('keeps "Green Branch- Akron-Summit County Public Library …" as one unsplit name', () => {
+    const r = parseGreenLocation('Green Branch- Akron-Summit County Public Library  Green OH 44232')
+    assert.equal(r.name, 'Green Branch- Akron-Summit County Public Library  Green OH 44232')
+    assert.deepEqual(r.details, { address: null, city: 'Green', state: 'OH', zip: null })
+  })
+
+  it('drops a dangling trailing dash when there is no address part', () => {
+    const r = parseGreenLocation('Boettler Park -')
+    assert.equal(r.name, 'Boettler Park')
+    assert.deepEqual(r.details, { address: null, city: 'Green', state: 'OH', zip: null })
+  })
+
+  it('keeps stripping HTML and never emits tags in the name', () => {
+    const r = parseGreenLocation('<p>Green Recycling Center</p> - 5383 Massillon Rd  Green OH 44720')
+    assert.equal(r.name, 'Green Recycling Center')
+    assert.ok(!/[<>]/.test(r.name))
+    assert.equal(r.details.address, '5383 Massillon Rd')
+  })
+})
+
 describe('isClosureNotice: detects office-closure descriptions', () => {
   it('flags the exact "City offices will be closed" Juneteenth row', () => {
     assert.equal(isClosureNotice({ DESCRIPTION: 'City offices will be closed. https://www.cityofgreen.org/calendar.aspx?EID=3159' }), true)

@@ -176,10 +176,20 @@ export function parseGreenLocation(rawLocation) {
   const clean = decodeEntities(String(rawLocation).replace(/<[^>]*>/g, '')).replace(/\u00a0/g, ' ').trim()
   if (!clean) return null
 
+  // The separator stays strict (" - ", whitespace on BOTH sides) so every
+  // previously-named LOCATION parses byte-identically — notably the feed's
+  // "Raintree Golf & Event Center- 4350 Mayfair Rd …" rows, which have never
+  // split and must keep the whole string as the name. A name-less LOCATION
+  // such as "- Green OH 44232" (seen in the live feed; it minted an
+  // address-string venue on 08-26) has no head at all, so it gets its own
+  // branch instead of a looser separator that would also re-split named rows.
   const dash = clean.match(/^(.*?)\s+-\s+(.+)$/)
-  const name = (dash ? dash[1] : clean).trim()
-  const addrPart = dash ? dash[2].trim() : ''
-  if (!name) return null
+  const headless = dash ? null : clean.match(/^-\s+(.+)$/)
+  let name = (dash ? dash[1] : headless ? '' : clean).trim()
+  const addrPart = dash ? dash[2].trim() : headless ? headless[1].trim() : ''
+  // With no address part a trailing dash is dangling punctuation, not part of
+  // the name ("Boettler Park -" → "Boettler Park").
+  if (!addrPart) name = name.replace(/[\s-]+$/, '')
 
   let address = null, city = 'Green', state = 'OH', zip = null
   if (addrPart) {
@@ -195,6 +205,11 @@ export function parseGreenLocation(rawLocation) {
       address = head
     }
   }
+  // A head with no letters is not a venue name (it is empty, punctuation, or a
+  // bare house number). Return the parsed address with an explicit null name so
+  // the caller can leave the event venue-less instead of minting an
+  // address-string venue.
+  if (!/[A-Za-z]/.test(name)) return { name: null, details: { address, city, state, zip } }
   return { name, details: { address, city, state, zip } }
 }
 
@@ -300,13 +315,26 @@ async function main() {
         }
 
         // Per-event venue: parse the LOCATION field into a clean name + address
-        // (see parseGreenLocation), fall back to Boettler Park when LOCATION is
-        // empty. ensureVenue may return null for an unparseable/address-only
-        // value (its address-named guard) — in that case the event is left
-        // venue-less rather than mis-assigned to the default park.
+        // (see parseGreenLocation). Three outcomes, deliberately distinct:
+        //   parsed === null          → no usable LOCATION at all; keep the
+        //                              default Boettler Park venue.
+        //   parsed && !parsed.name   → a LOCATION is present but carries no
+        //                              venue name (e.g. "- Green OH 44232");
+        //                              the event is left venue-less rather
+        //                              than mis-assigned to the default park
+        //                              or minted as an address-string venue,
+        //                              and is flagged for a human (mirrors the
+        //                              junk-venue needs_review in
+        //                              scripts/lib/civicplus.js).
+        //   parsed.name              → resolve/mint the named venue.
+        // ensureVenue may itself return null for an address-only value (its
+        // address-named guard), which also leaves the event venue-less.
         let venueId = defaultVenueId
         const parsed = parseGreenLocation(ev.LOCATION)
-        if (parsed?.name) {
+        if (parsed && !parsed.name) {
+          venueId = null
+          row.needs_review = true
+        } else if (parsed?.name) {
           if (venueCache.has(parsed.name)) {
             venueId = venueCache.get(parsed.name)
           } else {
