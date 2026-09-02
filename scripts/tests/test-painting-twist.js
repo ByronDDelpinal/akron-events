@@ -72,6 +72,44 @@ const PWT_HTML_NO_HREF_WINTER = `<div class="calendar">${[
   pwtTextCard('5410619', 'Wed, Jan 14, 6:30 pm', '$34-$44', 'Yesterday Snow'),
 ].join('\n')}</div>`
 
+// ── Year-boundary fixture ──────────────────────────────────────────────────
+//
+// 2026-12-20 23:30 America/New_York (EST, UTC-5) → UTC already says Dec 21.
+// A "Jan 10" listing is next year's class; a "Dec 19" listing is yesterday's.
+const LATE_DEC = new Date('2026-12-21T04:30:00Z')
+
+const PWT_HTML_YEAR_END = [
+  pwtCard('6310618', 'Sun, Jan 10, 6:30 pm', '$34-$44', 'New Year Bloom'),
+  pwtCard('6310619', 'Sat, Dec 19, 6:30 pm', '$34-$44', 'Yesterday Snowman'),
+  pwtCard('6310620', 'Sun, Dec 20, 6:30 pm', '$39',     'Tonight Snowman'),
+].join(SPACER)
+
+const PWT_HTML_NO_HREF_YEAR_END = `<div class="calendar">${[
+  pwtTextCard('6410618', 'Sun, Jan 10, 6:30 pm', '$34-$44', 'New Year Bloom'),
+  pwtTextCard('6410619', 'Sat, Dec 19, 6:30 pm', '$34-$44', 'Yesterday Snowman'),
+  pwtTextCard('6410620', 'Sun, Dec 20, 6:30 pm', '$39',     'Tonight Snowman'),
+].join('\n')}</div>`
+
+// ── Mirror year-boundary fixture ──────────────────────────────────────────
+//
+// 2027-01-05 23:30 America/New_York (EST, UTC-5) → UTC already says Jan 6.
+// A stale "Dec 28" listing is LAST year's class (8 days ago, inside the grace
+// window); without the backward wrap it was stamped 2027-12-28 and published
+// 11 months out. "Jan 4" is yesterday; "Feb 1" is a real upcoming class.
+const EARLY_JAN = new Date('2027-01-06T04:30:00Z')
+
+const PWT_HTML_NEW_YEAR = [
+  pwtCard('7310618', 'Mon, Feb 1, 6:30 pm',  '$34-$44', 'February Thaw'),
+  pwtCard('7310619', 'Mon, Dec 28, 6:30 pm', '$34-$44', 'Last Year Snowman'),
+  pwtCard('7310620', 'Mon, Jan 4, 6:30 pm',  '$39',     'Yesterday Icicle'),
+].join(SPACER)
+
+const PWT_HTML_NO_HREF_NEW_YEAR = `<div class="calendar">${[
+  pwtTextCard('7410618', 'Mon, Feb 1, 6:30 pm',  '$34-$44', 'February Thaw'),
+  pwtTextCard('7410619', 'Mon, Dec 28, 6:30 pm', '$34-$44', 'Last Year Snowman'),
+  pwtTextCard('7410620', 'Mon, Jan 4, 6:30 pm',  '$39',     'Yesterday Icicle'),
+].join('\n')}</div>`
+
 describe('Painting with a Twist: parsePwtDateTime (real parser)', () => {
   it('parses the "Day, Mon DD, H:MM am/pm" shape into date + time', () => {
     const { dateStr, timeStr } = parsePwtDateTime('Sun, Mar 22, 6:30 pm', LATE_EDT)
@@ -95,6 +133,36 @@ describe('Painting with a Twist: parsePwtDateTime (real parser)', () => {
 
   it('keeps TODAY in the current year at 11:30pm ET (EST)', () => {
     assert.equal(parsePwtDateTime('Thu, Jan 15, 6:30 pm', LATE_EST).dateStr, '2026-01-15')
+  })
+
+  // PWT listings carry no year. A just-finished class still on the calendar
+  // page used to roll a full year forward and get PUBLISHED (7 live rows dated
+  // 2027 on 2026-09-02). Within the 30-day grace window a past month/day now
+  // stays THIS year so parseEvents' past-filter drops it.
+  it('keeps a month/day within the last 30 days in THIS year (stale listing)', () => {
+    assert.equal(parsePwtDateTime('Tue, Jul 14, 6:30 pm', LATE_EDT).dateStr, '2026-07-14')  // yesterday
+    assert.equal(parsePwtDateTime('Mon, Jun 15, 6:30 pm', LATE_EDT).dateStr, '2026-06-15')  // exactly 30 days
+    assert.equal(parsePwtDateTime('Wed, Jan 14, 6:30 pm', LATE_EST).dateStr, '2026-01-14')  // yesterday, EST
+  })
+
+  it('rolls a month/day more than 30 days past to NEXT year', () => {
+    assert.equal(parsePwtDateTime('Mon, Jun 1, 6:30 pm',  LATE_EDT).dateStr, '2027-06-01')  // 44 days
+    assert.equal(parsePwtDateTime('Sun, Jun 14, 6:30 pm', LATE_EDT).dateStr, '2027-06-14')  // 31 days
+    assert.equal(parsePwtDateTime('Fri, Dec 12, 6:30 pm', LATE_EST).dateStr, '2026-12-12')  // future, same year
+  })
+
+  it('handles the year boundary on a Dec 20 clock', () => {
+    assert.equal(parsePwtDateTime('Sun, Jan 10, 6:30 pm', LATE_DEC).dateStr, '2027-01-10')  // rolls forward
+    assert.equal(parsePwtDateTime('Sat, Dec 19, 6:30 pm', LATE_DEC).dateStr, '2026-12-19')  // yesterday stays
+    assert.equal(parsePwtDateTime('Sun, Dec 20, 6:30 pm', LATE_DEC).dateStr, '2026-12-20')  // today stays
+  })
+
+  it('handles the year boundary on a Jan 5 clock (wraps BACKWARD inside the grace window)', () => {
+    assert.equal(parsePwtDateTime('Mon, Dec 28, 6:30 pm', EARLY_JAN).dateStr, '2026-12-28')  // 8 days ago → LAST year, NOT 2027-12-28
+    assert.equal(parsePwtDateTime('Mon, Jan 4, 6:30 pm',  EARLY_JAN).dateStr, '2027-01-04')  // yesterday stays
+    assert.equal(parsePwtDateTime('Tue, Jan 5, 6:30 pm',  EARLY_JAN).dateStr, '2027-01-05')  // today stays
+    assert.equal(parsePwtDateTime('Mon, Feb 1, 6:30 pm',  EARLY_JAN).dateStr, '2027-02-01')  // ahead, this year
+    assert.equal(parsePwtDateTime('Sat, Dec 5, 6:30 pm',  EARLY_JAN).dateStr, '2027-12-05')  // 31 days ago → past the grace window, next December
   })
 })
 
@@ -140,23 +208,46 @@ describe('Painting with a Twist: late-evening ET runs date today correctly', () 
     assert.ok(byTitle['Tomorrow Poppies'], 'tomorrow must survive')
     assert.equal(byTitle['Tomorrow Poppies'].dateStr, '2026-07-16')
 
-    // A genuinely past month/day still rolls forward — PWT listings have no
-    // year, so "Jul 14" seen on Jul 15 can only mean next year's class.
-    assert.equal(byTitle['Yesterday Sunset'].dateStr, '2027-07-14')
+    // DELIBERATE CHANGE: this used to assert '2027-07-14'. That encoded the
+    // bug — a class that ran yesterday and is still on the calendar page was
+    // stamped next year and published. Within the 30-day grace window it now
+    // stays this year and the past-filter drops it.
+    assert.equal(byTitle['Yesterday Sunset'], undefined, 'yesterday\'s class must be dropped')
+    assert.equal(events.length, 2)
   })
 
   it('stamps today\'s class with THIS year in winter too (EST)', () => {
     const events = parseEvents(PWT_HTML_WINTER, LATE_EST)
     const byTitle = Object.fromEntries(events.map((e) => [e.title, e.dateStr]))
     assert.equal(byTitle['Winter Cardinal'], '2026-01-15')          // NOT 2027-01-15
-    assert.equal(byTitle['Yesterday Snow'],  '2027-01-14')
+    // DELIBERATE CHANGE: was '2027-01-14' (the bug); yesterday is now dropped.
+    assert.equal(byTitle['Yesterday Snow'],  undefined)
+    assert.equal(events.length, 1)
+  })
+
+  it('at the year boundary publishes next year\'s Jan class and drops yesterday\'s Dec class', () => {
+    const events  = parseEvents(PWT_HTML_YEAR_END, LATE_DEC)
+    const byTitle = Object.fromEntries(events.map((e) => [e.title, e.dateStr]))
+    assert.equal(byTitle['New Year Bloom'],    '2027-01-10')
+    assert.equal(byTitle['Tonight Snowman'],   '2026-12-20')
+    assert.equal(byTitle['Yesterday Snowman'], undefined)
+    assert.equal(events.length, 2)
+  })
+
+  it('just after New Year drops last year\'s stale Dec class instead of publishing it 11 months out', () => {
+    const events  = parseEvents(PWT_HTML_NEW_YEAR, EARLY_JAN)
+    const byTitle = Object.fromEntries(events.map((e) => [e.title, e.dateStr]))
+    assert.equal(byTitle['February Thaw'],     '2027-02-01')
+    assert.equal(byTitle['Last Year Snowman'], undefined)   // NOT 2027-12-28
+    assert.equal(byTitle['Yesterday Icicle'],  undefined)
+    assert.equal(events.length, 1)
   })
 
   it('compares every row against ONE "today" (no midnight straddle)', () => {
     // Every row goes through the same hoisted todayYmd, so a run that crosses
     // midnight mid-parse cannot judge two rows by different days.
     const events = parseEvents(PWT_HTML, LATE_EDT)
-    assert.equal(events.length, 3)
+    assert.equal(events.length, 2)   // yesterday's class is dropped (see above)
     assert.ok(events.every((e) => e.dateStr >= '2026-07-15'))
   })
 })
@@ -177,7 +268,7 @@ describe('Painting with a Twist: htmlToText fallback path', () => {
     const events  = parseEvents(PWT_HTML_NO_HREF, LATE_EDT)
     const byTitle = Object.fromEntries(events.map((e) => [e.title, e]))
 
-    assert.equal(events.length, 3)
+    assert.equal(events.length, 2)
     assert.equal(byTitle['Bless our Nest'].dateStr,   '2026-07-15')  // today, NOT 2027-07-15
     assert.equal(byTitle['Bless our Nest'].timeStr,   '18:30:00')
     assert.equal(byTitle['Bless our Nest'].price_min, 34)
@@ -187,15 +278,44 @@ describe('Painting with a Twist: htmlToText fallback path', () => {
     assert.equal(byTitle['Tomorrow Poppies'].dateStr, '2026-07-16')
     assert.equal(byTitle['Tomorrow Poppies'].price_min, 39)
 
-    // No year in the source, so a past month/day can only mean next year.
-    assert.equal(byTitle['Yesterday Sunset'].dateStr, '2027-07-14')
+    // DELIBERATE CHANGE: was '2027-07-14' (the bug). Yesterday's class stays
+    // this year inside the grace window and the fallback's past-filter drops it.
+    assert.equal(byTitle['Yesterday Sunset'], undefined)
   })
 
   it('parses the same way in winter (EST)', () => {
     const events  = parseEvents(PWT_HTML_NO_HREF_WINTER, LATE_EST)
     const byTitle = Object.fromEntries(events.map((e) => [e.title, e.dateStr]))
-    assert.equal(events.length, 2)
+    assert.equal(events.length, 1)
     assert.equal(byTitle['Winter Cardinal'], '2026-01-15')           // NOT 2027-01-15
-    assert.equal(byTitle['Yesterday Snow'],  '2027-01-14')
+    // DELIBERATE CHANGE: was '2027-01-14' (the bug); yesterday is now dropped.
+    assert.equal(byTitle['Yesterday Snow'],  undefined)
+  })
+
+  it('agrees with the link-context path at the year boundary (Dec 20 clock)', () => {
+    const fallback = parseEvents(PWT_HTML_NO_HREF_YEAR_END, LATE_DEC)
+    const primary  = parseEvents(PWT_HTML_YEAR_END, LATE_DEC)
+    const pick = (evs) => evs.map((e) => [e.title, e.dateStr, e.timeStr]).sort()
+    assert.deepEqual(pick(fallback), pick(primary))
+    assert.deepEqual(pick(fallback), [
+      ['New Year Bloom',  '2027-01-10', '18:30:00'],
+      ['Tonight Snowman', '2026-12-20', '18:30:00'],
+    ])
+  })
+
+  it('agrees with the link-context path just after New Year (Jan 5 clock)', () => {
+    const fallback = parseEvents(PWT_HTML_NO_HREF_NEW_YEAR, EARLY_JAN)
+    const primary  = parseEvents(PWT_HTML_NEW_YEAR, EARLY_JAN)
+    const pick = (evs) => evs.map((e) => [e.title, e.dateStr, e.timeStr]).sort()
+    assert.deepEqual(pick(fallback), pick(primary))
+    assert.deepEqual(pick(fallback), [
+      ['February Thaw', '2027-02-01', '18:30:00'],
+    ])
+  })
+
+  it('agrees with the link-context path in summer and winter', () => {
+    const pick = (evs) => evs.map((e) => [e.title, e.dateStr, e.timeStr]).sort()
+    assert.deepEqual(pick(parseEvents(PWT_HTML_NO_HREF, LATE_EDT)),        pick(parseEvents(PWT_HTML, LATE_EDT)))
+    assert.deepEqual(pick(parseEvents(PWT_HTML_NO_HREF_WINTER, LATE_EST)), pick(parseEvents(PWT_HTML_WINTER, LATE_EST)))
   })
 })

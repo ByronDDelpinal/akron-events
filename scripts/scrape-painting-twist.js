@@ -41,6 +41,15 @@ const MONTH_MAP = {
   june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
 }
 
+// PWT listings carry no year, so a past month/day is ambiguous: it is either
+// next year's class or a just-finished class the calendar page has not dropped
+// yet. Rolling EVERY past date forward published finished classes a year out
+// (7 live rows dated 2027, 2026-09-02). A date within this many days of today
+// is treated as this year's (stale) listing so parseEvents' past-filter drops
+// it; only dates further back are presumed to be next year's.
+const PAST_GRACE_DAYS = 30
+const MS_PER_DAY      = 24 * 60 * 60 * 1000
+
 /**
  * Parse a PWT date-time string like "Sun, Mar 22, 6:30 pm".
  * Returns { dateStr: "YYYY-MM-DD", timeStr: "HH:MM:00" } or { dateStr: null, timeStr: null }.
@@ -59,12 +68,27 @@ function parsePwtDateTime(raw, now = new Date()) {
     const m = MONTH_MAP[mon.toLowerCase()]
     if (!m) return { dateStr: null, timeStr: null }
 
-    // Infer year: if this month-day is in the past this year, it's next year.
+    // Infer year from the month-day. Three outcomes:
+    //   1. within PAST_GRACE_DAYS behind today (or today / ahead) → this year;
+    //      parseEvents' past-filter drops the stale ones.
+    //   2. within the grace window behind today but ACROSS New Year (a Jan 5
+    //      clock reading a stale "Dec 28") → PREVIOUS year, so it sorts before
+    //      today lexically and the same past-filter drops it instead of
+    //      publishing it 11 months out.
+    //   3. further behind than the grace window → next year.
     // "Today" is Eastern-anchored (a UTC today is already tomorrow after 8pm
-    // ET), and both sides of the compare are NUMBERS.
+    // ET), and both sides of the compare are NUMBERS (Date.UTC ms, no local
+    // Date).
     const [ty, tm, td] = easternTodayIso(now).split('-').map(Number)
     let   year = ty
-    if (Date.UTC(year, m - 1, parseInt(day)) < Date.UTC(ty, tm - 1, td)) year++
+    const todayMs    = Date.UTC(ty, tm - 1, td)
+    const daysBehind = (todayMs - Date.UTC(ty,     m - 1, parseInt(day))) / MS_PER_DAY
+    const prevBehind = (todayMs - Date.UTC(ty - 1, m - 1, parseInt(day))) / MS_PER_DAY
+    if (daysBehind > PAST_GRACE_DAYS) {
+      year++
+    } else if (daysBehind < 0 && prevBehind > 0 && prevBehind <= PAST_GRACE_DAYS) {
+      year--
+    }
 
     let hr = parseInt(hour, 10)
     if (mer.toLowerCase() === 'pm' && hr !== 12) hr += 12
@@ -180,11 +204,11 @@ function parseEvents(html, now = new Date()) {
   // "YYYY-MM-DD"; every dateStr below is the same shape, so these are lexical
   // STRING comparisons — no Date coercion.
   //
-  // NOT LOAD-BEARING: the two `< todayYmd` past-filters below can never fire.
-  // PWT listings carry no year, so parsePwtDateTime infers one by rolling any
-  // past month/day forward — its output is >= todayYmd by construction. The
-  // filters are kept as defence in case a future format grows an explicit year;
-  // do not treat them as the thing that keeps stale classes out.
+  // LOAD-BEARING: the two `< todayYmd` past-filters below are what keep
+  // just-finished classes off the site. PWT listings carry no year;
+  // parsePwtDateTime stamps a month/day within PAST_GRACE_DAYS of today with
+  // THIS year (so a stale listing lands in the recent past and is dropped here)
+  // and only rolls older month/days forward to next year. Do not remove them.
   const todayYmd = easternTodayIso(now)
 
   // Find all event links — /event/{id}/
