@@ -2,7 +2,7 @@
  * forms.css
  *
  * Shared form-control styles for `.form-input`, `.form-select`, and
- * `.form-textarea`. Imported once from src/main.jsx so every page that
+ * `.form-textarea`. Imported once from src/App.tsx so every page that
  * uses these classes (public submit pages and admin edit pages) gets
  * identical styling.
  *
@@ -12,8 +12,14 @@
  * cascade. Centralizing the rules here makes the styling deterministic
  * and gives form input a single place to evolve.
  *
- * Scoped to the bare classes; pages still own their own layout
- * (`.form-row`, `.form-hint`, etc.) in their page-level CSS.
+ * Also home to the shared form-page chrome (`.page-shell`, `.page-title`,
+ * `.form-group`, `.btn-submit-form`, `.success-*`). These used to live in
+ * SubmitPage.css, but Subscribe, Preferences, and Unsubscribe are lazy
+ * routes that never import that file — so a cold load of /subscribe
+ * rendered an unstyled submit button and no page padding, while the same
+ * page looked fine if you had visited /submit first. Global import makes
+ * it deterministic. Pages still own page-specific layout (`.form-row`,
+ * `.notice-box`, etc.) in their own CSS.
  */
 
 .form-input,
@@ -42,4 +48,88 @@
 .form-textarea {
   min-height: 100px;
   resize: vertical;
+}
+
+/* ── Shared form-page chrome ─────────────────────────────────────── */
+.page-shell { max-width: var(--width-narrow); margin: var(--space-4xl) auto; padding: 0 var(--space-xl) var(--space-5xl); }
+.page-title {
+  /* Shared by every form page (Submit, Subscribe, Preferences, etc.).
+     This class is applied to <h1> on the form state and <h2> on the
+     success state — letting the global element rules drive font-size
+     means the heading size automatically matches whichever tag the
+     class lands on. We only override margin here.
+     Centered to match the hub-page headers (home, organizers, about) so the
+     heading sits in the same spot when navigating between pages. */
+  margin-bottom: var(--space-sm);
+  text-align: center;
+}
+.page-sub { font-size: var(--text-base); color: var(--text-muted); margin-bottom: var(--space-2xl); line-height: 1.6; text-align: center; }
+.form-section-label {
+  font-family: var(--font-display);
+  font-size: var(--text-tag); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--text-muted);
+  border-bottom: var(--border-width-thin) solid var(--border);
+  padding-bottom: var(--space-sm);
+  margin: var(--space-2xl) 0 var(--space-lg);
+}
+.form-group { margin-bottom: var(--space-lg); }
+.form-label {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--text-xxs); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text-muted); margin-bottom: var(--space-sm);
+}
+.req { color: var(--amber); }
+.form-hint { font-size: var(--text-xxs); color: var(--text-muted); margin-top: var(--space-xs); }
+.form-error {
+  color: var(--coral); font-size: var(--text-sm);
+  margin-bottom: var(--space-md); padding: var(--space-md) var(--space-lg);
+  background: var(--coral-pale); border-radius: var(--radius-sm);
+  border: var(--border-width-thin) solid var(--coral-tint-25);
+}
+.btn-submit-form {
+  width: 100%;
+  background: var(--amber); color: var(--chip-active-txt);
+  border: none; border-radius: var(--radius-lg); padding: var(--space-lg);
+  font-family: var(--font-display);
+  font-size: var(--text-lg); font-weight: 700;
+  cursor: pointer; margin-top: var(--space-sm);
+  transition: background var(--transition-medium); letter-spacing: 0.01em;
+  display: block;
+}
+.btn-submit-form:hover:not(:disabled) { background: var(--amber-hover); }
+.btn-submit-form:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Success state */
+.success-box { text-align: center; padding: var(--space-5xl) 0; }
+.success-icon {
+  width: 64px; height: 64px; border-radius: var(--radius-round);
+  background: var(--amber-pale);
+  color: var(--amber);
+  font-size: var(--text-h2);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto var(--space-xl);
+  border: var(--border-width-thick) solid var(--amber-border);
+}
+.success-actions {
+  display: flex;
+  gap: var(--space-md);
+  justify-content: center;
+  max-width: 400px;
+  margin: 0 auto;
+}
+.success-actions .btn-submit-form {
+  flex: 1;
+  text-align: center;
+}
+.btn-submit-outline {
+  background: transparent;
+  color: var(--amber);
+  border: var(--border-width-thick) solid var(--amber);
+  text-decoration: none;
+}
+.btn-submit-outline:hover {
+  background: var(--amber-tint-10);
 }
