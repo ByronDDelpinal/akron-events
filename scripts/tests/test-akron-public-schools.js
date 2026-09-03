@@ -10,6 +10,7 @@
 
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { resolveFeedUrls } from '../scrape-akron-public-schools.js'
 
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY  || 'dummy-key'
@@ -54,6 +55,46 @@ function mapTags(ev) {
   if (/\b(concert|recital|band|choir|orchestra)\b/.test(text)) tags.push('music')
   return [...new Set(tags)]
 }
+
+// ── resolveFeedUrls ────────────────────────────────────────────────────────
+
+describe('Akron Public Schools — resolveFeedUrls', () => {
+  it('returns a single-element array for a single env URL', () => {
+    const urls = resolveFeedUrls({ AKRON_PUBLIC_SCHOOLS_ICS_URL: 'https://example.com/a.ics' })
+    assert.deepEqual(urls, ['https://example.com/a.ics'])
+  })
+
+  it('splits comma-separated env URLs and trims whitespace', () => {
+    const urls = resolveFeedUrls({
+      AKRON_PUBLIC_SCHOOLS_ICS_URL: ' https://example.com/a.ics , https://example.com/b.ics ',
+    })
+    assert.deepEqual(urls, ['https://example.com/a.ics', 'https://example.com/b.ics'])
+  })
+
+  it('falls back to non-empty DEFAULT_FEED_URLS when env is unset', () => {
+    const urls = resolveFeedUrls({})
+    assert.ok(urls.length > 0)
+    for (const url of urls) {
+      assert.ok(url.startsWith('https://www.akronschools.com/'), `unexpected default URL: ${url}`)
+    }
+  })
+
+  it('treats a whitespace-only env value as unset', () => {
+    const urls = resolveFeedUrls({ AKRON_PUBLIC_SCHOOLS_ICS_URL: '   ' })
+    assert.ok(urls.length > 0)
+    for (const url of urls) {
+      assert.ok(url.startsWith('https://www.akronschools.com/'), `unexpected default URL: ${url}`)
+    }
+  })
+
+  it('treats an empty string env value as unset', () => {
+    const urls = resolveFeedUrls({ AKRON_PUBLIC_SCHOOLS_ICS_URL: '' })
+    assert.ok(urls.length > 0)
+    for (const url of urls) {
+      assert.ok(url.startsWith('https://www.akronschools.com/'), `unexpected default URL: ${url}`)
+    }
+  })
+})
 
 // ── isPublicFacing — allow list ───────────────────────────────────────────
 

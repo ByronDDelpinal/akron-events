@@ -15,7 +15,12 @@
  *   node scripts/scrape-akron-public-schools.js
  *
  * Environment overrides:
- *   AKRON_PUBLIC_SCHOOLS_ICS_URL — direct ICS feed URL
+ *   AKRON_PUBLIC_SCHOOLS_ICS_URL — direct ICS feed URL(s), comma-separated.
+ *     Optional — falls back to DEFAULT_FEED_URLS (the district's public
+ *     Finalsite iCal feeds) when unset, same as its sibling scrapers. If the
+ *     resolved feeds together parse to 0 VEVENTs, the scraper makes one
+ *     last-resort attempt to discover a feed URL from CALENDAR_PAGE and,
+ *     if that yields a URL not already tried, fetches and parses it too.
  *
  * Required .env vars:
  *   VITE_SUPABASE_URL         — Supabase project URL
@@ -39,6 +44,27 @@ import { fetchIcsFeed, parseIcs, normaliseIcsEvent, discoverIcsFeed } from './li
 
 const SOURCE_KEY = 'akron_public_schools'
 const CALENDAR_PAGE = 'https://www.akronschools.com/district/district-information/calendar'
+
+// The district (Finalsite) publishes one iCal feed per calendar; these are the
+// public District Calendar + Fine Arts Calendar feeds, verified serving
+// text/calendar. calendar_397 (Fine Arts) is currently a valid but EMPTY
+// calendar (0 VEVENTs) — kept here for when the district starts populating it.
+// AKRON_PUBLIC_SCHOOLS_ICS_URL overrides this list when set.
+const DEFAULT_FEED_URLS = [
+  'https://www.akronschools.com/calendar/calendar_349.ics',
+  'https://www.akronschools.com/calendar/calendar_397.ics',
+]
+
+// Pure — exported for tests. Returns the configured feed URL(s): env var
+// (comma-separated, trimmed, blanks dropped) when non-empty, else the
+// hardcoded default feeds.
+export function resolveFeedUrls(env = process.env) {
+  const fromEnv = (env.AKRON_PUBLIC_SCHOOLS_ICS_URL || '')
+    .split(',')
+    .map((u) => u.trim())
+    .filter(Boolean)
+  return fromEnv.length > 0 ? fromEnv : DEFAULT_FEED_URLS
+}
 
 // ── Public-facing event filter ────────────────────────────────────────────
 //
@@ -85,25 +111,7 @@ async function main() {
   const start = Date.now()
 
   try {
-    const feedEnv = process.env.AKRON_PUBLIC_SCHOOLS_ICS_URL
-    let feedUrls = []
-    if (feedEnv) {
-      // APS (Finalsite) publishes one iCal feed per calendar, so the env var
-      // may list several, comma-separated (e.g. District Calendar + Fine Arts).
-      feedUrls = feedEnv.split(',').map((u) => u.trim()).filter(Boolean)
-    } else {
-      console.log('  🔎  Discovering ICS feed from district calendar page…')
-      const discovered = await discoverIcsFeed(CALENDAR_PAGE)
-      if (!discovered) {
-        throw new Error(
-          'No ICS feed discovered on APS calendar page. ' +
-          'Visit the district calendar in a browser, find the "Subscribe" or RSS/iCal link, ' +
-          'and set AKRON_PUBLIC_SCHOOLS_ICS_URL in .env.'
-        )
-      }
-      feedUrls = [discovered]
-      console.log(`  ✓ Discovered feed: ${discovered}`)
-    }
+    const feedUrls = resolveFeedUrls()
 
     // Fetch and merge every configured feed before filtering.
     const allEvents = []
@@ -112,6 +120,27 @@ async function main() {
       const events  = parseIcs(icsText)
       console.log(`  Parsed ${events.length} VEVENTs from ${url}`)
       allEvents.push(...events)
+    }
+
+    // Last resort: if the resolved feeds together produced no VEVENTs at all,
+    // try discovering a feed URL from the calendar page and fetch it too.
+    if (allEvents.length === 0) {
+      console.log('  🔎  0 VEVENTs from resolved feeds — discovering ICS feed from district calendar page…')
+      const discovered = await discoverIcsFeed(CALENDAR_PAGE)
+      if (discovered && !feedUrls.includes(discovered)) {
+        console.log(`  ✓ Discovered feed: ${discovered}`)
+        const icsText = await fetchIcsFeed(discovered)
+        const events  = parseIcs(icsText)
+        console.log(`  Parsed ${events.length} VEVENTs from ${discovered}`)
+        allEvents.push(...events)
+      }
+      if (allEvents.length === 0) {
+        throw new Error(
+          'No VEVENTs from resolved feeds and discovery found nothing new on the APS calendar page. ' +
+          'Visit the district calendar in a browser, find the "Subscribe" or RSS/iCal link, ' +
+          'and set AKRON_PUBLIC_SCHOOLS_ICS_URL in .env.'
+        )
+      }
     }
 
     const publicEvents = allEvents.filter(isPublicFacing)

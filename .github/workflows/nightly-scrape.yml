@@ -296,10 +296,7 @@ jobs:
           VERCEL_TEAM_ID:    ${{ secrets.VERCEL_TEAM_ID }}
 
           # Optional direct ICS feed URLs. Every scraper here falls back to
-          # discovery or a hardcoded default when its var is unset EXCEPT
-          # AKRON_PUBLIC_SCHOOLS_ICS_URL — that one has no hardcoded fallback
-          # (scripts/scrape-akron-public-schools.js:88-106 throws when
-          # discovery fails), so it genuinely needs its secret set.
+          # discovery or a hardcoded default when its var is unset.
           AKRON_POWER_SQUADRON_ICS_URL: ${{ secrets.AKRON_POWER_SQUADRON_ICS_URL }}
           AKRON_PUBLIC_SCHOOLS_ICS_URL: ${{ secrets.AKRON_PUBLIC_SCHOOLS_ICS_URL }}
           AKRON_SYMPHONY_ICS_URL:       ${{ secrets.AKRON_SYMPHONY_ICS_URL }}
