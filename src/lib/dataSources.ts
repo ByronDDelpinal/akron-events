@@ -999,6 +999,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'greater_akron_chamber',
+    method:      'JSON API',
+    methodDetail:'GrowthZone (WebLink) platform — the member portal SPA reads a shared, un-authenticated JSON API at api-internal.weblinkconnect.com, tenant-scoped by an x-tenant header (list + per-event Details endpoints)',
+    venue:       'Member businesses & the GAC (per-event venues)',
+    notes:       "The Greater Akron Chamber's own member event calendar (GrowthZone platform) — networking hours, workshops, ribbon-cuttings, and the chamber's own programming, each geo-checked against the Summit County boundary from the event's real coordinates. Members-only and virtual events are skipped; two of the chamber's own event spaces (the Business Commons of Cuyahoga Falls's Ratliff space, and the chamber's own 7 17 space) are reachable under several display names, folded onto one canonical venue each. Fee schedules mix real admission tiers with sponsorship/table line items, which are excluded from the displayed price so a $3,500 sponsorship tier never reads as the ticket price.",
+    status:      'active',
+  },
+  {
     key:         'leos_italian_social',
     method:      'JSON feed',
     methodDetail:'Squarespace Events collection (?format=json&view=upcoming) — one multi-location "Music" collection, gated per event by its real map pin (mapLat/mapLng), NOT the site-wide markerLat constant',
@@ -1642,6 +1650,11 @@ export const SOURCE_GROUPS: SourceGroup[] = [
     title: 'RunSignup (race registration)',
     description: "RunSignup is the registration platform behind a large share of local road races. Its public REST API (no key) exposes a geo race search (/rest/races by zipcode + radius) and per-race detail (/rest/race/{id}) with description, address, logo, event start times, and tiered fees. We discover races within 25 miles of downtown Akron, gate them to Summit County by city, and ingest each as a fitness event. The bespoke per-org race scrapers (Akron Promise, Akron Marathon) re-surface here too, so RunSignup ranks below them in the dedupe priority and the curated copy wins a merge. Shared logic lives in scripts/lib/runsignup.js.",
   },
+  {
+    id:    'growthzone',
+    title: 'GrowthZone (chamber of commerce platform)',
+    description: "GrowthZone (growthzone.com, formerly ChamberMaster/WebLink) is a chamber-of-commerce management platform. Member-facing event calendars are server-fed by a shared, un-authenticated JSON API at api-internal.weblinkconnect.com, tenant-scoped by an x-tenant request header — the list endpoint returns the full event set, and a per-event Details endpoint carries the rich description, coordinates, and fee schedule. Shared fetch/shape logic lives in scripts/lib/growthzone.js.",
+  },
 ]
 
 // Maps each DATA_SOURCES key to its SOURCE_GROUPS id. Kept separate from the
@@ -1772,6 +1785,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   clutch_lanes:            'html',
   slovene_center:          'html',
   explore_hudson:          'api',
+  greater_akron_chamber:   'growthzone',
   leos_italian_social:     'squarespace',
   fair_housing_akron:      'squarespace',
   peninsula_library:       'html',

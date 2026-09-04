@@ -1,0 +1,385 @@
+[
+  {
+    "EventId": 3543,
+    "EventName": "Non-Profit Leader Dialogue",
+    "Descr": "<p>We invite nonprofit leaders to join the GAC and BVU for a new quarterly roundtable experience. &nbsp;Throughout this series, you will experience the power of coming together to gain expert insights, build connections, and explore shared pain points, experiences, and solutions.&nbsp; Each session will provide expert content, alongside opportunities for structured discussions and open networking.&nbsp;</p>\n\n<p><img alt=\"\" src=\"https://members.greaterakronchamber.org/External/WCPages/WCWebContent/webcontentpage.aspx?ContentID=9096\" style=\"margin: 25px; width: 200px; height: 200px; float: right;\" />Join us for <strong><em>From Firefighting to Focus: Practical Tools Every Nonprofit Leader Can Use to Lead More Strategically,</em></strong>&nbsp;presented by<strong>&nbsp;<a href=\"https://members.greaterakronchamber.org/atlas/web-content/9095\" target=\"_blank\">Lisa Lazarus</a>.</strong></p>\n\n<p>This workshop will focus on community-building to strengthen leaders&#39; capacity, leveraging time strategically, and investing in staff development/bench-building. We&#39;ll begin with introductions that help people see one another as resources and partners and then discuss tools leaders can use to ensure they are focusing on the things only they can do in their role.</p>\n\n<p>&nbsp;</p>\n\n<p>This event is specifically for Nonprofit CEOs and senior leadership.</p>\n\n<p>&nbsp;</p>\n\n<p><strong>Schedule:</strong></p>\n\n<p>8:00 - Networking, Registration, Light Breakfast</p>\n\n<p>8:30 - Program Begins</p>\n\n<p>&nbsp;</p>\n\n<p><img alt=\"\" src=\"https://members.greaterakronchamber.org/External/WCPages/WCWebContent/webcontentpage.aspx?ContentID=6485\" style=\"margin: 50px; width: 250px; height: 142px; float: left;\" /></p>\n\n<p>&nbsp;</p>\n\n<p>&nbsp;</p>\n\n<p>&nbsp;</p>\n\n<p>&nbsp;</p>\n\n<p>&nbsp;</p>\n\n<p>&nbsp;</p>\n\n<p>&nbsp;</p>\n\n<p>&nbsp;</p>\n\n<p>&nbsp;</p>\n\n<p><span style=\"background-color:transparent; color:#808080; font-family:&quot;helvetica&quot;,sans-serif; font-size:14px\">By registering and participating in this event, you consent to the recording of your likeness, image, and/or voice and authorize the Greater Akron Chamber to use photographs, videos, and audio recordings containing your likeness, image, and/or voice in any medium for any purpose.</span></p>\n",
+    "StartDateTimeUtc": "2026-09-02T12:00:00Z",
+    "EndDateTimeUtc": "2026-09-02T14:00:00Z",
+    "IsAllDay": false,
+    "Venue": "7 17 Event Space at the GAC",
+    "Address1": "388 S Main St., Ste. 205",
+    "Address2": "",
+    "City": "Akron",
+    "State": "OH",
+    "Zip": "44311",
+    "Latitude": "41.0745177",
+    "Longitude": "-81.5239113",
+    "Items": [
+      {
+        "EventItemId": 6379,
+        "Descr": "Registration - Complimentary",
+        "IsPublic": false,
+        "MemberPrice": 0.0,
+        "NonMemberPrice": 0.0
+      },
+      {
+        "EventItemId": 6378,
+        "Descr": "Registration ",
+        "IsPublic": true,
+        "MemberPrice": 15.0,
+        "NonMemberPrice": 15.0
+      }
+    ],
+    "StartDate": "2026-09-02T16:00:00Z"
+  },
+  {
+    "EventId": 3527,
+    "EventName": "Small Business Lunch and Learn - September",
+    "Descr": "<p><span style=\"font-size:14px;\"><img alt=\"\" src=\"https://members.greaterakronchamber.org/External/WCPages/WCWebContent/webcontentpage.aspx?ContentID=9146\" style=\"float: right; width: 200px; height: 265px;\" />We invite you to join us for the September Lunch and Learn, part of the Small Business Program event series featuring events and resources aimed at supporting the growth and success of small businesses in Greater Akron.&nbsp; Held monthly, each event features a speaker on a topic of relevance to small businesses.&nbsp; During this event, attendees will have&nbsp;the opportunity to connect with each other through networking, hear a presentation on a relevant topic, and engage in conversation with the featured expert through Q&amp;A.&nbsp;&nbsp;</span></p>\n\n<p><span style=\"font-size:14px;\">Lunch will be provided.</span></p>\n\n<p><span style=\"font-size:14px;\">Space is limited.</span></p>\n\n<p><span style=\"font-size:14px;\">The September Lunch and Learn will feature <strong><a href=\"https://members.greaterakronchamber.org/atlas/web-content/9145\">Josh Muller</a></strong>, Founder of Maple Creek Coaching, speaking on <strong>The Pinch Point: The 9 places business owners get stuck in the business they built, and the 9 moves that get the business flowing again.&nbsp;</strong></span></p>\n\n<h2 style=\"text-align: center;\">&nbsp;</h2>\n\n<h2 style=\"text-align: center;\"><strong>Presenting Sponsors:</strong></h2>\n\n<p style=\"text-align: center;\"><img alt=\"\" src=\"https://members.greaterakronchamber.org/External/WCPages/WCWebContent/webcontentpage.aspx?ContentID=9079\" style=\"width: 540px; height: 810px;\" /></p>\n\n<p style=\"text-align: center;\">&nbsp;</p>\n\n<h2 style=\"text-align: center;\"><strong>Supporting Sponsors:</strong></h2>\n\n<p style=\"text-align: center;\"><img alt=\"\" src=\"https://members.greaterakronchamber.org/External/WCPages/WCWebContent/webcontentpage.aspx?ContentID=8806\" style=\"width: 500px; height: 252px;\" /></p>\n\n<p>&nbsp;</p>\n\n<p>&nbsp;</p>\n\n<p><span style=\"background-color:transparent; color:#808080; font-family:&quot;helvetica&quot;,sans-serif; font-size:14px\">By registering and participating in this event, you consent to the recording of your likeness, image, and/or voice and authorize the Greater Akron Chamber to use photographs, videos, and audio recordings containing your likeness, image, and/or voice in any medium for any purpose.</span></p>\n",
+    "StartDateTimeUtc": "2026-09-23T15:30:00Z",
+    "EndDateTimeUtc": "2026-09-23T17:00:00Z",
+    "IsAllDay": false,
+    "Venue": "The Ratliff and Company Event Space at The Business Commons of Cuyahoga Falls",
+    "Address1": "111 Stow Ave, Suite 200",
+    "Address2": "",
+    "City": "Cuyahoga Falls",
+    "State": "OH",
+    "Zip": "44221",
+    "Latitude": "41.1366198",
+    "Longitude": "-81.4839468",
+    "Items": [
+      {
+        "EventItemId": 6308,
+        "Descr": "Registration - Complimentary ",
+        "IsPublic": false,
+        "MemberPrice": 0.0,
+        "NonMemberPrice": 0.0
+      },
+      {
+        "EventItemId": 6306,
+        "Descr": "Register",
+        "IsPublic": true,
+        "MemberPrice": 18.0,
+        "NonMemberPrice": 18.0
+      },
+      {
+        "EventItemId": 6307,
+        "Descr": "Register - Sponsor",
+        "IsPublic": false,
+        "MemberPrice": 0.0,
+        "NonMemberPrice": 0.0
+      }
+    ],
+    "StartDate": "2026-09-23T16:00:00Z"
+  },
+  {
+    "EventId": 3583,
+    "EventName": "After 5",
+    "Descr": "<p>We invite you to join us for an After 5 networking event.&nbsp; Whether you&#39;re looking to meet new contacts, strengthen existing relationships, or simply enjoy connecting with fellow professionals, this is a fantastic opportunity to build authentic connections with other members of the community. No agendas, no presentations&mdash;just real conversations and real opportunities.</p>\n\n<p>Space is limited, so be sure to reserve your spot early.</p>\n\n<p>Appetizers will be provided, and your registration includes one drink ticket. A cash bar will also be available throughout the evening.</p>\n\n<p>&nbsp;</p>\n\n<h2 style=\"text-align: center;\"><strong>Presenting Sponsors:</strong></h2>\n\n<p style=\"text-align: center;\"><strong><img alt=\"\" src=\"https://members.greaterakronchamber.org/External/WCPages/WCWebContent/webcontentpage.aspx?ContentID=9021\" style=\"width: 550px; height: 508px;\" /></strong></p>\n\n<p style=\"text-align: center;\">&nbsp;</p>\n\n<p style=\"text-align: center;\">&nbsp;</p>\n\n<p><span style=\"background-color:transparent; color:#808080; font-family:&quot;helvetica&quot;,sans-serif; font-size:14px\">By registering and participating in this event, you consent to the recording of your likeness, image, and/or voice and authorize the Greater Akron Chamber to use photographs, videos, and audio recordings containing your likeness, image, and/or voice in any medium for any purpose.</span></p>\n",
+    "StartDateTimeUtc": "2026-10-01T20:30:00Z",
+    "EndDateTimeUtc": "2026-10-01T22:00:00Z",
+    "IsAllDay": false,
+    "Venue": "Crave",
+    "Address1": "156 South Main St.",
+    "Address2": "",
+    "City": "Akron",
+    "State": "OH",
+    "Zip": "44308",
+    "Latitude": "41.081157",
+    "Longitude": "-81.519352",
+    "Items": [
+      {
+        "EventItemId": 6504,
+        "Descr": "Registration - Complimentary",
+        "IsPublic": false,
+        "MemberPrice": 0.0,
+        "NonMemberPrice": 0.0
+      },
+      {
+        "EventItemId": 6507,
+        "Descr": "Registration - Sponsor",
+        "IsPublic": false,
+        "MemberPrice": 0.0,
+        "NonMemberPrice": 0.0
+      },
+      {
+        "EventItemId": 6649,
+        "Descr": "Registration - Member",
+        "IsPublic": true,
+        "MemberPrice": 25.0,
+        "NonMemberPrice": 25.0
+      },
+      {
+        "EventItemId": 6650,
+        "Descr": "Registration - Non-Member",
+        "IsPublic": true,
+        "MemberPrice": 35.0,
+        "NonMemberPrice": 35.0
+      },
+      {
+        "EventItemId": 6505,
+        "Descr": "Registration - Member",
+        "IsPublic": false,
+        "MemberPrice": 20.0,
+        "NonMemberPrice": 20.0
+      },
+      {
+        "EventItemId": 6506,
+        "Descr": "Registration - Non-Member",
+        "IsPublic": false,
+        "MemberPrice": 30.0,
+        "NonMemberPrice": 30.0
+      }
+    ],
+    "StartDate": "2026-10-01T16:00:00Z"
+  },
+  {
+    "EventId": 3607,
+    "EventName": "Generations in the Workplace",
+    "Descr": "<p>Join us as we partner with Ratliff and Company to bring you&nbsp;<strong>Generations in the Workplace,&nbsp;</strong>facilitated by Aneta Ardelian Kuzma and Tuck Sweeney.&nbsp;</p>\n\n<p>The workforce and your customers have evolved, and the way you lead must change to meet the challenge. In this dynamic session, we will explore how generational needs and unconscious bias are quietly shaping every hiring decision, team meeting, and customer interaction in your business. You will learn how to spot the patterns in your own leadership that may be costing you talent, trust, and growth &mdash; and walk away with the language and tools to build a more inclusive workplace. Lead and partner more confidently across generations and turn the unique mix of people in your business into your greatest competitive advantage.</p>\n\n<p>&nbsp;</p>\n\n<p>&nbsp;</p>\n\n<p><span style=\"background-color:transparent; color:#808080; font-family:&quot;helvetica&quot;,sans-serif; font-size:14px\">By registering and participating in this event, you consent to the recording of your likeness, image, and/or voice and authorize the Greater Akron Chamber to use photographs, videos, and audio recordings containing your likeness, image, and/or voice in any medium for any purpose.</span></p>\n",
+    "StartDateTimeUtc": "2026-10-07T17:00:00Z",
+    "EndDateTimeUtc": "2026-10-07T20:00:00Z",
+    "IsAllDay": false,
+    "Venue": "The Business Commons of Cuyahoga Falls - Ratliff Event Space",
+    "Address1": "111 Stow Ave, Suite 200",
+    "Address2": "",
+    "City": "Cuyahoga Falls",
+    "State": "OH",
+    "Zip": "44221",
+    "Latitude": "41.1366198",
+    "Longitude": "-81.4839468",
+    "Items": [
+      {
+        "EventItemId": 6598,
+        "Descr": "Registration",
+        "IsPublic": true,
+        "MemberPrice": 50.0,
+        "NonMemberPrice": 50.0
+      },
+      {
+        "EventItemId": 6599,
+        "Descr": "Registration",
+        "IsPublic": false,
+        "MemberPrice": 0.0,
+        "NonMemberPrice": 0.0
+      }
+    ],
+    "StartDate": "2026-10-07T16:00:00Z"
+  },
+  {
+    "EventId": 3629,
+    "EventName": "ACAA: Ohio TechCred Program Updates Webinar",
+    "Descr": "<p><strong><img alt=\"\" src=\"https://members.greaterakronchamber.org/External/WCPages/WCWebContent/webcontentpage.aspx?ContentID=7080\" style=\"border-width: 0px; border-style: solid; margin: 0px; float: right; width: 250px; height: 125px;\" /></strong></p>\n\n<p>In partnership with the Ohio Department of Development, the Akron-Canton Advocacy Alliance invites you to a webinar focused on relevant updates and new information on Ohio&rsquo;s TechCred Program. After months of anticipation, TechCred will reopen on October 1, and this webinar will serve as a prime opportunity to learn about new rules, updated procedures, and areas of focus. All those who RSVP will receive relevant meeting materials and have the opportunity to submit questions for presenters.</p>\n\n<p>This event is closed to the media.</p>\n\n<p><img alt=\"\" src=\"https://members.greaterakronchamber.org/External/WCPages/WCWebContent/webcontentpage.aspx?ContentID=9163\" style=\"margin: 20px; width: 200px; height: 55px;\" /></p>\n\n<p>&nbsp;</p>\n\n<p><strong>For Questions Regarding the event:&nbsp;</strong>Please contact John Rizzo, jrizzo@akroncantonadvocacy.org</p>\n\n<p>&nbsp;</p>\n\n<h2 style=\"text-align: center;\"><strong>Presenting Sponsor:</strong></h2>\n\n<p style=\"text-align: center;\"><strong><img alt=\"\" src=\"https://members.greaterakronchamber.org/External/WCPages/WCWebContent/webcontentpage.aspx?ContentID=7611\" style=\"width: 500px; height: 244px;\" /></strong></p>\n\n<p style=\"text-align: center;\">&nbsp;</p>\n\n<h2 style=\"text-align: center;\"><strong>Premier Sponsors:</strong></h2>\n\n<p style=\"text-align: center;\"><strong><img alt=\"\" src=\"https://members.greaterakronchamber.org/External/WCPages/WCWebContent/webcontentpage.aspx?ContentID=8937\" style=\"height: 665px; width: 600px; margin: 50px;\" /></strong></p>\n\n<h2 style=\"text-align: center;\">&nbsp;</h2>\n\n<h2 style=\"text-align: center;\"><strong>Supporting Sponsors:&nbsp;</strong></h2>\n\n<p style=\"text-align: center;\"><strong><img alt=\"\" src=\"https://members.greaterakronchamber.org/External/WCPages/WCWebContent/webcontentpage.aspx?ContentID=9051\" style=\"width: 500px; height: 99px;\" /></strong></p>\n\n<p>&nbsp;</p>\n\n<p><em>By registering and participating in this event, you consent to the recording of your likeness, image, and/or voice and authorize the Greater Akron Chamber to use photographs, videos, and audio recordings containing your likeness, image, and/or voice in any medium for any purpose.</em></p>\n",
+    "StartDateTimeUtc": "2026-09-11T18:00:00Z",
+    "EndDateTimeUtc": "2026-09-11T19:00:00Z",
+    "IsAllDay": false,
+    "Venue": "Online - Virtual Event",
+    "Address1": "",
+    "Address2": "",
+    "City": "",
+    "State": "",
+    "Zip": "",
+    "Latitude": null,
+    "Longitude": null,
+    "Items": [
+      {
+        "EventItemId": 6666,
+        "Descr": "Register",
+        "IsPublic": true,
+        "MemberPrice": 0.0,
+        "NonMemberPrice": 0.0
+      },
+      {
+        "EventItemId": 6667,
+        "Descr": "Register - Comp",
+        "IsPublic": false,
+        "MemberPrice": 0.0,
+        "NonMemberPrice": 0.0
+      },
+      {
+        "EventItemId": 6668,
+        "Descr": "Register - Sponsor",
+        "IsPublic": false,
+        "MemberPrice": 0.0,
+        "NonMemberPrice": 0.0
+      }
+    ],
+    "StartDate": "2026-09-11T16:00:00Z"
+  },
+  {
+    "EventId": 3497,
+    "EventName": "Morning Buzz - October",
+    "Descr": "<p><span style=\"font-size:14px;\"><span style=\"font-family:Arial,Helvetica,sans-serif;\"><span style=\"line-height:normal\"><span style=\"color:#4d4d4f\">The workplace has changed&mdash;but the most important question isn&#39;t <strong>where</strong> people work. It&#39;s <strong>how we design work so people can do their best work.</strong></span></span></span></span></p>\n\n<p><span style=\"font-size:14px;\"><span style=\"font-family:Arial,Helvetica,sans-serif;\"><span style=\"line-height:normal\"><span style=\"color:#4d4d4f\">Today&#39;s leaders are balancing competing needs. Employees need time together to build relationships, solve problems, learn, and create. They also need uninterrupted time to think, focus, and get meaningful work done. Meanwhile, organizations are trying to build strong cultures and high-performing teams in an environment filled with meetings, messages, competing priorities, and<p><span style=\"background-color:transparent; color:#808080;\">By registering and participating in this event, you consent to the recording of your likeness, image, and/or voice and authorize the Greater Akron Chamber to use photographs, videos, and audio recordings containing your likeness, image, and/or voice in any medium for any purpose.</span></p>",
+    "StartDateTimeUtc": "2026-10-16T11:30:00Z",
+    "EndDateTimeUtc": "2026-10-16T13:30:00Z",
+    "IsAllDay": false,
+    "Venue": "Firestone Country Club",
+    "Address1": "452 E. Warner Rd.",
+    "Address2": "",
+    "City": "Akron",
+    "State": "OH",
+    "Zip": "44319",
+    "Latitude": "41.0077699",
+    "Longitude": "-81.5078016",
+    "Items": [
+      {
+        "EventItemId": 6183,
+        "Descr": "Morning Buzz - GAC Member",
+        "IsPublic": true,
+        "MemberPrice": 32.0,
+        "NonMemberPrice": 32.0
+      },
+      {
+        "EventItemId": 6181,
+        "Descr": "Morning Buzz - Community Rate",
+        "IsPublic": true,
+        "MemberPrice": 42.0,
+        "NonMemberPrice": 42.0
+      },
+      {
+        "EventItemId": 6182,
+        "Descr": "Morning Buzz - Complimentary ",
+        "IsPublic": false,
+        "MemberPrice": 0.0,
+        "NonMemberPrice": 0.0
+      },
+      {
+        "EventItemId": 6184,
+        "Descr": "Morning Buzz - Sponsor Registration",
+        "IsPublic": false,
+        "MemberPrice": 0.0,
+        "NonMemberPrice": 0.0
+      }
+    ],
+    "StartDate": "2026-10-16T16:00:00Z"
+  },
+  {
+    "EventId": 3508,
+    "EventName": "30 for the Future",
+    "Descr": "<p><img alt=\"\" src=\"https://members.greaterakronchamber.org/External/WCPages/WCWebContent/webcontentpage.aspx?ContentID=7449\" style=\"width: 350px; height: 350px; float: right;\" />Meet the rising stars who are shaping the future of our region. 30 for the Future honors 30 exceptional leaders, ages 25 to 39, who are not only excelling in their careers but also making bold moves leading in our community. These trailblazers are driving innovation, making an impact, championing change, and redefining what leadership looks like&mdash;both in the workplace and beyond.</p>\n\n<p>Whether launching impactful initiatives, uplifting others through mentorship, or pushing their industries forward, these honobr />\n- A reserved half table (four seats) at the event</p>\n\n<p>**Sponsorships must be received by Friday, August 21,&nbsp;to be included in all print materials.</p>\n\n<p>&nbsp;</p>\n\n<h2 style=\"text-align: center;\"><strong>Presenting Sponsor:</strong></h2>\n\n<p style=\"text-align: center;\"><strong><img alt=\"\" src=\"https://members.greaterakronchamber.org/External/WCPages/WCWebContent/webcontentpage.aspx?ContentID=6931\" style=\"width: 451px; height: 215px; margin-top: 30px; margin-bottom: 30px;\" /></strong></p>\n\n<h2 style=\"text-align: center;\">&nbsp;</h2>\n\n<h2 style=\"text-align: center;\"><strong>Supporting Sponsors:</strong></h2>\n\n<p style=\"text-align: center;\"><strong><img alt=\"\" src=\"https://members.greaterakronchamber.org/External/WCPages/WCWebContent/webcontentpage.aspx?ContentID=9166\" style=\"width: 700px; height: 632px;\" /></strong></p>\n\n<h2 style=\"text-align: center;\">&nbsp;</h2>\n\n<h2 style=\"text-align: center;\"><strong>Patron Sponsors:</strong></h2>\n\n<p style=\"text-align: center;\"><strong><img alt=\"\" src=\"https://members.greaterakronchamber.org/External/WCPages/WCWebContent/webcontentpage.aspx?ContentID=9167\" style=\"width: 650px; height: 591px;\" /></strong></p>\n\n<p>&nbsp;</p>\n\n<p>By registering and participating in this event, you consent to the recording of your likeness, image, and/or voice and authorize the Greater Akron Chamber to use photographs, videos, and audio recordings containing your likeness, image, and/or voice in any medium for any purpose.</p>\n\n<p>&nbsp;</p>\n",
+    "StartDateTimeUtc": "2026-09-18T12:30:00Z",
+    "EndDateTimeUtc": "2026-09-18T14:30:00Z",
+    "IsAllDay": false,
+    "Venue": "DoubleTree by Hilton Akron/Fairlawn",
+    "Address1": "3180 W Market St",
+    "Address2": "",
+    "City": "Akron",
+    "State": "OH",
+    "Zip": "44333",
+    "Latitude": "41.1305875",
+    "Longitude": "-81.6165282",
+    "Items": [
+      {
+        "EventItemId": 6255,
+        "Descr": "30 for the Future - Presenting Sponsor",
+        "IsPublic": true,
+        "MemberPrice": 3500.0,
+        "NonMemberPrice": 3500.0
+      },
+      {
+        "EventItemId": 6256,
+        "Descr": "30 for the Future - Presenting Sponsor - Part of Annual Investment",
+        "IsPublic": false,
+        "MemberPrice": 0.0,
+        "NonMemberPrice": 0.0
+      },
+      {
+        "EventItemId": 6260,
+        "Descr": "30 for the Future - Supporting Sponsor",
+        "IsPublic": true,
+        "MemberPrice": 1500.0,
+        "NonMemberPrice": 1500.0
+      },
+      {
+        "EventItemId": 6261,
+        "Descr": "30 for the Future - Supporting Sponsor - Table of 9 (includes Honoree)",
+        "IsPublic": false,
+        "MemberPrice": 1500.0,
+        "NonMemberPrice": 1500.0
+      },
+      {
+        "EventItemId": 6253,
+        "Descr": "30 for the Future - Patron Sponsor",
+        "IsPublic": true,
+        "MemberPrice": 750.0,
+        "NonMemberPrice": 750.0
+      },
+      {
+        "EventItemId": 6605,
+        "Descr": "30 for the Future - Patron Sponsor - half table + honoree (5 seats)",
+        "IsPublic": false,
+        "MemberPrice": 750.0,
+        "NonMemberPrice": 750.0
+      },
+      {
+        "EventItemId": 6672,
+        "Descr": "30 for the Future - Patron Sponsor - TRADE",
+        "IsPublic": false,
+        "MemberPrice": 0.0,
+        "NonMemberPrice": 0.0
+      },
+      {
+        "EventItemId": 6257,
+        "Descr": "30 for the Future - Reserved Table of 8",
+        "IsPublic": true,
+        "MemberPrice": 380.0,
+        "NonMemberPrice": 380.0
+      },
+      {
+        "EventItemId": 6259,
+        "Descr": "30 for the Future - Reserved Table of 9 (includes 1 Honoree)",
+        "IsPublic": false,
+        "MemberPrice": 380.0,
+        "NonMemberPrice": 380.0
+      },
+      {
+        "EventItemId": 6264,
+        "Descr": "30 for the Future Individual Ticket",
+        "IsPublic": true,
+        "MemberPrice": 45.0,
+        "NonMemberPrice": 45.0
+      },
+      {
+        "EventItemId": 6262,
+        "Descr": "30 for the Future Honoree - Individual Ticket",
+        "IsPublic": false,
+        "MemberPrice": 0.0,
+        "NonMemberPrice": 0.0
+      },
+      {
+        "EventItemId": 6252,
+        "Descr": "30 For the Future - Complimentary Registration",
+        "IsPublic": false,
+        "MemberPrice": 0.0,
+        "NonMemberPrice": 0.0
+      }
+    ],
+    "StartDate": "2026-09-18T16:00:00Z"
+  },
+  {
+    "EventId": 9001,
+    "EventName": "Chamber Golf Charity Classic",
+    "Descr": "<p>Join fellow members for a day on the links benefiting the Chamber's small-business grant fund.</p>",
+    "StartDateTimeUtc": "2026-09-15T00:00:00Z",
+    "EndDateTimeUtc": "2026-09-15T00:00:00Z",
+    "IsAllDay": true,
+    "Venue": "Firestone Country Club",
+    "Address1": "452 White Pond Dr",
+    "Address2": "",
+    "City": "Akron",
+    "State": "OH",
+    "Zip": "44320",
+    "Latitude": "41.0077699",
+    "Longitude": "-81.5078016",
+    "Items": [
+      {
+        "EventItemId": 9101,
+        "Descr": "Foursome",
+        "IsPublic": true,
+        "MemberPrice": 600.0,
+        "NonMemberPrice": 700.0
+      }
+    ],
+    "StartDate": "2026-09-15T16:00:00Z"
+  }
+]
