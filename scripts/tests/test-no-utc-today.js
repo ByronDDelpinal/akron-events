@@ -180,7 +180,6 @@ const ALLOWLIST = [
   { file: 'scrape-akronym.js',                match: 'dateStr: d.toISOString()',      reason: 'baseMs comes from an already-resolved event date, not the clock' },
   { file: 'scrape-nightlight.js',             match: 'const horizonDate',             reason: 'horizon is todayEasternYmd() + N days; only the far end is UTC-formatted' },
   { file: 'scrape-visit-akron-cvb.js',        match: 'offsetHrs * 3600_000',          reason: 'etCalendarDate shifts an explicit ISO instant by the ET offset before formatting' },
-  { file: 'scrape-greater-akron-chamber.js',  match: 'return new Date(ms).toISOString().slice(0, 10)', reason: 'allDayCalendarDate: ms is parsed from the feed\'s own StartDate field (anchored 16:00Z, always the same ET calendar day), never from the clock' },
   // Narrow on purpose: a bare 'console.log' key would hand every future log
   // line in this file a free pass.
   { file: 'scrape-visit-akron-cvb.js',        match: 'Querying Visit Akron CVB for events', reason: 'progress log line only; the real window is startIso/endIso from easternMidnightUtcIso()' },

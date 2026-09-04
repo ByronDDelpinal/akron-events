@@ -338,6 +338,18 @@ describe('allDayStartIso', () => {
   it('returns null when neither raw nor detail carries a StartDate', () => {
     assert.equal(allDayStartIso({}, null), null)
   })
+
+  it('derives the Eastern calendar date from the parsed instant, not a raw UTC slice (2026-12-01T04:30:00Z = 2026-11-30 23:30 ET)', () => {
+    // If this ever regressed to a naive .toISOString().slice(0, 10) on the
+    // parsed instant, it would still read 2026-12-01 here since that only
+    // breaks when the feed's anchor moves off the current 16:00Z convention
+    // -- so this asserts against the Eastern-zone formatter path directly by
+    // using an instant far from that anchor, which a UTC-based slice would
+    // get wrong (Dec 1) versus the correct Eastern calendar day (Nov 30).
+    const detail = { StartDate: '2026-12-01T04:30:00Z' }
+    // Nov 30 2026 is EST (UTC-5): noon ET == 17:00Z.
+    assert.equal(allDayStartIso({}, detail), '2026-11-30T17:00:00.000Z')
+  })
 })
 
 describe('mapCategory', () => {

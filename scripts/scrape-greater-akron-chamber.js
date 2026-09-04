@@ -276,8 +276,8 @@ export function mapCategory(raw, title, descr) {
   // descr is accepted for call-site compatibility but intentionally NOT
   // scanned: chamber descriptions quote other orgs/topics freely (e.g. a
   // Small Business session recapping a "networking" partner), which was
-  // producing false category hints text inference in normalize.js already
-  // handles better from the full cleaned description.
+  // producing false category hints that text inference in normalize.js
+  // already handles better from the full cleaned description.
   void descr
   for (const s of [raw?.EventType, title]) {
     const text = String(s ?? '')
@@ -290,16 +290,25 @@ export function mapCategory(raw, title, descr) {
 }
 
 /**
- * All-day events carry no real time-of-day. The feed anchors `StartDate` at
- * 16:00Z for every all-day row — that's noon ET (EDT) or 11:00 ET (EST),
- * always still the SAME Eastern calendar day, so we parse it explicitly
- * (rather than a raw string .slice) and re-derive the calendar date from the
- * parsed instant. That's deliberately more defensive than slicing the raw
- * UTC string's first 10 characters: if the feed's anchor time ever shifts
- * (e.g. to a genuine UTC-midnight boundary), a naive slice would silently
- * read the wrong day, while parsing-then-formatting stays correct as long as
- * the anchor is documented and re-verified here.
+ * All-day events carry no real time-of-day. We parse `StartDate` explicitly
+ * (rather than a raw string .slice) and re-derive the Eastern calendar date
+ * from the parsed instant via Intl.DateTimeFormat, which stays correct
+ * regardless of what UTC time the feed anchors on. The feed currently
+ * anchors all-day `StartDate` at 16:00Z (noon ET in EDT, 11:00 ET in EST),
+ * so today this always lands on the same Eastern calendar day as the UTC
+ * date -- but that's an observation about current feed behavior, not
+ * something this function depends on: a naive slice of the raw UTC string's
+ * first 10 characters would silently read the wrong day if the anchor ever
+ * shifted (e.g. to a genuine UTC-midnight boundary), while parsing-then-
+ * formatting to the America/New_York zone stays correct either way.
  */
+const ET_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
 function allDayCalendarDate(source) {
   const raw = source?.StartDate
   if (!raw) return null
@@ -307,7 +316,9 @@ function allDayCalendarDate(source) {
   const normalized = /(?:Z|[+-]\d{2}:?\d{2})$/.test(s) ? s : `${s}Z`
   const ms = Date.parse(normalized)
   if (Number.isNaN(ms)) return null
-  return new Date(ms).toISOString().slice(0, 10)
+  const parts = ET_DATE_FORMATTER.formatToParts(new Date(ms))
+  const lookup = Object.fromEntries(parts.map((p) => [p.type, p.value]))
+  return `${lookup.year}-${lookup.month}-${lookup.day}`
 }
 
 /**
