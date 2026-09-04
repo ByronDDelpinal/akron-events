@@ -131,7 +131,6 @@ export const SOURCE_PRIORITY = [
   'cvfm',                    // first-party (Cuyahoga Valley Farmers Market, Summit venues)
   'city_of_hudson',          // first-party municipal calendar (CivicPlus)
   'ejthomas_hall',           // first-party venue calendar (E.J. Thomas Hall)
-  'greater_akron_chamber',   // first-party (Greater Akron Chamber's own member event calendar)
   'jillys_music_room',
   'leadership_akron',
   'missing_falls',

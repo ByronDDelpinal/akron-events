@@ -67,7 +67,7 @@ export function buildEventsUrl({ searchDateBegin, searchDateEnd, pageSize = 0 })
 
 /** Build the per-event detail URL. */
 export function buildDetailUrl(eventId) {
-  return `${WEBLINK_API}/Event/${eventId}/Details`
+  return `${WEBLINK_API}/Event/${encodeURIComponent(eventId)}/Details`
 }
 
 /**
@@ -155,32 +155,36 @@ const SPONSOR_OR_TABLE_RE = /sponsor|table/i
 /**
  * Derive { price_min, price_max } from a detail event's `Items[]` fee
  * schedule. Only public, priced, non-sponsor/table items count:
- *   - `IsPublic === true`   (internal/comp/sponsor-comp rows are not real
+ *   - `IsPublic === true`      (internal/comp/sponsor-comp rows are not real
  *      admission tiers a visitor can buy)
- *   - `MemberPrice > 0`     (free/comp rows would otherwise drag price_min to 0
- *      even when a real paid tier exists)
+ *   - `MemberPrice > 0`        (free/comp rows would otherwise drag price_min
+ *      to 0 even when a real paid tier exists)
+ *   - `NonMemberPrice > 0`     (same reasoning, applied to the price a
+ *      non-member — the general public — actually pays; a $0 NonMemberPrice
+ *      on an otherwise-priced item is a data glitch, not a real free tier)
  *   - `Descr` doesn't match /sponsor|table/i
  * price_min is the lowest MemberPrice; price_max is the highest NonMemberPrice
- * (the price a non-member, i.e. the general public, actually pays at the top
- * tier). No qualifying item → both null, never assumed.
+ * clamped to never fall below price_min (Math.max(price_min, ...)), so a
+ * member-only discount tier can never invert the displayed range. No
+ * qualifying item → both null, never assumed.
  */
 export function growthZonePriceRange(items) {
   const qualifying = (Array.isArray(items) ? items : []).filter((it) => {
     if (it?.IsPublic !== true) return false
     const memberPrice = Number(it?.MemberPrice)
     if (!Number.isFinite(memberPrice) || memberPrice <= 0) return false
+    const nonMemberPrice = Number(it?.NonMemberPrice)
+    if (!Number.isFinite(nonMemberPrice) || nonMemberPrice <= 0) return false
     if (SPONSOR_OR_TABLE_RE.test(String(it?.Descr ?? ''))) return false
     return true
   })
   if (!qualifying.length) return { price_min: null, price_max: null }
 
   const memberPrices = qualifying.map((it) => Number(it.MemberPrice))
-  const nonMemberPrices = qualifying
-    .map((it) => Number(it.NonMemberPrice))
-    .filter((n) => Number.isFinite(n))
+  const nonMemberPrices = qualifying.map((it) => Number(it.NonMemberPrice))
 
   const price_min = Math.min(...memberPrices)
-  const price_max = nonMemberPrices.length ? Math.max(...nonMemberPrices) : price_min
+  const price_max = Math.max(price_min, ...nonMemberPrices)
   return { price_min, price_max }
 }
 

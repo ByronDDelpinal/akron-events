@@ -58,6 +58,14 @@
  *     cleanGrowthZoneDescription() before the shared 2000-char clamp.
  *   • Members-only events (`MembersOnly: true`) are not public content and
  *     are skipped before a venue/detail fetch, counted separately.
+ *   • Org credit is NOT blanket: the chamber convenes its own programming
+ *     (After 5, Morning Buzz, 30 FTF, …) but the calendar also carries
+ *     member-hosted sessions under types like ConxusNEO where the GAC is
+ *     just the host platform, not the organizer of record. CREDITED_EVENT_TYPES
+ *     is the maintainer-approved allowlist (ACAA is a chamber program, hence
+ *     Government Affairs); everything else gets no org link at all, and
+ *     ensureOrganization is only called when at least one fetched event
+ *     actually needs it.
  *
  * Usage:
  *   node scripts/scrape-greater-akron-chamber.js
@@ -104,9 +112,35 @@ const DEBUG  = process.argv.includes('--debug')
 const TENANT = 'AkronOHCOC'
 
 /** Public member-portal URL for an event, used for both source_url and ticket_url. */
-const PUBLIC_EVENT_URL = (id) => `https://members.greaterakronchamber.org/atlas/events/${id}/details`
+const PUBLIC_EVENT_URL = (id) => `https://members.greaterakronchamber.org/atlas/events/${encodeURIComponent(id)}/details`
 
 const ORG_NAME = 'Greater Akron Chamber'
+
+// Maintainer-approved allowlist (2026-09-04): the chamber is only credited as
+// organizer for its OWN convened programming. Everything else on the shared
+// member calendar (member-hosted sessions, ConxusNEO, and any future/unknown
+// EventType) gets NO org link — matched exactly against the raw EventType.
+// ACAA webinars carry EventType "Government Affairs" (ACAA is a chamber
+// program), so that type alone covers them; no separate ACAA entry needed.
+const CREDITED_EVENT_TYPES = new Set([
+  'After 5',
+  'Morning Buzz',
+  '30 FTF',
+  'Economic Outlook',
+  'Small Business',
+  'WNLI',
+  'General Membership',
+  'Investor Event',
+  'Business Owner',
+  'NFP',
+  'Polymer',
+  'Government Affairs',
+])
+
+/** Whether this raw list event's EventType earns the chamber an org credit. */
+export function isChamberCreditedEventType(raw) {
+  return CREDITED_EVENT_TYPES.has(String(raw?.EventType ?? '').trim())
+}
 
 // Don't ingest events implausibly far out. The list fetch itself is windowed
 // to the same horizon (see fetchGrowthZoneEvents), this is the defensive
@@ -187,7 +221,31 @@ export function resolveLocation(raw) {
   }
 }
 
-/** Mint/link the venue for a resolved location, or null when there is none. */
+/**
+ * City input for the Summit County geo gate: prefer the resolved location's
+ * city, falling back to the raw list event's own City field. A
+ * VENUE_ALIASES no-details match (the Business Commons/Ratliff spellings)
+ * leaves location.city null on purpose (see the module docblock), so
+ * without this fallback those rows would get an unearned 'unknown' geo
+ * verdict instead of a real gate input.
+ */
+export function resolveGeoCity(location, raw) {
+  return location?.city ?? raw?.City ?? null
+}
+
+/**
+ * Mint/link the venue for a resolved location, or null when there is none.
+ * ensureVenue OVERWRITES address/city/zip/description/website on an existing
+ * row every run (accepted convention — see scrape-explore-hudson.js), so
+ * this only ever passes the feed's own list-level fields.
+ * Intentionally NOT passed: the detail object's Latitude/Longitude. Those
+ * come from the chamber's own geocoding of a member's address, which is
+ * frequently less precise than our curated venue coordinates (rooftop-
+ * accurate for venues we already scrape directly, e.g. hotels, breweries).
+ * Sending them here would let a routine re-scrape silently drag a curated
+ * pin off its verified location — same rationale as the VENUE_ALIASES
+ * no-details case above.
+ */
 async function upsertVenue(location) {
   if (!location?.venueName) return null
   return ensureVenue(location.venueName, {
@@ -215,7 +273,13 @@ const SPORTS_TYPE_RE = /golf\s*outing/i
  * decide instead).
  */
 export function mapCategory(raw, title, descr) {
-  for (const s of [raw?.EventType, title, descr]) {
+  // descr is accepted for call-site compatibility but intentionally NOT
+  // scanned: chamber descriptions quote other orgs/topics freely (e.g. a
+  // Small Business session recapping a "networking" partner), which was
+  // producing false category hints text inference in normalize.js already
+  // handles better from the full cleaned description.
+  void descr
+  for (const s of [raw?.EventType, title]) {
     const text = String(s ?? '')
     if (!text) continue
     if (SPORTS_TYPE_RE.test(text)) return 'sports'
@@ -223,6 +287,38 @@ export function mapCategory(raw, title, descr) {
     if (LEARNING_TYPE_RE.test(text)) return 'learning'
   }
   return undefined
+}
+
+/**
+ * All-day events carry no real time-of-day. The feed anchors `StartDate` at
+ * 16:00Z for every all-day row — that's noon ET (EDT) or 11:00 ET (EST),
+ * always still the SAME Eastern calendar day, so we parse it explicitly
+ * (rather than a raw string .slice) and re-derive the calendar date from the
+ * parsed instant. That's deliberately more defensive than slicing the raw
+ * UTC string's first 10 characters: if the feed's anchor time ever shifts
+ * (e.g. to a genuine UTC-midnight boundary), a naive slice would silently
+ * read the wrong day, while parsing-then-formatting stays correct as long as
+ * the anchor is documented and re-verified here.
+ */
+function allDayCalendarDate(source) {
+  const raw = source?.StartDate
+  if (!raw) return null
+  const s = String(raw)
+  const normalized = /(?:Z|[+-]\d{2}:?\d{2})$/.test(s) ? s : `${s}Z`
+  const ms = Date.parse(normalized)
+  if (Number.isNaN(ms)) return null
+  return new Date(ms).toISOString().slice(0, 10)
+}
+
+/**
+ * Noon-ET placeholder start for an all-day event, preferring the detail
+ * object's StartDate (present once fetched) and falling back to the raw list
+ * event's own StartDate (used by the pre-fetch window filter, where no
+ * detail exists yet).
+ */
+export function allDayStartIso(raw, detail) {
+  const dateStr = allDayCalendarDate(detail) ?? allDayCalendarDate(raw)
+  return dateStr ? easternToIso(dateStr, '12:00') : null
 }
 
 // ── Event row ────────────────────────────────────────────────────────────
@@ -234,6 +330,12 @@ export function mapCategory(raw, title, descr) {
  * cancelled/postponed.
  */
 export function toEventRow(raw, detail, geo) {
+  // EventId is used verbatim as the immutable intake source_id and in both
+  // public URLs — guard it to a positive integer so a malformed/missing id
+  // never mints a row keyed on "undefined" or a negative/zero placeholder.
+  const eventId = Number(raw?.EventId)
+  if (!Number.isInteger(eventId) || eventId <= 0) return null
+
   const title = raw?.EventName ? stripHtml(String(raw.EventName)) : ''
   if (!title) return null
   // Cancelled/postponed events stay in the feed with a title marker rather
@@ -244,11 +346,7 @@ export function toEventRow(raw, detail, geo) {
 
   let start_at, end_at
   if (isAllDay) {
-    // No real time-of-day: take the feed's own calendar-date bucket
-    // (StartDate's date portion is stable across rows regardless of the
-    // event's actual start time) and mint a documented noon-ET placeholder.
-    const dateStr = String(detail?.StartDate ?? raw?.StartDate ?? '').slice(0, 10)
-    start_at = dateStr ? easternToIso(dateStr, '12:00') : null
+    start_at = allDayStartIso(raw, detail)
     end_at = null
   } else {
     start_at = growthZoneStartIso(detail ?? raw)
@@ -272,10 +370,10 @@ export function toEventRow(raw, detail, geo) {
     price_max,
     age_restriction: 'not_specified',
     image_url:  null,
-    source_url: PUBLIC_EVENT_URL(raw?.EventId),
-    ticket_url: PUBLIC_EVENT_URL(raw?.EventId),
+    source_url: PUBLIC_EVENT_URL(eventId),
+    ticket_url: PUBLIC_EVENT_URL(eventId),
     source:     SOURCE,
-    source_id:  String(raw?.EventId ?? ''),
+    source_id:  String(eventId),
     category,
     // Unknown locality → review queue (never the public calendar); an admin
     // publish locks status via manual_overrides. 'in' → published.
@@ -299,11 +397,14 @@ async function main() {
     const rawEvents = await fetchGrowthZoneEvents({ tenant: TENANT, windowDays: HORIZON_DAYS })
     console.log(`   Fetched ${rawEvents.length} events from the chamber feed.`)
 
-    // The chamber is the organizer of record for every event on its own
-    // calendar (member businesses host individual sessions, but the GAC
-    // convenes and publishes the calendar itself) — resolved once, not
-    // per-event; ensureOrganization is fill-only against the existing row.
-    const orgId = await ensureOrganization(ORG_NAME)
+    // The chamber is only the organizer of record for its OWN convened
+    // programming — see CREDITED_EVENT_TYPES above — never every event on
+    // the shared member calendar. Resolve the org id once (fill-only
+    // against the existing row) but ONLY when at least one fetched event
+    // actually needs it, so an all-ConxusNEO/unknown-type run never mints
+    // or touches the chamber's org row for nothing.
+    const needsOrg = rawEvents.some(isChamberCreditedEventType)
+    const orgId = needsOrg ? await ensureOrganization(ORG_NAME) : null
 
     let inserted = 0, updated = 0, skipped = 0
     let skippedOut = 0, skippedVirtual = 0, skippedMembersOnly = 0, pendingReview = 0
@@ -330,7 +431,12 @@ async function main() {
           continue
         }
 
-        const startIso = growthZoneStartIso(raw)
+        // All-day rows carry a zeroed/absent StartDateTimeUtc, so use the
+        // same noon-ET placeholder toEventRow will end up computing rather
+        // than reading growthZoneStartIso(raw) directly here — otherwise an
+        // all-day event with no real StartDateTimeUtc gets dropped by the
+        // window filter before it ever reaches toEventRow.
+        const startIso = raw?.IsAllDay ? allDayStartIso(raw, null) : growthZoneStartIso(raw)
         const endIso = growthZoneEndIso(raw)
         if (!isWithinWindow(startIso, endIso)) { skipped++; continue }
 
@@ -342,7 +448,7 @@ async function main() {
         const geo = classifySummitLocation({
           lat: detail?.Latitude,
           lng: detail?.Longitude,
-          city: location.city,
+          city: resolveGeoCity(location, raw),
         })
 
         if (geo === 'out') {
@@ -356,8 +462,15 @@ async function main() {
         if (!row) { skipped++; continue }
         if (geo === 'unknown') pendingReview++
 
+        // Per-event org credit: only the maintainer-approved EventType
+        // allowlist earns a link to the chamber's own org row (see
+        // CREDITED_EVENT_TYPES); everything else — member-hosted sessions,
+        // ConxusNEO, unknown types — gets neither the org link nor its
+        // image fallback.
+        const eventOrgId = orgId && isChamberCreditedEventType(raw) ? orgId : null
+
         const venueId = await upsertVenue(location)
-        const enriched = await enrichWithImageDimensions(row, { organizationId: orgId })
+        const enriched = await enrichWithImageDimensions(row, { organizationId: eventOrgId })
         const { data: upserted, error, isNew } = await upsertEventSafe(enriched)
 
         if (error) {
@@ -366,7 +479,7 @@ async function main() {
           continue
         }
         if (venueId) await linkEventVenue(upserted.id, venueId)
-        if (orgId) await linkEventOrganization(upserted.id, orgId)
+        if (eventOrgId) await linkEventOrganization(upserted.id, eventOrgId)
         if (isNew) inserted++
         else updated++
 

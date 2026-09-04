@@ -40,8 +40,11 @@ const {
 
 const {
   resolveLocation,
+  resolveGeoCity,
   mapCategory,
   toEventRow,
+  isChamberCreditedEventType,
+  allDayStartIso,
 } = await import('../scrape-greater-akron-chamber.js')
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -80,6 +83,13 @@ describe('buildEventsUrl / buildDetailUrl', () => {
 
   it('builds the per-event details URL', () => {
     assert.equal(buildDetailUrl(3543), 'https://api-internal.weblinkconnect.com/api/Event/3543/Details')
+  })
+
+  it('URL-encodes a non-numeric event id', () => {
+    assert.equal(
+      buildDetailUrl('abc/def'),
+      'https://api-internal.weblinkconnect.com/api/Event/abc%2Fdef/Details',
+    )
   })
 })
 
@@ -169,6 +179,26 @@ describe('growthZonePriceRange', () => {
     assert.deepEqual(growthZonePriceRange([]), { price_min: null, price_max: null })
     assert.deepEqual(growthZonePriceRange(undefined), { price_min: null, price_max: null })
   })
+
+  it('excludes a public, member-priced item whose NonMemberPrice is 0 (data glitch, not a real free tier)', () => {
+    assert.deepEqual(
+      growthZonePriceRange([
+        { IsPublic: true, MemberPrice: 20, NonMemberPrice: 0, Descr: 'Registration' },
+      ]),
+      { price_min: null, price_max: null },
+    )
+  })
+
+  it('never inverts the range when a discounted member tier is the only qualifying item', () => {
+    // price_max is clamped to Math.max(price_min, ...NonMemberPrice) so a
+    // member-only discount can never make the displayed range look inverted.
+    const { price_min, price_max } = growthZonePriceRange([
+      { IsPublic: true, MemberPrice: 40, NonMemberPrice: 10, Descr: 'Registration' },
+    ])
+    assert.ok(price_max >= price_min)
+    assert.equal(price_min, 40)
+    assert.equal(price_max, 40)
+  })
 })
 
 describe('cleanGrowthZoneDescription', () => {
@@ -184,7 +214,7 @@ describe('cleanGrowthZoneDescription', () => {
     const detail = detailById(3607)
     const text = cleanGrowthZoneDescription(detail.Descr)
     assert.ok(!text.toLowerCase().includes('consent to the recording'))
-    assert.ok(text.includes('Generations in the Workplace') || text.length > 0)
+    assert.ok(text.includes('Generations in the Workplace'))
   })
 
   it('returns null for empty/blank input', () => {
@@ -257,6 +287,59 @@ describe('resolveLocation', () => {
   })
 })
 
+describe('resolveGeoCity', () => {
+  it('prefers the resolved location city', () => {
+    assert.equal(resolveGeoCity({ city: 'Akron' }, { City: 'Cuyahoga Falls' }), 'Akron')
+  })
+
+  it('falls back to the raw event City when the location has no city (VENUE_ALIASES no-details case)', () => {
+    const loc = resolveLocation(RATLIFF_1)
+    assert.equal(loc.city, null)
+    assert.equal(resolveGeoCity(loc, RATLIFF_1), 'Cuyahoga Falls')
+  })
+
+  it('returns null when neither has a city', () => {
+    assert.equal(resolveGeoCity({ city: null }, {}), null)
+  })
+})
+
+describe('isChamberCreditedEventType', () => {
+  it('credits the chamber\'s own convened programming', () => {
+    assert.equal(isChamberCreditedEventType({ EventType: 'After 5' }), true)
+    assert.equal(isChamberCreditedEventType({ EventType: 'Morning Buzz' }), true)
+    assert.equal(isChamberCreditedEventType({ EventType: '30 FTF' }), true)
+    assert.equal(isChamberCreditedEventType({ EventType: 'NFP' }), true)
+    // ACAA webinars are a chamber program, filed under Government Affairs.
+    assert.equal(isChamberCreditedEventType(VIRTUAL), true)
+  })
+
+  it('does not credit member-hosted or unknown EventTypes', () => {
+    assert.equal(isChamberCreditedEventType({ EventType: 'ConxusNEO' }), false)
+    assert.equal(isChamberCreditedEventType({ EventType: 'Something Unmapped' }), false)
+    assert.equal(isChamberCreditedEventType({}), false)
+  })
+})
+
+describe('allDayStartIso', () => {
+  it('derives the noon-ET placeholder from the detail StartDate when present', () => {
+    const detail = detailById(9001)
+    assert.equal(allDayStartIso(ALL_DAY, detail), '2026-09-15T16:00:00.000Z')
+  })
+
+  it('falls back to the raw list event\'s own StartDate when there is no detail yet (pre-fetch window filter)', () => {
+    assert.equal(allDayStartIso(ALL_DAY, null), '2026-09-15T16:00:00.000Z')
+  })
+
+  it('still resolves a start when StartDateTimeUtc is null/zeroed, as long as StartDate is present', () => {
+    const raw = { ...ALL_DAY, StartDateTimeUtc: null }
+    assert.equal(allDayStartIso(raw, null), '2026-09-15T16:00:00.000Z')
+  })
+
+  it('returns null when neither raw nor detail carries a StartDate', () => {
+    assert.equal(allDayStartIso({}, null), null)
+  })
+})
+
 describe('mapCategory', () => {
   it('maps civic EventTypes', () => {
     assert.equal(mapCategory(GAC_SPACE, GAC_SPACE.EventName, ''), 'civic')       // NFP
@@ -283,6 +366,15 @@ describe('mapCategory', () => {
 
   it('returns undefined when nothing in EventType/title/description matches', () => {
     assert.equal(mapCategory({ EventType: 'Something Unmapped' }, 'A Title With No Signal', ''), undefined)
+  })
+
+  it('does not scan the description for category signal', () => {
+    // "networking" only appears in the description here, not EventType/title
+    // — must NOT match CIVIC_TYPE_RE via the descr arm.
+    assert.equal(
+      mapCategory({ EventType: 'Something Unmapped' }, 'A Title With No Signal', 'Great networking event!'),
+      undefined,
+    )
   })
 })
 
@@ -331,5 +423,20 @@ describe('toEventRow', () => {
   it('returns null when the event has no parseable start time', () => {
     const detail = { ...detailById(3543), StartDateTimeUtc: null }
     assert.equal(toEventRow({ ...GAC_SPACE, StartDateTimeUtc: null }, detail, 'in'), null)
+  })
+
+  it('returns null when EventId is missing, non-numeric, zero, or negative', () => {
+    const detail = detailById(3543)
+    assert.equal(toEventRow({ ...GAC_SPACE, EventId: undefined }, detail, 'in'), null)
+    assert.equal(toEventRow({ ...GAC_SPACE, EventId: 'not-an-id' }, detail, 'in'), null)
+    assert.equal(toEventRow({ ...GAC_SPACE, EventId: 0 }, detail, 'in'), null)
+    assert.equal(toEventRow({ ...GAC_SPACE, EventId: -5 }, detail, 'in'), null)
+  })
+
+  it('accepts a numeric-string EventId and normalizes source_id/URLs to the plain integer', () => {
+    const detail = detailById(3543)
+    const row = toEventRow({ ...GAC_SPACE, EventId: '3543' }, detail, 'in')
+    assert.equal(row.source_id, '3543')
+    assert.equal(row.source_url, 'https://members.greaterakronchamber.org/atlas/events/3543/details')
   })
 })

@@ -194,7 +194,7 @@ export const SCRAPERS = [
   { key: 'clutch_lanes',         script: 'scripts/scrape-clutch-lanes.js',            label: 'Clutch Lanes',                 group: 'custom',         active: true, defaultCategory: 'music' },
   { key: 'slovene_center',       script: 'scripts/scrape-slovene-center.js',          label: 'Slovene Performance & Events Center', group: 'wix',     active: true  },
   { key: 'explore_hudson',       script: 'scripts/scrape-explore-hudson.js',          label: 'Explore Hudson (Chamber)',     group: 'api',            active: true  },
-  { key: 'greater_akron_chamber', script: 'scripts/scrape-greater-akron-chamber.js',   label: 'Greater Akron Chamber',        group: 'growthzone',    active: true  },
+  { key: 'greater_akron_chamber', script: 'scripts/scrape-greater-akron-chamber.js', label: 'Greater Akron Chamber', group: 'growthzone', active: true, defaultCategory: 'civic' },
   { key: 'leos_italian_social',  script: 'scripts/scrape-leos-italian-social.js',     label: "Leo's Italian Social",         group: 'squarespace',    active: true, defaultCategory: 'music' },
   { key: 'peninsula_library',    script: 'scripts/scrape-peninsula-library.js',       label: 'Peninsula Library',            group: 'custom',         active: true  },
   { key: 'lalas_in_the_lakes',   script: 'scripts/scrape-lalas-in-the-lakes.js',      label: "Lala's in the Lakes",          group: 'api',            active: true, defaultCategory: 'music' },
