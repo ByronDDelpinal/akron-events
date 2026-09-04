@@ -14,6 +14,7 @@ const {
   extractShowPaths, parseTitle, parseCivicDateTime, upsizeCivicImage,
   extractImage, extractDescription, venueForName, parseDetail,
 } = await import('../scrape-akron-civic.js')
+const { isBotChallenge } = await import('../lib/ics.js')
 
 // A detail page shaped like a real akroncivic.com Bolt CMS show page.
 const DETAIL = `
@@ -52,6 +53,16 @@ describe('extractShowPaths', () => {
       'https://www.akroncivic.com/party-on-the-plaza-afi-scruggs-2026-06-19',
       'https://www.akroncivic.com/lou-harris-2026-06-20',
     ])
+  })
+  // A WAF interstitial returns 200 with no show links; main() now logs that as
+  // an error run instead of success/0 (isBotChallenge is diagnostic only).
+  const CHALLENGE = '<html><head><title>Just a moment...</title></head><body>Checking your browser</body></html>'
+  it('returns [] on a bot-challenge interstitial', () => {
+    assert.deepEqual(extractShowPaths(CHALLENGE), [])
+  })
+  it('isBotChallenge flags the interstitial and not the real listing', () => {
+    assert.equal(isBotChallenge(CHALLENGE), true)
+    assert.equal(isBotChallenge(list), false)
   })
 })
 

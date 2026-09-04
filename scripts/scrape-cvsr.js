@@ -504,6 +504,7 @@ async function main() {
 
     const months = monthsToFetch(easternTodayYmd(), MONTHS_AHEAD)
     const allRecords = []
+    let fetchFailures = 0, lastFetchErr = ''
     for (const { year, month } of months) {
       const url = `${BASE_DOMAIN}/book-tickets/calendar/${year}/${String(month).padStart(2, '0')}`
       try {
@@ -514,7 +515,24 @@ async function main() {
         allRecords.push(...recs)
       } catch (err) {
         console.warn(`  ⚠ Could not fetch ${url}: ${err.message}`)
+        fetchFailures++
+        lastFetchErr = err.message
       }
+    }
+
+    // Every month page failed: that is an outage, not an off-season (zero
+    // groups alone is still a normal run). Log an error run and exit 0 per
+    // house convention so run-all.js doesn't count it as a crash.
+    if (months.length > 0 && fetchFailures === months.length) {
+      const errorMessage = `all ${months.length} month pages failed; last: ${lastFetchErr}`
+      console.error(`  ✗ ${errorMessage}`)
+      await logUpsertResult(SOURCE_KEY, 0, 0, 0, {
+        status:       'error',
+        errorMessage,
+        eventsFound:  0,
+        durationMs:   Date.now() - start,
+      })
+      process.exit(0)
     }
 
     const groups = groupDepartures(allRecords)

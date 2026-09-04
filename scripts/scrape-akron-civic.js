@@ -54,6 +54,7 @@ import {
   easternToIso,
 } from './lib/normalize.js'
 import { withBrowser, newConfiguredPage } from './lib/puppeteer.js'
+import { isBotChallenge } from './lib/ics.js'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -263,7 +264,9 @@ function deriveTags(title, venueKeyName) {
 // fetches: the request returns 200 but the body has no show listings, so a raw
 // fetch parses zero events (the symptom that broke this scraper). We drive a
 // real headless browser instead, which clears the challenge; one page is reused
-// for the listing and every detail page.
+// for the listing and every detail page. If the listing still yields zero show
+// links (challenge not cleared, or markup changed) the run is logged as an
+// error rather than a silent success/0.
 async function pageHtml(page, url, { waitUntil = 'domcontentloaded' } = {}) {
   await page.goto(url, { waitUntil, timeout: 45_000 })
   return page.content()
@@ -283,6 +286,7 @@ async function main() {
     if (organizerId && mainVenueId) await linkOrganizationVenue(organizerId, mainVenueId)
 
     let inserted = 0, skipped = 0, found = 0
+    let listingEmpty = null // set when zero show links parse: { bytes, botChallenge }
 
     await withBrowser(async (browser) => {
       const page = await newConfiguredPage(browser, { userAgent: USER_AGENT })
@@ -294,6 +298,12 @@ async function main() {
       const showUrls = extractShowPaths(listHtml)
       found = showUrls.length
       console.log(`  Found ${showUrls.length} show detail links`)
+      if (showUrls.length === 0) {
+        // Return (not exit) so withBrowser still closes the browser; main()
+        // logs the error run after it resolves.
+        listingEmpty = { bytes: listHtml.length, botChallenge: isBotChallenge(listHtml) }
+        return
+      }
 
       const now = Date.now()
       const venueCache = new Map() // venue name → id
@@ -348,6 +358,20 @@ async function main() {
         }
       }
     }, { useProxy: true })
+
+    if (listingEmpty) {
+      // House convention (civicplus.js, APS, highland_square_theatre): a parsed-zero
+      // listing is an error run, exit 0 so run-all.js doesn't count it as a crash.
+      const errorMessage = `0 show links parsed from ${LIST_URL} (${listingEmpty.bytes}b, botChallenge=${listingEmpty.botChallenge})`
+      console.error(`  ✗ ${errorMessage}`)
+      await logUpsertResult(SOURCE_KEY, 0, 0, 0, {
+        status:       'error',
+        errorMessage,
+        eventsFound:  0,
+        durationMs:   Date.now() - start,
+      })
+      process.exit(0)
+    }
 
     await logUpsertResult(SOURCE_KEY, inserted, 0, skipped, {
       eventsFound: found,
