@@ -1,0 +1,158 @@
+/**
+ * FriendsPage.css - styling for /friends and /friends/thank-you that has no
+ * fin- equivalent in src/styles/openbooks.css.
+ *
+ * /friends and /friends/thank-you are branded exactly like /financials
+ * (maintainer request): the 960px column, the PulseSpine gutter, the
+ * section rhythm, and the action cards all come from the shared
+ * .fin-body / .fin-section / .fin-cards / .fin-card / .fin-sponsors
+ * classes in openbooks.css - see that file's docblock for why the fin-
+ * prefix is global. This file only carries what's genuinely specific to
+ * these two pages: the primary CTA, the impact card, and the thank-you
+ * page's own layout.
+ */
+
+/* ── The one primary CTA ──
+   Filled, not the outline pill .fin-card__btn draws, so it is the single
+   thing on /friends (and the thank-you page) the eye lands on. Same
+   amber-on-amber-text pair as .btn-submit-form (forms.css), sized as a pill. */
+.friends-cta {
+  display: inline-block;
+  margin-top: var(--space-lg);
+  background: var(--amber);
+  color: var(--chip-active-txt);
+  border-color: var(--amber);
+  font-family: var(--font-display);
+  font-size: 1.1rem; /* between --text-lg and --text-h3; no token sits there */
+  padding: var(--space-lg) var(--space-4xl);
+}
+.friends-cta:hover {
+  background: var(--amber-hover);
+  border-color: var(--amber-hover);
+  color: var(--chip-active-txt);
+}
+.friends-cta:focus-visible {
+  box-shadow: var(--shadow-focus);
+}
+
+.friends-give {
+  text-align: center;
+}
+.friends-give .friends-cta {
+  margin-top: 0;
+}
+
+.friends-why {
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-bottom: var(--space-2xl);
+}
+
+/* ── Massive local economic impact ──
+   The simpler cousin of /financials' .fin-calc card: same slider row
+   (openbooks.css), one headline figure, four group rows. The figure mirrors
+   .fin-calc__num / .fin-calc__unit's tokens (FinancialsPage.css) so the two
+   pages read as one system without sharing the whole calculator card. */
+.friends-impact {
+  background: var(--bg-card);
+  border: var(--border-width-thin) solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-xl) var(--space-lg);
+}
+
+/* The live dollar figure inside the section title: inherits the title's
+   size and weight, takes the accent color, and keeps its width steady while
+   the slider moves so the heading does not jitter. */
+.friends-impact__num {
+  color: var(--amber);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.friends-impact__groups {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  margin-top: var(--space-lg);
+  border-top: var(--border-width-thin) solid var(--border);
+}
+
+.friends-impact__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-md);
+  padding: var(--space-sm) 0;
+  border-bottom: var(--border-width-thin) solid var(--border);
+  font-size: var(--text-sm);
+}
+
+.friends-impact__group {
+  color: var(--text-muted);
+}
+
+.friends-impact__amount {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.friends-impact__total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-md);
+  margin: 0;
+  padding: var(--space-md) 0 0;
+  font-size: var(--text-base);
+}
+
+.friends-impact__total .friends-impact__group,
+.friends-impact__total .friends-impact__amount {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.friends-impact__more {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  margin: var(--space-md) 0 0;
+}
+
+
+/* ── Thank-you page ──
+   The heading is a PageHero like every other page. Beneath it the column
+   breathes: generous section spacing, three short cards, one big centered
+   call to action, then the shared newsletter prompt. Nothing here needs to
+   be dense; the reader has just paid and should feel room, not a wall. */
+.friends-thanks {
+  padding-top: var(--space-5xl);
+  padding-bottom: var(--space-5xl);
+}
+
+.friends-thanks .fin-section {
+  margin-bottom: var(--space-5xl);
+}
+
+/* Two cards, so the shared .fin-cards two-column grid (openbooks.css) is
+   already the right shape; no override needed. The newsletter prompt below
+   spans the full column. */
+.friends-thanks .newsletter-cta {
+  max-width: none;
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.friends-thanks__go {
+  text-align: center;
+}
+
+.friends-thanks__go .fin-section__desc {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 34rem;
+}
+

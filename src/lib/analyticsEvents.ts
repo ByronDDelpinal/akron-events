@@ -124,6 +124,14 @@ export type PlanSyncOp = 'add' | 'remove'
  * is the only read on whether the sourced anchors matter to readers.
  */
 export type ImpactCalcVia = 'slider' | 'preset'
+/** Which page's adoption slider fired impact_calc_adjusted: the full
+ *  calculator on /financials or the simpler one on /friends (2026-09-02).
+ *  One event, one funnel, a dimension to split it. */
+export type ImpactCalcPlacement = 'financials' | 'friends'
+/** Where a Become-a-Friend checkout click came from. One placement today;
+ *  a union rather than string so a future footer or /financials CTA has to
+ *  register itself here, the way InstallPlacement does. */
+export type FriendCheckoutPlacement = 'friends_page'
 
 /**
  * Where a link into the /guides section was clicked. One event with this
@@ -201,6 +209,8 @@ export const EVENTS = {
   // Deliberately NOT `video_start` or `video_progress`: both are GA4 reserved
   // names (see scripts/tests/test-analytics-events.js RESERVED).
   GUIDE_VIDEO_PLAY:      'guide_video_play',
+  FRIEND_CHECKOUT_CLICK:  'friend_checkout_click',
+  FRIEND_CHECKOUT_RETURN: 'friend_checkout_return',
 } as const
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS]
@@ -292,7 +302,16 @@ export interface EventParams {
   // any single hit is self-describing, mirroring when_filter's resulting-state
   // rule. Slider fires debounced on settle, never per-tick — a drag is one
   // exploration, not forty.
-  impact_calc_adjusted:  { percent: number; via: ImpactCalcVia }
+  impact_calc_adjusted:  { percent: number; via: ImpactCalcVia; placement: ImpactCalcPlacement }
   guide_link_click:      { guide_slug: string; placement: GuideLinkPlacement }
   guide_video_play:      { guide_slug: string }
+  // placement: where on /friends the click came from ('friends_page' today,
+  // room for a future footer/financials CTA later). No frequency or amount:
+  // the single Square link carries both choices on Square's own page (see
+  // src/lib/friends.ts), so we never learn which the visitor picked.
+  friend_checkout_click:  { placement: FriendCheckoutPlacement }
+  // Fired once, on mount, by /friends/thank-you -- the completed round trip
+  // through Square's checkout. No parameters: Square never tells us the
+  // amount or frequency chosen.
+  friend_checkout_return: Record<string, never>
 }

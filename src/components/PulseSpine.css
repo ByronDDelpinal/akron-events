@@ -1,0 +1,63 @@
+/* PulseSpine.css - the .fin-pulse-spine rules, moved out of FinancialsPage.css
+   when the component itself moved to src/components/PulseSpine.tsx (PageHero
+   precedent: component-owned CSS, imported by the component, not the page).
+   Class names kept exactly as they were on /financials, since PulseSpine.tsx
+   still renders className="fin-pulse-spine" and nothing else referenced these
+   selectors under a page-specific name. See PulseSpine.tsx's own docblock for
+   the coordinate derivation and the breathing animation's intent. */
+
+/* ── Pulse spine ("living pulse" redesign, 2026-08-17) ──
+   A continuous vertical EKG line in the left gutter, threading every
+   section from just under the hero to the footer. The waveform is the
+   site's actual brand mark (public/favicon.svg's blip path, re-plotted
+   top-to-bottom) - see PulseSpine.tsx's own docblock for the coordinate
+   derivation. Tiled via an SVG <pattern> so the "flat, then
+   a beat, repeat" cadence holds for any page length with no JS height math.
+
+   Hidden below 1200px on purpose. .fin-body's own gutter (each side) is
+   (viewport - 960) / 2; the spine sits at left:-64px, width 48px, so its
+   left edge needs that gutter to exceed 64px just to stay clear of the
+   viewport's own edge - viewport > 960 + 2*64 = 1088px. 1200px is not that
+   bare minimum: it's a deliberate buffer above it (about 56px of clearance
+   from the viewport edge, 16px from the content column at the threshold
+   itself), verified across 1200-1400px so the 960px column plus its
+   gutters is never squeezed. */
+.fin-pulse-spine {
+  display: none;
+  position: absolute;
+  top: 0;
+  /* height, NOT `bottom: 0`: an absolutely positioned SVG is a replaced
+     element, so top+bottom does not stretch it - it keeps its intrinsic
+     150px default and quietly renders as a stub (shipped exactly that way
+     first). Explicit percentage height is the working form. */
+  height: 100%;
+  left: -64px;
+  width: 48px;
+  pointer-events: none;
+  animation: fin-pulse-glow var(--pulse-duration, 2.2s) ease-in-out infinite;
+}
+@media (min-width: 1200px) {
+  .fin-pulse-spine { display: block; }
+}
+.fin-pulse-spine path {
+  fill: none;
+  stroke: var(--amber);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The whole line brightens rhythmically rather than any one blip animating
+   in place - simpler, and avoids relying on browsers to run a CSS animation
+   on content that lives inside an SVG <pattern> (inconsistently supported).
+   --pulse-scale / --pulse-duration are set from React, once per prop
+   change (PulseSpine.tsx) - never per animation frame. */
+@keyframes fin-pulse-glow {
+  0%, 100% { opacity: 0.35; filter: none; }
+  48%, 58% {
+    opacity: calc(0.35 + 0.5 * var(--pulse-scale, 0.6));
+    filter: drop-shadow(0 0 calc(3px * var(--pulse-scale, 0.6)) var(--amber));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fin-pulse-spine { animation: none; opacity: 0.5; }
+}

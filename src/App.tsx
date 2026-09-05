@@ -25,6 +25,8 @@ const AboutPage     = lazy(() => import('@/pages/AboutPage'))
 const OrganizersPage = lazy(() => import('@/pages/OrganizersPage'))
 const TechnicalPage = lazy(() => import('@/pages/TechnicalPage'))
 const FinancialsPage = lazy(() => import('@/pages/FinancialsPage'))
+const FriendsPage = lazy(() => import('@/pages/FriendsPage'))
+const FriendsThankYouPage = lazy(() => import('@/pages/FriendsThankYouPage'))
 const VenuesPage      = lazy(() => import('@/pages/VenuesPage'))
 const VenueDetailPage = lazy(() => import('@/pages/VenueDetailPage'))
 const VenueSubmitPage = lazy(() => import('@/pages/VenueSubmitPage'))
@@ -76,6 +78,7 @@ import { SEO, buildGraph, organizationSchema, webSiteSchema } from '@/lib/seo'
 import '@/styles/globals.css'
 import '@/styles/themes.css'
 import '@/styles/forms.css'
+import '@/styles/openbooks.css'
 
 /**
  * How long a scroll restore waits for the document to grow tall enough to
@@ -253,6 +256,8 @@ function AppInner() {
           <Route path="/organizers"          element={<OrganizersPage />} />
           <Route path="/technical"           element={<TechnicalPage />} />
           <Route path="/financials"          element={<FinancialsPage />} />
+          <Route path="/friends"             element={<FriendsPage />} />
+          <Route path="/friends/thank-you"   element={<FriendsThankYouPage />} />
           <Route path="/venues"              element={<VenuesPage />} />
           <Route path="/venues/submit"       element={<VenueSubmitPage />} />
           <Route path="/venues/:id"          element={<VenueDetailPage />} />

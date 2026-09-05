@@ -24,12 +24,14 @@
  * failure this page cannot survive.
  */
 
-import { Fragment, useState, useEffect, useRef, forwardRef, type CSSProperties } from 'react'
+import { Fragment, useState, useEffect, useRef, forwardRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { easternIsoAt, easternTodayIso } from '@/lib/easternDate'
 import { SEO } from '@/lib/seo'
 import PageHero from '@/components/PageHero'
+import AdoptionControls from '@/components/AdoptionControls'
+import { useAdoptionSlider } from '@/hooks/useAdoptionSlider'
 import {
   TIERS,
   TIER_TOTALS,
@@ -46,7 +48,6 @@ import {
   TODAY_INDEX,
   ACTIVE_SOURCE_COUNT,
   SUMMIT_COUNTY_ADULTS,
-  TODAY_ADOPTION_SHARE,
   CENSUS_SOURCE,
   IMPACT_LADDER,
   AEP6_LOCAL_SPEND_PER_OUTING,
@@ -56,9 +57,12 @@ import {
   lineMonthlyAtShare,
   activeStepIndex,
   driverValueForShare,
+  money,
   type CostLine,
+  facilitatedSpendAtShare,
+  ADOPTION_PRESETS,
+  SLIDER_MIN_PERCENT,
 } from '@/lib/financials'
-import { trackEvent, EVENTS } from '@/lib/analytics'
 import {
   ACTIVE_SPONSORS,
   PAST_SPONSORS,
@@ -66,6 +70,7 @@ import {
   SPONSOR_CONTACT_MAILTO,
   type Sponsor,
 } from '@/lib/sponsors'
+import PulseSpine from '@/components/PulseSpine'
 import './FinancialsPage.css'
 
 interface TrafficStats {
@@ -83,8 +88,6 @@ const NOTIFY_MAILTO =
 
 /** Placeholder for a figure we genuinely do not have. Never a zero. */
 const NO_DATA = 'n/a'
-
-const money = (n: number) => `$${n.toLocaleString()}`
 
 // The calendar year the event stat covers. Eastern, not UTC - see the count
 // query's comment. Module scope: one value per page load is exactly right.
@@ -114,28 +117,11 @@ const IMPACT_TODAY = IMPACT_LADDER.find((s) => s.key === 'today') ?? IMPACT_LADD
 // scenario that carries an adoption share, Today included. Percent is the
 // chip's slider position, clamped to at least 1 so a tiny measured Today
 // share can never round a chip down to an unreachable 0%.
-const IMPACT_PRESETS = IMPACT_LADDER
-  .filter((s) => s.shareOfAdults != null)
-  .map((s) => ({
-    key: s.key,
-    percent: Math.max(1, Math.round((s.shareOfAdults ?? 0) * 100)),
-    label: s.label,
-    isCeiling: s.isCeiling === true,
-  }))
+// The preset pills are ADOPTION_PRESETS in src/lib/financials.ts (shared with
+// /friends since 2026-09-02).
 
-// The slider FLOOR is Today (Byron, 2026-08-17): 0% is not a scenario this
-// page entertains, and nobody can model less adoption than the site has
-// already measured. Derived from the measured share, so the floor climbs as
-// the site grows; clamped to 1 because the range input is integer-stepped.
-const SLIDER_MIN_PERCENT = Math.max(1, Math.round(TODAY_ADOPTION_SHARE * 100))
-
-// Starting slider position: Today - the page opens where the site actually
-// is, the most conservative position that exists, and the reader moves it
-// up themselves or not at all.
-const DEFAULT_ADOPTION_PERCENT = SLIDER_MIN_PERCENT
-
-// One analytics hit per settled slider position, not one per tick of a drag.
-const SLIDER_SETTLE_MS = 800
+// SLIDER_MIN_PERCENT / DEFAULT_ADOPTION_PERCENT / SLIDER_SETTLE_MS moved to
+// src/lib/financials.ts (2026-09-02) so /friends' simpler slider shares them.
 
 // Headline formatting only; the exact figure always appears in the math line
 // beneath, so compacting here never hides a digit anyone needs.
@@ -162,8 +148,13 @@ export default function FinancialsPage() {
   // "living pulse" redesign, 2026-08-17), so the docked control (a second
   // position for the same slider) shares one settle timer with the
   // in-section one instead of owning a second, competing timer.
-  const [adoptionPercent, setAdoptionPercent] = useState(DEFAULT_ADOPTION_PERCENT)
-  const adoptionShare = adoptionPercent / 100
+  const {
+    percent: adoptionPercent,
+    share: adoptionShare,
+    valueText: adoptionValueText,
+    onSlide: onAdoptionSlide,
+    onPreset: onAdoptionPreset,
+  } = useAdoptionSlider('financials')
   // The cost table's live column total: every line evaluated at the current
   // slider share, summed the same way TIER_TOTALS sums lineMonthlyToday /
   // lineMonthlyAtShare(line, 1) - so Today, this column, and At scale are
@@ -184,27 +175,8 @@ export default function FinancialsPage() {
   const sponsorsSentinelRef = useRef<HTMLElement>(null)
   const [dockVisible, setDockVisible] = useState(false)
 
-  // One settle timer shared by both sliders (the in-section one and its
-  // docked twin, "living pulse" redesign, 2026-08-17): they drive the SAME
-  // adoptionPercent state and must fire impact_calc_adjusted through the
-  // same debounced-slider/immediate-preset split described on
-  // ImpactCalculator's own comment, never twice for one interaction.
-  const settleTimer = useRef<number | undefined>(undefined)
-  useEffect(() => () => window.clearTimeout(settleTimer.current), [])
-
-  const onAdoptionSlide = (next: number) => {
-    setAdoptionPercent(next)
-    window.clearTimeout(settleTimer.current)
-    settleTimer.current = window.setTimeout(() => {
-      trackEvent(EVENTS.IMPACT_CALC_ADJUSTED, { percent: next, via: 'slider' })
-    }, SLIDER_SETTLE_MS)
-  }
-
-  const onAdoptionPreset = (next: number) => {
-    window.clearTimeout(settleTimer.current)
-    setAdoptionPercent(next)
-    trackEvent(EVENTS.IMPACT_CALC_ADJUSTED, { percent: next, via: 'preset' })
-  }
+  // Slider state, the debounced-slide / immediate-preset analytics split,
+  // and the shared settle timer all live in useAdoptionSlider now.
 
   // The docked control appears once the reader has scrolled past the
   // calculator and disappears once they scroll past the sponsors section -
@@ -252,13 +224,10 @@ export default function FinancialsPage() {
   // twin read the exact same numbers - the same reason liveMonthlyTotal
   // above is computed once for the cost table rather than inside each cell.
   const adoptionUsers = Math.round(SUMMIT_COUNTY_ADULTS * adoptionShare)
-  const adoptionFacilitated = Math.round(SUMMIT_COUNTY_ADULTS * adoptionShare * AEP6_LOCAL_SPEND_PER_OUTING)
+  const adoptionFacilitated = facilitatedSpendAtShare(adoptionShare)
   const adoptionAnnualCost = liveMonthlyTotal * 12
   const adoptionCentsAtShare = centsPerResident(adoptionAnnualCost)
-  const atAdoptionCeiling = IMPACT_PRESETS.some((p) => p.isCeiling && p.percent === adoptionPercent)
-  // Read by both sliders' aria-valuetext, so the docked control's announced
-  // value can never drift from the in-section one's wording.
-  const adoptionValueText = `${adoptionPercent}% of adults, about ${money(adoptionFacilitated)} a year`
+  const atAdoptionCeiling = ADOPTION_PRESETS.some((p) => p.isCeiling && p.percent === adoptionPercent)
 
   useEffect(() => {
     async function load() {
@@ -325,8 +294,8 @@ export default function FinancialsPage() {
         big budget, so here's the whole bill, updated as prices change.
       </PageHero>
 
-      <div className="fin-body">
-        <PulseSpine adoptionShare={adoptionShare} />
+      <div className="fin-body fin-body--docked">
+        <PulseSpine intensity={adoptionShare} />
 
         {/* ── Summary stats ── */}
         <div className="fin-stats">
@@ -617,7 +586,7 @@ export default function FinancialsPage() {
                 so these stay OUT of the monthly and per-year totals above -
                 a one-off purchase isn't a function of the adoption slider. */}
               {ONE_OFF_EXPENSES.length > 0 && (
-              <tbody className="fin-oneoffs-body">
+              <tbody>
                 <tr>
                   <th scope="colgroup" colSpan={3} className="fin-oneoffs__heading">
                     One-off expenses ({new Date().getFullYear()})
@@ -845,35 +814,15 @@ const ImpactCalculator = forwardRef<HTMLDivElement, {
 ) {
   return (
     <div className="fin-calc">
-      <div className="fin-calc__slider-row" ref={ref}>
-        <label className="fin-calc__label" htmlFor="fin-calc-adoption">Share of adults</label>
-        <input
-          id="fin-calc-adoption"
-          className="fin-calc__slider"
-          type="range"
-          min={SLIDER_MIN_PERCENT}
-          max={100}
-          step={1}
-          value={percent}
-          onChange={(e) => onSlide(Number(e.target.value))}
-          aria-valuetext={valueText}
-        />
-        <span className="fin-calc__pct" aria-hidden="true">{percent}%</span>
-      </div>
-
-      <div className="fin-calc__presets" role="group" aria-label="Sourced adoption comparisons">
-        {IMPACT_PRESETS.map((p) => (
-          <button
-            key={p.key}
-            type="button"
-            className="fin-calc__preset"
-            aria-pressed={percent === p.percent}
-            onClick={() => onPreset(p.percent)}
-          >
-            {p.label} · {p.percent}%
-          </button>
-        ))}
-      </div>
+      <AdoptionControls
+        ref={ref}
+        id="fin-calc-adoption"
+        label="Share of adults"
+        percent={percent}
+        valueText={valueText}
+        onSlide={onSlide}
+        onPreset={onPreset}
+      />
 
       <p className="fin-calc__result">
         {/* fin-flash, keyed by the figure itself ("living pulse" redesign,
@@ -912,8 +861,8 @@ const ImpactCalculator = forwardRef<HTMLDivElement, {
           is nothing left to bound; the number below is the model's actual
           answer for this adoption level, not a ceiling on it. The
           cents-per-resident clause (2026-08-17) reads centsPerResident the
-          same way .fin-impact-noassumption's fixed Today/At-scale figures
-          do, just evaluated at the live share instead of a fixed one. */}
+          same way the cost table's fixed Today/At-scale figures do, just
+          evaluated at the live share instead of a fixed one. */}
       <p className="fin-calc__cost">
         At this adoption level Akron Pulse would cost about{' '}
         <span className="fin-flash" key={`cost-${annualCost}`}>{money(annualCost)}</span> a year to
@@ -937,53 +886,9 @@ const ImpactCalculator = forwardRef<HTMLDivElement, {
   )
 })
 
-/**
- * The pulse spine ("living pulse" redesign, 2026-08-17): a continuous
- * vertical EKG line threading .fin-body's left gutter from just below the
- * hero to the footer. The waveform is the site's own brand mark, not an
- * invented heartbeat shape (house rule: visuals use our brand assets) - it
- * is public/favicon.svg's blip path itself,
- * `M 5 16 L 11 16 L 14 10 L 16 23 L 19 5 L 22 18 L 25 16 L 27 16`, the same
- * EKG line every favicon size and the nav/footer logo draw, re-plotted
- * running top-to-bottom instead of left-to-right: the favicon's horizontal
- * traversal (x) becomes the spine's vertical traversal, and its vertical
- * deflection (y - 16, the favicon's own baseline) becomes the spine's
- * horizontal deflection, scaled up into the 48px column. Tiled via an SVG
- * <pattern> (FinancialsPage.css) so it repeats at a fixed cadence for any
- * page length, with no JS height measurement.
- *
- * The line "breathes": amplitude and rate both track adoptionShare via the
- * --pulse-scale / --pulse-duration custom properties, weak and slow near
- * the low end of the slider, strong and fast at full adoption, through one
- * CSS @keyframes animation (FinancialsPage.css's fin-pulse-glow). No
- * requestAnimationFrame and no per-frame React render: the two properties
- * are set once per slider move, exactly like every other derived value on
- * this page - the animation loop itself is the browser's, not ours.
- *
- * aria-hidden and presentational only: a decorative brand mark, never
- * content a crawler or a screen reader needs. Hidden entirely below 1200px
- * (FinancialsPage.css) so it never competes with the 960px content column
- * for room.
- */
-function PulseSpine({ adoptionShare }: { adoptionShare: number }) {
-  const pulseScale = 0.25 + 0.75 * adoptionShare
-  const pulseDuration = (2.6 - 1.6 * adoptionShare).toFixed(2)
-  return (
-    <svg
-      className="fin-pulse-spine"
-      aria-hidden="true"
-      focusable="false"
-      style={{ '--pulse-scale': pulseScale, '--pulse-duration': `${pulseDuration}s` } as CSSProperties}
-    >
-      <defs>
-        <pattern id="finPulseTile" patternUnits="userSpaceOnUse" width="48" height="220">
-          <path d="M24 0 L24 170 L16.2 178.6 L33.1 184.3 L9.7 192.9 L26.6 201.4 L24 210 L24 220" />
-        </pattern>
-      </defs>
-      <rect width="48" height="100%" fill="url(#finPulseTile)" />
-    </svg>
-  )
-}
+// PulseSpine (the "living pulse" EKG line in .fin-body's left gutter) moved
+// to src/components/PulseSpine.tsx when /friends adopted the same open-books
+// chrome - see that file's docblock for the full derivation.
 
 /**
  * The docked adoption control ("living pulse" redesign, 2026-08-17): the

@@ -320,6 +320,19 @@ body {
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
 }
+/* Sticky footer (2026-09-02). Before this, a short page (/friends/thank-you,
+   /unsubscribe, a 404) ended wherever its content ended and the footer sat
+   in the middle of the viewport with page background below it. The root is a
+   full-height column and <main> takes the slack, so the footer always lands
+   at the bottom and never overlaps content. Every route group renders
+   inside #root (SiteChrome, admin, and /embed alike); /embed has no footer,
+   so its <main> just fills the frame, which is what an iframe wants. */
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+#root > main { flex: 1 0 auto; }
 a { color: inherit; }
 button { font-family: inherit; }
 

@@ -108,3 +108,6 @@ data/moderation/
 .tmp-*
 .claude/settings.local.json
 supabase/.temp/
+# Agent sandbox scratch (npm cache / TMPDIR) must never live in the repo; see
+# .claude/agents/developer.md. Ignored as a backstop only.
+.cache-agent/

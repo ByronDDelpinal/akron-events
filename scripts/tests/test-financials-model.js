@@ -51,6 +51,7 @@ const PRICING_URLS = [
   'https://vercel.com/docs/image-optimization/limits-and-pricing',
   'https://resend.com/pricing',
   'https://www.hover.com/',
+  'https://workspace.google.com/pricing',
 ]
 
 const MAX_PRICE_AGE_DAYS = 180
@@ -68,7 +69,6 @@ function section(startMarker, endMarker) {
 const tiersBlock = section('export const TIERS = [', '] as const')
 const costBlock = section('export const COST_LINES: CostLine[] = [', '\n]\n')
 const policyBlock = section('export const EMBED_PARTNER_POLICY', '} as const')
-
 const tierKeys = [...tiersBlock.matchAll(/key:\s*'([^']+)'/g)].map((m) => m[1])
 
 /** Every top-level `export const NAME = <number-literal>` in the file. */
@@ -386,6 +386,7 @@ describe('financials cost model shape', () => {
       }
     }
   })
+
 })
 
 describe('tier indices', () => {
@@ -437,6 +438,30 @@ describe('totals recompute from the schedules, never decrease as adoption rises'
   })
 })
 
+describe('groupMonthlyAtShare (2026-09-02, /friends impact rows) partitions the bill', () => {
+  // /friends renders the four COST_GROUPS through groupMonthlyAtShare and
+  // calls the result "the whole bill at this adoption". That claim is only
+  // true if the groups partition COST_LINES: every line in exactly one
+  // listed group, and the four group sums equal the full total at every
+  // share. Evaluated against the live model, not a copy.
+  it('every COST_LINES group is a listed COST_GROUPS key', async () => {
+    const fin = await import(new URL('../../src/lib/financials.ts', import.meta.url))
+    const keys = new Set(fin.COST_GROUPS.map((g) => g.key))
+    for (const line of fin.COST_LINES) {
+      assert.ok(keys.has(line.group), `cost line '${line.key}' has group '${line.group}', which COST_GROUPS does not list`)
+    }
+  })
+
+  it('the four group totals sum to the full total at 0, Today, 0.5 and 1.0', async () => {
+    const fin = await import(new URL('../../src/lib/financials.ts', import.meta.url))
+    for (const share of [0, fin.TODAY_ADOPTION_SHARE, 0.5, 1]) {
+      const groups = fin.COST_GROUPS.reduce((sum, g) => sum + fin.groupMonthlyAtShare(g.key, share), 0)
+      const total = fin.COST_LINES.reduce((sum, l) => sum + fin.lineMonthlyAtShare(l, share), 0)
+      assert.ok(Math.abs(groups - total) < 1e-6, `at share ${share}: groups sum to ${groups}, lines to ${total}`)
+    }
+  })
+})
+
 describe('users-first refactor (2026-08-17) changed the vocabulary, not the dollars', () => {
   // Pins the exact totals the pre-refactor model produced, so a future edit
   // to adoptersAtShare / trafficViewsPerMonth / CEILING_VIEWS_PER_USER_MONTH
@@ -448,24 +473,28 @@ describe('users-first refactor (2026-08-17) changed the vocabulary, not the doll
   // anchors (58/66/78%, 2026-08-17) but these stay as arbitrary sample
   // points - the pin is about the evaluator's arithmetic, not about which
   // chips happen to sit on the slider.
-  it('Today totals exactly $173/mo', () => {
-    assert.equal(todayTotal(), 173, `Today's total is $${todayTotal()}, expected $173`)
+  // Pins re-baselined 2026-09-02 when the Google Workspace line landed (a
+  // deliberate model change, not drift): a flat +$34 at every share, so each
+  // pin below moved by exactly that. Pre-Workspace values were
+  // 173 / 706 / 1967 / 4026.
+  it('Today totals exactly $207/mo', () => {
+    assert.equal(todayTotal(), 207, `Today's total is $${todayTotal()}, expected $207`)
   })
 
   // Pins re-baselined 2026-08-17 when the Supabase COMPUTE steps landed (a
   // deliberate model change, not drift): +$5 at 15% (Small), +$50 at 48%
   // (Medium), +$100 at 100% (Large), each net of Pro's $10 compute credit.
   // Pre-step values were 701 / 1917 / 3926.
-  it('s = 0.15 totals exactly $706/mo', () => {
-    assert.equal(totalAtShare(0.15), 706, `total at s=0.15 is $${totalAtShare(0.15)}, expected $706`)
+  it('s = 0.15 totals exactly $740/mo', () => {
+    assert.equal(totalAtShare(0.15), 740, `total at s=0.15 is $${totalAtShare(0.15)}, expected $740`)
   })
 
-  it('s = 0.48 totals exactly $1,967/mo', () => {
-    assert.equal(totalAtShare(0.48), 1967, `total at s=0.48 is $${totalAtShare(0.48)}, expected $1,967`)
+  it('s = 0.48 totals exactly $2,001/mo', () => {
+    assert.equal(totalAtShare(0.48), 2001, `total at s=0.48 is $${totalAtShare(0.48)}, expected $2,001`)
   })
 
-  it('s = 1.0 (the ceiling) totals exactly $4,026/mo, matching TIER_TOTALS', () => {
-    assert.equal(totalAtShare(1), 4026, `total at s=1.0 is $${totalAtShare(1)}, expected $4,026`)
+  it('s = 1.0 (the ceiling) totals exactly $4,060/mo, matching TIER_TOTALS', () => {
+    assert.equal(totalAtShare(1), 4060, `total at s=1.0 is $${totalAtShare(1)}, expected $4,060`)
   })
 
   it('CEILING_VIEWS_PER_USER_MONTH round-trips to EMBED_CEILING_VIEWS_PER_MONTH within rounding', () => {

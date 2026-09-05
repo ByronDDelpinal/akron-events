@@ -765,6 +765,17 @@ export const COST_LINES: CostLine[] = [
     flatAtScale: 2,
   },
   {
+    key: 'workspace',
+    group: 'core',
+    label: 'Google Workspace',
+    url: 'https://workspace.google.com/pricing',
+    // Byron's stated monthly bill, 2026-09-02 - not a list-price derivation.
+    description: 'Email for akronpulse.com (byron@ and intake@ mailboxes)',
+    driver: 'flat',
+    flatToday: 34,
+    flatAtScale: 34,
+  },
+  {
     key: 'scrapers',
     group: 'core',
     label: 'Data collection',
@@ -884,6 +895,12 @@ export const COST_LINES: CostLine[] = [
   },
 ]
 
+/** Formats a whole-dollar amount for display, e.g. money(173) -> "$173".
+ *  The one place this page (and anywhere else that quotes a dollar figure
+ *  derived from this module) formats money, so a comma convention or a
+ *  cents decision only ever needs to change here. */
+export const money = (n: number) => `$${n.toLocaleString()}`
+
 /** Derived total per fixed tier: [today, at-scale], each an evaluation of every line's lineMonthlyToday / lineMonthlyAtShare(1). */
 export const TIER_TOTALS: TierAmounts = [
   COST_LINES.reduce((sum, line) => sum + lineMonthlyToday(line), 0),
@@ -906,6 +923,31 @@ export const SERVICES_TOTAL = COST_LINES
 
 /** Today's non-service overhead (labor + marketing) for the stat breakdown. */
 export const OVERHEAD_TOTAL = MONTHLY_TOTAL - SERVICES_TOTAL
+
+/**
+ * One cost group's monthly total at an adoption share: the sum of
+ * lineMonthlyAtShare over every COST_LINES entry in that group. /friends
+ * renders the four COST_GROUPS through this so its "whole bill at this
+ * adoption" can never disagree with the /financials cost table, which
+ * evaluates the same lines one at a time. test-financials-model.js pins
+ * that the four groups sum to the full total at every share.
+ */
+export function groupMonthlyAtShare(groupKey: CostGroupKey, share: number): number {
+  return COST_LINES
+    .filter(l => l.group === groupKey)
+    .reduce((sum, l) => sum + lineMonthlyAtShare(l, share), 0)
+}
+
+/**
+ * Local spending facilitated per year at an adoption share: adults at that
+ * share, each attending ADOPTION_OUTINGS_PER_USER extra thing(s) a year at
+ * AEP6_LOCAL_SPEND_PER_OUTING. Both adoption sliders (/financials and
+ * /friends) read this one function so they can never announce different
+ * dollar figures for the same slider position.
+ */
+export function facilitatedSpendAtShare(share: number): number {
+  return Math.round(SUMMIT_COUNTY_ADULTS * share * ADOPTION_OUTINGS_PER_USER * AEP6_LOCAL_SPEND_PER_OUTING)
+}
 
 // ── Local spending facilitated: adoption calculator ─────────────────────────
 // Akron Pulse doesn't sell anything, so there is no revenue line on this
@@ -1035,6 +1077,26 @@ export const OPTIMISTIC_ADOPTION_SHARE = 0.75
  * exactly one additional thing a year, never more.
  */
 export const ADOPTION_OUTINGS_PER_USER = 1
+
+// ── Adoption slider (shared by /financials and /friends) ────────────────────
+// The slider FLOOR is Today (Byron, 2026-08-17): 0% is not a scenario the
+// site entertains, and nobody can model less adoption than has already been
+// measured. Derived from the measured share, so the floor climbs as the site
+// grows; clamped to 1 because the range input is integer-stepped.
+export const SLIDER_MIN_PERCENT = Math.max(1, Math.round(TODAY_ADOPTION_SHARE * 100))
+
+// Starting slider position: Today - the page opens where the site actually
+// is, the most conservative position that exists, and the reader moves it
+// up themselves or not at all.
+export const DEFAULT_ADOPTION_PERCENT = SLIDER_MIN_PERCENT
+
+// One analytics hit per settled slider position, not one per tick of a drag.
+export const SLIDER_SETTLE_MS = 800
+
+/** aria-valuetext for both adoption sliders, one wording. */
+export function adoptionValueText(percent: number): string {
+  return `${percent}% of adults, about ${money(facilitatedSpendAtShare(percent / 100))} a year`
+}
 
 /** A cited source: a label and the URL it links to. Every non-"assumed" input below carries one. */
 export interface ImpactSource {
@@ -1217,6 +1279,30 @@ export const IMPACT_LADDER: ComputedImpactScenario[] = IMPACT_SCENARIOS.map((s) 
     facilitated: Math.round(usersUnrounded * s.outingsPerUser * s.spendPerOuting),
   }
 })
+
+/** One preset pill on an adoption slider: a cited IMPACT_LADDER rung. */
+export interface AdoptionPreset {
+  key: string
+  /** Integer slider position, clamped to the same floor as SLIDER_MIN_PERCENT. */
+  percent: number
+  label: string
+  isCeiling: boolean
+}
+
+/**
+ * The preset pills both adoption sliders (/financials and /friends) snap to:
+ * every IMPACT_LADDER rung that carries a share of adults, as an integer
+ * percent. Today is deliberately not a pill - see IMPACT_TODAY's comment.
+ * Defined once here so the two pages can never offer different anchors.
+ */
+export const ADOPTION_PRESETS: AdoptionPreset[] = IMPACT_LADDER
+  .filter((s) => s.shareOfAdults != null)
+  .map((s) => ({
+    key: s.key,
+    percent: Math.max(1, Math.round((s.shareOfAdults ?? 0) * 100)),
+    label: s.label,
+    isCeiling: s.isCeiling === true,
+  }))
 
 /**
  * Cents per Summit County resident per year for a given annual dollar

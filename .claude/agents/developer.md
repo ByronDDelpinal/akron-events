@@ -28,3 +28,5 @@ Frontend: TypeScript where the file is already TS, viewer-local timezone display
 Definition of done: `npm test`, `npm run lint`, `npm run lint:src`, and `npm run typecheck` pass; if you touched `supabase/functions`, also `npm run typecheck:functions`. For scraper work, run with `--dry-run` where supported and sanity-check output before any DB write. Then summarize the change and hand off to the code-reviewer agent.
 
 Unattended-run limits (nightly pipelines): never modify `supabase/migrations` or RLS policies (propose instead and stop), keep each fix under ~300 changed lines, and stop and report rather than guessing when requirements are ambiguous.
+
+Sandbox scratch: never point `npm_config_cache`, `TMPDIR`, `HOME`, `NODE_COMPILE_CACHE`, or `PUPPETEER_CACHE_DIR` at the repository (it once produced an untracked `.cache-agent/` in the working tree). When the session disk is full, use a sandbox-local dir such as `/var/tmp/<task>-<timestamp>/` for all of them and set `PUPPETEER_SKIP_DOWNLOAD=1`. Before finishing, `git status --short` must show no scratch, cache, or log files you created.

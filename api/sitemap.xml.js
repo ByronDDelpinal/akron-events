@@ -33,6 +33,7 @@ const STATIC_ROUTES = [
   { path: '/venues/submit',  priority: 0.4, changefreq: 'monthly' },
   { path: '/organizations/submit', priority: 0.4, changefreq: 'monthly' },
   { path: '/subscribe',      priority: 0.5, changefreq: 'monthly' },
+  { path: '/friends',        priority: 0.5, changefreq: 'monthly' },
   { path: '/financials',     priority: 0.5, changefreq: 'monthly' },
   // Guides. changefreq is honest: these change when a video lands, not
   // daily. Every entry here has a matching scripts/prerender.js entry, and

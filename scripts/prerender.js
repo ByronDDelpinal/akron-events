@@ -73,6 +73,7 @@ const ROUTES = [
   // problem this script exists to fix. The pair is asserted by
   // scripts/tests/test-financials-page-guards.js.
   '/financials',
+  '/friends',
   ...ENABLED_HUB_PATHS,
   // Festival hub pages (docs/umbrella-child-hiding.md §6): the schedule body
   // is client-fetched, so prerender captures the title/meta/canonical
