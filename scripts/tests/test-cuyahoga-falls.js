@@ -51,6 +51,8 @@ import {
   fullRetirementAllowed,
   dayViewUrl,
   yearViewUrl,
+  extractBodyText,
+  detailFromHtml,
   HORIZON_DAYS,
   RETIREMENT_MIN_RESOLVED,
   RETIREMENT_MAX_FRACTION,
@@ -764,5 +766,130 @@ describe('description is not double-stripped (2026-07-28 regression)', () => {
     assert.equal(parsed, base, 'the parsed branch must pass the base through unchanged')
     assert.equal(inferred, `${base} ${TIME_NOTE}`)
     assert.equal(inferred.slice(0, base.length), parsed)
+  })
+})
+
+describe('extractBodyText (2026-09-06 truncated-meta incident)', () => {
+  // The drug-take-back-day-1 shape: og:description/meta truncate before the
+  // "Time:" line, but the full text is in the Drupal body wrapper. class
+  // order matches the real markup (clearfix first, field--name-body third).
+  const bodyHtml = (inner) =>
+    `<html><head>
+      <meta property="og:description" content="Date: Saturday, April 25, 2026">
+    </head><body>
+      <div class="clearfix text-formatted field field--name-body field--type-text-with-summary field--label-hidden field__item">${inner}</div>
+    </body></html>`
+
+  const FULL_BODY_INNER =
+    '<h2>Drug Take Back Day</h2>' +
+    '<p>Bring your unused medications.</p>' +
+    '<ul><li><p>Date: Saturday, April 25, 2026</p></li>' +
+    '<li><p>Time: 9:00 AM – 12:00 PM</p></li>' +
+    '<li><p>Location: <div>Fire Station 1</div></p></li>' +
+    '</ul>'
+
+  it('returns the full body text, including the Time line the truncated meta cut off', () => {
+    const html = bodyHtml(FULL_BODY_INNER)
+    const body = extractBodyText(html)
+    assert.ok(body, 'expected a non-null body')
+    assert.match(body, /Time: 9:00 AM . 12:00 PM/)
+  })
+
+  it('finds the matching outer close even with a nested inner <div>', () => {
+    // FULL_BODY_INNER has a <div>Fire Station 1</div> nested inside the <li>.
+    // A lazy `</div>` match would stop there and drop everything after it —
+    // in the real markup, that includes the Time line.
+    const html = bodyHtml(FULL_BODY_INNER)
+    const body = extractBodyText(html)
+    assert.match(body, /Fire Station 1/)
+    assert.match(body, /Time: 9:00 AM/, 'text after the nested inner </div> must survive')
+  })
+
+  it('is attribute-order agnostic for the field--name-body class token', () => {
+    const html =
+      '<div data-x="1" class="field--name-body clearfix text-formatted">' +
+      '<p>Time: 3:00 PM</p></div>'
+    assert.match(extractBodyText(html), /Time: 3:00 PM/)
+  })
+
+  it('parses a real start time from the extracted body via parseTimeFromTextDetailed', () => {
+    const body = extractBodyText(bodyHtml(FULL_BODY_INNER))
+    assert.deepEqual(parseTimeFromTextDetailed(body), { time: '09:00:00', inferred: false })
+  })
+
+  it('returns null when the body div is absent', () => {
+    assert.equal(extractBodyText('<html><body><p>No body wrapper here.</p></body></html>'), null)
+  })
+
+  it('returns null when the body div is present but empty of text', () => {
+    assert.equal(extractBodyText('<div class="field field--name-body">   </div>'), null)
+  })
+})
+
+describe('detailFromHtml (2026-09-06 truncated-meta incident)', () => {
+  const TRUNCATED_META =
+    'Date: Saturday, April 25, 2026' // Drupal's ~380-char cut, one line short of "Time:"
+
+  const pageWith = ({ meta = null, body = null, h1 = 'Drug Take Back Day' } = {}) => {
+    const metaTag = meta
+      ? `<meta property="og:description" content="${meta}">`
+      : ''
+    const bodyDiv = body
+      ? `<div class="clearfix text-formatted field field--name-body field--type-text-with-summary field--label-hidden field__item">${body}</div>`
+      : ''
+    return `<html><head>${metaTag}</head><body><h1>${h1}</h1>${bodyDiv}</body></html>`
+  }
+
+  const FULL_BODY =
+    '<ul><li><p>Date: Saturday, April 25, 2026</p></li>' +
+    '<li><p>Time: 9:00 AM – 12:00 PM</p></li></ul>'
+
+  it('body + truncated meta: uses the body for both the parsed time and the stored description', () => {
+    const html = pageWith({ meta: TRUNCATED_META, body: FULL_BODY })
+    const detail = detailFromHtml(html)
+    assert.equal(detail.timeStr, '09:00:00')
+    assert.equal(detail.timeInferred, false)
+    assert.match(detail.description, /Time: 9:00 AM/)
+    assert.equal(detail.title, 'Drug Take Back Day')
+  })
+
+  it('meta only (no body div), entity-encoded dash: meta is HTML-decoded before parsing, so "4 &ndash; 7 p.m." now resolves to 16:00 -- a strict improvement over the old raw-meta parse, not byte-identical', () => {
+    const rawMeta = 'The Riverfront Car Cruise In is held every Monday, 4 &ndash; 7 p.m.'
+    const html = pageWith({ meta: rawMeta, body: null })
+    const detail = detailFromHtml(html)
+    assert.equal(detail.timeStr, '16:00:00')
+    assert.equal(detail.timeInferred, false)
+    assert.equal(detail.description, 'The Riverfront Car Cruise In is held every Monday, 4 \u2013 7 p.m.')
+  })
+
+  it('meta only (no body div), plain text dash: falls back to the meta description unchanged', () => {
+    const meta = 'The Riverfront Car Cruise In is held every Monday, 4 - 7 p.m.'
+    const html = pageWith({ meta, body: null })
+    const detail = detailFromHtml(html)
+    assert.equal(detail.timeStr, '16:00:00')
+    assert.equal(detail.timeInferred, false)
+    assert.equal(detail.description, meta)
+  })
+
+  it('neither body nor meta: still the sanctioned noon default with inferred true and a null description', () => {
+    const html = pageWith({ meta: null, body: null })
+    const detail = detailFromHtml(html)
+    assert.equal(detail.timeStr, '12:00:00')
+    assert.equal(detail.timeInferred, true)
+    assert.equal(detail.description, null)
+  })
+
+  it('body present but time-inferred: falls back to the meta text for TIME specifically', () => {
+    // Body has no parseable time, but the meta does — the composition rule
+    // (`if (parsed.inferred && meta) parsed = parseTimeFromTextDetailed(meta)`)
+    // must still find it, even though the stored description prefers the body.
+    const noTimeBody = '<p>Family fun on the riverfront. Free admission, all welcome.</p>'
+    const meta = 'Doors open 6 p.m. at the riverfront.'
+    const html = pageWith({ meta, body: noTimeBody })
+    const detail = detailFromHtml(html)
+    assert.equal(detail.timeStr, '18:00:00')
+    assert.equal(detail.timeInferred, false)
+    // The stored description still prefers the body text, not the meta.
+    assert.match(detail.description, /Family fun on the riverfront/)
   })
 })

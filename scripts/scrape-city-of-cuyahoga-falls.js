@@ -43,8 +43,10 @@
  *   4. Drop government/administrative entries (City Council, Planning
  *      Commission, Board of Zoning Appeal, etc.) with a meeting filter.
  *   5. Fetch each unique event node once (cached) for its <h1> title, og:
- *      description, og:image, and a best-effort start time parsed from the
- *      detail prose / meta description ("6 to 10 p.m.", "beginning at 7 p.m.").
+ *      image, and a best-effort start time parsed from the full body prose
+ *      (falling back to the og:/meta description, which Drupal truncates at
+ *      ~380 chars and can cut before the "Time:" line) ("6 to 10 p.m.",
+ *      "beginning at 7 p.m.").
  *   6. Retire published rows in the covered window that this run did not
  *      resolve (see planRetirement) — the date fix moves every occurrence by a
  *      day, so the old rows would otherwise stay published forever under
@@ -584,25 +586,98 @@ function metaContent(html, prop) {
   return m2 ? m2[1] : null
 }
 
+/**
+ * Pull the full event-body text out of the Drupal node body wrapper:
+ *   <div class="clearfix text-formatted field field--name-body ...">…</div>
+ * The og:/meta description Drupal generates from this same body is truncated
+ * at ~380 chars, which on at least one page (drug-take-back-day-1) cuts the
+ * text one line before "Time: 9:00 AM – 12:00 PM" and silently falls back to
+ * the noon default. The body div has no such limit.
+ *
+ * Finds the opening <div> whose class attribute contains `field--name-body`
+ * (attribute order in the tag doesn't matter — class can come before or after
+ * other attributes), then walks <div / </div> tokens from there to find the
+ * matching close. A lazy `</div>` regex match would stop at the FIRST inner
+ * close and truncate the body at whatever nested <div> (there is always at
+ * least one, wrapping the field item) happens to appear first.
+ *
+ * Returns stripHtml() of the inner slice, or null when the div is absent or
+ * its stripped text is empty.
+ */
+export function extractBodyText(html) {
+  const openRe = /<div\b[^>]*class=["'][^"']*\bfield--name-body\b[^"']*["'][^>]*>/i
+  const openMatch = openRe.exec(html)
+  if (!openMatch) return null
+
+  const tagRe = /<div\b[^>]*>|<\/div>/gi
+  tagRe.lastIndex = openMatch.index + openMatch[0].length
+  let depth = 1
+  let innerEnd = null
+  let m
+  while ((m = tagRe.exec(html))) {
+    if (m[0].toLowerCase() === '</div>') {
+      depth -= 1
+      if (depth === 0) {
+        innerEnd = m.index
+        break
+      }
+    } else {
+      depth += 1
+    }
+  }
+  if (innerEnd === null) return null
+
+  const inner = html.slice(openMatch.index + openMatch[0].length, innerEnd)
+  const text = stripHtml(inner)
+  return text ? text : null
+}
+
+// The noon-default fallback shared by a failed fetch and a body-less,
+// meta-less page. SANCTIONED-DEFAULT-TIME, see parseTimeFromTextDetailed
+// above. Description stays null so buildDescription adds nothing and the
+// event is not scored as a complete listing on the strength of the
+// disclosure alone.
+const NO_DETAIL = Object.freeze({ title: null, description: null, imageUrl: null, timeStr: '12:00:00', timeInferred: true })
+
+/**
+ * Pure: turn one detail-page HTML string into the fields fetchDetail stores.
+ * Prefers the full Drupal body (extractBodyText) for both time parsing and
+ * the stored description, since the og:/meta description is Drupal's
+ * truncated (~380 char) summary of that same body and can cut before a
+ * "Time:" line. Falls back to the meta description only when the body div is
+ * absent, and falls back to it for TIME specifically when the body parse came
+ * back inferred but the meta text might still carry an explicit time. That
+ * meta text is now parsed from stripHtml(meta) (entities decoded), so an
+ * entity-encoded dash like "4 &ndash; 7 p.m." resolves to 16:00 instead of
+ * the prior fallback time -- a strict improvement over the old meta-only
+ * parse, not byte-identical behaviour.
+ */
+export function detailFromHtml(html) {
+  const h1 = (html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i) || [])[1]
+  const body = extractBodyText(html)
+  const rawDesc = metaContent(html, 'og:description') || metaContent(html, 'description')
+  const meta = rawDesc ? stripHtml(rawDesc) : null
+
+  let parsed = parseTimeFromTextDetailed(body || '')
+  if (parsed.inferred && meta) parsed = parseTimeFromTextDetailed(meta)
+
+  const storedText = body || meta
+  return {
+    title:        h1 ? stripHtml(h1) : (metaContent(html, 'og:title') || null),
+    description:  storedText ? clampChars(storedText, MAX_DESCRIPTION) : null,
+    imageUrl:     metaContent(html, 'og:image') || null,
+    timeStr:      parsed.time,
+    timeInferred: parsed.inferred,
+  }
+}
+
 async function fetchDetail(slug, cache) {
   if (cache.has(slug)) return cache.get(slug)
   // A failed fetch leaves the noon default in place, so it counts as inferred.
-  // SANCTIONED-DEFAULT-TIME, see parseTimeFromTextDetailed above. Description
-  // stays null here, so buildDescription adds nothing and the event is not
-  // scored as a complete listing on the strength of the disclosure alone.
-  let detail = { title: null, description: null, imageUrl: null, timeStr: '12:00:00', timeInferred: true }
+  let detail = NO_DETAIL
   try {
     const html = await fetchHtml(`${BASE_URL}/events/${slug}`)
-    const h1 = (html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i) || [])[1]
-    const desc = metaContent(html, 'og:description') || metaContent(html, 'description')
-    const parsedTime = parseTimeFromTextDetailed(desc || '')
-    detail = {
-      title:        h1 ? stripHtml(h1) : (metaContent(html, 'og:title') || null),
-      description:  desc ? clampChars(stripHtml(desc), MAX_DESCRIPTION) : null,
-      imageUrl:     metaContent(html, 'og:image') || null,
-      timeStr:      parsedTime.time,
-      timeInferred: parsedTime.inferred,
-    }
+    detail = detailFromHtml(html)
   } catch (err) {
     console.warn(`  ⚠ detail fetch failed for ${slug}: ${err.message}`)
   }
