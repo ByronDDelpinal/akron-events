@@ -611,6 +611,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'all_fired_up',
+    method:      'Headless browser',
+    methodDetail:'The public Classes/Events calendar is NOT on the Wix marketing site — it lives on the Occasion booking platform (app.getoccasion.com/p/stacks/2668/13945). Occasion hard-403s any plain HTTP client (a full browser header set on a residential IP is still rejected — it fingerprints below the header layer), so the stack + detail pages are rendered with Puppeteer (lib/puppeteer.js). The stack lists one card per occurrence (recurring classes repeat); the year comes from each card\'s data-id (YYYYMMDD prefix) since the visible "Sun, September 13" label carries none. Each unique /p/n/<token> detail page is visited once for the full description, price and image. Non-event products on the same stack (At-Home Kits, Party Pails to-go, gift cards, hiring interviews) are filtered by title, and every event is routed through the strict Summit gate on its detail address.',
+    venue:       'All Fired Up Akron — 30 Rothrock Loop, Copley, OH 44321 (Montrose/Fairlawn, Summit County)',
+    notes:       'Paint-your-own-pottery, glass fusing, stoneware & mosaic studio running a calendar of themed workshops (mini-cow painting, seasonal clay/glass classes, fandom nights). Category visual-art. Price is the Occasion reservation/deposit fee (pottery projects are often billed on top, so price_max is left open). Sold-out occurrences still publish (tagged sold-out). Age lines like "Ages 8+" live in the description — the age_restriction enum has no under-18 code, so it stays not_specified.',
+    status:      'active',
+  },
+  {
     key:         'community_legal_aid',
     method:      'HTML scrape',
     methodDetail:'communitylegalaid.org/events (Drupal 10) — server-rendered, paginated list; each event is a <div class="item"> with per-field .title/.date/.time/.location blocks. Walks ?page=0..N. STRICT Summit gate: this regional legal-aid firm serves Summit/Portage/Stark/Medina/Wayne, so most clinics (Canton, Alliance, Medina, Ravenna) and all "Online" clinics are dropped; only events whose parsed city is in Summit County publish.',
@@ -1695,6 +1703,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   village_of_peninsula: 'html',
   music_western_reserve: 'html',
   community_legal_aid: 'html',
+  all_fired_up: 'html',
   habitat_summit:      'html',
   ohio_festivals:      'html',
   summit_county_fairgrounds: 'html',
