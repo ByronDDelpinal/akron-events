@@ -97,6 +97,80 @@ describe('isPublicCivicPlusEvent: keeps public events', () => {
   })
 })
 
+describe('isPublicCivicPlusEvent: Springfield Township facility rentals', () => {
+  // Springfield Township (catID 23) publishes private bookings as bare
+  // VEVENTs with only SUMMARY/UID/DTSTART/DTEND — no DESCRIPTION,
+  // CATEGORIES, or LOCATION. RENTAL_RE must catch these off the title
+  // alone, since `ev` is optional and other callers only pass a title.
+  const RENTAL_TITLES = [
+    'Center on the Lake Rented',
+    'Center on the Lake Rented (Employee)',
+    'Lakefront Center Rented',
+    'Bicentenial Gazebo Rented',
+    'Bicentennial Gazebo Rented',
+  ]
+
+  it('drops "Rented" titles with no ev argument', () => {
+    for (const s of RENTAL_TITLES) assert.equal(isPublicCivicPlusEvent(s), false, s)
+  })
+
+  it('drops "Rented" titles with a description-less ev stub', () => {
+    const ev = { DESCRIPTION: '' }
+    for (const s of RENTAL_TITLES) assert.equal(isPublicCivicPlusEvent(s, ev), false, s)
+  })
+
+  it('drops a bare facility name with no description (needs ev)', () => {
+    const ev = { DESCRIPTION: '' }
+    assert.equal(isPublicCivicPlusEvent('Lakefront Park Pavilion', ev), false)
+  })
+
+  it('keeps a bare facility name when it has a real description', () => {
+    const ev = { DESCRIPTION: 'Join us for live music under the pavilion, all ages welcome.' }
+    assert.equal(isPublicCivicPlusEvent('Lakefront Park Pavilion', ev), true)
+  })
+
+  it('keeps a bare facility name when no ev is supplied (rule needs ev)', () => {
+    assert.equal(isPublicCivicPlusEvent('Lakefront Park Pavilion'), true)
+  })
+
+  it('keeps legitimate no-description programming from the same calendar', () => {
+    for (const s of [
+      'Meal Program',
+      'Bingo',
+      'Euchre',
+      'Line Dance',
+      'Hand, Knee, Foot Card Game',
+      'Summerfest',
+      'Pavilion Concert Series',
+      'Center on the Lake Open House',
+      'Shelter House Egg Hunt',
+      'Reservations Required - Bus Trip',
+    ]) assert.equal(isPublicCivicPlusEvent(s, { DESCRIPTION: '' }), true, s)
+  })
+})
+
+describe('isPublicCivicPlusEvent: permalink-only DESCRIPTION and PUBLIC_EVENT_RE escape (review findings)', () => {
+  it('drops a bare facility name whose DESCRIPTION is only the event permalink', () => {
+    // Same defect as the permalink-only DESCRIPTION cases above, but here it
+    // masks a bare-facility rental: stripHtml(DESCRIPTION).trim() is truthy
+    // (it's a URL, not empty), so the old "!desc" check let it slip past
+    // BARE_FACILITY_RE and kept it as if it had a real description.
+    const ev = { DESCRIPTION: 'https://www.springfieldtownship.us/calendar.aspx?EID=42' }
+    assert.equal(isPublicCivicPlusEvent('Lakefront Park Pavilion', ev), false)
+  })
+
+  it('keeps a "Reserved" title that also carries a public-event word', () => {
+    // RESERVED_RE alone would drop this ("Reserved Seating Concert"), but a
+    // real public event should win over the private-booking guard, same as
+    // the "closed" and holiday guards above.
+    assert.equal(isPublicCivicPlusEvent('Reserved Seating Concert'), true)
+  })
+
+  it('keeps a "Rental" title that also carries a public-event word', () => {
+    assert.equal(isPublicCivicPlusEvent('Pavilion Rental Open House'), true)
+  })
+})
+
 // ════════════════════════════════════════════════════════════════════════════
 // isDateOnlyIcsEvent — flag all-day / date-only VEVENTs (never trust midnight)
 // ════════════════════════════════════════════════════════════════════════════

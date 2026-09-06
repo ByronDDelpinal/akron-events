@@ -34,7 +34,7 @@
 
 import 'dotenv/config'
 import {
-  fetchIcsFeed, parseIcs, normaliseIcsEvent, isDateOnlyIcsEvent, salvagedDescriptionUrl,
+  fetchIcsFeed, parseIcs, normaliseIcsEvent, isDateOnlyIcsEvent, salvagedDescriptionUrl, isUrlOnlyDescription,
 } from './ics.js'
 import {
   ensureOrganization,
@@ -84,7 +84,29 @@ const HOLIDAY_EXACT = new Set([
 const PUBLIC_EVENT_RE =
   /\b(festival|parade|concert|fireworks|market|movie|movies|music|fest|celebration|ceremony|egg\s?hunt|egg scramble|trick.?or.?treat|santa|tree lighting|run|walk|5k|10k|expo|open house|touch a truck|bandstand|cruise|biergarten|oktoberfest|pop-?up|camp|class|lesson|tournament|jubilee|breakfast|brunch|social|fair|show|paint|craft|story|bingo|dance|yoga|clean ?up|derby|gala|sale)\b/i
 
-export function isPublicCivicPlusEvent(summary) {
+// Springfield Township (catID 23) publishes private facility rentals as bare
+// VEVENTs alongside real programming, e.g. "Center on the Lake Rented",
+// "Center on the Lake Rented (Employee)", "Lakefront Center Rented",
+// "Bicentennial Gazebo Rented" — the word "rented"/"rental", or an
+// "(Employee)"/"(Private)" suffix, always means a booking, never a public event.
+const RENTAL_RE = /\b(rented|rental)\b|\((?:employee|private)\)/i
+
+// "Reserved"/"Reservations" on a Springfield-style booking row (e.g. a
+// facility held for a private party) reads the same as "Rented" — but don't
+// catch legitimate public notices like "Reservations Required - Bus Trip",
+// so exclude the common qualifiers that mean "the public should reserve a
+// spot" rather than "this space is reserved for someone".
+const RESERVED_RE = /\b(reserved|reservations?)\b(?!\s*(?:required|recommended|needed|only|requested))/i
+
+// Bare facility-name rows with no other context, e.g. "Lakefront Park
+// Pavilion" — Springfield posts these for private bookings with no
+// DESCRIPTION/CATEGORIES/LOCATION to distinguish them from real programming
+// held at the same facility. Only applied (see below) when the VEVENT has no
+// DESCRIPTION and no PUBLIC_EVENT_RE word, so "Pavilion Concert Series" and
+// "Shelter House Egg Hunt" are unaffected.
+const BARE_FACILITY_RE = /\b(pavilion|gazebo|shelter|lodge|hall|room|field|court|rink)\s*#?\s*\d*$/i
+
+export function isPublicCivicPlusEvent(summary, ev) {
   const s = (summary || '').trim().toLowerCase()
   if (!s) return false
   // Drop cancelled / postponed rows.
@@ -99,6 +121,16 @@ export function isPublicCivicPlusEvent(summary) {
   if (/\bclosed\b/i.test(s) && !PUBLIC_EVENT_RE.test(s)) return false
   // Holiday observances drop unless they carry a public-event word.
   if (HOLIDAY_EXACT.has(s) && !PUBLIC_EVENT_RE.test(s)) return false
+  // Private facility rentals — see RENTAL_RE / RESERVED_RE above. A genuine
+  // public event that happens to mention "reserved" seating etc. still wins.
+  if ((RENTAL_RE.test(s) || RESERVED_RE.test(s)) && !PUBLIC_EVENT_RE.test(s)) return false
+  // A bare facility name with no description (or a DESCRIPTION that is just
+  // a permalink back to the calendar, which carries no real info) and no
+  // public-event word is a Springfield-style rental booking, not
+  // programming. `ev` is optional (some callers only ever pass a title), so
+  // this rule only fires when the caller supplies the raw VEVENT.
+  const desc = stripHtml(ev?.DESCRIPTION ?? '').trim()
+  if (ev && (!desc || isUrlOnlyDescription(desc)) && BARE_FACILITY_RE.test(s) && !PUBLIC_EVENT_RE.test(s)) return false
   return true
 }
 
@@ -212,7 +244,7 @@ export async function runCivicPlusScraper(config) {
     }
 
     const allEvents = [...byUid.values()]
-    const publicEvents = allEvents.filter(ev => isPublicCivicPlusEvent(ev.SUMMARY))
+    const publicEvents = allEvents.filter(ev => isPublicCivicPlusEvent(ev.SUMMARY, ev))
     console.log(
       `  Merged ${allEvents.length} unique VEVENTs (from ${totalParsed} across ${catIDs.length} calendars); ` +
       `${publicEvents.length} public after filter (dropped ${allEvents.length - publicEvents.length} admin/holiday)`
