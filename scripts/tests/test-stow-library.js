@@ -75,6 +75,9 @@ describe('isSkippable', () => {
   it('skips canceled events (title-prefixed by LibCal)', () => {
     assert.equal(isSkippable([], '(Canceled) Job Seeker Station'), true)
     assert.equal(isSkippable([], '(Cancelled) Book Club'), true)
+    assert.equal(isSkippable([], '[CANCELED]: The AMP'), true)
+    assert.equal(isSkippable([], '[Cancelled]: Book Club'), true)
+    assert.equal(isSkippable([], 'Story Time (canceled)'), false)
     assert.equal(isSkippable([], 'Cancel Culture: A Discussion'), false)
   })
   it('skips library closures (published as all-day non-events)', () => {

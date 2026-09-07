@@ -119,11 +119,12 @@ export function mapCategory(categoryNames = [], title = '') {
  * Not community events: internal governance meetings, library closures (which
  * the feed publishes as all-day entries — e.g. "Library Closed", "Library
  * Closed for Staff Training"), and events the library has canceled (LibCal
- * keeps the entry but prefixes the title, e.g. "(Canceled) Job Seeker Station").
+ * keeps the entry but prefixes the title, e.g. "(Canceled) Job Seeker Station",
+ * or in bracket form "[CANCELED]: The AMP").
  */
 export function isSkippable(categoryNames = [], title = '') {
   const s = `${Array.isArray(categoryNames) ? categoryNames.join(' ') : categoryNames} ${title}`
-  if (/^\s*\(cancell?ed\)/i.test(title)) return true
+  if (/^\s*[([]\s*cancell?ed\s*[)\]]:?/i.test(title)) return true
   return /board of trustees|staff (?:in-?service|training)|library closed|closed for/i.test(s)
 }
 
