@@ -38,7 +38,7 @@ import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
 import {
   logUpsertResult, logScraperError, stripHtml, inferCategory,
-  fetchSchemaDescription,
+  fetchSchemaDescription, canonicalVenueName,
   upsertEventSafe, linkEventVenue, linkEventOrganization,
   ensureVenue, ensureOrganization, linkOrganizationVenue,
 } from './lib/normalize.js'
@@ -435,6 +435,79 @@ function toUtcIso(s) {
   return isNaN(d.getTime()) ? null : d.toISOString()
 }
 
+// ── Within-run duplicate listings ─────────────────────────────────────────
+
+/**
+ * Evvnt sometimes carries ONE show under TWO listing ids (e.g. a venue
+ * submission and a Ticketmaster backfill of the same concert). Both ids
+ * survive fetchAllEvvntEvents' id-keyed Map, so the same show used to upsert
+ * twice under different source_ids. Collapse them here.
+ *
+ * Key = squashed title + start_at (UTC, to the second) + canonical venue name.
+ * Sibling sessions (different start_at) and same-title shows at a different
+ * venue are distinct keys and survive. Winner = lowest numeric listing id
+ * (stable across re-scrapes; feed order is not). Images, description and
+ * links are filled from losers only when the winner lacks them; losers are
+ * never upserted. Pure, no I/O.
+ *
+ * Returns { rows, dropped, droppedIds } — rows are shallow copies where a
+ * winner absorbed anything, never the caller's objects mutated.
+ */
+function listingId(e) {
+  const n = Number(e.source_id ?? e.objectID)
+  return Number.isFinite(n) ? n : Number.POSITIVE_INFINITY
+}
+
+function squashTitle(title) {
+  return String(title || '').toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+export function collapseDuplicateListings(rows) {
+  // Ordered entries: a key (groupable) or a passthrough row whose start_time
+  // did not parse. Unparseable starts never collapse (they'd all share a
+  // "null" key) and keep their relative position in the output.
+  const groups  = new Map()
+  const order   = []
+  for (const e of rows) {
+    const start_at = toUtcIso(e.start_time)
+    if (!start_at) { order.push({ row: e }); continue }
+    const venue    = String(canonicalVenueName(e.venue?.name) || '').toLowerCase().trim()
+    const key      = `${squashTitle(e.title)}|${start_at}|${venue}`
+    if (!groups.has(key)) { groups.set(key, []); order.push({ key }) }
+    groups.get(key).push(e)
+  }
+
+  const out = []
+  const droppedIds = []
+  for (const entry of order) {
+    if (entry.row) { out.push(entry.row); continue }
+    const group = groups.get(entry.key)
+    if (group.length === 1) { out.push(group[0]); continue }
+    group.sort((a, b) => listingId(a) - listingId(b))
+    const winner = { ...group[0] }
+    for (const loser of group.slice(1)) {
+      if (!pickImage(winner.images) && pickImage(loser.images)) winner.images = loser.images
+      if (!(winner.description || winner.summary) && (loser.description || loser.summary)) {
+        winner.description = loser.description
+        winner.summary     = loser.summary
+      }
+      if (!pickExternalUrl(winner) && pickExternalUrl(loser)) {
+        winner.original_links = loser.original_links
+        winner.links          = loser.links
+      }
+      // A loser that geo-resolved rescues a winner the geo gate could not place.
+      if (winner._geoUnknown && !loser._geoUnknown) {
+        winner.venue = loser.venue
+        delete winner._geoUnknown
+      }
+      droppedIds.push(String(loser.source_id ?? loser.objectID))
+      console.log(`  ↳ dup listing ${loser.source_id ?? loser.objectID} of ${winner.source_id ?? winner.objectID}: "${winner.title}"`)
+    }
+    out.push(winner)
+  }
+  return { rows: out, dropped: droppedIds.length, droppedIds }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -488,7 +561,7 @@ async function main() {
     //                    COVERED_BY_DIRECT_SCRAPER above.
     let droppedOutOfWindow = 0, droppedOutsideArea = 0, droppedNoLink = 0, droppedDupSource = 0, droppedNonEvent = 0, geoUnknownCount = 0
     const dupSourceByScraper = {}   // for end-of-run reporting
-    const toProcess = []
+    let toProcess = []
     for (const e of rawEvents) {
       const t = e.start_time ? new Date(e.start_time).getTime() : NaN
       if (!Number.isFinite(t) || t < now - 12 * 3600_000 || t > cutoff) {
@@ -514,6 +587,10 @@ async function main() {
       }
       toProcess.push(e)
     }
+    // Same show under two Evvnt listing ids → keep one (lowest id).
+    const collapsed = collapseDuplicateListings(toProcess)
+    toProcess = collapsed.rows
+    if (collapsed.dropped) console.log(`  → dropped ${collapsed.dropped} duplicate listing(s) of the same show`)
     const dupBreakdown = Object.entries(dupSourceByScraper)
       .sort((a, b) => b[1] - a[1])
       .map(([k, v]) => `${k}=${v}`)

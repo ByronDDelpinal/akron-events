@@ -654,3 +654,98 @@ describe('Akron Life — parseEvvntPrices (object values)', () => {
     assert.equal(result.price_min, 22)
   })
 })
+
+describe('Akron Life — collapseDuplicateListings (one show, two Evvnt ids)', async () => {
+  const { collapseDuplicateListings } = await import('../scrape-akron-life.js')
+  const civic = { name: 'Akron Civic Theatre', town: 'Akron' }
+  const goodyear = { name: 'Goodyear Theater', town: 'Akron' }
+  const IMG = [{ original: { url: 'https://img.example/lewis.jpg', width: 1200, height: 800 } }]
+  const mk = (id, extra = {}) => ({
+    source_id: id, objectID: id,
+    title: 'Lewis Black: Goodbye Yeller Brick Road',
+    start_time: '2026-10-03T20:00:00-04:00',
+    venue: civic,
+    original_links: { Ticketmaster: 'https://www.ticketmaster.com/x' },
+    ...extra,
+  })
+
+  it('(a) two ids, same title/start/venue → 1 row, lowest id kept, image backfilled from loser', () => {
+    const hi = mk(42888594, { images: IMG, description: 'Lewis is back.' })
+    const lo = mk(1220023,  { images: [], description: '' })
+    const { rows, dropped, droppedIds } = collapseDuplicateListings([hi, lo])
+    assert.equal(rows.length, 1)
+    assert.equal(dropped, 1)
+    assert.deepEqual(droppedIds, ['42888594'])
+    assert.equal(rows[0].source_id, 1220023)
+    assert.equal(rows[0].images, IMG)
+    assert.equal(rows[0].description, 'Lewis is back.')
+    // Inputs are never mutated
+    assert.deepEqual(lo.images, [])
+    assert.equal(lo.description, '')
+  })
+
+  it('(a2) winner keeps its own image/description when it has them', () => {
+    const lo = mk(1, { images: IMG, description: 'keep me' })
+    const hi = mk(2, { images: [{ original: { url: 'https://img.example/other.jpg' } }], description: 'not me' })
+    const { rows } = collapseDuplicateListings([hi, lo])
+    assert.equal(rows[0].images, IMG)
+    assert.equal(rows[0].description, 'keep me')
+  })
+
+  it('(b) 7:30 vs 9:30 sibling sessions with the same title → 2 rows', () => {
+    const early = mk(10, { start_time: '2026-10-03T19:30:00-04:00' })
+    const late  = mk(11, { start_time: '2026-10-03T21:30:00-04:00' })
+    const { rows, dropped } = collapseDuplicateListings([early, late])
+    assert.equal(rows.length, 2)
+    assert.equal(dropped, 0)
+  })
+
+  it('(c) same title/start at a different venue → 2 rows', () => {
+    const a = mk(10, { venue: civic })
+    const b = mk(11, { venue: goodyear })
+    const { rows, dropped } = collapseDuplicateListings([a, b])
+    assert.equal(rows.length, 2)
+    assert.equal(dropped, 0)
+  })
+
+  it('(d) case/punctuation title variants collapse', () => {
+    const a = mk(300, { title: 'O.A.R. - Live!' })
+    const b = mk(200, { title: 'OAR Live' })
+    const c = mk(100, { title: '  oar,  live ' })
+    const { rows, dropped } = collapseDuplicateListings([a, b, c])
+    assert.equal(rows.length, 1)
+    assert.equal(dropped, 2)
+    assert.equal(rows[0].source_id, 100)
+  })
+
+  it('leaves singletons untouched and preserves order', () => {
+    const a = mk(5, { title: 'Alpha' }), b = mk(6, { title: 'Beta' })
+    const { rows, dropped } = collapseDuplicateListings([a, b])
+    assert.equal(dropped, 0)
+    assert.equal(rows[0], a)
+    assert.equal(rows[1], b)
+  })
+
+  it('(e) geo-unknown winner takes the venue of a geo-resolved loser and clears the flag', () => {
+    const resolved = { ...civic, latitude: 41.08, longitude: -81.52 }
+    const lo = mk(1, { venue: civic, _geoUnknown: true })
+    const hi = mk(2, { venue: resolved })
+    const { rows, dropped } = collapseDuplicateListings([hi, lo])
+    assert.equal(dropped, 1)
+    assert.equal(rows[0].source_id, 1)
+    assert.equal(rows[0].venue, resolved)
+    assert.equal('_geoUnknown' in rows[0], false)
+    // Input winner is not mutated
+    assert.equal(lo._geoUnknown, true)
+    assert.equal(lo.venue, civic)
+  })
+
+  it('(f) rows with an unparseable start_time bypass grouping and are never collapsed', () => {
+    const a = mk(1, { start_time: 'not a date' })
+    const b = mk(2, { start_time: 'not a date' })
+    const c = mk(3)
+    const { rows, dropped } = collapseDuplicateListings([a, c, b])
+    assert.equal(dropped, 0)
+    assert.deepEqual(rows, [a, c, b])
+  })
+})
