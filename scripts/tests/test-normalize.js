@@ -28,6 +28,7 @@ const {
   decodeEntities,
   splitCommaLocation,
   sanitizeEventText,
+  isTitleEcho,
   parseCostFromTribe,
   parseTagsFromTribe,
   parseEventbritePrice,
@@ -901,6 +902,54 @@ describe('sanitizeEventText', () => {
       source_id: '10',
     })
     assert.equal(row.title, 'Summer Blowout Comedy Showcase at the Killbox')
+  })
+
+  // Title-echo descriptions (JSON-LD / ICS feeds that put the event name in
+  // description). A description that IS the title is dropped to null so the
+  // digest does not count it as "described" and render a duplicate line.
+  const echoRow = (title, description) => sanitizeEventText({ title, description, source: 'test', source_id: 'echo' })
+
+  it('nulls a description identical to the title', () => {
+    assert.strictEqual(echoRow('Farmers Market', 'Farmers Market').description, null)
+  })
+
+  it('nulls a description that is the title plus trailing punctuation', () => {
+    assert.strictEqual(echoRow('Farmers Market', 'Farmers Market.').description, null)
+    assert.strictEqual(echoRow('Farmers Market', 'Farmers Market!').description, null)
+  })
+
+  it('nulls HTML-wrapped, case and whitespace variants of the title', () => {
+    assert.strictEqual(echoRow('Farmers Market', '<p>Farmers Market</p>').description, null)
+    assert.strictEqual(echoRow('Farmers Market', 'FARMERS  MARKET').description, null)
+    assert.strictEqual(echoRow('Farmers Market', '  farmers\nmarket  ').description, null)
+    assert.strictEqual(echoRow('FARMERS MARKET AT LOCK 3 DOWNTOWN AKRON', 'Farmers Market at Lock 3 Downtown Akron').description, null)
+  })
+
+  it('preserves a description that starts with the title and continues', () => {
+    const row = echoRow('Farmers Market', 'Farmers Market. Fresh produce every Saturday.')
+    assert.equal(row.description, 'Farmers Market. Fresh produce every Saturday.')
+  })
+
+  it('leaves null / empty descriptions unchanged', () => {
+    assert.strictEqual(echoRow('Farmers Market', null).description, null)
+    assert.strictEqual(echoRow('Farmers Market', undefined).description, undefined)
+    assert.strictEqual(echoRow('Farmers Market', '').description, '')
+  })
+})
+
+describe('isTitleEcho', () => {
+  it('matches only exact folded equality', () => {
+    assert.equal(isTitleEcho('Jazz Night', 'Jazz Night'), true)
+    assert.equal(isTitleEcho('Jazz Night', '<b>jazz&nbsp;night</b>…'), true)
+    assert.equal(isTitleEcho('Jazz Night', 'Jazz Night at Blu'), false)
+    assert.equal(isTitleEcho('Jazz Night at Blu', 'Jazz Night'), false)
+  })
+
+  it('is false for empty or missing inputs', () => {
+    assert.equal(isTitleEcho(null, 'x'), false)
+    assert.equal(isTitleEcho('x', null), false)
+    assert.equal(isTitleEcho('', ''), false)
+    assert.equal(isTitleEcho('...', '...'), false)
   })
 })
 

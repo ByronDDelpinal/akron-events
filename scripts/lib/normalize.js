@@ -1752,19 +1752,46 @@ export function stripReplacementChar(s) {
   return typeof s === 'string' ? s.replace(/�/g, ' ').replace(/[ \t]{2,}/g, ' ') : s
 }
 
+function foldForEcho(s) {
+  return stripHtml(String(s))
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[.!?:;,\u2026\-\u2013\u2014]+$/, '')
+    .trim()
+}
+
+/**
+ * True when `description` is nothing but the event title again (after HTML
+ * stripping, case/whitespace folding and trailing punctuation). JSON-LD and
+ * ICS feeds routinely fill `description` with the event name; a title-only
+ * description scores as "described" in the digest and renders as a duplicate
+ * line under the heading. Strict equality only: a description that STARTS
+ * with the title and goes on is real copy and is left alone.
+ */
+export function isTitleEcho(title, description) {
+  if (!title || !description) return false
+  const t = foldForEcho(title)
+  const d = foldForEcho(description)
+  return t.length > 0 && t === d
+}
+
 /**
  * Sanitize text fields on an event row before upsert.
  * Decodes HTML entities and strips stray tags from title and description.
  * Exported so tests can verify the same logic without hitting the DB.
  */
 export function sanitizeEventText(row) {
+  const title = row.title ? titleCaseIfShouting(stripReplacementChar(stripHtml(row.title))) : row.title
+  // Use htmlToText for descriptions so paragraph breaks (\n\n) and list
+  // markers are preserved. stripHtml collapses all whitespace to a single
+  // space, which flattens multi-paragraph descriptions into one long string.
+  let description = row.description ? stripReplacementChar(htmlToText(row.description)) : row.description
+  // Drop descriptions that merely echo the title (see isTitleEcho).
+  if (isTitleEcho(title, description)) description = null
   return {
     ...row,
-    title:       row.title       ? titleCaseIfShouting(stripReplacementChar(stripHtml(row.title))) : row.title,
-    // Use htmlToText for descriptions so paragraph breaks (\n\n) and list
-    // markers are preserved. stripHtml collapses all whitespace to a single
-    // space, which flattens multi-paragraph descriptions into one long string.
-    description: row.description ? stripReplacementChar(htmlToText(row.description)) : row.description,
+    title,
+    description,
     // Tags come from source `categories` arrays and aren't HTML, but
     // some upstream feeds emit values like "health &amp; fitness" with
     // entities intact. Decode each entry so the DB never stores
