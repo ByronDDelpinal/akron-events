@@ -66,6 +66,16 @@ const BASE_DOMAIN  = 'https://stanhywet.org'
 // Drupal image-style prefix we strip when normalising thumbnail → full image
 const DRUPAL_STYLE_RE = /\/files\/styles\/[^/]+\/public\//
 
+// Short-date listings ("October 30") carry no year, so a past month/day is
+// ambiguous: it is either next year's event or a just-finished one the listing
+// has not dropped yet. Rolling EVERY past date forward publishes finished
+// events a year out (same bug as painting_twist ab0917b). A date within this
+// many days of today is treated as this year's (stale) listing so
+// processEvents' past-filter drops it; only dates further back are presumed
+// to be next year's.
+const PAST_GRACE_DAYS = 30
+const MS_PER_DAY      = 24 * 60 * 60 * 1000
+
 // SANCTIONED-DEFAULT-TIME
 // A Stan Hywet listing that gives a date but no clock time gets 9am Eastern.
 // That is deliberate, not an oversight. The alternatives were both rejected:
@@ -309,12 +319,25 @@ export function parseStanHywetDate(raw, now = new Date()) {
     const [, mon, day] = shortDate
     const m = MONTH_MAP[mon.toLowerCase()]
     if (m) {
-      // Infer year: if the resulting date is in the past, roll to next year.
-      // This handles Dec listings in November.
+      // Infer year from the month/day. Three outcomes:
+      //   1. within PAST_GRACE_DAYS behind today (or today / ahead) → this
+      //      year; processEvents' past-filter (endMs < now - 24h) drops the
+      //      stale ones.
+      //   2. within the grace window behind today but ACROSS New Year (a Jan 3
+      //      clock reading a stale "December 30") → PREVIOUS year, so the same
+      //      past-filter drops it instead of publishing it 11 months out.
+      //   3. further behind than the grace window → next year (a Dec listing
+      //      read in November still rolls forward).
       // Numeric compare on both sides, against Eastern "today".
-      let year = nowYear
-      const todayMs = Date.UTC(tYear, tMonth - 1, tDay)
-      if (Date.UTC(year, m - 1, parseInt(day, 10)) < todayMs) year += 1
+      const todayMs    = Date.UTC(tYear, tMonth - 1, tDay)
+      const daysBehind = (todayMs - Date.UTC(tYear,     m - 1, parseInt(day, 10))) / MS_PER_DAY
+      const prevBehind = (todayMs - Date.UTC(tYear - 1, m - 1, parseInt(day, 10))) / MS_PER_DAY
+      let year = tYear
+      if (daysBehind > PAST_GRACE_DAYS) {
+        year += 1
+      } else if (daysBehind < 0 && prevBehind > 0 && prevBehind <= PAST_GRACE_DAYS) {
+        year -= 1
+      }
       return {
         dateStr: `${year}-${String(m).padStart(2, '0')}-${String(parseInt(day, 10)).padStart(2, '0')}`,
         timeStr,

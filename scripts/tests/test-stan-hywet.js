@@ -225,10 +225,45 @@ describe('parseStanHywetDate — late-evening ET runs (11pm) keep today', () => 
     assert.equal(dateStr, '2026-12-31')                  // NOT 2027-12-31
   })
 
-  it('still rolls the year for a date that has genuinely passed', () => {
+  it('keeps a date one day behind today in THIS year (stale listing, not next year)', () => {
     const lateNye = new Date('2027-01-01T04:30:00Z')    // 2026-12-31 23:30 EST
     const { dateStr } = parseStanHywetDate('December 30 | 8pm', lateNye)
-    assert.equal(dateStr, '2027-12-30')
+    assert.equal(dateStr, '2026-12-30')                  // NOT 2027-12-30
+  })
+})
+
+// Short dates carry no year. Rolling every past month/day forward published
+// just-finished events a year out (painting_twist ab0917b had the same bug).
+// A date inside PAST_GRACE_DAYS behind today stays this year so the
+// processEvents past-filter drops it; only older dates are next year's.
+describe('parseStanHywetDate — short-date year inference has a grace window', () => {
+  const sep10 = new Date('2026-09-10T12:00:00Z')        // 2026-09-10 08:00 EDT
+  const jan3  = new Date('2027-01-03T12:00:00Z')        // 2027-01-03 07:00 EST
+
+  it('stale by 1 day stays this year', () => {
+    const { dateStr } = parseStanHywetDate('September 9 | 6pm', sep10)
+    assert.equal(dateStr, '2026-09-09')
+  })
+
+  it('60 days behind rolls to next year', () => {
+    const { dateStr } = parseStanHywetDate('July 12 | 6pm', sep10)
+    assert.equal(dateStr, '2027-07-12')
+  })
+
+  it('today and ahead stay this year', () => {
+    assert.equal(parseStanHywetDate('September 10', sep10).dateStr, '2026-09-10')
+    assert.equal(parseStanHywetDate('October 30', sep10).dateStr, '2026-10-30')
+  })
+
+  it('Jan 3 reading a stale "December 30" yields the PREVIOUS year', () => {
+    const { dateStr } = parseStanHywetDate('December 30 | 8pm', jan3)
+    assert.equal(dateStr, '2026-12-30')                  // NOT 2027-12-30
+  })
+
+  it('explicit-year formats are untouched by the grace window', () => {
+    assert.equal(parseStanHywetDate('September 9, 2026 | 6pm', sep10).dateStr, '2026-09-09')
+    assert.equal(parseStanHywetDate('July 12, 2026 | 6pm', sep10).dateStr, '2026-07-12')
+    assert.equal(parseStanHywetDate('October 9-11, 2025', sep10).dateStr, '2025-10-09')
   })
 })
 
