@@ -28,6 +28,7 @@
 
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
+import { fetchAllRows } from './lib/paginate.js'
 
 // ── ANSI colours ────────────────────────────────────────────────────────────
 const R = '\x1b[0m'
@@ -148,13 +149,16 @@ function makeUnionFind(ids) {
 async function main() {
   console.log(`\n${BOLD}🔍  Venue Duplicate Analyser${R}  ${DIM}(${new Date().toLocaleString()})${R}\n`)
 
-  // 1. Fetch all venues
-  const { data: venues, error: venueErr } = await supabaseAdmin
-    .from('venues')
-    .select('id, name, address, city, state, zip, lat, lng, website, parking_type')
-    .order('name', { ascending: true })
-
-  if (venueErr) {
+  // 1. Fetch all venues (paged: the table is past PostgREST's 1000-row cap)
+  let venues
+  try {
+    venues = await fetchAllRows((f, t) => supabaseAdmin
+      .from('venues')
+      .select('id, name, address, city, state, zip, lat, lng, website, parking_type')
+      .order('name', { ascending: true })
+      .order('id')
+      .range(f, t))
+  } catch (venueErr) {
     console.error(`${RED}❌  Failed to fetch venues:${R}`, venueErr.message)
     process.exit(1)
   }
@@ -166,12 +170,20 @@ async function main() {
 
   // 2. Fetch event counts grouped by venue_id (via the event_venues junction —
   //    events.venue_id no longer exists)
-  const { data: eventCounts, error: eventErr } = await supabaseAdmin
-    .from('event_venues')
-    .select('venue_id')
+  let eventCounts = null
+  try {
+    eventCounts = await fetchAllRows((f, t) => supabaseAdmin
+      .from('event_venues')
+      .select('venue_id')
+      .order('venue_id')
+      .order('event_id')
+      .range(f, t))
+  } catch {
+    // Non-fatal, exactly as before: counts just show as 0.
+  }
 
   const countMap = {}
-  if (!eventErr && eventCounts) {
+  if (eventCounts) {
     for (const row of eventCounts) {
       countMap[row.venue_id] = (countMap[row.venue_id] ?? 0) + 1
     }

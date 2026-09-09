@@ -31,6 +31,7 @@
 
 import 'dotenv/config'
 import { supabaseAdmin } from './lib/supabase-admin.js'
+import { fetchAllRows } from './lib/paginate.js'
 import { resolveNeighborhoodSlug } from './lib/neighborhood-resolver.js'
 
 const EXECUTE = process.argv.includes('--execute')
@@ -47,14 +48,18 @@ async function main() {
     `${EXECUTE ? '' : '   (DRY RUN — pass --execute to apply)'}\n`,
   )
 
-  // Pull every venue's id + coordinates + current slug. We only need
-  // these three columns for the work, and the venues table is small
-  // enough (~hundreds, not millions) that one query is fine.
-  const { data: venues, error } = await supabaseAdmin
-    .from('venues')
-    .select('id, name, lat, lng, neighborhood_slug')
-
-  if (error) {
+  // Pull every venue's id + coordinates + current slug. The venues table
+  // is past PostgREST's 1000-row cap, so page through it (ordered by
+  // name then id so pages are stable) instead of a single select.
+  let venues
+  try {
+    venues = await fetchAllRows((f, t) => supabaseAdmin
+      .from('venues')
+      .select('id, name, lat, lng, neighborhood_slug')
+      .order('name')
+      .order('id')
+      .range(f, t))
+  } catch (error) {
     console.error('❌ Failed to fetch venues:', error.message)
     process.exit(1)
   }
