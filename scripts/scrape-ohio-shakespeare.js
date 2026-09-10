@@ -28,6 +28,7 @@ import {
   easternToIso,
   easternTodayIso,
 } from './lib/normalize.js'
+import { inferYearForMonthDay } from './lib/year-inference.js'
 
 const BASE_URL   = 'https://www.ohioshakespearefestival.com'
 const HOME_URL   = `${BASE_URL}/`
@@ -48,18 +49,8 @@ const MONTH_MAP = {
   sep: 9, sept: 9, oct: 10, nov: 11, dec: 12,
 }
 
-// `now` is injectable so tests can freeze the clock; production passes nothing.
-function inferYear(month, day, now = new Date()) {
-  // Anchor "today" to Eastern time — a UTC-derived today is already tomorrow
-  // between 8pm and midnight ET, which shifts the inferred year.
-  const [ty, tm, td] = easternTodayIso(now).split('-').map(Number)
-  const tMs = Date.UTC(ty, tm - 1, td)
-  for (let offset = 0; offset <= 2; offset++) {
-    const year = ty + offset
-    if (Date.UTC(year, month - 1, day) >= tMs) return year
-  }
-  return null
-}
+// `inferYear` name kept for the public export tests import by name.
+const inferYear = inferYearForMonthDay
 
 /**
  * Parse a date string from a show page.
@@ -88,7 +79,10 @@ function parseDateString(raw, now = new Date()) {
     const [, mon, day] = rangeMatch
     const m = MONTH_MAP[mon.toLowerCase()]
     if (m) {
-      const year = inferYear(m, parseInt(day), now)
+      // Prefer an explicit year in the range (e.g. "June 15 - July 20, 2026")
+      // over inference, so a currently-running show isn't rolled to next year.
+      const explicit = stripped.match(/\b(\d{4})\b/)
+      const year = explicit ? parseInt(explicit[1], 10) : inferYear(m, parseInt(day), now)
       if (year) return `${year}-${String(m).padStart(2,'0')}-${String(parseInt(day)).padStart(2,'0')}`
     }
   }

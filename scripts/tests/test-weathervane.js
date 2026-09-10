@@ -8,6 +8,15 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 import { F1, F2 } from './fixtures/weathervane-events.js'
 import { LATE_EDT, LATE_EST } from './fixtures/late-night-clocks.js'
 import { parseShows, extractWvDescription, extractWvTicketUrl } from '../scrape-weathervane.js'
+import { inferYearForMonthDay } from '../lib/year-inference.js'
+
+// Frozen clocks for the year-inference lookahead tests below. Built the same
+// way as LATE_EDT/LATE_EST in fixtures/late-night-clocks.js: pick a UTC
+// instant that lands well inside the target Eastern calendar day so DST
+// offset (EDT = UTC-4, EST = UTC-5) can't push it across a day boundary.
+const SEP10_2026 = new Date('2026-09-10T16:00:00Z')  // 2026-09-10 noon EDT
+const NOV15_2026 = new Date('2026-11-15T16:00:00Z')  // 2026-11-15 11:00 EST
+const JAN3_2027  = new Date('2027-01-03T16:00:00Z')  // 2027-01-03 11:00 EST
 
 // Real listing markup: an <a href="/events/{slug}"> wrapping a poster <img> and
 // the title + month-name date text (the contract parseShows documents). Built
@@ -73,6 +82,28 @@ describe('Weathervane: late-evening ET runs keep today\'s shows', () => {
       assert.equal(shows[0].dateStr, todayYmd)
     })
   }
+})
+
+describe('Weathervane: inferYearForMonthDay lookahead (clock frozen at 2026-09-10 ET)', () => {
+  it('"July 16" is in the past this year and stays 2026, not rolled to 2027', () => {
+    assert.equal(inferYearForMonthDay(7, 16, SEP10_2026), 2026)
+  })
+
+  it('"August 6" is in the past this year and stays 2026', () => {
+    assert.equal(inferYearForMonthDay(8, 6, SEP10_2026), 2026)
+  })
+
+  it('"December 20" is within the lookahead and stays this year', () => {
+    assert.equal(inferYearForMonthDay(12, 20, SEP10_2026), 2026)
+  })
+
+  it('"January 10" from a November clock rolls forward to next year', () => {
+    assert.equal(inferYearForMonthDay(1, 10, NOV15_2026), 2027)
+  })
+
+  it('a Jan 3, 2027 clock reading "December 30" rolls back to the previous year', () => {
+    assert.equal(inferYearForMonthDay(12, 30, JAN3_2027), 2026)
+  })
 })
 
 // 2026-07-02 rework: crawl each show's own detail page for description +

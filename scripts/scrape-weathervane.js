@@ -35,6 +35,7 @@ import {
   easternToIso,
   easternTodayIso,
 } from './lib/normalize.js'
+import { inferYearForMonthDay } from './lib/year-inference.js'
 
 const BASE_URL    = 'https://www.weathervaneplayhouse.com'
 const SOURCE_URL  = `${BASE_URL}/upcoming-shows`
@@ -95,7 +96,7 @@ function parseDateString(raw, now = new Date()) {
       // Prefer an explicit year in the range (e.g. "JUNE 18 - JULY 12, 2026")
       // over inference, so a currently-running show isn't rolled to next year.
       const explicit = stripped.match(/\b(\d{4})\b/)
-      const year = explicit ? parseInt(explicit[1], 10) : inferYear(m, parseInt(day), now)
+      const year = explicit ? parseInt(explicit[1], 10) : inferYearForMonthDay(m, parseInt(day), now)
       if (!year) return null
       return `${year}-${String(m).padStart(2,'0')}-${String(parseInt(day)).padStart(2,'0')}`
     }
@@ -107,28 +108,12 @@ function parseDateString(raw, now = new Date()) {
     const [, mon, day] = singleMatch
     const m = MONTH_MAP[mon.toLowerCase()]
     if (m) {
-      const year = inferYear(m, parseInt(day), now)
+      const year = inferYearForMonthDay(m, parseInt(day), now)
       if (!year) return null
       return `${year}-${String(m).padStart(2,'0')}-${String(parseInt(day)).padStart(2,'0')}`
     }
   }
 
-  return null
-}
-
-/**
- * Infer the year for a month/day combo.
- * Returns the next future occurrence of that month/day, looking ahead up to 2 years.
- */
-function inferYear(month, day, now = new Date()) {
-  // Anchor "today" to Eastern time — a UTC-derived today is already tomorrow
-  // between 8pm and midnight ET, which shifts the inferred year.
-  const [ty, tm, td] = easternTodayIso(now).split('-').map(Number)
-  const tMs = Date.UTC(ty, tm - 1, td)
-  for (let offset = 0; offset <= 2; offset++) {
-    const year = ty + offset
-    if (Date.UTC(year, month - 1, day) >= tMs) return year
-  }
   return null
 }
 

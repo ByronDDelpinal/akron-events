@@ -17,6 +17,14 @@ import { F1, F2 } from './fixtures/ohio-shakespeare-events.js'
 import { LATE_EDT, LATE_EST } from './fixtures/late-night-clocks.js'
 import { inferYear, parseDateString, parseShowPage } from '../scrape-ohio-shakespeare.js'
 
+// Frozen clocks for the year-inference lookahead tests below. Built the same
+// way as LATE_EDT/LATE_EST in fixtures/late-night-clocks.js: pick a UTC
+// instant that lands well inside the target Eastern calendar day so DST
+// offset (EDT = UTC-4, EST = UTC-5) can't push it across a day boundary.
+const SEP10_2026 = new Date('2026-09-10T16:00:00Z')  // 2026-09-10 noon EDT
+const NOV15_2026 = new Date('2026-11-15T16:00:00Z')  // 2026-11-15 11:00 EST
+const JAN3_2027  = new Date('2027-01-03T16:00:00Z')  // 2027-01-03 11:00 EST
+
 /** A Squarespace production page, shaped like the real ones. */
 const showPage = (title, dateText, extra = '') => `
   <html><head>
@@ -31,21 +39,18 @@ const showPage = (title, dateText, extra = '') => `
   </body></html>`
 
 describe('Ohio Shakespeare: parseDateString (real parser)', () => {
-  it('parses a month-to-month range', () => {
-    // KNOWN GAP — this assertion passes by luck of the clock, not because the
-    // parser is right. F1.raw is "June 15 - July 20, 2026": the range branch in
-    // scrape-ohio-shakespeare.js:86-93 DISCARDS the explicit trailing 2026 and
-    // runs inferYear() instead. With the January clock used here inference
-    // happens to land on 2026; with an August 2026 clock the same fixture
-    // yields 2027-06-15, so a show that is currently running gets rolled a
-    // full year forward.
-    //
-    // scrape-weathervane.js:97 shows the correct handling — it checks for an
-    // `explicit` \b\d{4}\b in the range and prefers it over inference. Porting
-    // that here is a separate, pre-existing defect (out of scope for the
-    // easternTodayIso migration); do not read this green test as proof the
-    // range branch reads years correctly.
+  it('parses a month-to-month range with an explicit trailing year', () => {
+    // F1.raw is "June 15 - July 20, 2026" — the range branch now checks for
+    // an explicit \b\d{4}\b in the string and prefers it over inference
+    // (ported from scrape-weathervane.js's `explicit` handling), so this
+    // holds regardless of clock instead of passing by luck.
     assert.equal(parseDateString(F1.raw, LATE_EST), F1.exp.start)
+  })
+
+  it('parses a month-to-month range with an explicit year, even when inference would roll it forward', () => {
+    // Same fixture at a clock where naive inference would push June 15 to
+    // next year — the explicit 2026 in the string must still win.
+    assert.equal(parseDateString(F1.raw, SEP10_2026), F1.exp.start)
   })
 
   it('parses a single date with an explicit year', () => {
@@ -71,8 +76,8 @@ describe('Ohio Shakespeare: late-evening ET runs keep tonight\'s opening', () =>
     assert.equal(inferYear(1, 15, LATE_EST), 2026)     // NOT 2027
   })
 
-  it('inferYear still rolls a genuinely past month/day forward', () => {
-    assert.equal(inferYear(7, 14, LATE_EDT), 2027)
+  it('a just-past date stays in the current year so the past-filter drops it', () => {
+    assert.equal(inferYear(7, 14, LATE_EDT), 2026)
   })
 
   it('parseDateString dates a year-less opening as today, not next year (EDT)', () => {
@@ -102,5 +107,27 @@ describe('Ohio Shakespeare: late-evening ET runs keep tonight\'s opening', () =>
     const parsed = parseShowPage(showPage('Hamlet', 'July 15 8pm'), 'hamlet', LATE_EDT)
     assert.equal(parsed.dateStr, '2026-07-15')
     assert.equal(parsed.timeStr, '20:00:00')
+  })
+})
+
+describe('Ohio Shakespeare: inferYear lookahead (clock frozen at 2026-09-10 ET)', () => {
+  it('"July 16" is in the past this year and stays 2026, not rolled to 2027', () => {
+    assert.equal(inferYear(7, 16, SEP10_2026), 2026)
+  })
+
+  it('"August 6" is in the past this year and stays 2026', () => {
+    assert.equal(inferYear(8, 6, SEP10_2026), 2026)
+  })
+
+  it('"December 20" is within the lookahead and stays this year', () => {
+    assert.equal(inferYear(12, 20, SEP10_2026), 2026)
+  })
+
+  it('"January 10" from a November clock rolls forward to next year', () => {
+    assert.equal(inferYear(1, 10, NOV15_2026), 2027)
+  })
+
+  it('a Jan 3, 2027 clock reading "December 30" rolls back to the previous year', () => {
+    assert.equal(inferYear(12, 30, JAN3_2027), 2026)
   })
 })
