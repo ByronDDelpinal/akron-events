@@ -1146,6 +1146,49 @@ export function _resetVenueNameIndex() {
   _venueNameIndex = null
 }
 
+// alias_name → canonical_venue_id, built once per process from venue_aliases.
+// Sweeps rename junk-name venues to a cleaner name and record the OLD name in
+// venue_aliases.alias_name; the name-key index above only knows the CURRENT
+// name, so a scraper that still emits the old name has no way to find the
+// venue again without this index. It must be consulted before the
+// details.address fallback and the junk-name mint guard below, since a
+// renamed-away junk name is exactly the case those two would otherwise mint
+// a duplicate for.
+let _venueAliasNameIndex = null
+
+/**
+ * Build (once) and return a Map of every venue_aliases row's normalized
+ * alias_name key → canonical_venue_id. Mirrors _getVenueNameIndex: loaded
+ * lazily, fails safe to an empty (cached) Map on any error, never throws.
+ */
+async function _getVenueAliasNameIndex() {
+  if (_venueAliasNameIndex) return _venueAliasNameIndex
+  _venueAliasNameIndex = new Map()
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('venue_aliases')
+      .select('alias_name, canonical_venue_id')
+    if (error) {
+      console.warn(`  ⚠ Could not load venue alias-name index: ${error.message}`)
+      return _venueAliasNameIndex
+    }
+    for (const row of data ?? []) {
+      if (!row?.canonical_venue_id) continue
+      const key = venueNameKey(row.alias_name)
+      // First writer wins — same posture as the name-key index.
+      if (key && !_venueAliasNameIndex.has(key)) _venueAliasNameIndex.set(key, row.canonical_venue_id)
+    }
+  } catch (err) {
+    console.warn(`  ⚠ Could not load venue alias-name index: ${err?.message ?? err}`)
+  }
+  return _venueAliasNameIndex
+}
+
+/** Test-only: reset the cached alias-name index between cases. */
+export function _resetVenueAliasNameIndex() {
+  _venueAliasNameIndex = null
+}
+
 /**
  * Resolve a venue id through venue_aliases: if the id is an alias row, return
  * its canonical venue id instead. Modeled on _resolveAliasCanonical for
@@ -1550,6 +1593,24 @@ export async function ensureVenue(name, details = {}, opts = {}) {
   const byNameKey = nameIndex.get(cacheKey)
   if (byNameKey) {
     const resolved = await _resolveVenueAliasCanonical(byNameKey)
+    _venueNameCache.set(cacheKey, resolved)
+    return resolved
+  }
+
+  // Exact-name AND name-key miss: try the alias-name index. Sweeps rename
+  // junk-shaped venue names (bare address, prose contact string, etc.) to a
+  // clean canonical name and record the OLD name in venue_aliases.alias_name
+  // — but never write it back into the venues table. A scraper that still
+  // emits the old name would otherwise fail both lookups above and re-mint
+  // the junk row the sweep just cleaned up. This MUST run before the
+  // details.address fallback and the junk-name mint guard below: the address
+  // fallback only helps when details carry a street address (often absent
+  // for these feeds), and the junk-name guard would otherwise block even a
+  // successful alias resolution from being attempted.
+  const aliasIdx = await _getVenueAliasNameIndex()
+  const byAlias = aliasIdx.get(cacheKey)
+  if (byAlias) {
+    const resolved = await _resolveVenueAliasCanonical(byAlias)
     _venueNameCache.set(cacheKey, resolved)
     return resolved
   }

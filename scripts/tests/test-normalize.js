@@ -43,6 +43,7 @@ const {
   absoluteUrl,
   _resetVenueAddressIndex,
   _resetVenueNameIndex,
+  _resetVenueAliasNameIndex,
 } = await import('../lib/normalize.js')
 
 describe('orgNameKey', () => {
@@ -1316,7 +1317,7 @@ describe('isProseContactVenueName', () => {
 //                  venue_aliases hop lookups.
 // When allVenues is omitted, `existingRows` backs the name lookup and the
 // thenable loads resolve empty — exactly the old mock's behavior.
-function makeVenuesMock({ existingRows = [], insertedId = 'v-new', allVenues = null, aliases = {} } = {}) {
+function makeVenuesMock({ existingRows = [], insertedId = 'v-new', allVenues = null, aliases = {}, aliasNames = [], aliasNamesError = null } = {}) {
   const calls = { insert: 0, insertRow: null, aliasLookups: 0 }
   function builder(table) {
     const st = { table, cols: null, op: null, filters: {} }
@@ -1349,9 +1350,18 @@ function makeVenuesMock({ existingRows = [], insertedId = 'v-new', allVenues = n
         return Promise.resolve({ data: null, error: null })
       },
       // Awaiting the chain directly serves the index loads (venues id,name /
-      // id,address) and the fire-and-forget detail updates.
+      // id,address), the alias-name index load (venue_aliases alias_name,
+      // canonical_venue_id), and the fire-and-forget detail updates.
       then(onF, onR) {
-        const data = st.table === 'venues' && st.op !== 'update' ? (allVenues ?? []) : []
+        if (st.table === 'venue_aliases' && st.cols === 'alias_name, canonical_venue_id' && aliasNamesError) {
+          return Promise.resolve({ data: null, error: aliasNamesError }).then(onF, onR)
+        }
+        let data = []
+        if (st.table === 'venues' && st.op !== 'update') {
+          data = allVenues ?? []
+        } else if (st.table === 'venue_aliases' && st.cols === 'alias_name, canonical_venue_id') {
+          data = aliasNames
+        }
         return Promise.resolve({ data, error: null }).then(onF, onR)
       },
     }
@@ -1432,6 +1442,7 @@ describe('ensureVenue — split + name-key + alias-hop resolution', () => {
   function fresh(config) {
     _resetVenueNameIndex()
     _resetVenueAddressIndex()
+    _resetVenueAliasNameIndex()
     const { client, calls } = makeVenuesMock(config)
     __setClientForTests(client)
     return calls
@@ -1562,6 +1573,60 @@ describe('ensureVenue — split + name-key + alias-hop resolution', () => {
       const id = await ensureVenue('Neighbors of Elma Green', { address: '760 Elma St' })
       assert.equal(id, 'v-addr-canon')
       assert.equal(calls.insert, 0)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('(8a) venue_aliases.alias_name hit resolves to the canonical venue, no insert', async () => {
+    // A sweep renamed the junk-shaped row to a clean name and recorded the
+    // OLD name in venue_aliases.alias_name (never written back to venues).
+    // A scraper still emitting the old name must resolve to the canonical,
+    // not re-mint the junk row the sweep just cleaned up.
+    const calls = fresh({
+      allVenues: [{ id: 'v-renamed-canon', name: 'Riverfront Hall' }],
+      aliasNames: [{ alias_name: 'Old Riverfront Building', canonical_venue_id: 'v-renamed-canon' }],
+    })
+    try {
+      const id = await ensureVenue('Old Riverfront Building')
+      assert.equal(id, 'v-renamed-canon')
+      assert.equal(calls.insert, 0)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('(8b) alias_name hit takes precedence over the junk-name mint guard', async () => {
+    // "Maple Avenue" is junk-shaped (bare street-suffix name, isJunkVenueName
+    // would refuse to mint it) but it's also a sweep-recorded alias for a
+    // real venue — the alias hop must win and resolve before the junk guard
+    // ever runs, so no event goes venue-less for a name we already know.
+    const calls = fresh({
+      allVenues: [{ id: 'v-maple-canon', name: 'Maple Grove Pavilion' }],
+      aliasNames: [{ alias_name: 'Maple Avenue', canonical_venue_id: 'v-maple-canon' }],
+    })
+    try {
+      const id = await ensureVenue('Maple Avenue')
+      assert.equal(id, 'v-maple-canon')
+      assert.equal(calls.insert, 0)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('(8c) alias-name index load error fails open: no throw, today\'s mint/null result unchanged', async () => {
+    const calls = fresh({
+      allVenues: [],
+      insertedId: 'v-fallback-mint',
+      aliasNamesError: { message: 'connection reset' },
+    })
+    try {
+      // Ordinary, non-junk, no-address name with no existing row: absent the
+      // alias index (which fails to load and degrades to empty), this mints
+      // exactly like it does today.
+      const id = await ensureVenue('Brand New Community Room')
+      assert.equal(id, 'v-fallback-mint')
+      assert.equal(calls.insert, 1)
     } finally {
       __setClientForTests(null)
     }
