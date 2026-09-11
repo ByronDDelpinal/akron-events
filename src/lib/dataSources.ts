@@ -419,9 +419,9 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
   {
     key:         'akron_urban_league',
     method:      'HTML scrape',
-    methodDetail:'WordPress (custom AUL theme) — /home/events/ listing + detail pages',
+    methodDetail:'WordPress REST (wp/v2/posts, category "Events") + per-post HTML detail parse',
     venue:       'Akron Urban League — multiple program sites',
-    notes:       'Server-rendered WordPress site with no REST or Tribe Events feed exposed. Scraper enumerates event URLs from the /home/events/ listing (and the /events-archive/ pattern), then fetches each detail page and parses og:* meta tags plus body copy for date ("January 19, 2026"), time, venue, description, and registration link. article:published_time is the WP post date, not the event date, so it is explicitly ignored. Typical run yields ~5–15 active community-impact events at a time.',
+    notes:       'WordPress 6.x + Divi. Event posts are published at the SITE ROOT (/<slug>/), not under /events/, and the /category/events/ archive redirects to the events-workshops hub — so the old hub link scan matched nothing and the source logged clean zeroes for months. Discovery now uses the WP REST API: resolve the "Events" category id from /wp-json/wp/v2/categories?slug=events (fallback id 30) and page /wp-json/wp/v2/posts?categories=<id> (25 posts as of 2026-09). The hub scan is kept as an additive secondary source, unioned by URL, warn-only on failure. content.rendered is EMPTY on this install (Divi builder content is not serialised into REST), so every field still comes from the rendered detail page: og:* meta plus body copy for date, time, venue and registration link. The Divi hero prints the POST PUBLISH DATE above the article body, so pickEventDate() drops any date candidate equal to the REST publish date and prefers the first future one — the publish date is never the event date. Summit gate keys off whether an address actually matched, so address-less posts land in review rather than passing as a defaulted Akron.',
     status:      'active',
   },
   {
@@ -1766,6 +1766,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   release_yoga:        'html',
 
   // EventON / custom WordPress
+  akron_urban_league: 'wp-hybrid',
   jillys_music_room: 'wp-hybrid',
   akronym_brewing:   'wp-hybrid',
   mustard_seed:      'wp-hybrid',
@@ -1850,7 +1851,6 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   akron_childrens_museum: 'html',
   nightlight_cinema:      'html',
   stan_hywet:             'html',
-  akron_urban_league:     'html',
   hale_farm:              'html',
   cvart:                  'html',
 
