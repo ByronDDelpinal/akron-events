@@ -28,6 +28,13 @@
  * fetchSeasons() now walks a list of candidate URLs (www first, then the market
  * subpages) and uses the first page whose footer yields a season, instead of
  * betting the whole run on one apex fetch.
+ * 2026-09-11 repair: the site's nav menu (rendered on every page, above the
+ * footer) repeats Title Case "Summer Market" / "Winter Market" three times, so
+ * a single case-insensitive "<LABEL> MARKET" match landed on a nav link with
+ * no date range or venue after it before the footer was ever reached — both
+ * seasons failed to parse (range=false venue=false) on every run since 07-25.
+ * parseSeasons() now scans ALL occurrences of each header and takes the first
+ * candidate block (header → next terminator) whose range AND venue both parse.
  * We parse those two season blocks live (so next year's dates/venues follow on
  * re-scrape) and expand each into the upcoming weekly Saturday occurrences via
  * lib/weekly-occurrences.js (Eastern-anchored calendar math, immune to the
@@ -139,37 +146,59 @@ export function parseSeasons(text) {
   const flat = String(text || '')
   const seasons = []
 
+  // Terminator set used to end a candidate block: scanning stops at the next
+  // header occurrence, HOURS, ©, or end of text. Finding the next occurrence
+  // of a header itself is headerRe's job (see the while loop below); this
+  // regex only marks where a block ends. Unchanged from the original
+  // single-match regex.
+  const TERMINATOR_RE = /SUMMER\s+MARKET|WINTER\s+MARKET|HOURS|©/gi
+
   for (const label of ['SUMMER', 'WINTER']) {
-    // Capture from "<LABEL> MARKET" up to the next season header / HOURS / footer.
-    const blockRe = new RegExp(
-      `${label}\\s+MARKET([\\s\\S]*?)(?:SUMMER\\s+MARKET|WINTER\\s+MARKET|HOURS|©|$)`, 'i',
-    )
-    const block = flat.match(blockRe)?.[1]
-    if (!block) continue
+    // The site's nav menu repeats "<Label> Market" (Title Case, no line break
+    // to the real content) ahead of the footer, so the FIRST case-insensitive
+    // match of "<LABEL> MARKET" can be a nav link with nothing useful after it.
+    // Scan every occurrence of the header and, for each, slice from the end of
+    // that header to the next terminator (another header, HOURS, © or end of
+    // text); take the first candidate block whose date range AND venue both
+    // parse. Blocks that don't parse are skipped silently -- only the last
+    // attempt gets the warning below.
+    const headerRe = new RegExp(`${label}\\s+MARKET`, 'gi')
+    let match
+    let range, closedMatch, venue, startMd, endMd
+    let found = false
+    while ((match = headerRe.exec(flat))) {
+      const start = match.index + match[0].length
+      TERMINATOR_RE.lastIndex = start
+      const term = TERMINATOR_RE.exec(flat)
+      const end = term ? term.index : flat.length
+      const block = flat.slice(start, end)
 
-    // Date range: "May 2 - October 31, 2026"
-    const range = block.match(
-      /([A-Za-z]{3,}\.?\s+\d{1,2})\s*[-–—]\s*([A-Za-z]{3,}\.?\s+\d{1,2}),?\s*(\d{4})/,
-    )
+      // Date range: "May 2 - October 31, 2026"
+      range = block.match(
+        /([A-Za-z]{3,}\.?\s+\d{1,2})\s*[-–—]\s*([A-Za-z]{3,}\.?\s+\d{1,2}),?\s*(\d{4})/,
+      )
 
-    // Winter closures: "CLOSED: Nov 28, Dec 26, Jan 2". Capture the whole clause
-    // and strip it out before extracting the venue, so it can't bleed into the
-    // venue name regardless of whether htmlToText line-breaks the footer.
-    const closedMatch = block.match(/CLOSED:?\s*((?:[A-Za-z]{3,}\.?\s+\d{1,2}\s*,?\s*)+)/i)
-    const blockNoClosed = closedMatch ? block.replace(closedMatch[0], ' ') : block
+      // Winter closures: "CLOSED: Nov 28, Dec 26, Jan 2". Capture the whole clause
+      // and strip it out before extracting the venue, so it can't bleed into the
+      // venue name regardless of whether htmlToText line-breaks the footer.
+      closedMatch = block.match(/CLOSED:?\s*((?:[A-Za-z]{3,}\.?\s+\d{1,2}\s*,?\s*)+)/i)
+      const blockNoClosed = closedMatch ? block.replace(closedMatch[0], ' ') : block
 
-    // Venue: prefer a line that ends in "…, OH #####" (htmlToText usually keeps
-    // the venue's <a> on its own line); otherwise pull the first "<Name>
-    // <street#> …, OH #####" span out of the closure-stripped block. The name is
-    // letters-only so it can't swallow the date range or a street number.
-    const venueLine = blockNoClosed.split(/\n+/).map((l) => l.trim())
-      .find((l) => /\d.*,\s*(?:OH|Ohio)\s+\d{5}$/i.test(l))
-    const venueSpan = blockNoClosed.replace(/\s+/g, ' ')
-      .match(/([A-Z][A-Za-z.'&]*(?: [A-Z][A-Za-z.'&]*)*\s+\d+\s+[^,]+,\s*(?:OH|Ohio)\s+\d{5})/)
-    const venue = parseVenueLine(venueLine || venueSpan?.[1] || '')
-    const startMd = range && parseMonthDay(range[1])
-    const endMd   = range && parseMonthDay(range[2])
-    if (!startMd || !endMd || !venue) {
+      // Venue: prefer a line that ends in "…, OH #####" (htmlToText usually keeps
+      // the venue's <a> on its own line); otherwise pull the first "<Name>
+      // <street#> …, OH #####" span out of the closure-stripped block. The name is
+      // letters-only so it can't swallow the date range or a street number.
+      const venueLine = blockNoClosed.split(/\n+/).map((l) => l.trim())
+        .find((l) => /\d.*,\s*(?:OH|Ohio)\s+\d{5}$/i.test(l))
+      const venueSpan = blockNoClosed.replace(/\s+/g, ' ')
+        .match(/([A-Z][A-Za-z.'&]*(?: [A-Z][A-Za-z.'&]*)*\s+\d+\s+[^,]+,\s*(?:OH|Ohio)\s+\d{5})/)
+      venue = parseVenueLine(venueLine || venueSpan?.[1] || '')
+      startMd = range && parseMonthDay(range[1])
+      endMd   = range && parseMonthDay(range[2])
+
+      if (startMd && endMd && venue) { found = true; break }
+    }
+    if (!found) {
       console.warn(`  ⚠ Could not parse ${label} MARKET block (range=${!!range}, venue=${!!venue})`)
       continue
     }

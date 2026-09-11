@@ -146,6 +146,63 @@ describe('cvfm: parseSeasons over real htmlToText', () => {
   }
 })
 
+// The site's real nav menu repeats "Summer Market" / "Winter Market" (Title
+// Case) three times ahead of the footer -- a case-insensitive FIRST-match
+// anchor lands on a nav link with no date range or venue after it. This is
+// literally what broke the live scraper 53/53 runs since 07-25.
+const NAV_HTML = `
+    <nav><ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/about">About</a></li>
+      <li><a href="/summer-market/">Summer Market</a></li>
+      <li><a href="/winter-market/">Winter Market</a></li>
+      <li><a href="/vendors">Vendors</a></li>
+      <li><a href="/support">Support</a></li>
+      <li><a href="/programs">Programs</a></li>
+    </ul></nav>
+    <nav><ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/about">About</a></li>
+      <li><a href="/summer-market/">Summer Market</a></li>
+      <li><a href="/winter-market/">Winter Market</a></li>
+      <li><a href="/vendors">Vendors</a></li>
+      <li><a href="/support">Support</a></li>
+      <li><a href="/programs">Programs</a></li>
+    </ul></nav>
+    <nav><ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/about">About</a></li>
+      <li><a href="/summer-market/">Summer Market</a></li>
+      <li><a href="/winter-market/">Winter Market</a></li>
+      <li><a href="/vendors">Vendors</a></li>
+      <li><a href="/support">Support</a></li>
+      <li><a href="/programs">Programs</a></li>
+    </ul></nav>`
+
+describe('cvfm: parseSeasons ignores nav-menu header matches (regression, 09-11)', () => {
+  const RAW_WITH_NAV = NAV_HTML + `
+    <h5>SUMMER MARKET</h5>
+    <p>May 2 - October 31, 2026<br>
+    <a href="https://maps.app.goo.gl/x">Howe Meadow 4040 Riverview Rd. Peninsula, OH 44264</a><br>
+    <a href="mailto:info@cvfm.org">info@cvfm.org</a></p>
+    <h5>WINTER MARKET</h5>
+    <p>November 7 - April 24, 2027<br>
+    <em>CLOSED: Nov 28, Dec 26, Jan 2</em><br>
+    <a href="https://maps.app.goo.gl/y">Old Trail School 2315 Ira Rd. Akron, OH 44333</a></p>
+    <h5>HOURS</h5><p>Open Rain or Shine Every Saturday 9am - 12pm</p>`
+
+  it('parses both seasons + venues past a 3x-repeated nav menu', () => {
+    const s = parseSeasons(htmlToText(RAW_WITH_NAV))
+    assert.equal(s.length, 2, 'both seasons found despite nav-menu header matches')
+    assert.deepEqual(s.map((x) => x.label), ['Summer', 'Winter'])
+    assert.deepEqual(s[0].venue, { name: 'Howe Meadow', address: '4040 Riverview Rd', city: 'Peninsula', state: 'OH', zip: '44264' })
+    assert.equal(s[0].startYmd, '2026-05-02'); assert.equal(s[0].endYmd, '2026-10-31')
+    assert.deepEqual(s[1].venue, { name: 'Old Trail School', address: '2315 Ira Rd', city: 'Akron', state: 'OH', zip: '44333' })
+    assert.equal(s[1].startYmd, '2026-11-07'); assert.equal(s[1].endYmd, '2027-04-24')
+    assert.deepEqual([...s[1].closedYmds].sort(), ['2026-11-28', '2026-12-26', '2027-01-02'])
+  })
+})
+
 describe('cvfm: seasonForDate', () => {
   const seasons = parseSeasons(FIXTURE)
   it('routes a summer Saturday to Howe Meadow', () => {
@@ -188,7 +245,11 @@ function capturedFooterToText(md) {
 }
 
 const CAPTURE = readFileSync(join(HERE, 'fixtures', 'cvfm-homepage-footer.md'), 'utf8')
+// Clean captured-footer text (no nav menu prefix) -- exercised by the original suite.
 const CAPTURE_TEXT = capturedFooterToText(CAPTURE)
+// Same capture, but preceded by the 3x-repeated nav menu, so the real capture data
+// is also exercised through the nav-bearing code path (not just the synthetic RAW_WITH_NAV fixture above).
+const NAV_CAPTURE_TEXT = htmlToText(NAV_HTML) + '\n' + capturedFooterToText(CAPTURE)
 
 describe('cvfm: REAL parser over the captured live footer', () => {
   const seasons = parseSeasons(CAPTURE_TEXT)
@@ -206,6 +267,34 @@ describe('cvfm: REAL parser over the captured live footer', () => {
       name: 'Howe Meadow', address: '4040 Riverview Rd', city: 'Peninsula', state: 'OH', zip: '44264',
     })
     assert.equal(s.closedYmds.size, 0)
+  })
+
+  it('winter: Old Trail School in Akron, Nov 7 2026 – Apr 24 2027, 3 closures', () => {
+    const s = seasons.find((x) => x.label === 'Winter')
+    assert.equal(s.startYmd, '2026-11-07')
+    assert.equal(s.endYmd, '2027-04-24')
+    assert.deepEqual(s.venue, {
+      name: 'Old Trail School', address: '2315 Ira Rd', city: 'Akron', state: 'OH', zip: '44333',
+    })
+    assert.deepEqual([...s.closedYmds].sort(), ['2026-11-28', '2026-12-26', '2027-01-02'])
+  })
+})
+
+describe('cvfm: REAL parser over the nav-prefixed captured live footer', () => {
+  const seasons = parseSeasons(NAV_CAPTURE_TEXT)
+
+  it('parses both season blocks from the live capture past the nav menu', () => {
+    assert.equal(seasons.length, 2)
+    assert.deepEqual(seasons.map((s) => s.label), ['Summer', 'Winter'])
+  })
+
+  it('summer: Howe Meadow in Peninsula, May 2 – Oct 31 2026', () => {
+    const s = seasons.find((x) => x.label === 'Summer')
+    assert.equal(s.startYmd, '2026-05-02')
+    assert.equal(s.endYmd, '2026-10-31')
+    assert.deepEqual(s.venue, {
+      name: 'Howe Meadow', address: '4040 Riverview Rd', city: 'Peninsula', state: 'OH', zip: '44264',
+    })
   })
 
   it('winter: Old Trail School in Akron, Nov 7 2026 – Apr 24 2027, 3 closures', () => {
