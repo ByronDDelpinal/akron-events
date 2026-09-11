@@ -12,7 +12,9 @@
  *      pages for /events/ and /events-archive/ hrefs and union the results by
  *      URL. A hub fetch failure is a warning, never a run failure.
  *   3. EXTRACTION stays HTML: fetch each detail page and parse og:* meta tags
- *      plus body copy for title, date, time, venue, description and links.
+ *      (og:title / og:description / og:image) plus body copy for title, date,
+ *      time, venue, description and links. The og:image is discarded when it
+ *      points at the site logo, which is what AUL serves as the default.
  *
  * 2026-09 finding (why discovery moved):
  *   - AUL publishes event posts at the SITE ROOT (/<slug>/), not under /events/,
@@ -154,6 +156,12 @@ async function fetchEventPostLinks(categoryId) {
 
     for (const post of json) {
       if (!post?.link) continue
+      // Host allowlist: only ever follow links back into the AUL site. A
+      // compromised or syndicated REST row must not steer detail fetches.
+      if (!post.link.startsWith(`${BASE_URL}/`)) {
+        console.warn(`  ⚠ Skipping off-site post link ${post.link}`)
+        continue
+      }
       out.push({
         url:          post.link,
         publishedIso: post.date ?? null,
@@ -164,6 +172,7 @@ async function fetchEventPostLinks(categoryId) {
     if (page === 1) {
       const reported = Number(headers.get('x-wp-totalpages'))
       if (Number.isFinite(reported) && reported > 0) totalPages = reported
+      else console.warn('  ⚠ No x-wp-totalpages header on the posts response — assuming a single page')
     }
     page++
     if (page <= totalPages) await sleep(PAGE_DELAY_MS)
@@ -179,28 +188,23 @@ async function fetchEventPostLinks(categoryId) {
  * Extract all <meta property="..." content="..."> and
  * <meta name="..." content="..."> values from raw HTML.
  *
- * KNOWN DEFECT (found 2026-09-11, deliberately NOT fixed here — out of ADR-070
- * scope): the branch below tests `re.source.startsWith('/<meta…')`, but
- * RegExp#source has no leading delimiter, so the test is always false and BOTH
- * patterns are read value-first. The map therefore ends up keyed by content
- * strings and `meta['og:title']` is always undefined — title silently falls
- * through to the <h1>, and og:image / og:description are dropped entirely.
- * Fixing it is a one-line change but it would start writing AUL's 227x80 site
- * LOGO into image_url for every event, so it needs a product call first.
+ * The attribute order varies across Divi/Yoast output, so both orders are
+ * matched and each pattern declares which capture group holds the value.
+ * (Before 2026-09-11 the branch tested `re.source.startsWith('/<meta…')`,
+ * which is never true — RegExp#source carries no delimiters — so both patterns
+ * were read value-first and every og:* key came back undefined.)
+ * First occurrence of a key wins.
  */
 export function parseMeta(html) {
   const meta = {}
-  // Handle both property= and name= variants; content may come before or after
   const patterns = [
-    /<meta\s+(?:property|name)="([^"]+)"\s+content="([^"]*)"/gi,
-    /<meta\s+content="([^"]*)"\s+(?:property|name)="([^"]+)"/gi,
+    { re: /<meta\s+(?:property|name)="([^"]+)"\s+content="([^"]*)"/gi, valueFirst: false },
+    { re: /<meta\s+content="([^"]*)"\s+(?:property|name)="([^"]+)"/gi, valueFirst: true },
   ]
-  for (const re of patterns) {
-    for (const m of html.matchAll(re)) {
-      // First pattern: key=m[1], value=m[2]; second pattern: value=m[1], key=m[2]
-      const [key, val] = re.source.startsWith('/<meta\\s+(?:property|name)')
-        ? [m[1], m[2]]
-        : [m[2], m[1]]
+  for (const { re, valueFirst } of patterns) {
+    for (const m of String(html ?? '').matchAll(re)) {
+      const key = valueFirst ? m[2] : m[1]
+      const val = valueFirst ? m[1] : m[2]
       if (key && !(key in meta)) meta[key] = val
     }
   }
@@ -348,13 +352,26 @@ function extractEventUrls(html) {
 // ── Detail page — full event data ──────────────────────────────────────────
 
 const ADDRESS_CITIES = 'Akron|Fairlawn|Cuyahoga Falls|Hudson|Stow|Kent|Tallmadge|Bath|Barberton|Norton|Green|Copley'
-const STREET_SUFFIX  = 'Street|St|Avenue|Ave|Boulevard|Blvd|Road|Rd|Drive|Dr|Lane|Ln|Way|Parkway|Pkwy|Circle|Cir|Court|Ct|Place|Pl|Highway|Hwy'
-// "440 Vernon Odom Blvd., Akron, OH 44307"
+// "440 Vernon Odom Blvd., Akron, OH 44307" — the ZIP anchors this one, so the
+// permissive leading segment is safe.
 const ADDR_FULL_RE = new RegExp(`([^\\n,]{3,80}),\\s*(${ADDRESS_CITIES}),?\\s*OH\\s+(\\d{5})`, 'i')
+
+// The loose (no-ZIP) variant is deliberately stricter than the full one: with
+// no ZIP to anchor on it used to swallow ordinary prose. Confirmed false
+// positives it must NOT match:
+//   "Since 1925 the League has been a place in Akron."   → "1925 the League has been a place"
+//   "We raised $25,000 for Green Way, Kent residents."   → "000 for Green Way"
+// Hence: no `i` flag (street words and the suffix must be Capitalized),
+// `Place`/`Way`/`Dr` dropped from the suffix set because they are common
+// English words, the house number may not be preceded by a digit, comma or
+// dollar sign (so thousands groups and prices cannot start an address), and
+// the street-name run is capped at four Capitalized words.
+const STREET_SUFFIX_LOOSE =
+  'Street|St|Avenue|Ave|Boulevard|Blvd|Road|Rd|Drive|Lane|Ln|Court|Ct|Parkway|Pkwy|Circle|Highway|Hwy'
 // "…at 440 Vernon Odom Boulevard in Akron" / "…, 440 Vernon Odom Boulevard, Akron"
 const ADDR_LOOSE_RE = new RegExp(
-  `(\\d{2,6}\\s+[A-Za-z0-9.'\\-]+(?:\\s+[A-Za-z0-9.'\\-]+){0,5}\\s+(?:${STREET_SUFFIX}))\\.?\\s*(?:,|\\sin)\\s+(${ADDRESS_CITIES})\\b`,
-  'i',
+  `((?<![\\d,$])\\b\\d{1,6}\\b\\s+(?:[A-Z][A-Za-z0-9.'\\-]*\\s+){1,4}(?:${STREET_SUFFIX_LOOSE}))`
+  + `\\.?\\s*(?:,|\\sin)\\s+(${ADDRESS_CITIES})\\b`,
 )
 
 /**
@@ -379,7 +396,11 @@ export function parseDetailPage(html, eventUrl, publishedIso = null, todayIso = 
   }
 
   // ── Image ──────────────────────────────────────────────────────────────
-  const imageUrl = meta['og:image'] ?? null
+  // AUL's og:image defaults to the 227x80 site logo SVG on posts without a
+  // featured image. Gate it independently of parseMeta so a logo never becomes
+  // an event image.
+  let imageUrl = meta['og:image'] ?? null
+  if (imageUrl && /logo|\.svg(\?|$)/i.test(imageUrl)) imageUrl = null
 
   // ── Description ────────────────────────────────────────────────────────
   let description = meta['og:description'] ?? meta.description ?? null
@@ -399,7 +420,10 @@ export function parseDetailPage(html, eventUrl, publishedIso = null, todayIso = 
   const contentText = stripHtml(contentBlock)
 
   // ── Date ───────────────────────────────────────────────────────────────
-  const dateCandidates = extractDateCandidates(contentText)
+  // Body candidates first, then the title: several posts carry the date ONLY
+  // in the hero headline (e.g. "…NEW DATE - March 13, 2026 at …"), and the
+  // <article> block excludes the hero.
+  const dateCandidates = [...extractDateCandidates(contentText), ...extractDateCandidates(title)]
   let dateStr = pickEventDate(dateCandidates, publishedIso, todayIso)
   // Last-resort: derive from the URL slug (several posts embed the date there).
   if (!dateStr) {
@@ -412,7 +436,7 @@ export function parseDetailPage(html, eventUrl, publishedIso = null, todayIso = 
 
   // ── Venue + address ────────────────────────────────────────────────────
   const addrM = contentText.match(ADDR_FULL_RE) ?? contentText.match(ADDR_LOOSE_RE)
-  let venue        = null
+  const venue      = null
   let venueAddress = null
   // NOTE: venueCity defaults to 'Akron' for the venue record, but the Summit
   // gate keys off `addressMatched` — a post with NO address must not pass the
@@ -425,18 +449,15 @@ export function parseDetailPage(html, eventUrl, publishedIso = null, todayIso = 
     venueAddress = addrM[1].trim().replace(/^(?:at|,)\s+/i, '')
     venueCity    = addrM[2].trim()
     venueZip     = addrM[3] ?? null
-    // Venue name: the line immediately before the address in the content
-    const beforeAddr = contentText.slice(0, contentText.indexOf(addrM[0])).trim()
-    const lines      = beforeAddr.split('\n').map(l => l.trim()).filter(Boolean)
-    const candidate  = lines[lines.length - 1] ?? ''
-    if (candidate.length > 3 && candidate.length < 80 && !/[.!?]$/.test(candidate)
-        && !/^(join|this|the|our|come|we |register)/i.test(candidate)) {
-      venue = candidate
-    }
   }
+  // No venue-name extraction: stripHtml flattens all whitespace by contract, so
+  // there is no line structure to read a name from. AUL rows resolve by address
+  // (ensureVenue's address-named guard applies).
 
   // ── Registration / ticket URL ──────────────────────────────────────────
-  const registerRe = /<a[^>]+href="([^"]+)"[^>]*>\s*(?:Register(?:\s+Now)?|Buy\s+Tickets?|RSVP|Get\s+Tickets?)\s*<\/a>/i
+  // "Register", "Register Now", "Register for Expungement Day" — anything the
+  // anchor text starts with after "Register".
+  const registerRe = /<a[^>]+href="([^"]+)"[^>]*>\s*(?:Register[^<]*|Buy\s+Tickets?|RSVP|Get\s+Tickets?)\s*<\/a>/i
   const ticketUrl  = html.match(registerRe)?.[1] ?? eventUrl
 
   return {
@@ -677,7 +698,9 @@ async function main() {
     })
     console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s — ${result.inserted} inserted, ${result.skipped} skipped`)
   } catch (err) {
-    await logScraperError(SOURCE_KEY, err, start)
+    console.error(`\n❌  ${SOURCE_KEY} failed: ${err.message}`)
+    // --dry-run must never write, including on the error path.
+    if (!DRY_RUN) await logScraperError(SOURCE_KEY, err, start)
     process.exit(1)
   }
 }

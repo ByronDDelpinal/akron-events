@@ -95,6 +95,19 @@ const PAST_FIXTURE = `<!DOCTYPE html><html lang="en-US"><head>
 </article>
 </body></html>`
 
+// A post whose ONLY date lives in the hero <h1>/og:title. The <article> body
+// has no "Month D, YYYY" at all, and the hero sits outside <article>.
+const TITLE_DATE_URL = 'https://www.akronurbanleague.org/love-letter-to-the-league-gala-2025-sponsorships-and-tickets/'
+const TITLE_DATE_PUBLISHED = '2025-11-18T15:02:11'
+const TITLE_DATE_FIXTURE = `<!DOCTYPE html><html lang="en-US"><head>
+<meta content="Love Letter to the League Gala - NEW DATE &#8211; March 13, 2026 at John S. Knight Center | Akron Urban League" property="og:title" />
+</head><body>
+<div class="et_pb_heading_container"><h1 class="et_pb_module_header">Love Letter to the League Gala &#8211; NEW DATE &#8211; March 13, 2026 at John S. Knight Center</h1></div>
+<article>
+<p>Sponsorships and tickets are available now. Doors open at 6:00 PM.</p>
+</article>
+</body></html>`
+
 describe('akron_urban_league — module surface', () => {
   it('exports the stable source key', () => {
     assert.equal(SOURCE_KEY, 'akron_urban_league')
@@ -191,11 +204,16 @@ describe('parseDetailPage — real expungement fixture', () => {
     assert.equal(parsed.publishedIso, EVENT_PUBLISHED)
   })
 
-  it('falls back to the event URL when no Register/RSVP anchor matches', () => {
-    // The live CTA reads "Register for Expungement Day", which the current
-    // registerRe does not match — documented behaviour, not an assertion that
-    // it is desirable.
-    assert.equal(parsed.ticketUrl, EVENT_URL)
+  it('takes the "Register for Expungement Day" CTA as the ticket URL', () => {
+    // registerRe was widened to Register[^<]* so prose CTAs count.
+    assert.equal(
+      parsed.ticketUrl,
+      'https://docs.google.com/forms/d/1JlN2Hegey-J4OjVlrEC1IgQ-EocfFh0GcC7HgcI1nr4/viewform',
+    )
+  })
+
+  it('drops the site-logo og:image rather than storing it as the event image', () => {
+    assert.equal(parsed.imageUrl, null)
   })
 })
 
@@ -244,5 +262,92 @@ describe('parseMeta / mapTags', () => {
     assert.ok(tags.includes('akron'))
     assert.ok(tags.includes('community'))
     assert.equal(new Set(tags).size, tags.length)
+  })
+})
+
+describe('parseMeta', () => {
+  const KEY_FIRST = '<meta property="og:title" content="Expungement Day" />'
+    + '<meta name="og:description" content="A fresh start." />'
+    + '<meta property="og:image" content="https://example.org/hero.jpg" />'
+  const VALUE_FIRST = '<meta content="Expungement Day" property="og:title" />'
+    + '<meta content="A fresh start." name="og:description" />'
+    + '<meta content="https://example.org/hero.jpg" property="og:image" />'
+
+  it('reads og:* with the key attribute first', () => {
+    const meta = parseMeta(KEY_FIRST)
+    assert.equal(meta['og:title'], 'Expungement Day')
+    assert.equal(meta['og:description'], 'A fresh start.')
+    assert.equal(meta['og:image'], 'https://example.org/hero.jpg')
+  })
+
+  it('reads og:* with the content attribute first', () => {
+    const meta = parseMeta(VALUE_FIRST)
+    assert.equal(meta['og:title'], 'Expungement Day')
+    assert.equal(meta['og:description'], 'A fresh start.')
+    assert.equal(meta['og:image'], 'https://example.org/hero.jpg')
+  })
+
+  it('pulls og:title and og:image off the real fixture', () => {
+    const meta = parseMeta(EVENT_FIXTURE)
+    assert.match(meta['og:title'], /^Sealing the Past/)
+    assert.equal(meta['og:image'], 'https://www.akronurbanleague.org/wp-content/uploads/Akron-Urban-League-Logo.svg')
+  })
+
+  it('keeps a real og:image but nulls the logo SVG at parseDetailPage', () => {
+    const withReal = EVENT_FIXTURE.replace(
+      'https://www.akronurbanleague.org/wp-content/uploads/Akron-Urban-League-Logo.svg',
+      'https://www.akronurbanleague.org/wp-content/uploads/Expongement-day2026-new-scaled.jpg',
+    )
+    assert.equal(
+      parseDetailPage(withReal, EVENT_URL, EVENT_PUBLISHED, TODAY).imageUrl,
+      'https://www.akronurbanleague.org/wp-content/uploads/Expongement-day2026-new-scaled.jpg',
+    )
+    assert.equal(parseDetailPage(EVENT_FIXTURE, EVENT_URL, EVENT_PUBLISHED, TODAY).imageUrl, null)
+  })
+})
+
+describe('loose address matching — prose false positives', () => {
+  const parseAddr = text => parseDetailPage(
+    `<html><body><article><p>${text}</p></article></body></html>`,
+    EVENT_URL, EVENT_PUBLISHED, TODAY,
+  )
+
+  it('still matches the real "at 440 Vernon Odom Boulevard in Akron"', () => {
+    const got = parseAddr('Expungement Day, from 9 a.m. to 3 p.m., at 440 Vernon Odom Boulevard in Akron.')
+    assert.equal(got.addressMatched, true)
+    assert.equal(got.venueAddress, '440 Vernon Odom Boulevard')
+    assert.equal(got.venueCity, 'Akron')
+  })
+
+  it('does not treat a founding year in prose as an address', () => {
+    const got = parseAddr('Since 1925 the League has been a place in Akron.')
+    assert.equal(got.addressMatched, false)
+    assert.equal(got.venueAddress, null)
+  })
+
+  it('does not treat a dollar amount as an address', () => {
+    const got = parseAddr('We raised $25,000 for Green Way, Kent residents.')
+    assert.equal(got.addressMatched, false)
+    assert.equal(got.venueAddress, null)
+  })
+
+  it('still matches the full ZIP form', () => {
+    const got = parseAddr('Akron Urban League, 440 Vernon Odom Blvd., Akron, OH 44307')
+    assert.equal(got.addressMatched, true)
+    assert.equal(got.venueZip, '44307')
+  })
+})
+
+describe('date found only in the post title', () => {
+  it('uses the hero headline date when the article body has none', () => {
+    const parsed = parseDetailPage(TITLE_DATE_FIXTURE, TITLE_DATE_URL, TITLE_DATE_PUBLISHED, TODAY)
+    assert.equal(extractDateCandidates(parsed.title).length, 1)
+    assert.equal(parsed.dateStr, '2026-03-13')
+    assert.equal(parsed.timeStr, '18:00:00')
+  })
+
+  it('still prefers a body date over the title date', () => {
+    const parsed = parseDetailPage(EVENT_FIXTURE, EVENT_URL, EVENT_PUBLISHED, TODAY)
+    assert.equal(parsed.dateStr, '2026-11-06')
   })
 })
