@@ -34,6 +34,7 @@ import {
 // consumers of the same product decision. DAP is not an ICS feed, but the note
 // string is what the digest matches on, so it is shared rather than re-declared.
 import { withDateOnlyTimeNote } from './lib/ics.js'
+import { addDaysYmd } from '../src/lib/recurrence.js'
 import { getPublishedEventsAtVenue, classifyAggregatorEvent } from './lib/source-tiers.js'
 
 const BASE_URL = 'https://www.downtownakron.com'
@@ -65,18 +66,16 @@ function reconstructDate(dayNum, monthAbbr, now = new Date()) {
 }
 
 /**
- * Parse time from strings like "2 p.m.", "7:30 p.m.", "noon", "2 p.m. - 11 p.m."
- * Returns the start time as HH:MM:00, or null when the input is missing or
- * unparseable — we never fabricate a clock time for timeless listings.
+ * Parse a single clock token ("2 p.m.", "7:30 p.m.", "noon", "midnight") to
+ * HH:MM:00, or null when it carries no parseable time. A bare number with no
+ * meridiem ("12") is null — we never guess am/pm.
  */
-function parseTime(raw) {
-  if (!raw) return null
-  const s = raw.trim().toLowerCase()
-
+function parseTimeToken(s) {
+  if (!s) return null
   if (s.includes('noon')) return '12:00:00'
   if (s.includes('midnight')) return '00:00:00'
 
-  // Handle "X p.m." or "X:XX p.m." — extract just the start time
+  // Handle "X p.m." or "X:XX p.m."
   const match = s.match(/(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)/)
   if (match) {
     let hr  = parseInt(match[1], 10)
@@ -88,6 +87,32 @@ function parseTime(raw) {
   }
 
   return null
+}
+
+/**
+ * Parse a time or time range like "2 p.m.", "noon - 3 p.m.", "9 p.m. - 1 a.m."
+ * into `{ startTime, endTime }`, each HH:MM:00 or null. The raw string is split
+ * on the first '-', en-dash, em-dash or " to ", and each side goes through the
+ * single-token parser. An end side that fails to parse on its own (e.g. the
+ * "12" in "12 - 3pm", whose meridiem is only implied) yields endTime null —
+ * we never guess an end time.
+ */
+export function parseTimeRange(raw) {
+  if (!raw) return { startTime: null, endTime: null }
+  const s = raw.trim().toLowerCase()
+  const [startPart, ...rest] = s.split(/\s*(?:[-\u2013\u2014]|\bto\b)\s*/)
+  const startTime = parseTimeToken(startPart)
+  const endTime   = startTime != null && rest.length ? parseTimeToken(rest[0]) : null
+  return { startTime, endTime }
+}
+
+/**
+ * Parse time from strings like "2 p.m.", "7:30 p.m.", "noon", "2 p.m. - 11 p.m."
+ * Returns the start time as HH:MM:00, or null when the input is missing or
+ * unparseable — we never fabricate a clock time for timeless listings.
+ */
+function parseTime(raw) {
+  return parseTimeRange(raw).startTime
 }
 
 // SANCTIONED-DEFAULT-TIME
@@ -127,6 +152,28 @@ function resolveStart(dateStr, timeStr) {
     startAt:         easternToIso(dateStr, timeStr ?? DATE_ONLY_DEFAULT_TIME),
     timeSynthesized: timeStr == null,
   }
+}
+
+const hhmmToMinutes = (t) => {
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
+}
+
+/**
+ * Resolve a card's end instant. Null unless the card carried BOTH a parsed
+ * start time and a parsed end time — a noon-default (timeless) card must keep
+ * end_at null, since there is nothing to anchor an end to. An end before the
+ * start ("9 p.m. - 1 a.m.") rolls to the next calendar day; an end EQUAL to
+ * the start ("8 p.m. - 8 p.m.") is a listing typo, not a 24-hour event, and
+ * yields null.
+ */
+export function computeEndAt(dateStr, timeStr, endTimeStr) {
+  if (timeStr == null || endTimeStr == null || !dateStr) return null
+  const startMin = hhmmToMinutes(timeStr)
+  const endMin   = hhmmToMinutes(endTimeStr)
+  if (endMin === startMin) return null
+  const endDate = endMin < startMin ? addDaysYmd(dateStr, 1) : dateStr
+  return easternToIso(endDate, endTimeStr)
 }
 
 /**
@@ -335,19 +382,22 @@ function parseCalendarHtml(html, now = new Date()) {
     const title = parts.find(p => p.toLowerCase() !== 'view details' && p.length > 2)
     if (!title) continue
 
-    let   timeStr  = null
-    let   venueName = null
+    let   timeStr    = null
+    let   endTimeStr = null
+    let   venueName  = null
 
     // Legacy layout: a single "<time> / <venue>" part.
     const timeVenuePart = parts.find(p => p.includes(' / '))
     if (timeVenuePart) {
       const [timePart, ...venueParts] = timeVenuePart.split(' / ')
-      timeStr   = parseTime(timePart)
+      ;({ startTime: timeStr, endTime: endTimeStr } = parseTimeRange(timePart))
       venueName = venueParts.join(' / ').trim() || null
     } else {
       // Current layout: time and venue are separate parts.
-      const timePart = parts.find(p => /\d\s*(?:a\.?m\.?|p\.?m\.?)|noon|midnight/i.test(p))
-      if (timePart) timeStr = parseTime(timePart)
+      // Skip the title: 'Noon Tunes – Live at 6 p.m.' must not become the
+      // card's clock, or its start AND end would be read out of the title.
+      const timePart = parts.find(p => p !== title && /\d\s*(?:a\.?m\.?|p\.?m\.?)|noon|midnight/i.test(p))
+      if (timePart) ({ startTime: timeStr, endTime: endTimeStr } = parseTimeRange(timePart))
       const WEEKDAY = /^(?:sun|mon|tues?|wed(?:nes)?|thur?s?|fri|sat(?:ur)?)(?:day)?$/i
       venueName = parts.find(p =>
         p !== title &&
@@ -406,7 +456,7 @@ function parseCalendarHtml(html, now = new Date()) {
     const dateStr = reconstructDate(dayNum, monthAb, now)
     if (!dateStr) continue
 
-    events.push({ title, dateStr, timeStr, venueName, slug, linkHref })
+    events.push({ title, dateStr, timeStr, endTimeStr, venueName, slug, linkHref })
   }
 
   return events
@@ -563,6 +613,9 @@ async function processEvents(events, organizerId) {
       // scrape-ohio-erie-canalway.js, and scrape-ohio-festivals.js.
       const { startAt, timeSynthesized } = resolveStart(ev.dateStr, ev.timeStr)
       if (!startAt) { skipped++; continue }
+      // Only a card that gave both ends gets an end_at; a synthesized noon
+      // start has nothing real to anchor an end to (see computeEndAt).
+      const endAt = timeSynthesized ? null : computeEndAt(ev.dateStr, ev.timeStr, ev.endTimeStr)
 
       const atVenue = await venueEventsFor(venueId)
       const { suppress, needsReview, reason } = classifyAggregatorEvent(
@@ -602,7 +655,7 @@ async function processEvents(events, organizerId) {
         title:           ev.title,
         description:     storedDescription,
         start_at:        startAt,
-        end_at:          null,
+        end_at:          endAt,
         category:        parseCategory(ev.title),
         tags:            ['downtown-akron', 'akron', ...(ev.venueName ? [ev.venueName.toLowerCase()] : [])],
         price_min:       null,

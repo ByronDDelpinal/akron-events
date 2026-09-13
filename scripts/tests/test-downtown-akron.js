@@ -10,6 +10,8 @@ import { LATE_EDT, LATE_EST, LATE_EDT_TODAY, LATE_EST_TODAY } from './fixtures/l
 import {
   parseCalendarHtml,
   parseTime,
+  parseTimeRange,
+  computeEndAt,
   reconstructDate,
   resolveStart,
   filterFutureEvents,
@@ -124,6 +126,113 @@ describe('Downtown Akron: time parsing', () => {
   })
   it('returns null for unparseable input (no fabricated noon)', () => {
     assert.equal(parseTime('no clock here'), null)
+  })
+})
+
+describe('Downtown Akron: time-range parsing (end times)', () => {
+  it('splits "12pm - 3pm" into start and end', () => {
+    assert.deepEqual(parseTimeRange('12pm - 3pm'), { startTime: '12:00:00', endTime: '15:00:00' })
+  })
+  it('handles dotted meridiems: "2 p.m. - 11 p.m."', () => {
+    assert.deepEqual(parseTimeRange('2 p.m. - 11 p.m.'), { startTime: '14:00:00', endTime: '23:00:00' })
+  })
+  it('parses an overnight range as-is: "9 p.m. - 1 a.m."', () => {
+    assert.deepEqual(parseTimeRange('9 p.m. - 1 a.m.'), { startTime: '21:00:00', endTime: '01:00:00' })
+  })
+  it('accepts "noon" as a start: "noon - 3 p.m."', () => {
+    assert.deepEqual(parseTimeRange('noon - 3 p.m.'), { startTime: '12:00:00', endTime: '15:00:00' })
+  })
+  it('accepts en-dash and "to" separators', () => {
+    assert.deepEqual(parseTimeRange('7 p.m. \u2013 9 p.m.'), { startTime: '19:00:00', endTime: '21:00:00' })
+    assert.deepEqual(parseTimeRange('7 p.m. to 9 p.m.'),      { startTime: '19:00:00', endTime: '21:00:00' })
+  })
+  it('a lone time has no end', () => {
+    assert.deepEqual(parseTimeRange('7:30 p.m.'), { startTime: '19:30:00', endTime: null })
+  })
+  it('never guesses an end whose meridiem is only implied ("12 - 3pm")', () => {
+    assert.equal(parseTimeRange('12 - 3pm').endTime, null)
+  })
+  it('garbage yields both null', () => {
+    assert.deepEqual(parseTimeRange('no clock here'), { startTime: null, endTime: null })
+    assert.deepEqual(parseTimeRange(null),            { startTime: null, endTime: null })
+  })
+  it('parseTime is the start half of parseTimeRange', () => {
+    assert.equal(parseTime('2 p.m. - 11 p.m.'), '14:00:00')
+  })
+
+  it('a ranged fixture card carries endTimeStr; a single-time card does not', () => {
+    const events = parseCalendarHtml(CALENDAR_HTML, LATE_EDT)
+    const cc = events.find(e => e.slug === 'casual-commander-days-1')
+    assert.equal(cc.timeStr,    '12:00:00')
+    assert.equal(cc.endTimeStr, '20:00:00')
+    const s = events.find(e => e.slug === 'sketchbook-social')
+    assert.equal(s.timeStr,    '18:00:00')
+    assert.equal(s.endTimeStr, null)
+  })
+
+  it('computeEndAt: same-day range ends on the same date (Eastern)', () => {
+    assert.equal(computeEndAt('2026-07-31', '12:00:00', '15:00:00'), '2026-07-31T19:00:00.000Z')
+  })
+  it('computeEndAt: an end before the start rolls to the next day', () => {
+    assert.equal(computeEndAt('2026-07-31', '21:00:00', '01:00:00'), '2026-08-01T05:00:00.000Z')
+    assert.equal(computeEndAt('2026-12-31', '21:00:00', '01:00:00'), '2027-01-01T06:00:00.000Z')  // EST, year boundary
+  })
+  it('computeEndAt: an end equal to the start is null, not a 24-hour event', () => {
+    assert.deepEqual(parseTimeRange('8 p.m. - 8 p.m.'), { startTime: '20:00:00', endTime: '20:00:00' })
+    assert.equal(computeEndAt('2026-07-31', '20:00:00', '20:00:00'), null)
+  })
+  it('computeEndAt: an overnight roll across DST spring-forward lands on the real ET wall clock', () => {
+    // 2026-03-08 02:00 ET does not exist; easternToIso resolves it to 07:00Z (EDT).
+    assert.equal(computeEndAt('2026-03-07', '23:00:00', '02:00:00'), '2026-03-08T07:00:00.000Z')
+  })
+  it('the processEvents end_at gate: a timeSynthesized card\'s row gets end_at === null', () => {
+    // Mirrors the exact expression in processEvents (which needs Supabase, so
+    // it is not called here): resolveStart -> timeSynthesized -> end_at.
+    const events = parseCalendarHtml(CALENDAR_HTML, LATE_EDT)
+    const t = events.find(e => e.slug === 'all-day-art-walk')
+    const { startAt, timeSynthesized } = resolveStart(t.dateStr, t.timeStr)
+    assert.ok(startAt)
+    assert.equal(timeSynthesized, true)
+    const endAt = timeSynthesized ? null : computeEndAt(t.dateStr, t.timeStr, t.endTimeStr)
+    assert.equal(endAt, null)
+    // And even if a stray endTimeStr leaked onto a timeless card, the gate still wins.
+    const leaked = timeSynthesized ? null : computeEndAt(t.dateStr, t.timeStr, '15:00:00')
+    assert.equal(leaked, null)
+  })
+  it('a clock time inside the title never becomes the card\'s time or end time', () => {
+    const titled = `
+      <a href="/event/noon-tunes-live" class="event-card">
+        <div class="title">Noon Tunes \u2013 Live at 6 p.m.</div>
+        <div class="time">12 p.m. - 2 p.m.</div>
+        <div class="venue">Musica</div>
+        <div class="dow">Wednesday</div><div class="day">15</div><div class="mon">Jul</div>
+      </a>
+      <a href="/event/noon-tunes-timeless" class="event-card">
+        <div class="title">Noon Tunes \u2013 Live at 6 p.m.</div>
+        <div class="venue">Musica</div>
+        <div class="dow">Wednesday</div><div class="day">15</div><div class="mon">Jul</div>
+      </a>`
+    const events = parseCalendarHtml(titled, LATE_EDT)
+    const timed = events.find(e => e.slug === 'noon-tunes-live')
+    assert.ok(timed)
+    assert.equal(timed.title,      'Noon Tunes \u2013 Live at 6 p.m.')
+    assert.equal(timed.timeStr,    '12:00:00')   // from the time part, not "noon"/"6 p.m." in the title
+    assert.equal(timed.endTimeStr, '14:00:00')
+    assert.equal(timed.venueName,  'Musica')
+    const timeless = events.find(e => e.slug === 'noon-tunes-timeless')
+    assert.ok(timeless)
+    assert.equal(timeless.timeStr,    null)      // title alone yields no clock
+    assert.equal(timeless.endTimeStr, null)
+    assert.equal(timeless.venueName,  'Musica')
+  })
+  it('computeEndAt: a timeless (noon-default) card keeps end_at null', () => {
+    const events = parseCalendarHtml(CALENDAR_HTML, LATE_EDT)
+    const t = events.find(e => e.slug === 'all-day-art-walk')
+    assert.equal(t.endTimeStr, null)
+    assert.equal(computeEndAt(t.dateStr, t.timeStr, t.endTimeStr), null)
+    // Even a stray end time cannot anchor to a synthesized start.
+    assert.equal(computeEndAt('2026-07-31', null, '15:00:00'), null)
+    assert.equal(computeEndAt('2026-07-31', '12:00:00', null), null)
   })
 })
 
