@@ -206,7 +206,9 @@ export function directSourceFor(f) {
  * The description is rebuilt from the parsed fields on every run and is never
  * read back from the database, so appending TIME_NOTE is idempotent by
  * construction. It fires unconditionally because this source never publishes a
- * time.
+ * time. For the same reason every row is flagged needs_review: TIME_NOTE
+ * discloses the placeholder start time to readers, needs_review records it for
+ * the review queue.
  */
 export function buildEventRow(f) {
   const startIso = easternToIso(f.startYmd, DEFAULT_TIME)
@@ -233,6 +235,12 @@ export function buildEventRow(f) {
     source:          SOURCE_KEY,
     source_id:       `${slugify(f.name)}-${f.startYmd}`,
     status:          'published',
+    // The 12:00 PM start is invented (SANCTIONED-DEFAULT-TIME). TIME_NOTE
+    // discloses it to readers; needs_review records it for the review queue.
+    // Unconditional because this source never publishes a time. Survives human
+    // triage: reviewed_at is set only by admin paths and is never in this
+    // payload (migration 060).
+    needs_review:    true,
     featured:        false,
   }
 }

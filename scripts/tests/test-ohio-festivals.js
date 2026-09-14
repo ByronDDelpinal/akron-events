@@ -191,6 +191,14 @@ describe('default-time disclosure (2026-07-28 decision)', () => {
   it('never marks a row featured', () => {
     assert.equal(buildEventRow(FEST).featured, false)
   })
+
+  it('flags needs_review because the start time is a placeholder', () => {
+    assert.equal(buildEventRow(FEST).needs_review, true)
+  })
+
+  it('keeps needs_review on tentative rows', () => {
+    assert.equal(buildEventRow({ ...FEST, unconfirmed: true }).needs_review, true)
+  })
 })
 
 describe('direct-source suppression (2026-07 fix)', async () => {
