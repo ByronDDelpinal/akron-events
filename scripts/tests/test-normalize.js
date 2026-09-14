@@ -1245,6 +1245,36 @@ describe('isJunkVenueName', () => {
     assert.equal(isJunkVenueName('W Market Street'), true)
   })
 
+  it('flags TBA/citywide placeholders, bare or behind one city wrapper', () => {
+    assert.equal(isJunkVenueName('more information to come'), true)
+    assert.equal(isJunkVenueName('Fairlawn (location to be announced)'), true)
+    assert.equal(isJunkVenueName('Fairlawn (location and registration to be announced)'), true)
+    assert.equal(isJunkVenueName('Fairlawn (citywide)'), true)
+    assert.equal(isJunkVenueName('Barberton – City-wide'), true) // en dash
+    assert.equal(isJunkVenueName('Barberton - City-wide'), true) // hyphen
+    assert.equal(isJunkVenueName('City-wide'), true)
+    assert.equal(isJunkVenueName('Throughout Hudson'), true)
+    assert.equal(isJunkVenueName('Green (citywide)'), true)
+    assert.equal(isJunkVenueName('Cuyahoga Falls (To Be Determined)'), true)
+    assert.equal(isJunkVenueName('Hudson (TBD)'), true)
+    assert.equal(isJunkVenueName('Stow - TBA'), true)
+    assert.equal(isJunkVenueName('Throughout Cuyahoga Falls'), true) // 'throughout' + 1–3 tokens
+    // real places / non-placeholder remainders stay mintable
+    assert.equal(isJunkVenueName('Village of Mogadore'), false)
+    assert.equal(isJunkVenueName('Green'), false)
+    assert.equal(isJunkVenueName('Fairlawn'), false)
+    assert.equal(isJunkVenueName('Citywide Church'), false)         // phrase not exact
+    assert.equal(isJunkVenueName('Stow City Hall - Council Chambers'), false)
+    assert.equal(isJunkVenueName('Lock 3 - TBD'), false)            // digit-bearing
+    assert.equal(isJunkVenueName('Front Street Brewing - Patio'), false)
+    assert.equal(isJunkVenueName('Hudson (Throughout)'), false)     // 'throughout' must be the head token
+    assert.equal(isJunkVenueName('Throughout'), false)              // needs 1–3 following tokens
+    assert.equal(isJunkVenueName('TBD - Hudson'), false)            // prefix-side placeholder: accepted, only remainder consulted
+    assert.equal(isJunkVenueName('Akron Civic Theatre (Main Stage)'), false)
+    assert.equal(isJunkVenueName('Fairlawn (citywide) - 2026'), false) // one wrapper level only
+    assert.equal(isJunkVenueName('Wal-Mart'), false)                // no-space dash never splits
+  })
+
   it('does NOT flag real venue names', () => {
     assert.equal(isJunkVenueName('Townhall'), false)           // substring-of-suffix only
     assert.equal(isJunkVenueName('Lock 3'), false)             // digit-bearing

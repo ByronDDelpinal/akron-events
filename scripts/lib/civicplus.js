@@ -339,7 +339,8 @@ export async function runCivicPlusScraper(config) {
             venueId = await ensureVenue(locName, { city: cityLabel, state: stateLabel, address: locAddress })
             venueCache.set(locName, venueId)
           }
-          // A location name was present but rejected as junk (isJunkVenueName)
+          // A location name was present but rejected as junk (isJunkVenueName —
+          // incl. TBA/citywide placeholders like "Fairlawn (citywide)")
           // or as prose contact text (isProseContactVenueName) at mint time —
           // the event goes in venue-less, so flag it for a human instead of
           // letting it slip by silently.

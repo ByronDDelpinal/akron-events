@@ -513,11 +513,12 @@ describe('names mode: venueNameRefusalReason (per-rule stamping)', () => {
   it('stamps "street address" for a bare street address', () => {
     assert.equal(venueNameRefusalReason('1146 W Highland Rd'), 'street address')
   })
-  it('stamps "state name" for a bare US state name', () => {
-    assert.equal(venueNameRefusalReason('Ohio'), 'state name')
+  it('stamps "junk name" for a bare US state name', () => {
+    assert.equal(venueNameRefusalReason('Ohio'), 'junk name')
   })
-  it('stamps "state name" for a street-fragment junk name (isJunkVenueName territory)', () => {
-    assert.equal(venueNameRefusalReason('Church Street'), 'state name')
+  it('stamps "junk name" for a street-fragment or placeholder junk name (isJunkVenueName territory)', () => {
+    assert.equal(venueNameRefusalReason('Church Street'), 'junk name')
+    assert.equal(venueNameRefusalReason('Fairlawn (citywide)'), 'junk name')
   })
   it('stamps "too short" for an empty string', () => {
     assert.equal(venueNameRefusalReason(''), 'too short')
@@ -574,7 +575,7 @@ describe('names mode: refused-list scoping (only venues actually in play tonight
     const upcomingVenueIds = new Set(['r1'])
     const refusedInScope = refused.filter((r) => upcomingVenueIds.has(r.v.id))
     assert.deepEqual(refusedInScope.map((r) => r.v.id), ['r1'])
-    assert.equal(refusedInScope[0].why, 'state name')
+    assert.equal(refusedInScope[0].why, 'junk name')
   })
 })
 

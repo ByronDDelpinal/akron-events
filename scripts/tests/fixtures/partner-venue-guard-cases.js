@@ -27,6 +27,15 @@
  *   address — expected looksLikeStreetAddress(name) (family 4)
  * Invariant asserted by the node test: family !== null  <=>  junk || address.
  *
+ * DRIFT NOTE (2026-09-14): isJunkVenueName grew a 4th JS family — TBA/citywide
+ * placeholder phrases (PLACEHOLDER_PHRASES + the one-wrapper split, e.g.
+ * "Fairlawn (citywide)", "Hudson (TBD)") — distinct from this table's 'address'
+ * family 4. It is JS-ONLY for now: partner_venue_name_blocked() does not know
+ * it, so this table deliberately carries NO rows for it. Add them (with a new
+ * SQL family) only in the follow-up migration that mirrors PLACEHOLDER_PHRASES
+ * + the wrapper split into partner_venue_name_blocked(); until then the two
+ * halves agree on every row here but the SQL guard is the narrower one.
+ *
  * NOTE on 'Highland Square': the guard verdict is BLOCK (2 tokens, last is a
  * street suffix), and both implementations agree — but the guard is a
  * MINT-time law only. As an EXISTING venue the name resolves before minting

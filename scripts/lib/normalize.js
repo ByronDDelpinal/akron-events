@@ -986,7 +986,19 @@ const VIRTUAL_MARKERS = new Set([
 ])
 
 /**
- * Is this venue NAME junk that must never mint a new venues row? Three closed
+ * TBA / citywide placeholder phrases CivicPlus-style feeds put in the location
+ * field ("Fairlawn (location to be announced)", "Barberton - City-wide").
+ * Letters-only, single-spaced form; matched exact-phrase by isJunkVenueName.
+ */
+const PLACEHOLDER_PHRASES = new Set([
+  'location to be announced', 'location and registration to be announced',
+  'more information to come', 'more info to come', 'to be announced',
+  'to be determined', 'city wide', 'citywide', 'location tbd', 'location tba',
+  'tbd', 'tba',
+])
+
+/**
+ * Is this venue NAME junk that must never mint a new venues row? Four closed
  * families (nothing fuzzy — every rule is an exact-token match):
  *   1. a bare US state name ("Ohio")
  *   2. a virtual/placeholder marker ("Virtual", "Online Event", "TBD")
@@ -996,6 +1008,18 @@ const VIRTUAL_MARKERS = new Set([
  *      number and so lets these through. Token-exact on the last word, so
  *      "Townhall" (substring only) and "Front Street Brewing" (suffix not
  *      last) never match.
+ *   4. a TBA/citywide placeholder (PLACEHOLDER_PHRASES), bare or behind ONE
+ *      "<Prefix> (…)" / "<Prefix> - …" wrapper, exact-phrase on the
+ *      letters-only remainder ("Fairlawn (citywide)", "Hudson (TBD)",
+ *      "Stow - TBA"); plus "throughout <place>": head token 'throughout'
+ *      exact + 1–3 following tokens (2–4 words total). "Citywide Church",
+ *      "Lock 3 - TBD" (digit) and "Hudson (Throughout)" never match. Only
+ *      the remainder is consulted, so a prefix-side placeholder
+ *      ("TBD - Hudson") still mints — accepted; not seen in feeds.
+ *      NOTE: family 4 (added 2026-09-14) is JS-only until a follow-up
+ *      migration mirrors PLACEHOLDER_PHRASES + the one-wrapper split into
+ *      partner_venue_name_blocked() (061_partner_accounts.sql); the shared
+ *      fixture partner-venue-guard-cases.js carries no rows for it yet.
  * Pure + exported for tests. Consumed by ensureVenue at MINT time only —
  * venues already in the DB under such a name keep resolving normally.
  */
@@ -1008,6 +1032,15 @@ export function isJunkVenueName(name) {
   // Street fragments: digit-bearing strings are looksLikeStreetAddress's
   // territory (or legit number-led names like "Lock 3") — never ours.
   if (/\d/.test(key)) return false
+  // Family 4: placeholder phrases, bare or behind one city wrapper. The dash
+  // split needs whitespace on both sides so "city-wide" / "Wal-Mart" never split.
+  const letters = (s) => s.replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim()
+  const wrapped = key.match(/^[^()]+\(([^()]+)\)$/) || key.match(/^[^-–—]+?\s+[-–—]\s+(.+)$/)
+  const candidates = [letters(key)]
+  if (wrapped) candidates.push(letters(wrapped[1]))
+  if (candidates.some((c) => PLACEHOLDER_PHRASES.has(c))) return true
+  const words = candidates[0].split(' ')
+  if (words[0] === 'throughout' && words.length >= 2 && words.length <= 4) return true
   const tokens = key.replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean)
   if (tokens.length < 1 || tokens.length > 3) return false
   const last = tokens[tokens.length - 1]
@@ -1639,7 +1672,7 @@ export async function ensureVenue(name, details = {}, opts = {}) {
   // opts.allowGenericName lets a curated caller opt out.
   if (!opts.allowGenericName && isJunkVenueName(trimmed)) {
     console.warn(
-      `  ⚠ Refusing to create junk-named venue "${trimmed}" — bare state / virtual marker / street fragment. ` +
+      `  ⚠ Refusing to create junk-named venue "${trimmed}" — bare state / virtual marker / street fragment / placeholder. ` +
       `Event left venue-less; pass opts.allowGenericName to override.`,
     )
     _venueNameCache.set(cacheKey, null)

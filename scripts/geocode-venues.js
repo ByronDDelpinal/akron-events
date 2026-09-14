@@ -539,16 +539,18 @@ const EMAIL_OR_URL_PATTERN = /@|https?:\/\/|www\./i
  * Same gate as isGeocodableVenueName, but returns WHICH rule refused the
  * name (or null when it clears all of them) instead of collapsing every
  * refusal into one flat boolean. Lets the --names report stamp each refused
- * venue with the specific check that caught it rather than a uniform "junk
- * name" label that told a reviewer nothing about which of the six checks
- * fired. Pure + exported for tests.
+ * venue with the specific check that caught it rather than one uniform label
+ * that told a reviewer nothing about which of the six checks fired. The
+ * 'junk name' bucket is isJunkVenueName's whole territory (bare state name,
+ * virtual marker, street fragment, TBA/citywide placeholder) — it is not
+ * split further here. Pure + exported for tests.
  */
 export function venueNameRefusalReason(name) {
   const trimmed = String(name ?? '').trim()
   if (trimmed.length < 3) return 'too short'
   if (!/[a-z]/i.test(trimmed)) return 'no letters'
   if (EMAIL_OR_URL_PATTERN.test(trimmed)) return 'email/url'
-  if (isJunkVenueName(trimmed)) return 'state name'
+  if (isJunkVenueName(trimmed)) return 'junk name'
   if (looksLikeStreetAddress(trimmed)) return 'street address'
   const tokenCount = trimmed.split(/\s+/).filter(Boolean).length
   if (tokenCount > 8) return 'prose'
