@@ -691,6 +691,33 @@ async function eventSourceById(eventId) {
   return source
 }
 
+const _eventOverridesCache = new Map() // eventId → manual_overrides (or null)
+
+/**
+ * `manual_overrides` for an event id, cached per run. Backs the admin
+ * attribution lock in linkEventOrganization.
+ *
+ * Seeded for free by _stripOverriddenFields, which already reads exactly
+ * `id, manual_overrides` for every row a scraper upserts — so on the nightly
+ * path this costs ZERO extra queries across ~5,000 row updates. The query
+ * below only fires for an event id reached some other way (a hardcoded UUID,
+ * a backfill script linking orgs without going through an upsert).
+ */
+async function eventOverridesById(eventId) {
+  if (!eventId) return null
+  if (_eventOverridesCache.has(eventId)) return _eventOverridesCache.get(eventId)
+  const { data } = await supabaseAdmin
+    .from('events').select('manual_overrides').eq('id', eventId).maybeSingle()
+  const overrides = data?.manual_overrides ?? null
+  _eventOverridesCache.set(eventId, overrides)
+  return overrides
+}
+
+/** Test-only: clear the per-run manual_overrides cache between cases. */
+export function _resetEventOverridesCache() {
+  _eventOverridesCache.clear()
+}
+
 /**
  * Match key for an organization name: case-folded, with a leading "The"
  * dropped and whitespace collapsed.
@@ -2262,6 +2289,37 @@ export async function setEventVenue(eventId, venueId) {
 export async function linkEventOrganization(eventId, organizationId, opts = {}) {
   if (!eventId || !organizationId) return
 
+  // ── Admin attribution lock ───────────────────────────────────────────────
+  //
+  // This junction is ADD-ONLY on the scraper path: the upsert at the bottom of
+  // this function never deletes. So an admin who corrects a wrong presenter by
+  // removing the bad link has it silently restored by the very next run of the
+  // source that minted it, and the event then renders BOTH orgs under
+  // "Presented by".
+  //
+  // Visitor report #53 (2026-09-14) is exactly that: indivisible_akron credits
+  // "Indivisible Akron" on every row in its Tribe calendar, including the ones
+  // it merely republishes for another group — in that case a League of Women
+  // Voters of the Akron Area event. The existing self-credit guard below
+  // cannot catch it: Indivisible Akron is a Tier-1 first-party source that
+  // genuinely hosts most of what it lists, so blanket-banning its self-credit
+  // would strip attribution from the events it really does run. The decision
+  // is per EVENT, and only a human can make it.
+  //
+  // Shape is a key-presence check on `manual_overrides`, matching the category
+  // lock syncEventCategories already uses. The value is an audit breadcrumb
+  // ({ at, by, reason }) and is never interpreted here.
+  //
+  // Deliberately NOT routed through _stripOverriddenFields: that filters
+  // COLUMNS off the events payload and `organizations` is not a column. The
+  // two mechanisms share the manual_overrides bag and nothing else — which is
+  // also why stamping this key is safe, it shields no real column.
+  const overrides = await eventOverridesById(eventId)
+  if (overrides && ('organizations' in overrides || 'organization' in overrides)) {
+    console.log(`  ⤷ Attribution locked by admin — leaving org links on ${eventId} alone`)
+    return
+  }
+
   // ── Attribution guard: an aggregator may never credit itself ─────────────
   //
   // The site renders event_organizations as "Presented by X", so linking an
@@ -2376,6 +2434,9 @@ async function _stripOverriddenFields(table, row) {
       .maybeSingle()
 
     const existed = !!existing
+    // Seed the per-run cache so the attribution lock in linkEventOrganization
+    // — which runs a few lines later in every scraper — costs no second read.
+    if (existing?.id) _eventOverridesCache.set(existing.id, existing.manual_overrides ?? null)
     if (!existing?.manual_overrides) return { row, existed }
 
     const overrides = existing.manual_overrides
