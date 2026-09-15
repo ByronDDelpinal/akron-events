@@ -16,6 +16,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ||
 const {
   SOURCE_KEY, parseLocation, isInternalEvent, mapCategory, normalizeEvent,
 } = await import('../scrape-akron-power-squadron.js')
+const { DATE_ONLY_TIME_NOTE } = await import('../lib/ics.js')
 
 // A fixed "now" well before every fixture start so nothing is filtered as past.
 const NOW = Date.parse('2026-07-15T00:00:00Z')
@@ -183,5 +184,31 @@ describe('normalizeEvent', () => {
       DTSTART: { value: '20260101T170000', params: { TZID: 'America/New_York' } },
     }
     assert.equal(normalizeEvent(ev, NOW).skip, 'past')
+  })
+})
+
+
+describe('normalizeEvent — bare-date DTSTART bypass fix', () => {
+  it('a bare-date DTSTART lands at noon ET, not midnight, and flags needs_review', () => {
+    const ev = {
+      SUMMARY: 'PaddleSmart Community Day',
+      DTSTART: { value: '20260728' },
+      UID: 'date-only-1@akronpowersquadron.com',
+      URL: 'https://akronpowersquadron.com/event/paddlesmart-community-day/',
+      LOCATION: PADDLESMART.LOCATION,
+      DESCRIPTION: PADDLESMART.DESCRIPTION,
+    }
+    const { row, geo } = normalizeEvent(ev, NOW)
+    assert.equal(geo, 'in')
+    assert.equal(row.status, 'published') // in-county Summit gate is unaffected by the date-only fix
+    assert.equal(row.start_at, '2026-07-28T16:00:00.000Z') // noon EDT
+    assert.equal(row.needs_review, true)
+    assert.ok(row.description.includes(DATE_ONLY_TIME_NOTE))
+  })
+
+  it('a timed control VEVENT (PaddleSmart) is unaffected', () => {
+    const { row } = normalizeEvent(PADDLESMART, NOW)
+    assert.equal(row.needs_review, false)
+    assert.ok(!row.description.includes(DATE_ONLY_TIME_NOTE))
   })
 })

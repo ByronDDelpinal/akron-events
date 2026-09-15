@@ -11,6 +11,7 @@ import {
   parseIcs, icsDateToIso, normaliseIcsEvent, expandRecurrence, parseRrule,
   expandRecurrenceSet, isRecurrenceOverride,
   applyNeedsReviewHook, icsDateOnlyToNoonIso, withDateOnlyTimeNote,
+  applyDateOnlyDefault,
   DATE_ONLY_TIME_NOTE, MAX_DESCRIPTION, isBotChallenge,
   emptyFeedOutcome, isUrlOnlyDescription, salvagedDescriptionUrl,
   resolveIcsFetchResult,
@@ -560,6 +561,91 @@ describe('ICS: date-only DTSTART defaults to noon ET', () => {
   it('the pre-existing ALL_DAY_FEED fixture moves to noon too', () => {
     const [ev] = parseIcs(ALL_DAY_FEED)
     assert.equal(normalise(ev).start_at, '2026-07-04T16:00:00.000Z')
+  })
+})
+
+// applyDateOnlyDefault is the SAME noon default as normaliseIcsEvent, but for
+// scrapers that call icsDateToIso() directly and build their own row object
+// instead of routing through normaliseIcsEvent. rawRow() below builds exactly
+// the row shape those scrapers hand it: start_at/end_at already resolved by
+// icsDateToIso (so a bare date is still sitting at RFC midnight, the bug this
+// closes), plus whatever description the caller already has.
+describe('ICS: applyDateOnlyDefault', () => {
+  const feed = parseIcs(DATE_ONLY_DEFAULT_TIME_FEED)
+  const byUid = Object.fromEntries(feed.map((ev) => [ev.UID, ev]))
+
+  const rawRow = (ev, description = null) => ({
+    title: ev.SUMMARY,
+    description,
+    start_at: ev.DTSTART ? icsDateToIso(ev.DTSTART.value, ev.DTSTART.params) : null,
+    end_at:   ev.DTEND   ? icsDateToIso(ev.DTEND.value,   ev.DTEND.params)   : null,
+  })
+
+  it('bare date: shifts start_at to noon ET, appends the note, and flags needs_review', () => {
+    const ev = byUid['dateonly-desc']
+    const row = applyDateOnlyDefault(rawRow(ev, 'Stop by the lawn for books and popsicles.'), ev.DTSTART)
+    assert.equal(row.start_at, '2026-07-04T16:00:00.000Z')
+    assert.ok(row.description.endsWith(DATE_ONLY_TIME_NOTE), 'note must be appended')
+    assert.equal(row.needs_review, true)
+  })
+
+  it('date WITH a real time (including a mislabelled VALUE=DATE) leaves the row untouched', () => {
+    const [ev] = parseIcs(VALUE_DATE_WITH_TIME_FEED)
+    const before = rawRow(ev, 'Regular session.')
+    const row = applyDateOnlyDefault({ ...before }, ev.DTSTART)
+    assert.deepEqual(row, before)
+    assert.equal(row.needs_review, undefined)
+  })
+
+  it('a timed VEVENT in the same date-only feed is untouched (CONTROL)', () => {
+    const ev = byUid['timed-control']
+    const before = rawRow(ev, 'Bring a lawn chair.')
+    const row = applyDateOnlyDefault({ ...before }, ev.DTSTART)
+    assert.deepEqual(row, before)
+    assert.equal(row.needs_review, undefined)
+  })
+
+  it('empty description stays null/empty, but needs_review is still set — the audit-trail case', () => {
+    const ev = byUid['dateonly-nodesc']
+
+    const rowNull = applyDateOnlyDefault(rawRow(ev, null), ev.DTSTART)
+    assert.equal(rowNull.description, null)
+    assert.equal(rowNull.needs_review, true)
+
+    const rowEmpty = applyDateOnlyDefault(rawRow(ev, ''), ev.DTSTART)
+    assert.equal(rowEmpty.description, '')
+    assert.equal(rowEmpty.needs_review, true)
+  })
+
+  it('DTEND INVERSION: nulls an end that the noon shift puts at or before start', () => {
+    const sameDay = byUid['dateonly-sameday']
+    assert.equal(applyDateOnlyDefault(rawRow(sameDay), sameDay.DTSTART).end_at, null)
+
+    const morning = byUid['dateonly-morning']
+    assert.equal(applyDateOnlyDefault(rawRow(morning), morning.DTSTART).end_at, null)
+  })
+
+  it('keeps an RFC-correct next-day DTEND that still follows the shifted start', () => {
+    const ev = byUid['dateonly-desc']
+    const row = applyDateOnlyDefault(rawRow(ev), ev.DTSTART)
+    assert.equal(row.end_at, '2026-07-05T04:00:00.000Z')
+    assert.ok(Date.parse(row.end_at) > Date.parse(row.start_at))
+  })
+
+  it('null/missing DTSTART is a no-op', () => {
+    const base = { title: 'x', description: 'y', start_at: null, end_at: null }
+    assert.deepEqual(applyDateOnlyDefault({ ...base }, null), base)
+    assert.deepEqual(applyDateOnlyDefault({ ...base }, undefined), base)
+  })
+
+  it('PARITY GUARD: matches normaliseIcsEvent start_at/end_at for the same date-only fixtures', () => {
+    for (const uid of ['dateonly-desc', 'dateonly-nodesc', 'dateonly-sameday', 'dateonly-morning']) {
+      const ev = byUid[uid]
+      const viaHelper    = applyDateOnlyDefault(rawRow(ev), ev.DTSTART)
+      const viaNormalise = normaliseIcsEvent(ev, { source: 'test_ics' })
+      assert.equal(viaHelper.start_at, viaNormalise.start_at, uid)
+      assert.equal(viaHelper.end_at, viaNormalise.end_at, uid)
+    }
   })
 })
 

@@ -22,7 +22,7 @@ import {
   parseIcs,
   fetchIcsFeed,
   icsDateToIso,
-  icsDateOnlyToNoonIso,
+  applyDateOnlyDefault,
   withDateOnlyTimeNote,
 } from './lib/ics.js'
 import {
@@ -98,29 +98,24 @@ export function parseZipsGame(ev, now = new Date()) {
   let startAt = ev.DTSTART ? icsDateToIso(ev.DTSTART.value, ev.DTSTART.params) : null
   if (!startAt) return null
 
-  // SANCTIONED-DEFAULT-TIME — see icsDateOnlyToNoonIso in lib/ics.js. This
-  // scraper parses VEVENTs itself instead of going through normaliseIcsEvent,
-  // so it has to apply the same noon default: a bare-date DTSTART yields
-  // 00:00 ET from icsDateToIso, and every feed filters `start_at >= now()`
-  // with no grace window, so the row disappears on the morning it happens.
-  // Gate on the RAW value via icsDateOnlyToNoonIso's "null unless bare date"
-  // contract, not on the VALUE=DATE param: a VALUE=DATE property that
-  // nonetheless carries a real clock time has a time we must not overwrite.
-  // Applied before the past-game filter so the comparison sees the stored
-  // start, not the midnight we are about to discard.
-  const noonIso = icsDateOnlyToNoonIso(ev.DTSTART.value)
-  const timeSynthesized = noonIso !== null
-  if (timeSynthesized) startAt = noonIso
-
-  if (new Date(startAt) < now) return null // past game
-
   let endAt = ev.DTEND ? icsDateToIso(ev.DTEND.value, ev.DTEND.params) : null
 
-  // Pushing the start forward 12 hours can invert the interval — a same-day
-  // DTEND, or the RFC's exclusive next-day date-only DTEND read as midnight,
-  // would now end before it begins. Drop the end rather than store a negative
-  // duration. NaN <= n is false, so a malformed end falls through untouched.
-  if (timeSynthesized && endAt && Date.parse(endAt) <= Date.parse(startAt)) endAt = null
+  // SANCTIONED-DEFAULT-TIME — see applyDateOnlyDefault in lib/ics.js. This
+  // scraper parses VEVENTs itself instead of going through normaliseIcsEvent,
+  // so it routes start_at/end_at through the shared helper to get the same
+  // noon default a bare-date DTSTART needs: a bare-date DTSTART yields 00:00
+  // ET from icsDateToIso, and every feed filters `start_at >= now()` with no
+  // grace window, so the row disappears on the morning it happens. The helper
+  // gates on the RAW DTSTART value, not the VALUE=DATE param: a VALUE=DATE
+  // property that nonetheless carries a real clock time has a time we must
+  // not overwrite. Applied before the past-game filter so the comparison
+  // sees the stored start, not the midnight we are about to discard.
+  const dateOnly = applyDateOnlyDefault({ start_at: startAt, end_at: endAt, description: null }, ev.DTSTART)
+  startAt = dateOnly.start_at
+  endAt = dateOnly.end_at
+  const timeSynthesized = dateOnly.needs_review === true
+
+  if (new Date(startAt) < now) return null // past game
 
   // "University of Akron <Sport> vs <Opponent>" → sport + opponent
   const m = summary.match(/^University of Akron\s+(.+?)\s+vs\.?\s+(.+)$/i)

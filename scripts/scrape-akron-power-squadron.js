@@ -65,7 +65,7 @@ import {
   linkEventOrganization,
 } from './lib/normalize.js'
 import { inferCategory } from './lib/category-inference.js'
-import { parseIcs, icsDateToIso } from './lib/ics.js'
+import { parseIcs, icsDateToIso, applyDateOnlyDefault } from './lib/ics.js'
 import { classifySummitLocation } from './lib/summit-county.js'
 import { withBrowser, newConfiguredPage } from './lib/puppeteer.js'
 
@@ -223,6 +223,7 @@ export function normalizeEvent(ev, nowMs = Date.now()) {
     needs_review: geo !== 'in',
     featured: false,
   }
+  applyDateOnlyDefault(row, ev.DTSTART)
   return { row, venue: parsed, geo }
 }
 

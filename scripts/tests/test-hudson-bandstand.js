@@ -17,7 +17,7 @@ import { readFileSync } from 'node:fs'
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-const { parseIcs } = await import('../lib/ics.js')
+const { parseIcs, DATE_ONLY_TIME_NOTE } = await import('../lib/ics.js')
 const { isBandstandConcert, buildRow, easternDateOf, cleanDescription } =
   await import('../scrape-hudson-bandstand.js')
 
@@ -141,5 +141,26 @@ describe('Hudson Bandstand: helpers', () => {
   it('cleanDescription collapses folded whitespace to single spaces', () => {
     assert.equal(cleanDescription('a\n\n  b   c'), 'a b c')
     assert.equal(cleanDescription(''), '')
+  })
+})
+
+
+describe('Hudson Bandstand: buildRow — bare-date DTSTART bypass fix', () => {
+  it('a bare-date DTSTART lands at noon ET, not midnight, and flags needs_review', () => {
+    const { row, startMs } = buildRow({
+      SUMMARY: 'Founders Day Sing-Along',
+      DTSTART: { value: '20260704' },
+    })
+    assert.equal(row.start_at, '2026-07-04T16:00:00.000Z') // noon EDT
+    assert.equal(row.needs_review, true)
+    assert.ok(row.description.includes(DATE_ONLY_TIME_NOTE))
+    assert.equal(row.source_id, 'hudson-bandstand-2026-07-04')
+    assert.equal(startMs, Date.parse(row.start_at), 'startMs must be recomputed from the shifted start_at')
+  })
+
+  it('a timed concert from the real feed is unaffected', () => {
+    const { row } = buildRow(bySummary('LaFlavour'))
+    assert.equal(row.needs_review, undefined)
+    assert.ok(!row.description.includes(DATE_ONLY_TIME_NOTE))
   })
 })

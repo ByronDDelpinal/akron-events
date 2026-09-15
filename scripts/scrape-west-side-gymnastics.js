@@ -37,7 +37,7 @@
 
 import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
-import { fetchIcsFeed, parseIcs, expandRecurrence, icsDateToIso } from './lib/ics.js'
+import { fetchIcsFeed, parseIcs, expandRecurrence, icsDateToIso, applyDateOnlyDefault } from './lib/ics.js'
 import {
   logUpsertResult,
   logScraperError,
@@ -135,7 +135,7 @@ export function icsEventToRow(ev) {
   const rawDesc = ev.DESCRIPTION ?? ''
   const description = rawDesc ? stripHtml(rawDesc).slice(0, 5000) || null : null
 
-  return {
+  const row = {
     title,
     description,
     start_at: startAt,
@@ -154,6 +154,8 @@ export function icsEventToRow(ev) {
     status:     'published',
     featured:   false,
   }
+
+  return applyDateOnlyDefault(row, ev.DTSTART)
 }
 
 // ── Process ─────────────────────────────────────────────────────────────────

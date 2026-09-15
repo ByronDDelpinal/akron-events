@@ -69,7 +69,7 @@ import {
   ensureVenue,
   ensureOrganization,
 } from './lib/normalize.js'
-import { fetchIcsFeed, parseIcs, icsDateToIso } from './lib/ics.js'
+import { fetchIcsFeed, parseIcs, icsDateToIso, applyDateOnlyDefault } from './lib/ics.js'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -155,32 +155,38 @@ export function buildRow(ev = {}) {
   const feedDesc = cleanDescription(rawDesc)
   if (feedDesc) descParts.push(feedDesc)
 
+  const row = {
+    title: `Hudson Bandstand: ${band}`,
+    description: descParts.join(' '),
+    start_at: startAt,
+    end_at: endAt,
+    // Assert the category explicitly (a `categories` array, not a `category`
+    // hint) so inference can't add e.g. 'games' from "80's Vinyl Arcade".
+    categories: ['music'],
+    tags: ['live-music', 'concert', 'hudson-ohio', 'summit-county', 'free'],
+    // Series is explicitly free — set 0, don't assume.
+    price_min: 0,
+    price_max: 0,
+    is_family: true,
+    age_restriction: 'all_ages',
+    // No per-concert photos on the feed; leave null rather than probe a
+    // generic banner once per event on every run.
+    image_url: null,
+    // The Localist per-event page, falling back to the calendar home.
+    ticket_url: (ev.URL || '').trim() || CALENDAR_URL,
+    source: SOURCE_KEY,
+    source_id: `hudson-bandstand-${dateStr}`,
+    status: 'published',
+    featured: false,
+  }
+
+  // Bare-date DTSTART bypass fix: apply the sanctioned noon default BEFORE
+  // deriving startMs, so a date-only concert filters on its corrected time.
+  applyDateOnlyDefault(row, ev.DTSTART)
+
   return {
-    row: {
-      title: `Hudson Bandstand: ${band}`,
-      description: descParts.join(' '),
-      start_at: startAt,
-      end_at: endAt,
-      // Assert the category explicitly (a `categories` array, not a `category`
-      // hint) so inference can't add e.g. 'games' from "80's Vinyl Arcade".
-      categories: ['music'],
-      tags: ['live-music', 'concert', 'hudson-ohio', 'summit-county', 'free'],
-      // Series is explicitly free — set 0, don't assume.
-      price_min: 0,
-      price_max: 0,
-      is_family: true,
-      age_restriction: 'all_ages',
-      // No per-concert photos on the feed; leave null rather than probe a
-      // generic banner once per event on every run.
-      image_url: null,
-      // The Localist per-event page, falling back to the calendar home.
-      ticket_url: (ev.URL || '').trim() || CALENDAR_URL,
-      source: SOURCE_KEY,
-      source_id: `hudson-bandstand-${dateStr}`,
-      status: 'published',
-      featured: false,
-    },
-    startMs: new Date(startAt).getTime(),
+    row,
+    startMs: new Date(row.start_at).getTime(),
   }
 }
 

@@ -206,6 +206,40 @@ export function icsDateOnlyToNoonIso(rawValue) {
   return easternWallTimeToUtc(`${y}-${m}-${d}T${DATE_ONLY_DEFAULT_TIME}`)
 }
 
+/**
+ * Apply the SANCTIONED-DEFAULT-TIME noon default to an already-built row, for
+ * scrapers that call icsDateToIso() directly instead of routing through
+ * normaliseIcsEvent. Those scrapers get icsDateToIso's literal RFC midnight
+ * for a bare-date DTSTART, which is exactly the value that vanishes from the
+ * `start_at >= now()` filter at 00:00:01 on the event's own day - the bug
+ * this closes.
+ *
+ * Gates on isBareIcsDate(dtstart?.value) - the raw DTSTART value, never the
+ * VALUE=DATE param - so a VEVENT that carries a real clock time (even one
+ * mislabelled VALUE=DATE) is returned completely untouched, matching
+ * normaliseIcsEvent's own gate.
+ *
+ * Mutates and returns `row`, mirroring applyNeedsReviewHook above: only ever
+ * writes needs_review = true, never false, so an existing true from the
+ * caller (or normalize.js's own default) is never clobbered back to falsy.
+ */
+export function applyDateOnlyDefault(row, dtstart) {
+  if (!row) return row
+  if (!isBareIcsDate(dtstart?.value)) return row
+
+  const noon = icsDateOnlyToNoonIso(dtstart.value)
+  if (!noon) return row
+
+  row.start_at = noon
+  // Date.parse of an unparseable end yields NaN, and NaN <= n is false, so a
+  // malformed end falls through untouched instead of being silently eaten -
+  // same property normaliseIcsEvent's own inversion guard relies on.
+  if (row.end_at && Date.parse(row.end_at) <= Date.parse(row.start_at)) row.end_at = null
+  row.description = withDateOnlyTimeNote(row.description)
+  row.needs_review = true
+  return row
+}
+
 // The description disclosure for the noon default above.
 //
 // Copied VERBATIM from the second entry of TIME_NOTES in

@@ -18,7 +18,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-import { parseIcs } from '../lib/ics.js'
+import { parseIcs, DATE_ONLY_TIME_NOTE } from '../lib/ics.js'
 import {
   isPublicSpecialEvent,
   mapTags,
@@ -206,5 +206,47 @@ describe('batch invariants', () => {
     const rows = events.map(icsEventToRow).filter(Boolean)
     const ids = rows.map((r) => r.source_id)
     assert.equal(ids.length, new Set(ids).size)
+  })
+})
+
+
+// ── Fixture: bare-date DTSTART bypass regression (applyDateOnlyDefault) ─────
+// west-side-gymnastics calls icsDateToIso() directly rather than routing
+// through normaliseIcsEvent, so a bare-date DTSTART used to store literal
+// RFC midnight ET — invisible from the site the moment it turned 00:00:01 on
+// the gym's own event day. icsEventToRow() now adopts applyDateOnlyDefault.
+const DATE_ONLY_FEED = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+DTSTART;VALUE=DATE:20260704
+UID:date-only-open-house@google.com
+SUMMARY:Open Gym Community Day
+DESCRIPTION:Community day for gymnastics families.
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20260715T130000Z
+DTEND:20260715T193000Z
+UID:timed-control-open-house@google.com
+SUMMARY:Timed Open Gym
+END:VEVENT
+END:VCALENDAR`
+
+const dateOnlyEvents = parseIcs(DATE_ONLY_FEED)
+const byUidDateOnly = (uid) => dateOnlyEvents.find((e) => e.UID === uid)
+
+describe('icsEventToRow — bare-date DTSTART bypass fix', () => {
+  it('a bare-date DTSTART lands at noon ET, not midnight, and flags needs_review', () => {
+    const row = icsEventToRow(byUidDateOnly('date-only-open-house@google.com'))
+    assert.equal(row.start_at, '2026-07-04T16:00:00.000Z') // noon EDT
+    assert.equal(row.needs_review, true)
+    assert.ok(row.description.startsWith('Community day for gymnastics families.'))
+    assert.ok(row.description.includes(DATE_ONLY_TIME_NOTE))
+  })
+
+  it('a timed control VEVENT in the same feed is unaffected', () => {
+    const row = icsEventToRow(byUidDateOnly('timed-control-open-house@google.com'))
+    assert.equal(row.start_at, '2026-07-15T13:00:00.000Z')
+    assert.equal(row.needs_review, undefined)
+    assert.equal(row.description, null)
   })
 })
