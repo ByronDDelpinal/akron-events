@@ -697,10 +697,10 @@ const _eventOverridesCache = new Map() // eventId → manual_overrides (or null)
  * `manual_overrides` for an event id, cached per run. Backs the admin
  * attribution lock in linkEventOrganization.
  *
- * Seeded for free by _stripOverriddenFields, which already reads exactly
- * `id, manual_overrides` for every row a scraper upserts — so on the nightly
- * path this costs ZERO extra queries across ~5,000 row updates. The query
- * below only fires for an event id reached some other way (a hardcoded UUID,
+ * Seeded for free by _stripOverriddenFields, which already reads
+ * `id, manual_overrides, title, start_at` for every row a scraper upserts — so
+ * on the nightly path this costs ZERO extra queries across ~5,000 row updates.
+ * The query below only fires for an event id reached some other way (a hardcoded UUID,
  * a backfill script linking orgs without going through an upsert).
  */
 async function eventOverridesById(eventId) {
@@ -1930,6 +1930,24 @@ export function sanitizeEventText(row) {
 const CONTRACT_PAST_LIMIT_MS   = 2 * 365 * 86_400_000 // 2 years back
 const CONTRACT_FUTURE_LIMIT_MS = 3 * 365 * 86_400_000 // 3 years ahead
 
+// ── NOT NULL columns with no database default ───────────────────────────────
+//
+// Postgres runs ExecConstraints on the tuple an INSERT ... ON CONFLICT proposes
+// BEFORE it resolves the conflict, so a payload that omits one of these raises
+// 23502 (not-null violation) even when the conflicting row already exists and
+// the UPDATE branch would have been taken. The whole row then fails and NO
+// field ever updates again — a permanent, silent freeze.
+//
+// `public.events` has 18 NOT NULL columns, but 16 carry a database default and
+// PostgREST leaves absent columns out of the INSERT column list entirely, so
+// those defaults fill them. Only these two can trigger the freeze. `source` is
+// NOT NULL as well but has a default, and _stripOverriddenFields already
+// exempts source/source_id from stripping for the conflict target's sake.
+//
+// Consumed by _stripOverriddenFields (backfills rather than deletes these) and
+// by the post-strip guard in upsertEventSafe.
+export const REQUIRED_EVENT_COLUMNS = ['title', 'start_at']
+
 /**
  * Validate an event row against the ingestion data contract.
  *
@@ -2177,6 +2195,33 @@ export async function upsertEventSafe(row) {
   }
 
   const { row: safeRow, existed } = await _stripOverriddenFields('events', sanitized)
+
+  // ── Post-strip data contract guard (backstop) ─────────────────────────────
+  // validateEvent runs before the override strip, so it cannot see a payload
+  // the strip hollowed out. An ABSENT NOT-NULL-no-default column would be
+  // rejected by Postgres with 23502 on every single run — a silent permanent
+  // freeze. Fail here instead, in the standard error shape every caller
+  // already counts as a skip, so a regression is visible in the run report.
+  //
+  // Strictly presence: `== null` catches absent/null/undefined and nothing
+  // else. A blank-but-present value is a legal INSERT tuple, so treating it as
+  // missing here would convert a cosmetic data problem into the very
+  // never-updates-again symptom this guard exists to prevent. Blankness is
+  // handled where it is recoverable — _stripOverriddenFields keeps the scraped
+  // value and warns when the stored override value is empty.
+  //
+  // With that strip behaviour in place this guard is unreachable on every
+  // known path (validateEvent already requires a non-blank title and a
+  // parseable start_at, and the strip now always leaves both present). It is
+  // kept deliberately as a cheap backstop against a future strip regression.
+  const missingRequired = REQUIRED_EVENT_COLUMNS.filter((col) => safeRow[col] == null)
+  if (missingRequired.length > 0) {
+    return {
+      data: null,
+      error: { message: `data contract: required column(s) missing after override strip: ${missingRequired.join(', ')}` },
+      isNew: false,
+    }
+  }
 
   // ── Alias enforcement (self-healing, kill-switched) ───────────────────────
   // A row that does NOT already exist under its own (source, source_id) might be
@@ -2428,7 +2473,9 @@ async function _stripOverriddenFields(table, row) {
   try {
     const { data: existing } = await supabaseAdmin
       .from('events')
-      .select('id, manual_overrides')
+      // title/start_at come back so an override on either can be backfilled
+      // into the payload instead of deleted — see REQUIRED_EVENT_COLUMNS.
+      .select('id, manual_overrides, title, start_at')
       .eq('source', row.source)
       .eq('source_id', row.source_id)
       .maybeSingle()
@@ -2442,9 +2489,41 @@ async function _stripOverriddenFields(table, row) {
     const overrides = existing.manual_overrides
     const filtered = { ...row }
     for (const field of Object.keys(overrides)) {
-      if (field in filtered && field !== 'source' && field !== 'source_id') {
-        delete filtered[field]
+      // source/source_id are the conflict target — never touch them.
+      if (field === 'source' || field === 'source_id') continue
+
+      if (REQUIRED_EVENT_COLUMNS.includes(field)) {
+        // Dropping a NOT-NULL-no-default column would make the proposed INSERT
+        // tuple fail ExecConstraints (23502) before ON CONFLICT could route it
+        // to the UPDATE branch, freezing every field on the row. Backfill the
+        // human's current value instead: the override still beats the scraper,
+        // and the payload stays complete.
+        //
+        // Deliberately NOT gated on `field in filtered`: if the scraper omitted
+        // the column entirely, the payload is just as incomplete as if we had
+        // deleted it, so the backfill has to run either way.
+        //
+        // manual_overrides entries are provenance markers ({at, by, reason}),
+        // never values — the human's value exists only in the column, which is
+        // why the select above has to read it back.
+        const stored = existing[field]
+        const storedIsEmpty = stored == null || (typeof stored === 'string' && !stored.trim())
+        if (storedIsEmpty) {
+          // Nothing usable to lock in. Keeping the scraped value is the only
+          // option that leaves a complete payload; skipping the row forever
+          // would reproduce the freeze this whole fix exists to remove. Warn
+          // so the empty override is visible and fixable by a human.
+          console.warn(
+            `  ⚠ manual override on ${field} but the stored value is empty — ` +
+            `keeping the scraped value (${row.source}/${row.source_id})`
+          )
+          continue
+        }
+        filtered[field] = stored
+        continue
       }
+
+      if (field in filtered) delete filtered[field]
     }
     return { row: filtered, existed }
   } catch {

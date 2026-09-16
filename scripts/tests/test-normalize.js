@@ -1096,7 +1096,7 @@ function makeSupabaseMock(config = {}) {
       return { data: config.alias ?? null, error: null }
     }
     if (st.table === 'events') {
-      if (st.cols === 'id, manual_overrides') return { data: config.existing ?? null, error: null }
+      if (st.cols === 'id, manual_overrides, title, start_at') return { data: config.existing ?? null, error: null }
       if (st.cols === 'manual_overrides')     return { data: null, error: null } // syncEventCategories lookup
       if (st.cols === 'id') {
         calls.canonicalCheck++

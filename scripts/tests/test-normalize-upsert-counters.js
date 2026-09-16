@@ -44,7 +44,7 @@ function makeMock({ existingRef }) {
     if (st.op === 'upsert' && st.table === 'events') return { data: { id: 'ev-1' }, error: null }
     if (st.table === 'event_aliases') return { data: null, error: null } // no alias — never suppress
     if (st.table === 'events') {
-      if (st.cols === 'id, manual_overrides') return { data: existingRef.value, error: null }
+      if (st.cols === 'id, manual_overrides, title, start_at') return { data: existingRef.value, error: null }
       if (st.cols === 'manual_overrides')     return { data: null, error: null } // syncEventCategories: no override
     }
     return { data: null, error: null }
