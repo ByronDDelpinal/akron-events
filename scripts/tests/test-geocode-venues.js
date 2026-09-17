@@ -16,7 +16,9 @@ import {
   isNameCandidate, venueIdsWithUpcomingEvents, summarizeNamesRun,
   createRateLimiter,
   chunkIds, narrowAndLimit, VENUE_ID_CHUNK_SIZE,
+  deriveNameModeAddress, buildNamesUpdatePayload, runNamesMode,
 } from '../geocode-venues.js'
+import { __setClientForTests } from '../lib/supabase-admin.js'
 
 // ── default (address) mode ─────────────────────────────────────────────
 
@@ -443,6 +445,198 @@ describe('names mode: evaluateNameVariantRung (MAJOR 2 + MAJOR 3: the variant wa
     const { matched, rejected } = evaluateNameVariantRung(1, 'Lock 3', results, null, inSummit)
     assert.equal(matched, null)
     assert.equal(rejected.result, results[1])
+  })
+})
+
+describe('names mode: deriveNameModeAddress (the geocode-venues.js:963 --names fix — derives an address from the Nominatim result, gated behind the SAME hasAddressPrecision test address/default mode uses)', () => {
+  it('derives "<house_number> <road>" when the result clears the address-precision gate', () => {
+    const result = {
+      class: 'amenity', addresstype: 'amenity',
+      address: { house_number: '200', road: 'S Main St', city: 'Akron' },
+    }
+    assert.equal(deriveNameModeAddress(result), '200 S Main St')
+  })
+  it('returns null (NOT a numberless fallback) when house_number is absent but road is present — hasAddressPrecision gates location confidence, not string completeness; a road-only match (e.g. the "2nd Street Northwest", Barberton shape) must never be persisted as a complete address', () => {
+    const result = { class: 'amenity', addresstype: 'amenity', address: { road: 'S Main St' } }
+    assert.equal(deriveNameModeAddress(result), null)
+  })
+  it('returns null when road is absent but house_number is present (partial shape, symmetric case)', () => {
+    const result = { class: 'amenity', addresstype: 'amenity', address: { house_number: '200' } }
+    assert.equal(deriveNameModeAddress(result), null)
+  })
+  it('returns null when the result FAILS the precision gate (e.g. a bare road/highway match) — this pins the real tonight case: "2nd Street Northwest", Barberton, correctly refused', () => {
+    const result = {
+      class: 'highway', type: 'residential', addresstype: 'road',
+      address: { road: '2nd Street Northwest', city: 'Barberton' },
+    }
+    assert.equal(deriveNameModeAddress(result), null)
+  })
+  it('returns null when the result is a place/city centroid (also fails the gate)', () => {
+    const result = { class: 'place', type: 'city', addresstype: 'city', address: { city: 'Akron' } }
+    assert.equal(deriveNameModeAddress(result), null)
+  })
+  it('returns null when the gate passes but there is no house_number or road to combine', () => {
+    const result = { class: 'amenity', addresstype: 'amenity', address: { city: 'Akron', state: 'OH' } }
+    assert.equal(deriveNameModeAddress(result), null)
+  })
+  it('returns null when the result has no address object at all', () => {
+    const result = { class: 'amenity', addresstype: 'amenity' }
+    assert.equal(deriveNameModeAddress(result), null)
+  })
+  it('returns null for a null/undefined result', () => {
+    assert.equal(deriveNameModeAddress(null), null)
+    assert.equal(deriveNameModeAddress(undefined), null)
+  })
+})
+
+describe('names mode: buildNamesUpdatePayload (the actual .update() payload for a --names write — THE defect this fix closes)', () => {
+  it('includes address in the payload when the match cleared the precision gate', () => {
+    const matched = { lat: 41.0814, lng: -81.519, address: '200 S Main St' }
+    const payload = buildNamesUpdatePayload(matched)
+    assert.deepEqual(payload, { lat: 41.0814, lng: -81.519, address: '200 S Main St' })
+  })
+  it('omits the address key entirely (not writes null) when the match had no derived address', () => {
+    const matched = { lat: 41.0814, lng: -81.519, address: null }
+    const payload = buildNamesUpdatePayload(matched)
+    assert.deepEqual(payload, { lat: 41.0814, lng: -81.519 })
+    assert.ok(!('address' in payload), 'address key must be absent, not set to null')
+  })
+  it('always includes lat/lng regardless of address', () => {
+    const withAddr = buildNamesUpdatePayload({ lat: 1, lng: 2, address: 'X' })
+    const withoutAddr = buildNamesUpdatePayload({ lat: 1, lng: 2, address: null })
+    assert.equal(withAddr.lat, 1)
+    assert.equal(withAddr.lng, 2)
+    assert.equal(withoutAddr.lat, 1)
+    assert.equal(withoutAddr.lng, 2)
+  })
+})
+
+describe('names mode: matched.address flows end-to-end through evaluateNameVariantRung', () => {
+  it('a matched result that clears both the names-mode gates AND the address-precision gate carries a derived address', () => {
+    const results = [{
+      class: 'amenity', addresstype: 'amenity', type: 'theatre',
+      lat: '41.08', lon: '-81.52',
+      namedetails: { name: 'Lock 3' },
+      address: { house_number: '200', road: 'S Main St' },
+    }]
+    const { matched } = evaluateNameVariantRung(0, 'Lock 3', results, null, inSummit)
+    assert.ok(matched)
+    assert.equal(matched.address, '200 S Main St')
+  })
+  it('a matched result that clears the names-mode gates but NOT the address-precision gate carries a null address (still writes lat/lng, never a low-confidence address)', () => {
+    // class=place/type=park is deliberately NOT in PLACE_ADMIN_TYPES (see
+    // isJunkClassType's comment), so it clears the names-mode junk-class
+    // gate and reaches the similarity check — but it still fails the
+    // stricter address-precision gate (PLACE_PRECISE_TYPES only allows
+    // type=house for class=place), so it's the right fixture for "passes
+    // names-mode, fails address-mode".
+    const results = [{
+      class: 'place', type: 'park', addresstype: 'place',
+      lat: '41.08', lon: '-81.52',
+      namedetails: { name: 'Lock 3' },
+      address: { road: 'S Main St' },
+    }]
+    const { matched } = evaluateNameVariantRung(0, 'Lock 3', results, null, inSummit)
+    assert.ok(matched, 'names-mode gates (class/type is not junk, in Summit County, similarity) still pass')
+    assert.equal(matched.address, null)
+  })
+})
+
+describe('names mode: runNamesMode wiring — the REAL .update() call site (reviewer-required: pins that buildNamesUpdatePayload is actually what reaches supabaseAdmin, not just exercised in isolation)', () => {
+  // Chainable fake supabase client, same shape as the ones already used in
+  // test-extend-series.js / test-normalize-upsert-counters.js. Every method
+  // returns the same chain object; `.then()` resolves once the terminal
+  // call (select or update) has recorded what it needs. `calls` captures
+  // the REAL .update() payload runNamesMode issues, at the real .eq('id',
+  // ...) call site (~L1007) — not a re-derivation of it.
+  function makeClient({ venues, eventLinks }) {
+    const calls = []
+    function resolve(st) {
+      if (st.table === 'venues' && st.op === 'update') return { data: null, error: null }
+      if (st.table === 'venues') return { data: venues, error: null }
+      if (st.table === 'event_venues') return { data: eventLinks, error: null }
+      return { data: [], error: null }
+    }
+    function builder(table) {
+      const st = { table, op: 'select', rows: null }
+      const chain = {
+        select() { return chain },
+        is() { return chain },
+        in() { return chain },
+        gte() { return chain },
+        order() { return chain },
+        range() { return chain },
+        update(rows) { st.op = 'update'; st.rows = rows; return chain },
+        eq(col, val) {
+          if (st.op === 'update') calls.push({ table, payload: st.rows, id: val })
+          return chain
+        },
+        then(onF, onR) { return Promise.resolve(resolve(st)).then(onF, onR) },
+      }
+      return chain
+    }
+    return { client: { from: builder }, calls }
+  }
+
+  /** Stub global fetch so geocodeByName's nominatimFetch never hits the
+   *  network — the sandbox has none anyway. Returns the same canned
+   *  Nominatim result array for every request; rung 0 (the venue's
+   *  verbatim name) matches on the first call, so only one fetch fires. */
+  async function withFakeNominatim(resultsJson, fn) {
+    const origFetch = globalThis.fetch
+    globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => resultsJson })
+    const origLog = console.log
+    console.log = () => {} // silence runNamesMode's progress/report output
+    try {
+      return await fn()
+    } finally {
+      globalThis.fetch = origFetch
+      console.log = origLog
+      __setClientForTests(null)
+    }
+  }
+
+  const futureIso = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString()
+
+  it('issues .update() with `address` in the payload when the matched result clears BOTH the names-mode gates and the address-precision gate (house_number + road present)', async () => {
+    const venue = { id: 'v-wire-1', name: 'Wiring Test Hall', lat: null, lng: null, address: null, city: 'Akron' }
+    const nominatimResult = [{
+      class: 'amenity', type: 'theatre', addresstype: 'amenity',
+      lat: '41.0814', lon: '-81.5190', // downtown Akron — inside Summit County
+      namedetails: { name: 'Wiring Test Hall' },
+      address: { house_number: '200', road: 'S Main St', city: 'Akron' },
+    }]
+    const { client, calls } = makeClient({
+      venues: [venue],
+      eventLinks: [{ venue_id: venue.id, events: { id: 'e1', status: 'published', start_at: futureIso } }],
+    })
+    __setClientForTests(client)
+    await withFakeNominatim(nominatimResult, () => runNamesMode({ write: true }))
+
+    assert.equal(calls.length, 1, 'runNamesMode must issue exactly one .update() for the matched venue')
+    assert.equal(calls[0].id, venue.id)
+    assert.deepEqual(calls[0].payload, { lat: 41.0814, lng: -81.519, address: '200 S Main St' })
+  })
+
+  it('issues .update() WITHOUT `address` in the payload when the matched result clears the names-mode gates but the address is road-only (no house_number) — this is the test that goes red if `address` is dropped from buildNamesUpdatePayload OR silently re-added unconditionally', async () => {
+    const venue = { id: 'v-wire-2', name: 'Wiring Test Annex', lat: null, lng: null, address: null, city: 'Akron' }
+    const nominatimResult = [{
+      class: 'amenity', type: 'community_centre', addresstype: 'amenity',
+      lat: '41.0814', lon: '-81.5190',
+      namedetails: { name: 'Wiring Test Annex' },
+      address: { road: 'S Main St', city: 'Akron' }, // no house_number — gap 2 shape
+    }]
+    const { client, calls } = makeClient({
+      venues: [venue],
+      eventLinks: [{ venue_id: venue.id, events: { id: 'e2', status: 'published', start_at: futureIso } }],
+    })
+    __setClientForTests(client)
+    await withFakeNominatim(nominatimResult, () => runNamesMode({ write: true }))
+
+    assert.equal(calls.length, 1, 'runNamesMode must still write lat/lng for a names-mode match even with no address')
+    assert.equal(calls[0].id, venue.id)
+    assert.deepEqual(calls[0].payload, { lat: 41.0814, lng: -81.519 })
+    assert.ok(!('address' in calls[0].payload), 'address key must be absent, never null and never a numberless string')
   })
 })
 

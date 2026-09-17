@@ -607,6 +607,57 @@ export function cityMatches(venueCity, result) {
 }
 
 /**
+ * --names mode: derive a street address string ("<house_number> <road>")
+ * from a Nominatim result's structured address, so a venue matched by name
+ * alone can pick up a real address instead of staying permanently
+ * address-less. The data is already in hand — geocodeByName already sends
+ * addressdetails: '1' — so this costs no extra request.
+ *
+ * Gated behind the SAME address-precision test address/default mode already
+ * uses (hasAddressPrecision — addresstype/class against
+ * ADDRESS_PRECISION_ALLOWLIST / PLACE_PRECISE_TYPES), not a new, weaker
+ * test: a --names match clears the name/city/similarity/Summit-County gates
+ * in evaluateNameVariantRung, but that says nothing about whether the
+ * result is address-precise (e.g. a road or place centroid can still pass
+ * those gates). Writing an unguarded address here would silently mark a
+ * low-confidence venue as complete forever — exactly the bug this exists to
+ * avoid. REQUIRES house_number: hasAddressPrecision gates location
+ * confidence (is this a building/amenity/shop point, not a road or place
+ * centroid?), not string completeness — a road-level result can still carry
+ * a road name with no house_number (e.g. the "2nd Street Northwest",
+ * Barberton match correctly refused elsewhere tonight), and persisting a
+ * numberless street would silently mark that low-confidence match as a
+ * complete address forever — exactly the risk the gate exists to prevent.
+ * Returns null (no address to persist; venue stays in manual review) when
+ * the gate fails, the result has no address object, or house_number is
+ * missing — road-only is never enough on its own. Pure + exported for
+ * tests.
+ */
+export function deriveNameModeAddress(result) {
+  if (!hasAddressPrecision(result)) return null
+  const addr = result && result.address
+  if (!addr || !addr.house_number || !addr.road) return null
+  return `${addr.house_number} ${addr.road}`
+}
+
+/**
+ * Build the exact payload passed to `.update()` for a matched --names venue.
+ * lat/lng are always included (that part of the write was never broken);
+ * `address` is included ONLY when matched.address is non-null (i.e.
+ * deriveNameModeAddress cleared the precision gate) — omitting the key
+ * entirely when it's null, rather than writing null, so a --names write
+ * that finds no precise address behaves exactly as it did before this fix
+ * (lat/lng only, address column untouched, venue stays in manual review).
+ * Pure + exported so the write behavior is testable without a DB/network
+ * mock, consistent with the rest of this file's pure-function gates.
+ */
+export function buildNamesUpdatePayload(matched) {
+  const payload = { lat: matched.lat, lng: matched.lng }
+  if (matched.address) payload.address = matched.address
+  return payload
+}
+
+/**
  * Flatten a set of event_venues rows — already narrowed to a bounded set of
  * candidate venue_ids and inner-joined to events filtered the same way the
  * rest of this file filters "upcoming published" (status='published',
@@ -810,7 +861,7 @@ export function evaluateNameVariantRung(rungIndex, variant, results, venueCity, 
       continue
     }
 
-    matched = { result, similarity, lat, lng, variant, rungIndex }
+    matched = { result, similarity, lat, lng, variant, rungIndex, address: deriveNameModeAddress(result) }
     break
   }
 
@@ -823,7 +874,7 @@ export function evaluateNameVariantRung(rungIndex, variant, results, venueCity, 
  * venue nobody is about to visit isn't worth the API call or the
  * false-positive risk). DRY RUN BY DEFAULT — pass --write to update rows.
  */
-async function runNamesMode() {
+export async function runNamesMode({ write = NAMES_WRITE, limit = LIMIT } = {}) {
   // The real Summit County polygon check (classifySummitLocation ->
   // pointInSummitCounty) requires the boundary GeoJSON preloaded first, or
   // it throws. Load it once, up front, rather than per-venue.
@@ -903,14 +954,14 @@ async function runNamesMode() {
   }
 
   let candidates = geocodableBaseline.filter((v) => upcomingVenueIds.has(v.id))
-  if (LIMIT) candidates = candidates.slice(0, LIMIT)
+  if (limit) candidates = candidates.slice(0, limit)
 
   // Refused venues actually in scope tonight (has an upcoming published
   // event), for reporting — a refused venue with no upcoming event was
   // never going to be geocoded regardless, so it doesn't belong in the log.
   const refusedInScope = refused.filter((r) => upcomingVenueIds.has(r.v.id))
 
-  console.log(`📍  --names mode ${NAMES_WRITE ? '(WRITE)' : '(DRY RUN — pass --write to update rows)'}`)
+  console.log(`📍  --names mode ${write ? '(WRITE)' : '(DRY RUN — pass --write to update rows)'}`)
   console.log(`    candidate baseline (no lat/lng, no usable address): ${baseline.length}`)
   console.log(`    refused (junk venue name, zero API calls): ${refusedInScope.length}`)
   console.log(`    planned after (also has >=1 upcoming published event, pre-gate): ${candidates.length}\n`)
@@ -958,9 +1009,9 @@ async function runNamesMode() {
         continue
       }
 
-      if (NAMES_WRITE) {
+      if (write) {
         const { error: upErr } = await supabaseAdmin
-          .from('venues').update({ lat: matched.lat, lng: matched.lng }).eq('id', v.id)
+          .from('venues').update(buildNamesUpdatePayload(matched)).eq('id', v.id)
         if (upErr) {
           logNameDecision(v, matched.result, matched.similarity, 'fail', upErr.message, matched.variant, matched.rungIndex)
           failed.push({ v, why: upErr.message })
@@ -970,7 +1021,7 @@ async function runNamesMode() {
       updated++
       logNameDecision(
         v, matched.result, matched.similarity,
-        NAMES_WRITE ? 'write' : 'would-write', null, matched.variant, matched.rungIndex
+        write ? 'write' : 'would-write', null, matched.variant, matched.rungIndex
       )
     } catch (err) {
       if (err instanceof NominatimBlockedError) {
@@ -992,7 +1043,7 @@ async function runNamesMode() {
     console.log(`   This is a capability failure, not "no venues matched" — do not read it as a clean run.`)
   }
 
-  console.log(`\n${NAMES_WRITE ? 'Updated' : 'Would update'}: ${updated}`)
+  console.log(`\n${write ? 'Updated' : 'Would update'}: ${updated}`)
   if (refusedInScope.length) {
     console.log(`\n🚫 Refused before any API call (${refusedInScope.length}):`)
     for (const r of refusedInScope) console.log(`   - ${r.v.id}  "${r.v.name}" — ${r.why}`)
