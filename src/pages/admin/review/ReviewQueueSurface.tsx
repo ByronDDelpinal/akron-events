@@ -38,7 +38,10 @@ type FacetCounts = Record<Facet, number | null>
 // Categories available for reassignment -- everything except 'other'
 const REMAP_OPTIONS = CATEGORIES.filter((c) => c.value !== 'other')
 
-const EMPTY_COUNTS: FacetCounts = { all: null, cat: null, pend: null, time: null }
+// `venue` has no computed count yet (Phase 2 -- see reviewReasons.ts's
+// ReasonId doc comment); it always carries `null`, same as an uncomputed
+// facet, and is never surfaced because FACET_IDS excludes it.
+const EMPTY_COUNTS: FacetCounts = { all: null, cat: null, pend: null, time: null, venue: null }
 
 interface ToastState {
   message: string
@@ -271,6 +274,7 @@ export default function ReviewQueueSurface() {
         cat: rows.filter(isCategoryUnsure).length,
         pend: rows.filter(isAwaitingPublish).length,
         time: rows.filter(isMissingEnd).length,
+        venue: null, // Phase 2 -- see reviewReasons.ts
       })
     } else {
       const head = () =>
@@ -289,6 +293,7 @@ export default function ReviewQueueSurface() {
         cat: catRes.error ? null : (catRes.count ?? 0),
         pend: pendRes.error ? null : (pendRes.count ?? 0),
         time: timeRes.error ? null : (timeRes.count ?? 0),
+        venue: null, // Phase 2 -- see reviewReasons.ts
       })
     }
     // The hidden-ended-rows head count that used to follow here was removed
@@ -344,8 +349,12 @@ export default function ReviewQueueSurface() {
     const wasPend = isAwaitingPublish(before)
     const wasTime = isMissingEnd(before)
     const stillMember = isCategoryUnsure(after) || isAwaitingPublish(after)
+    // `venue` has no distinct client-side predicate yet (Phase 2 -- see
+    // reviewReasons.ts's ReasonId doc comment): on the wire it IS a `cat` row
+    // today, so isCategoryUnsure is its honest twin here rather than a stub
+    // that always returns false.
     const facetTwin: Record<ReasonId, (r: Row) => boolean> = {
-      cat: isCategoryUnsure, pend: isAwaitingPublish, time: isMissingEnd,
+      cat: isCategoryUnsure, pend: isAwaitingPublish, time: isMissingEnd, venue: isCategoryUnsure,
     }
     const leavesFacet = facet !== 'all' && !facetTwin[facet](after)
     const leavesList = !stillMember || leavesFacet
@@ -382,6 +391,7 @@ export default function ReviewQueueSurface() {
       cat: shift(prev.cat, wasCat, isCategoryUnsure(after)),
       pend: shift(prev.pend, wasPend, isAwaitingPublish(after)),
       time: prev.time != null && wasTime && !stillMember ? prev.time - 1 : prev.time,
+      venue: prev.venue, // Phase 2 -- passed through unchanged, see reviewReasons.ts
     }))
     // Pip, tile, and queue header agree without a refetch — but only for a
     // row the pip actually counted: the pip's scope is not-ended, so an

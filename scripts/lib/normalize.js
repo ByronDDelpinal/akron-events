@@ -2297,16 +2297,114 @@ export async function syncEventCategories(eventId, categories) {
   }
 }
 
+// venueId → boolean, cached per run. `ensureVenue` mints a venue from
+// whatever `details` fields a caller supplies; ~15 of ~70 callers deliberately
+// mint name-only ({ city: 'Akron', state: 'OH' }), and address/lat/lng are
+// silently omitted. Nothing downstream (map, directions, classifySummitLocation)
+// can place that row, but the mint still succeeds and the event still
+// publishes — it was just invisible (sev-2, 2026-09-17: 109 of 5,010 published
+// upcoming events had no usable venue at all, none flagged). Fixing the
+// resolver here — the shared choke point every scraper already calls once it
+// has an eventId — means the fix survives re-scrape without touching
+// ensureVenue's insert or any of its ~70 call sites.
+const _venueGeoCache = new Map()
+
+/**
+ * True when venue `venueId` carries no address AND no lat/lng. Cached per run:
+ * linkEventVenue is the hot-path choke point for ~200 sources and many events
+ * share one venue (a recurring series, a popular hall), so this keeps the
+ * added read at "one query per DISTINCT venue this run" rather than an
+ * event-level N+1. Fail-safe: any read error resolves to `false` (never flag
+ * off our own inability to check) and never throws.
+ */
+async function _venueMissingGeo(venueId) {
+  if (_venueGeoCache.has(venueId)) return _venueGeoCache.get(venueId)
+  let missing = false
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('venues')
+      .select('address, lat, lng')
+      .eq('id', venueId)
+      .maybeSingle()
+    if (!error && data) {
+      missing = data.address == null && data.lat == null && data.lng == null
+    }
+  } catch (err) {
+    console.warn(`  ⚠ venue geo check failed for ${venueId} (non-fatal): ${err.message}`)
+  }
+  _venueGeoCache.set(venueId, missing)
+  return missing
+}
+
+/** Test-only: clear the per-run venue-geo cache between cases. */
+export function _resetVenueGeoCache() {
+  _venueGeoCache.clear()
+}
+
+/**
+ * Flag `eventId` needs_review because its just-linked venue has no address
+ * and no coordinates. The event still publishes — this only makes it visible
+ * in the Review Queue instead of silently unplaceable.
+ *
+ * Admin-lock convention (manual_overrides / reviewed_at, migration 060):
+ * `reviewed_at` is the human decision and is NEVER written by a scraper path
+ * — set only by admin UI actions. A row a human already adjudicated
+ * (`reviewed_at` non-null) or explicitly pinned via a legacy
+ * `manual_overrides.needs_review` marker is left exactly as the human left
+ * it; this function returns without writing. Idempotent: reads first and
+ * only issues the UPDATE when `needs_review` isn't already `true`, so a
+ * re-scrape of an already-flagged row is a read with no write. Never throws —
+ * a failure here must not take down the venue link that already succeeded.
+ */
+async function _flagVenueNeedsReview(eventId) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('events')
+      .select('needs_review, reviewed_at, manual_overrides')
+      .eq('id', eventId)
+      .maybeSingle()
+    if (error || !data) return
+    if (data.needs_review === true) return // already flagged — no write needed
+    if (data.reviewed_at != null) return // human already adjudicated — never re-flip
+    if (data.manual_overrides && typeof data.manual_overrides === 'object'
+        && 'needs_review' in data.manual_overrides) return // legacy explicit pin
+
+    const { error: updErr } = await supabaseAdmin
+      .from('events')
+      .update({ needs_review: true })
+      .eq('id', eventId)
+    if (updErr) console.warn(`  ⚠ could not flag needs_review (venue-mint gap) for ${eventId}: ${updErr.message}`)
+  } catch (err) {
+    console.warn(`  ⚠ venue-mint review flag failed for ${eventId} (non-fatal): ${err.message}`)
+  }
+}
+
 /**
  * After upserting an event, link it to a venue via the event_venues junction.
  * Idempotent — uses ON CONFLICT DO NOTHING.
+ *
+ * Also surfaces an unlocatable venue: if the just-linked venue has no
+ * address and no coordinates, the event is flagged needs_review (see
+ * _flagVenueNeedsReview above). This is a read-then-maybe-write ADD-ON —
+ * it can only ever set a flag, never unlist, unpublish, or otherwise change
+ * what the link itself does, and a failure in this step is swallowed so it
+ * can never fail or abort the link.
  */
 export async function linkEventVenue(eventId, venueId) {
   if (!eventId || !venueId) return
   const { error } = await supabaseAdmin
     .from('event_venues')
     .upsert({ event_id: eventId, venue_id: venueId }, { onConflict: 'event_id,venue_id', ignoreDuplicates: true })
-  if (error) console.warn(`  ⚠ linkEventVenue failed: ${error.message}`)
+  if (error) {
+    console.warn(`  ⚠ linkEventVenue failed: ${error.message}`)
+    return
+  }
+
+  try {
+    if (await _venueMissingGeo(venueId)) await _flagVenueNeedsReview(eventId)
+  } catch (err) {
+    console.warn(`  ⚠ venue-mint review check failed for ${eventId} (non-fatal): ${err.message}`)
+  }
 }
 
 /**
@@ -2315,6 +2413,9 @@ export async function linkEventVenue(eventId, venueId) {
  * venue (e.g. rec-parks moving a program off the generic department address
  * onto its real community center) would otherwise leave the event pointing at
  * both. Use this for sources where one event has exactly one venue.
+ *
+ * Delegates to linkEventVenue for the actual link, so the needs_review
+ * geo-gap check above applies here too — no separate wiring needed.
  */
 export async function setEventVenue(eventId, venueId) {
   if (!eventId || !venueId) return

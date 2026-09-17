@@ -35,14 +35,23 @@ export const reviewQueueScope = (q: LooseQuery): LooseQuery =>
 
 /**
  * Reason taxonomy -- honestly derivable Phase 1, existing columns only.
- *   cat  -> the scraper's per-run confidence flag, not yet human-adjudicated
- *   pend -> the status column
- *   time -> end_at IS NULL. An ANNOTATION, not a membership cause: a null
- *           end_at alone never puts a row in the queue.
+ *   cat   -> the scraper's per-run confidence flag, not yet human-adjudicated
+ *   pend  -> the status column
+ *   time  -> end_at IS NULL. An ANNOTATION, not a membership cause: a null
+ *            end_at alone never puts a row in the queue.
+ *   venue -> a venue-mint block (2026-09-17, sev-2): ensureVenue minted a
+ *            venue with no address and no lat/lng, so linkEventVenue flagged
+ *            the event needs_review (scripts/lib/normalize.js). On the wire
+ *            this is the SAME needs_review flag `cat` reads, so today it is
+ *            defined here -- honestly labeled instead of silently reusing
+ *            "Category unsure" -- but NOT in FACET_IDS and NOT distinguished
+ *            by rowReason yet: telling it apart from `cat` needs a
+ *            event_venues -> venues join that SELECT_LIST in
+ *            ReviewQueueSurface.tsx does not fetch. That join is Phase 2.
  * Not designed Phase 1 (data not retained): duplicate similarity, moderation
- * origin, venue-mint blocks, confidence percentages, run linkage.
+ * origin, confidence percentages, run linkage.
  */
-export type ReasonId = 'cat' | 'pend' | 'time'
+export type ReasonId = 'cat' | 'pend' | 'time' | 'venue'
 
 export interface ReasonDef {
   id: ReasonId
@@ -52,12 +61,18 @@ export interface ReasonDef {
 }
 
 export const REASONS: Record<ReasonId, ReasonDef> = {
-  cat:  { id: 'cat',  label: 'Category unsure',  membership: true },
-  pend: { id: 'pend', label: 'Awaiting publish', membership: true },
-  time: { id: 'time', label: 'Missing end time', membership: false },
+  cat:   { id: 'cat',   label: 'Category unsure',    membership: true },
+  pend:  { id: 'pend',  label: 'Awaiting publish',   membership: true },
+  time:  { id: 'time',  label: 'Missing end time',   membership: false },
+  venue: { id: 'venue', label: 'Venue has no location', membership: false },
 }
 
-/** The facet ids offered in the UI, in display order. */
+/**
+ * The facet ids offered in the UI, in display order. `venue` is deliberately
+ * excluded until the Phase 2 join above lands -- surfacing it now would
+ * double-count against `cat` (every venue-flagged row is already a `cat`
+ * row on the wire) rather than replace it.
+ */
 export const FACET_IDS: ReasonId[] = ['cat', 'pend', 'time']
 
 interface ReviewRowShape {
@@ -100,7 +115,12 @@ export function rowReason(row: ReviewRowShape): ReasonId | null {
  * `time` filters within membership, so its builder only adds the null check.
  */
 export const FACET_FILTERS: Record<ReasonId, (q: LooseQuery) => LooseQuery> = {
-  cat:  (q) => q.eq('needs_review', true).is('reviewed_at', null),
-  pend: (q) => q.eq('status', 'pending_review'),
-  time: (q) => q.is('end_at', null),
+  cat:   (q) => q.eq('needs_review', true).is('reviewed_at', null),
+  pend:  (q) => q.eq('status', 'pending_review'),
+  time:  (q) => q.is('end_at', null),
+  // Same predicate as `cat` for now -- see the ReasonId doc comment above.
+  // Inert today (not in FACET_IDS); kept correct rather than omitted so the
+  // Record stays exhaustive and a future caller gets a safe superset, not a
+  // silently wrong empty set.
+  venue: (q) => q.eq('needs_review', true).is('reviewed_at', null),
 }
