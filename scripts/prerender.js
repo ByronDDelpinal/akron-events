@@ -55,6 +55,25 @@ const DIST   = join(ROOT, 'dist')
 const PORT   = 4173
 const STRICT = process.env.PRERENDER_STRICT === '1'
 
+// Pin the render clock to Eastern BEFORE Chrome is spawned.
+//
+// Every time on the site is formatted in the *viewer's* local zone (see
+// src/lib/easternDate.ts and the display rule documented on FestivalPage /
+// FestivalMap). During prerender the "viewer" is headless Chrome running on
+// the build machine, and CI/Vercel builders run in UTC — so the captured HTML
+// baked every event four hours late (an event titled "Mon 4:30-5:15pm"
+// shipped as "8:30 PM"). The database was always right; only this render path
+// was wrong.
+//
+// Puppeteer spawns the browser with `env: process.env` by default, and the
+// child reads TZ at spawn time, so assigning it here — at module scope,
+// before prerenderAll() dynamically imports puppeteer — covers BOTH launch
+// paths in launchBrowser() (bundled Chrome and the @sparticuz/chromium
+// fallback) without either of them having to opt in.
+//
+// Guarded by scripts/tests/test-prerender-timezone.js.
+process.env.TZ = 'America/New_York'
+
 // Stable, crawlable routes. Hub paths come from the SEO registry so a
 // newly enabled hub is picked up here and in the sitemap with one edit.
 const ROUTES = [
