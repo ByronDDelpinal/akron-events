@@ -22,6 +22,7 @@ import {
   parseCost,
   mapCategory,
   normaliseEvent,
+  emptyListingOutcome,
 } from '../scrape-akron-childrens-museum.js'
 
 import { sanitizeEventText } from '../lib/normalize.js'
@@ -421,5 +422,66 @@ describe('ACM — batch invariants', () => {
           `Invalid start_at for "${ev.title}"`)
       }
     }
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// Zero-event reporting guard
+// ════════════════════════════════════════════════════════════════════════════
+//
+// 2026-09-18: akron_childrens_museum had produced exactly 6 events a night for
+// seven nights, then 0 — and still wrote status='success', because per-page
+// fetch failures were swallowed by a console.warn and logUpsertResult defaults
+// to success. Nothing alerted. The guard defaults a silent zero to `error` and
+// puts the fetch-failure tally in the message so the cause is visible from the
+// scraper_runs row alone.
+describe("Children's Museum: emptyListingOutcome", () => {
+  it('defaults to an error — a silently empty scrape is usually a broken parse', () => {
+    const out = emptyListingOutcome({})
+    assert.equal(out.status, 'error')
+    assert.match(out.errorMessage, /^Listing pages parsed but contained 0 events/)
+  })
+
+  it('reports that every page fetched fine when nothing failed', () => {
+    const out = emptyListingOutcome({ fetchFailures: 0, totalPages: 3 })
+    assert.equal(out.status, 'error')
+    assert.match(out.errorMessage, /all 3 listing pages fetched OK/)
+  })
+
+  it('surfaces the fetch-failure count so the cause is visible', () => {
+    const out = emptyListingOutcome({ fetchFailures: 2, totalPages: 3 })
+    assert.equal(out.status, 'error')
+    assert.match(out.errorMessage, /2 of 3 listing pages failed to fetch/)
+  })
+
+  it('distinguishes a total fetch outage from a clean-but-empty parse', () => {
+    const outage = emptyListingOutcome({ fetchFailures: 3, totalPages: 3 })
+    const clean  = emptyListingOutcome({ fetchFailures: 0, totalPages: 3 })
+    assert.equal(outage.status, 'error')
+    assert.equal(clean.status, 'error')
+    assert.notEqual(outage.errorMessage, clean.errorMessage)
+  })
+
+  it('treats an empty listing as a clean zero-event run when allowEmptyFeed is set', () => {
+    const out = emptyListingOutcome({ allowEmptyFeed: true, fetchFailures: 0, totalPages: 3 })
+    assert.equal(out.status, 'success')
+    assert.equal(out.errorMessage, null)
+    assert.match(out.reason, /expected for this source/)
+  })
+
+  it('only opts in on an explicit true — never on a truthy accident', () => {
+    for (const v of [undefined, null, false, 0, '', 'yes', 1]) {
+      assert.equal(
+        emptyListingOutcome({ allowEmptyFeed: v }).status, 'error',
+        `value: ${JSON.stringify(v)}`
+      )
+    }
+  })
+
+  it('is safe with no argument at all, and with junk counts', () => {
+    assert.equal(emptyListingOutcome().status, 'error')
+    const out = emptyListingOutcome({ fetchFailures: NaN, totalPages: undefined })
+    assert.equal(out.status, 'error')
+    assert.doesNotMatch(out.errorMessage, /NaN|undefined/)
   })
 })

@@ -44,6 +44,12 @@ const REST_BASE    = 'https://www.mustardseedmarket.com/wp-json/wp/v2/ajde_event
 const MONTHS_AHEAD  = Math.max(1, parseInt(process.env.MUSTARD_SEED_MONTHS_AHEAD || '3', 10) || 3)
 const ORG_NAME      = 'Mustard Seed Market & Café'
 
+// Mustard Seed programmes year-round; an empty EventON calendar has never been
+// a legitimate state for this source. Flip to `true` (and say why) only if the
+// café actually goes dark for a season — same explicit-true opt-out convention
+// as `allowEmptyFeed` in lib/ics.js.
+const ALLOW_EMPTY_CALENDAR = false
+
 // ── Pure helpers (unit-tested) ───────────────────────────────────────────────
 
 /**
@@ -199,6 +205,38 @@ async function collectEventDates(monthsAhead) {
 }
 
 /**
+ * Decide how a zero-event calendar render should be reported. Pure.
+ *
+ * WHY (2026-09-18): this scraper rendered 0 events and still wrote
+ * `status='success'` to scraper_runs — `logUpsertResult` defaults to success,
+ * so a night where EventON's markup moved out from under the parser was
+ * indistinguishable from a healthy night and nothing alerted. A silently empty
+ * calendar is a broken calendar until a maintainer says otherwise, so the
+ * default is `error`; `allowEmptyFeed` is the explicit-true opt-out for a
+ * source that legitimately goes quiet, mirroring `emptyFeedOutcome()` in
+ * lib/ics.js.
+ *
+ * `events_found` stays 0 either way, so scraper_health's consecutive-zero
+ * streak still answers "is this source producing"; `status` only answers "did
+ * the pipeline work".
+ *
+ * @param {object} [config]
+ * @param {boolean} [config.allowEmptyFeed] calendar is legitimately empty
+ * @returns {{status: 'success'|'error', errorMessage: string|null, reason: string}}
+ */
+export function emptyCalendarOutcome(config = {}) {
+  if (config.allowEmptyFeed === true) {
+    return {
+      status: 'success',
+      errorMessage: null,
+      reason: 'Calendar rendered cleanly and is empty — expected for this source, recording 0 events',
+    }
+  }
+  const msg = 'EventON calendar rendered but contained 0 dated events'
+  return { status: 'error', errorMessage: msg, reason: msg }
+}
+
+/**
  * Fetch WP REST metadata (title, permalink, taxonomy class_list, featured
  * image) for the given event ids. Returns a map id → meta.
  */
@@ -236,9 +274,15 @@ async function main() {
     const dateEntries = await collectEventDates(MONTHS_AHEAD)
     console.log(`  Rendered calendar → ${dateEntries.length} dated events across ${MONTHS_AHEAD} month(s)`)
     if (!dateEntries.length) {
-      await logUpsertResult(SOURCE_KEY, 0, 0, 0, { eventsFound: 0, durationMs: Date.now() - start })
-      console.log('✅  No events found (empty calendar) — done.')
-      return
+      const outcome = emptyCalendarOutcome({ allowEmptyFeed: ALLOW_EMPTY_CALENDAR })
+      await logUpsertResult(SOURCE_KEY, 0, 0, 0, {
+        status:       outcome.status,
+        errorMessage: outcome.errorMessage,
+        eventsFound:  0,
+        durationMs:   Date.now() - start,
+      })
+      console.warn(`  ⚠ ${outcome.reason} — exiting 0 so the next scheduled run still tries.`)
+      process.exit(0)
     }
 
     const ids  = [...new Set(dateEntries.map((e) => e.id))]

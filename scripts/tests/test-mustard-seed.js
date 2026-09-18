@@ -15,6 +15,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ||
 
 const {
   parseEventonList, locationSlug, typeSlug, venueForLocation, mapCategory, buildRow, SOURCE_KEY,
+  emptyCalendarOutcome,
 } = await import('../scrape-mustard-seed.js')
 
 // A trimmed EventON list fragment: two events + one malformed block (no time).
@@ -121,5 +122,47 @@ describe('Mustard Seed buildRow', () => {
   it('returns null without a title or start', () => {
     assert.equal(buildRow({ id: '1', start: 0 }, { title: 'x' }), null)
     assert.equal(buildRow({ id: '1', start: 123 }, { title: '' }), null)
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// Zero-event reporting guard
+// ════════════════════════════════════════════════════════════════════════════
+//
+// 2026-09-18: mustard_seed went 10/16/16/16/16/10/10 → 0 overnight and still
+// wrote status='success', because logUpsertResult defaults to success. Nothing
+// alerted. An empty calendar and a broken calendar are different things, and
+// the monitor has to be able to tell them apart.
+describe('Mustard Seed: emptyCalendarOutcome', () => {
+  it('defaults to an error — a silently empty calendar is usually a broken parse', () => {
+    const out = emptyCalendarOutcome({})
+    assert.equal(out.status, 'error')
+    assert.equal(out.errorMessage, 'EventON calendar rendered but contained 0 dated events')
+  })
+
+  it('treats an empty calendar as a clean zero-event run when allowEmptyFeed is set', () => {
+    const out = emptyCalendarOutcome({ allowEmptyFeed: true })
+    assert.equal(out.status, 'success')
+    assert.equal(out.errorMessage, null)
+    assert.match(out.reason, /expected for this source/)
+  })
+
+  it('only opts in on an explicit true — never on a truthy accident', () => {
+    for (const v of [undefined, null, false, 0, '', 'yes', 1]) {
+      assert.equal(
+        emptyCalendarOutcome({ allowEmptyFeed: v }).status, 'error',
+        `value: ${JSON.stringify(v)}`
+      )
+    }
+  })
+
+  it('is safe with no argument at all', () => {
+    assert.equal(emptyCalendarOutcome().status, 'error')
+  })
+
+  it('always carries a reason, whichever branch it takes', () => {
+    for (const cfg of [{}, { allowEmptyFeed: true }]) {
+      assert.ok(emptyCalendarOutcome(cfg).reason.length > 0)
+    }
   })
 })

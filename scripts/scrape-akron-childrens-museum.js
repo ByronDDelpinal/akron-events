@@ -38,6 +38,12 @@ const LISTING_PAGES = [
   `${SITE_BASE}/calendar/programs`,
 ]
 
+// The museum runs programming year-round; a zero-event scrape has never been a
+// legitimate state for this source. Flip to `true` (and say why) only if that
+// changes — same explicit-true opt-out convention as `allowEmptyFeed` in
+// lib/ics.js.
+const ALLOW_EMPTY_LISTING = false
+
 // ── HTML fetch ────────────────────────────────────────────────────────────
 
 async function fetchHtml(url) {
@@ -379,6 +385,47 @@ async function processEvents(parsedEvents, venueId, organizerId) {
   return { inserted, skipped }
 }
 
+/**
+ * Decide how a zero-event scrape should be reported, and surface how many of
+ * the listing pages we never managed to fetch. Pure.
+ *
+ * WHY (2026-09-18): this scraper swallowed per-page fetch failures with a
+ * `console.warn` and then logged 0 events through `logUpsertResult`, which
+ * defaults to `status='success'`. A night where every listing page 404'd was
+ * therefore indistinguishable in scraper_runs from a healthy night, and
+ * nothing alerted. A silently empty scrape is a broken scrape until a
+ * maintainer says otherwise, so the default is `error`, and the fetch-failure
+ * count rides along in the message so the cause is visible without re-running.
+ *
+ * `events_found` stays 0 either way, so scraper_health's consecutive-zero
+ * streak still answers "is this source producing"; `status` only answers "did
+ * the pipeline work".
+ *
+ * @param {object} [config]
+ * @param {boolean} [config.allowEmptyFeed] source is legitimately empty
+ * @param {number}  [config.fetchFailures]  listing pages that failed to fetch
+ * @param {number}  [config.totalPages]     listing pages attempted
+ * @returns {{status: 'success'|'error', errorMessage: string|null, reason: string}}
+ */
+export function emptyListingOutcome(config = {}) {
+  const total    = Number.isFinite(config.totalPages) ? config.totalPages : LISTING_PAGES.length
+  const failures = Number.isFinite(config.fetchFailures) ? config.fetchFailures : 0
+
+  if (config.allowEmptyFeed === true) {
+    return {
+      status: 'success',
+      errorMessage: null,
+      reason: 'Listing pages parsed cleanly and are empty — expected for this source, recording 0 events',
+    }
+  }
+
+  const detail = failures > 0
+    ? `${failures} of ${total} listing pages failed to fetch`
+    : `all ${total} listing pages fetched OK`
+  const msg = `Listing pages parsed but contained 0 events (${detail})`
+  return { status: 'error', errorMessage: msg, reason: msg }
+}
+
 // ── Entry point ──────────────────────────────────────────────────────────
 
 async function main() {
@@ -404,6 +451,7 @@ async function main() {
     await linkOrganizationVenue(organizerId, venueId)
 
     let allParsed = []
+    let fetchFailures = 0
     for (const pageUrl of LISTING_PAGES) {
       console.log(`\n🔍  Fetching ${pageUrl}…`)
       try {
@@ -412,6 +460,9 @@ async function main() {
         console.log(`  Found ${parsed.length} events`)
         allParsed.push(...parsed)
       } catch (err) {
+        // Still non-fatal — one dead sub-page shouldn't sink the run — but no
+        // longer silent: the tally reaches scraper_runs via emptyListingOutcome().
+        fetchFailures++
         console.warn(`  ⚠ Could not fetch ${pageUrl}:`, err.message)
       }
 
@@ -426,6 +477,26 @@ async function main() {
       seen.add(key)
       return true
     })
+
+    if (fetchFailures > 0) {
+      console.warn(`  ⚠ ${fetchFailures} of ${LISTING_PAGES.length} listing pages could not be fetched this run.`)
+    }
+
+    if (allParsed.length === 0) {
+      const outcome = emptyListingOutcome({
+        allowEmptyFeed: ALLOW_EMPTY_LISTING,
+        fetchFailures,
+        totalPages: LISTING_PAGES.length,
+      })
+      await logUpsertResult(SOURCE_KEY, 0, 0, 0, {
+        status:       outcome.status,
+        errorMessage: outcome.errorMessage,
+        eventsFound:  0,
+        durationMs:   Date.now() - start,
+      })
+      console.warn(`  ⚠ ${outcome.reason} — exiting 0 so the next scheduled run still tries.`)
+      process.exit(0)
+    }
 
     console.log(`\n📥  Processing ${allParsed.length} unique events…`)
     const { inserted, skipped } = await processEvents(allParsed, venueId, organizerId)
