@@ -1,0 +1,109 @@
+# Daily end-to-end check of the subscriber email lifecycle.
+#
+# ── WHY THIS IS A WORKFLOW AND NOT A QA-AGENT STEP ─────────────────────────
+# `npm run check:email-flow` was added to .claude/agents/qa.md as a mandatory
+# nightly item on 2026-09-17. It did not run. The nightly-qa-pipeline agent
+# refused it, correctly, because its orchestrator prohibitions forbid writes to
+# production and this check writes one synthetic subscriber row — and those
+# prohibitions live in the scheduled task's prompt, not in the repo, so the
+# role file cannot override them. (agent-log-2026-09-18.md, "Needs Byron" #2.)
+#
+# A deterministic check should not depend on an agent's reading of its own
+# permissions anyway. Here it is a plain job: no judgement, no prohibitions,
+# red when it fails, and the failure emails the repo owner like any other.
+#
+# ── WHAT IT CATCHES ────────────────────────────────────────────────────────
+# One-click unsubscribe was silently broken for months. The digest published
+# `List-Unsubscribe-Post` pointing at /unsubscribe, a client-side React route,
+# so every Gmail and Outlook unsubscribe button POSTed into a 405 while every
+# layer of our own stack reported success. The check walks the whole lifecycle
+# over real HTTP against the PUBLISHED url — signup, confirm, digest
+# eligibility, RFC 8058 one-click, attempt logging, exclusion, human page.
+#
+# Aimed at the edge function instead of the published url it would have been
+# green throughout that outage; the bug was in the routing between two pieces
+# that both worked. Do not "fix" a red run by narrowing what it calls.
+#
+# ── SCHEDULE ───────────────────────────────────────────────────────────────
+# 13:30 UTC is an hour after the 12:30 UTC digest send, so a green run also
+# means the path was intact on a morning the digest actually went out. Under
+# EST both shift an hour earlier together and the gap holds.
+name: Daily email flow
+
+on:
+  schedule:
+    - cron: '30 13 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# The check creates and deletes one synthetic subscriber. Two concurrent runs
+# would sweep each other's row mid-walk and fail for an unrelated reason.
+concurrency:
+  group: daily-email-flow
+  cancel-in-progress: false
+
+jobs:
+  email-flow:
+    name: Subscribe through one-click unsubscribe
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      # --ignore-scripts skips the puppeteer postinstall (a ~150MB Chrome
+      # download). This check makes plain HTTP calls and needs no browser.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # Fail with an actionable message rather than letting the script die on
+      # an undefined url. VITE_SUPABASE_ANON_KEY is the PUBLIC anon key that
+      # already ships inside the client bundle — it is a repo secret only so
+      # that rotating it is a one-place change, not because it is sensitive.
+      - name: Verify required secrets are present
+        env:
+          VITE_SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY:    ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          missing=""
+          [ -n "$VITE_SUPABASE_URL" ]         || missing="$missing VITE_SUPABASE_URL"
+          [ -n "$VITE_SUPABASE_ANON_KEY" ]    || missing="$missing VITE_SUPABASE_ANON_KEY"
+          [ -n "$SUPABASE_SERVICE_ROLE_KEY" ] || missing="$missing SUPABASE_SERVICE_ROLE_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing"
+            echo "Add them under Settings → Secrets and variables → Actions." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Walk the email flow
+        env:
+          VITE_SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY:    ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PUBLIC_SITE_URL:           https://akronpulse.com
+        run: |
+          set -o pipefail
+          node scripts/check-email-flow.js 2>&1 | tee /tmp/email-flow.log
+
+      # Runs on failure too, so the summary page carries the failing leg
+      # instead of making someone open the raw log.
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo "## Daily email flow"
+            echo ''
+            echo '```'
+            sed -e 's/\x1b\[[0-9;]*m//g' /tmp/email-flow.log 2>/dev/null || echo 'no output captured'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
