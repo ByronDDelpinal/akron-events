@@ -39,6 +39,7 @@ import {
   parseTimeFromText,
   parseTimeFromTextDetailed,
   buildDescription,
+  undisclosedDefaultTime,
   TIME_NOTE,
   parseYearDays,
   filterDaysToWindow,
@@ -735,6 +736,112 @@ describe('default-time disclosure (2026-07-28 decision)', () => {
     const out = buildDescription({ description: base, timeInferred: true })
     assert.ok(out.isWellFormed())
     assert.ok(out.includes('🎪'), 'a character that fits must not be dropped')
+  })
+})
+
+describe('undisclosed default time (needs_review)', () => {
+  // The noon default is sanctioned; shipping it with nothing telling the reader
+  // is not. buildDescription discloses it by appending TIME_NOTE, but only when
+  // there is prose to append to — so an occurrence with no description at all
+  // gets the invented time and no disclosure. That pair is what gets flagged.
+  //
+  // The predicate is keyed on the OUTCOME, never on the sentinel: NO_DETAIL is
+  // one route to it, a body-less/meta-less 200 is another, and the row looks
+  // identical either way.
+
+  const detailFor = (desc) => {
+    const parsed = parseTimeFromTextDetailed(desc || '')
+    return { description: desc, timeStr: parsed.time, timeInferred: parsed.inferred }
+  }
+
+  // The row fragment exactly as the ingest loop builds it, so the spread-or-omit
+  // shape is asserted and not just the boolean behind it.
+  const rowFor = (detail) => {
+    const description = buildDescription(detail)
+    const undisclosed = undisclosedDefaultTime(detail, description)
+    return {
+      title:       detail.title || 'Some Event',
+      description,
+      featured:    false,
+      ...(undisclosed ? { needs_review: true } : {}),
+    }
+  }
+
+  it('flags the failed-fetch fallback shape (no prose, invented time)', () => {
+    const fallback = { title: null, description: null, imageUrl: null, timeStr: '12:00:00', timeInferred: true }
+    assert.equal(buildDescription(fallback), null, 'no prose means no disclosure')
+    assert.equal(undisclosedDefaultTime(fallback, buildDescription(fallback)), true)
+    assert.equal(rowFor(fallback).needs_review, true)
+  })
+
+  it('flags a 200 response with no body div and no meta description', () => {
+    // The case a sentinel-shaped guard misses entirely: the fetch SUCCEEDED, so
+    // NO_DETAIL never comes into it, yet detailFromHtml lands on the same
+    // description:null / timeInferred:true pair and the noon default ships.
+    const detail = detailFromHtml('<html><body><p>no body div, no meta</p></body></html>')
+    assert.equal(detail.description, null)
+    assert.equal(detail.timeInferred, true)
+    assert.equal(detail.timeStr, '12:00:00')
+    assert.equal(undisclosedDefaultTime(detail, buildDescription(detail)), true)
+    assert.equal(rowFor(detail).needs_review, true)
+  })
+
+  it('flags a whitespace-only description (buildDescription returns it unchanged)', () => {
+    // '   ' is truthy but never gets the note appended, so the default is just
+    // as silent as a null description.
+    const detail = { description: '   ', timeStr: '12:00:00', timeInferred: true }
+    assert.equal(buildDescription(detail), '   ')
+    assert.equal(undisclosedDefaultTime(detail, buildDescription(detail)), true)
+    assert.equal(rowFor(detail).needs_review, true)
+  })
+
+  it('does NOT flag inferred time that the description discloses', () => {
+    const detail = detailFor('Family fun on the riverfront. Free admission, all welcome.')
+    const description = buildDescription(detail)
+    assert.equal(detail.timeInferred, true)
+    assert.ok(description.endsWith(TIME_NOTE), 'precondition: the note was appended')
+    assert.equal(undisclosedDefaultTime(detail, description), false)
+  })
+
+  it('does NOT flag prose that already carries the note verbatim', () => {
+    // buildDescription de-duplicates with includes(); the predicate uses the
+    // same check, so a page quoting the sentence counts as disclosed.
+    const detail = { description: `Some blurb. ${TIME_NOTE}`, timeStr: '12:00:00', timeInferred: true }
+    assert.equal(undisclosedDefaultTime(detail, buildDescription(detail)), false)
+  })
+
+  it('does NOT flag a real parsed time, including a genuine noon event', () => {
+    // '12 - 2 p.m.' parses to 12:00:00 with inferred:false. Comparing timeStr to
+    // '12:00:00' instead of reading `inferred` would flag this real event.
+    const noon = detailFor('Doors open 12 - 2 p.m. at Riverfront Plaza.')
+    assert.equal(noon.timeStr, '12:00:00')
+    assert.equal(noon.timeInferred, false)
+    assert.equal(undisclosedDefaultTime(noon, buildDescription(noon)), false)
+
+    const evening = detailFor('Live music starts at 7:30 p.m. on the Front Street stage.')
+    assert.equal(evening.timeInferred, false)
+    assert.equal(undisclosedDefaultTime(evening, buildDescription(evening)), false)
+  })
+
+  it('omits the key entirely when not flagged — never needs_review: false', () => {
+    // The suppression regression: normalize.js auto-flags low-confidence
+    // categorizations only when `needs_review === undefined`. An explicit false
+    // on the happy path would silently disable that heuristic for this source,
+    // which is a far worse defect than the one being fixed here.
+    const row = rowFor(detailFor('Live music starts at 7:30 p.m. on the Front Street stage.'))
+    assert.equal('needs_review' in row, false)
+    assert.equal(Object.hasOwn(row, 'needs_review'), false)
+  })
+
+  it('the shipped ingest loop uses spread-or-omit, not a boolean literal', () => {
+    // rowFor above mirrors the loop; the loop itself is inside main() and not
+    // exported, so this pins the real file against the same regression.
+    const src = readFileSync(join(__dirname, '..', 'scrape-city-of-cuyahoga-falls.js'), 'utf8')
+    // Comment lines are dropped first: the guard is about what the loop DOES,
+    // and the comment above it names the forbidden literal on purpose.
+    const code = src.split('\n').filter(line => !line.trim().startsWith('//')).join('\n')
+    assert.ok(!/needs_review:\s*false/.test(code), 'an explicit false would suppress the category auto-flag')
+    assert.ok(/\.\.\.\(undisclosed \? \{ needs_review: true \} : \{\}\)/.test(code))
   })
 })
 

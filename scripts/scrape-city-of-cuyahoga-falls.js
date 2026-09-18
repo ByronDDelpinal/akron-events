@@ -292,6 +292,32 @@ export function buildDescription(detail) {
   return `${clampChars(base, room)} ${TIME_NOTE}`
 }
 
+/**
+ * Pure: did this occurrence end up shipping the sanctioned noon default with
+ * nothing in the listing telling the reader so?
+ *
+ * Keyed on the OUTCOME, not on the sentinel. NO_DETAIL (the failed-fetch
+ * fallback) is only one way to reach this state: detailFromHtml returns the
+ * identical shape — description null, timeInferred true — for a 200 response
+ * with no body div and no og:/meta description, and that page is
+ * indistinguishable downstream. So the predicate asks the two questions that
+ * actually matter: was the time invented, and did the stored description come
+ * out carrying the disclosure?
+ *
+ * `description` must be buildDescription's return, not detail.description: the
+ * note is appended there, and the same includes() check is used on both sides
+ * so prose that already quotes the sentence counts as disclosed in one place
+ * and not the other.
+ *
+ * Never compare detail.timeStr to '12:00:00' to answer this — a genuine
+ * "12 - 2 p.m." event parses to exactly that string with inferred:false. See
+ * the note on parseTimeFromTextDetailed above.
+ */
+export function undisclosedDefaultTime(detail, description) {
+  if (detail?.timeInferred !== true) return false
+  return !(description && description.includes(TIME_NOTE))
+}
+
 // ── HTTP ─────────────────────────────────────────────────────────────────────
 
 async function fetchHtml(url) {
@@ -632,11 +658,16 @@ export function extractBodyText(html) {
   return text ? text : null
 }
 
-// The noon-default fallback shared by a failed fetch and a body-less,
-// meta-less page. SANCTIONED-DEFAULT-TIME, see parseTimeFromTextDetailed
-// above. Description stays null so buildDescription adds nothing and the
-// event is not scored as a complete listing on the strength of the
-// disclosure alone.
+// The noon-default fallback fetchDetail starts from, so a failed fetch keeps
+// it. SANCTIONED-DEFAULT-TIME, see parseTimeFromTextDetailed above.
+// Description stays null so buildDescription adds nothing and the event is not
+// scored as a complete listing on the strength of the disclosure alone.
+//
+// This object is NOT the only route to that state, and nothing downstream may
+// treat it as one: detailFromHtml below returns the same description:null /
+// timeInferred:true pair for a 200 response that simply has no body div and no
+// og:/meta description. Anything guarding the silent-default path keys on that
+// outcome rather than on this sentinel — see undisclosedDefaultTime above.
 const NO_DETAIL = Object.freeze({ title: null, description: null, imageUrl: null, timeStr: '12:00:00', timeInferred: true })
 
 /**
@@ -898,9 +929,15 @@ async function main() {
         const startAt = easternToIso(`${occ.dateStr} ${detail.timeStr}`)
         if (!startAt) { skipped++; continue }
 
+        const description = buildDescription(detail)
+        const undisclosed = undisclosedDefaultTime(detail, description)
+        if (undisclosed) {
+          console.warn(`  ⏰ undisclosed default time — "${title}" (${occ.slug}) stored at 12:00 ET with no source time and no disclosure`)
+        }
+
         const row = {
           title,
-          description:     buildDescription(detail),
+          description,
           start_at:        startAt,
           end_at:          null,
           category:        mapCategory(title, detail.description || ''),
@@ -916,6 +953,11 @@ async function main() {
           source_id:       `${occ.slug}-${occ.dateStr}`,
           status:          'published',
           featured:        false,
+          // Spread-or-omit, never `needs_review: false`. normalize.js applies
+          // its low-confidence-category auto-flag only when the key is
+          // `undefined`, so shipping an explicit false here would not just fail
+          // to flag this row, it would SUPPRESS that heuristic for every row.
+          ...(undisclosed ? { needs_review: true } : {}),
         }
 
         const enrichedRow = await enrichWithImageDimensions(row, { organizationId: organizerId })
