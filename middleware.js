@@ -19,10 +19,11 @@
 import { rewrite, next } from '@vercel/edge'
 
 export const config = {
-  // Only intercept event detail URLs. Everything else passes through
-  // untouched. Note: middleware can't filter by User-Agent in `matcher`,
-  // so we do that inside the function.
-  matcher: '/events/:path*',
+  // Event detail URLs (crawler SSR, below) plus /unsubscribe, where we need to
+  // separate a mailbox provider's one-click POST from a human's GET. Everything
+  // else passes through untouched. Note: middleware can't filter by
+  // User-Agent or method in `matcher`, so we do that inside the function.
+  matcher: ['/events/:path*', '/unsubscribe'],
 }
 
 // User-Agent substrings we treat as "non-JS client; serve SSR'd HTML".
@@ -72,10 +73,31 @@ const EVENT_PATH_PATTERN =
 export { EVENT_PATH_PATTERN, CRAWLER_PATTERN }
 
 export default function middleware(req) {
+  const url = new URL(req.url)
+
+  // ── RFC 8058 one-click unsubscribe ───────────────────────────────────────
+  //
+  // /unsubscribe is a client-side React route, so a POST to it hits Vercel's
+  // catch-all and dies with a 405. Our digest publishes that exact URL in its
+  // `List-Unsubscribe` header alongside `List-Unsubscribe-Post`, which means
+  // every Gmail/Outlook unsubscribe button POSTed into that 405 and the
+  // subscriber was never unsubscribed. Found 2026-09-17; never worked.
+  //
+  // Route the POST — and only the POST — to a real endpoint. A human's GET
+  // still falls through to the SPA, which renders the goodbye page. Keep this
+  // check ABOVE the crawler logic: the provider's UA may well match
+  // CRAWLER_PATTERN ('outlook' is in that list) and it must not be handed
+  // preview HTML instead of having its unsubscribe honoured.
+  if (url.pathname === '/unsubscribe') {
+    if (req.method !== 'POST') return next()
+    const target = new URL('/api/unsubscribe', url)
+    target.search = url.search
+    return rewrite(target)
+  }
+
   const ua = req.headers.get('user-agent') || ''
   if (!CRAWLER_PATTERN.test(ua)) return next()
 
-  const url = new URL(req.url)
   const match = url.pathname.match(EVENT_PATH_PATTERN)
   if (!match) return next()
 

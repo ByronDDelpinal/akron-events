@@ -5,10 +5,12 @@ import { EMAIL_THEME } from '@/lib/emailTheme'
 import { SEO } from '@/lib/seo'
 import './UnsubscribePage.css'
 
+type Status = 'no-token' | 'processing' | 'done' | 'error'
+
 export default function UnsubscribePage() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token')
-  const [status, setStatus] = useState<string>(token ? 'processing' : 'no-token')
+  const [status, setStatus] = useState<Status>(token ? 'processing' : 'no-token')
 
   // Private user flow — explicitly noindex.
   const seo = <SEO title="Unsubscribe" path="/unsubscribe" noindex />
@@ -17,14 +19,23 @@ export default function UnsubscribePage() {
     if (!token) return
 
     const unsubscribe = async () => {
+      // The function answers 200 for applied, already-unsubscribed AND
+      // unknown-token alike, on purpose: the response must not reveal whether
+      // a token is valid. So success here means "the request was processed",
+      // not "that token existed", and showing the goodbye screen is correct.
+      //
+      // What we must NOT do is show it when the request genuinely failed.
+      // Until 2026-09-17 this caught every error and rendered success anyway,
+      // so a subscriber whose unsubscribe never landed was told it had — and
+      // their next move is Report Spam. A 503 or a transport failure now
+      // surfaces honestly.
       try {
-        await supabase.functions.invoke('unsubscribe', {
+        const { error } = await supabase.functions.invoke('unsubscribe', {
           body: { token },
         })
-        // Always show success — idempotent, don't reveal token validity
-        setStatus('done')
+        setStatus(error ? 'error' : 'done')
       } catch {
-        setStatus('done') // still show success for privacy
+        setStatus('error')
       }
     }
 
@@ -53,6 +64,29 @@ export default function UnsubscribePage() {
         <div className="unsub-box">
           <div className="unsub-spinner" />
           <p className="unsub-processing">Unsubscribing…</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (status === 'error') {
+    return (
+      <div className="page-shell unsub-shell">
+        {seo}
+        <div className="unsub-box">
+          <div className="unsub-icon">⚠️</div>
+          <h1 className="unsub-title">That didn't go through</h1>
+          <p className="unsub-text">
+            Something on our end failed, so you are still subscribed. Please
+            try the link again in a moment — or email{' '}
+            <a href={`mailto:${EMAIL_THEME.email.replyTo}?subject=Unsubscribe`}>
+              {EMAIL_THEME.email.replyTo}
+            </a>{' '}
+            and we'll take you off the list by hand.
+          </p>
+          <Link to="/" className="unsub-home-link">
+            Back to {EMAIL_THEME.brandName}
+          </Link>
         </div>
       </div>
     )

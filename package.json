@@ -132,7 +132,8 @@
     "gis:convert-summit": "node scripts/convert-summit-county.js",
     "gis:convert-cities": "node scripts/convert-summit-cities.js",
     "classify:venues": "node scripts/classify-venues-by-polygon.js",
-    "classify:venues:execute": "node scripts/classify-venues-by-polygon.js --execute"
+    "classify:venues:execute": "node scripts/classify-venues-by-polygon.js --execute",
+    "check:email-flow": "node scripts/check-email-flow.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.0",

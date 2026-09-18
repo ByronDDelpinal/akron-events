@@ -211,6 +211,8 @@ Deno.serve(async (req) => {
  * time. Best-effort: any failure here is logged but does NOT break
  * the user's confirmation flow.
  */
+const QA_SYNTHETIC_EMAIL = /^qa-flow-[0-9a-f-]+@akronpulse\.invalid$/i
+
 async function sendAdminConfirmedNotification(args: {
   email: string
   frequency: string
@@ -219,6 +221,17 @@ async function sendAdminConfirmedNotification(args: {
   signedUpAt?: string | null
 }) {
   if (ADMIN_NOTIFY_EMAIL.length === 0) return
+
+  // scripts/check-email-flow.js walks signup -> confirm -> one-click nightly
+  // with a synthetic subscriber. That is a real confirmation transition, so
+  // without this carve-out the health check would email the operator a "new
+  // confirmed subscriber" notice every single night and the notice would stop
+  // meaning anything. The address is reserved (.invalid) and can only have
+  // come from the check.
+  if (QA_SYNTHETIC_EMAIL.test(args.email)) {
+    console.log('[preferences] skipping admin notification for synthetic QA subscriber')
+    return
+  }
   const c = THEME.colors
   const f = THEME.fonts
   const intentsLabel = args.intents && args.intents.length > 0
