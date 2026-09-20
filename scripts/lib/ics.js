@@ -43,7 +43,6 @@ import {
   logUpsertResult,
   logScraperError,
   stripHtml,
-  clampChars,
   enrichWithImageDimensions,
   upsertEventSafe,
   linkEventVenue,
@@ -251,39 +250,26 @@ export function applyDateOnlyDefault(row, dtstart) {
 // already knows to subtract it. scripts/tests/test-digest-selection.js fails on
 // drift. scrape-ohio-erie-canalway.js carries the same sentence for the same
 // reason — the digest matches on the string, not on which scraper wrote it.
-export const DATE_ONLY_TIME_NOTE =
-  'This listing does not include a start time, so the time shown is a placeholder. Confirm with the organizer before you go.'
+// DATE_ONLY_TIME_NOTE, MAX_DESCRIPTION and withDateOnlyTimeNote now live in
+// ./inferred-time.js, promoted so any scraper's invented/parsed time boundary
+// (not just this module's date-only ICS case) can route through the shared
+// upsertEventSafe path in normalize.js. Re-exported here — rather than kept
+// as a second copy — so TIME_NOTES in supabase/functions/send-digest/select.ts
+// (which already subtracts this exact string) needed no changes, and every
+// existing `import { DATE_ONLY_TIME_NOTE, withDateOnlyTimeNote } from
+// './lib/ics.js'` across the scrapers and tests keeps working unchanged.
+import {
+  TIME_NOTE as DATE_ONLY_TIME_NOTE,
+  MAX_DESCRIPTION,
+  withTimeNote as withDateOnlyTimeNote,
+} from './inferred-time.js'
 
-/**
- * Cap on the stored description. Applied to the base text and again when the
- * note is appended, so the disclosure can never push the row past it.
- */
-export const MAX_DESCRIPTION = 5000
-
-/**
- * Append DATE_ONLY_TIME_NOTE to a description, reserve-then-append.
- *
- * Mirrors buildDescription() in scrape-city-of-cuyahoga-falls.js:
- *
- *   • A null/blank base stays null. The note is a suffix to real prose, never
- *     a description in its own right — a note-only description reads as a
- *     complete listing to anything measuring description length and would
- *     promote an event with no prose above events that have some.
- *   • The includes() guard keeps a feed that already quotes the sentence (or a
- *     description round-tripped back out of the database) from doubling it.
- *   • The note is reserved for, never truncated: room is MAX_DESCRIPTION minus
- *     the note and its separating space. A half sentence would be worse than
- *     none, and withoutTimeNote() in the digest matches the note verbatim, so
- *     a clipped copy would survive subtraction and score as prose.
- *
- * Exported so tests exercise the real text.
- */
-export function withDateOnlyTimeNote(base) {
-  if (!base || !base.trim()) return base
-  if (base.includes(DATE_ONLY_TIME_NOTE)) return base
-  const room = MAX_DESCRIPTION - DATE_ONLY_TIME_NOTE.length - 1
-  return `${clampChars(base, room)} ${DATE_ONLY_TIME_NOTE}`
-}
+// Re-exported (not just imported) so every existing
+// `import { DATE_ONLY_TIME_NOTE, withDateOnlyTimeNote } from './lib/ics.js'`
+// across the scrapers and tests keeps working unchanged, while this module's
+// own internal callers (applyDateOnlyDefault, normaliseIcsEvent) reference
+// the same local bindings.
+export { DATE_ONLY_TIME_NOTE, MAX_DESCRIPTION, withDateOnlyTimeNote }
 
 /**
  * True when a description is nothing but a bare http(s) URL.

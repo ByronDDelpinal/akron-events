@@ -15,6 +15,7 @@ import { inferCategories as _inferCategories } from './category-inference.js'
 import { V1_TO_V2, CATEGORY_SLUGS } from '../../src/lib/categories.js'
 import { defaultCategoryFor } from '../manifest.js'
 import { isAggregatorSelfOrgName, isSelfCredit, orgNameMatchKey } from './source-tiers.js'
+import { withTimeNote } from './inferred-time.js'
 
 // ════════════════════════════════════════════════════════════════════════════
 // HTML / TEXT UTILITIES
@@ -2109,6 +2110,16 @@ export async function upsertEventSafe(row) {
   // like &#8217; or &amp; that would otherwise appear verbatim in the DB.
   const sanitized = sanitizeEventText(row)
 
+  // ── Inferred-time disclosure (scripts/lib/inferred-time.js) ──────────────
+  // A scraper that computed its own invented-vs-parsed start-time boundary
+  // (the Cuyahoga Falls pattern) marks the row with the transient
+  // `time_inferred` key instead of hand-rolling the note/needs_review wiring
+  // itself. Captured into a local now because `time_inferred` is deleted off
+  // `sanitized` below (alongside `category`) so it never reaches Postgres,
+  // but the needs_review decision below has to run AFTER _stripOverriddenFields
+  // so it can see whether a human already locked start_at.
+  const timeInferred = sanitized.time_inferred === true
+
   // Default `source_url` to `ticket_url` so every event has at least one
   // canonical outbound link on the source's site. The frontend prefers
   // ticket_url for the primary "Get Tickets / Register" CTA and falls
@@ -2168,6 +2179,7 @@ export async function upsertEventSafe(row) {
   // off the events payload and persist the facet flags as real columns.
   delete sanitized.category
   delete sanitized.categories
+  delete sanitized.time_inferred
   sanitized.is_family = isFamily
   sanitized.is_fundraiser = isFundraiser
 
@@ -2194,7 +2206,27 @@ export async function upsertEventSafe(row) {
     console.warn(`  ⚠ content moderation skipped (non-fatal): ${err.message}`)
   }
 
-  const { row: safeRow, existed } = await _stripOverriddenFields('events', sanitized)
+  const { row: safeRow, existed, overrides, lookupFailed } = await _stripOverriddenFields('events', sanitized)
+
+  // A human-locked start_at is a settled time, invented or not — re-flagging
+  // it for review on every re-scrape is exactly the false-positive pattern
+  // (9 of them, one night) that motivated tracking `time_inferred` explicitly
+  // instead of leaving needs_review to category-confidence alone. Only ever
+  // sets needs_review = true, mirroring applyDateOnlyDefault/applyNeedsReviewHook
+  // in ics.js: never clobbers an existing true back to falsy.
+  //
+  // Deferred here (rather than right after sanitizeEventText) so both the
+  // disclosure note and the needs_review flag see the SAME post-strip
+  // knowledge of manual_overrides — appending the note earlier told a
+  // human-locked row's reader its confirmed time was a placeholder, ~96
+  // lines before this lock check ever ran. A failed override lookup
+  // (`lookupFailed`) is treated the same as an unknown lock: skip both,
+  // rather than risk re-flagging/re-disclosing on a row a human already
+  // settled just because the DB call blipped.
+  if (timeInferred && !lookupFailed && !overrides?.start_at && !overrides?.needs_review) {
+    safeRow.needs_review = true
+    if (safeRow.description) safeRow.description = withTimeNote(safeRow.description)
+  }
 
   // ── Post-strip data contract guard (backstop) ─────────────────────────────
   // validateEvent runs before the override strip, so it cannot see a payload
@@ -2569,7 +2601,7 @@ async function _resolveAliasCanonical(source, sourceId) {
 
 async function _stripOverriddenFields(table, row) {
   // Only events have source/source_id for lookup
-  if (table !== 'events' || !row.source || !row.source_id) return { row, existed: false }
+  if (table !== 'events' || !row.source || !row.source_id) return { row, existed: false, lookupFailed: true }
 
   try {
     const { data: existing } = await supabaseAdmin
@@ -2585,7 +2617,7 @@ async function _stripOverriddenFields(table, row) {
     // Seed the per-run cache so the attribution lock in linkEventOrganization
     // — which runs a few lines later in every scraper — costs no second read.
     if (existing?.id) _eventOverridesCache.set(existing.id, existing.manual_overrides ?? null)
-    if (!existing?.manual_overrides) return { row, existed }
+    if (!existing?.manual_overrides) return { row, existed, overrides: existing?.manual_overrides ?? null }
 
     const overrides = existing.manual_overrides
     const filtered = { ...row }
@@ -2626,10 +2658,13 @@ async function _stripOverriddenFields(table, row) {
 
       if (field in filtered) delete filtered[field]
     }
-    return { row: filtered, existed }
+    return { row: filtered, existed, overrides }
   } catch {
-    // If lookup fails, proceed with full row (safe default)
-    return { row, existed: false }
+    // If lookup fails, proceed with full row (safe default) but mark it so
+    // callers that gate on manual_overrides (e.g. the inferred-time
+    // needs_review/note block in upsertEventSafe) treat an unknown lock
+    // state as locked, not unlocked.
+    return { row, existed: false, lookupFailed: true }
   }
 }
 

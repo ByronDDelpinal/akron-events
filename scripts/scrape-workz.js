@@ -206,12 +206,20 @@ export function workzStartDate(ev) {
  * Halloween event) at midnight ET, where `.gte('start_at', now)` hides it from
  * every feed for the whole day it happens on.
  */
+// Shared with normaliseWorkzEvent below so the row can disclose an invented
+// time via the shared time_inferred path (scripts/lib/inferred-time.js)
+// instead of the two call sites silently disagreeing about what "explicit"
+// means.
+export function workzHasExplicitHour(ev) {
+  return !ev?.allday
+    && Number.isFinite(ev?.startHour)
+    && !(ev.startHour === 0 && ev.startMinutes === 0)
+}
+
 export function workzStartIso(ev) {
   const date = workzStartDate(ev)
   if (!date) return null
-  const hasHour = !ev?.allday
-    && Number.isFinite(ev?.startHour)
-    && !(ev.startHour === 0 && ev.startMinutes === 0)
+  const hasHour = workzHasExplicitHour(ev)
   let hour = 19, minute = 0 // SANCTIONED-DEFAULT-TIME: evening default when the feed omits a time
   if (hasHour) { hour = ev.startHour; minute = Number.isFinite(ev.startMinutes) ? ev.startMinutes : 0 }
   return easternToIso(date, `${pad2(hour)}:${pad2(minute)}`)
@@ -290,6 +298,10 @@ export function normaliseWorkzEvent(ev, { now = new Date() } = {}) {
     // NOT NULL in the DB with a default of 'not_specified'; an explicit null is
     // an error, not a fall-back to that default.
     age_restriction: isTwentyOnePlus(rawTitle, ev.description) ? '21_plus' : 'not_specified',
+    // Disclose + route to review via the shared time_inferred path
+    // (scripts/lib/inferred-time.js) when the 7pm SANCTIONED-DEFAULT-TIME was
+    // used because the feed carried no explicit clock time.
+    time_inferred: workzHasExplicitHour(ev) ? undefined : true,
   }
   if (endIso && endIso > startIso) row.end_at = endIso
   return row

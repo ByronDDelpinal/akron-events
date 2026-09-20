@@ -176,14 +176,17 @@ describe('buildRow', () => {
     assert.match(row.description, /5-hour Halloween/)
   })
 
-  it('multi-day "Varies" event uses the sanctioned default time + needs_review', () => {
+  it('multi-day "Varies" event uses the sanctioned default time + time_inferred', () => {
     const d = parseDetail(OKTOBERFEST)
     const row = buildRow({ slug: 'oktoberfest', ...d }, { now: NOW })
     // 12:00 PM ET default start → 16:00Z on the first day; 8:00 PM default end
     // → 00:00Z after the LAST day.
     assert.equal(row.start_at, '2026-09-18T16:00:00.000Z')
     assert.equal(row.end_at, '2026-09-21T00:00:00.000Z')
-    assert.equal(row.needs_review, true)
+    // buildRow no longer sets needs_review itself — it flags the transient
+    // time_inferred key and upsertEventSafe (scripts/lib/inferred-time.js)
+    // derives needs_review centrally, unless a human has locked start_at.
+    assert.equal(row.time_inferred, true)
     assert.equal(row.source_id, 'oktoberfest-2026-09-18')
     assert.equal(row.category, 'festival')
   })

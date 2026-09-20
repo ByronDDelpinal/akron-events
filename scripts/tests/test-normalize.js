@@ -1096,7 +1096,10 @@ function makeSupabaseMock(config = {}) {
       return { data: config.alias ?? null, error: null }
     }
     if (st.table === 'events') {
-      if (st.cols === 'id, manual_overrides, title, start_at') return { data: config.existing ?? null, error: null }
+      if (st.cols === 'id, manual_overrides, title, start_at') {
+        if (config.throwOnLookup) throw new Error('simulated transient lookup failure')
+        return { data: config.existing ?? null, error: null }
+      }
       if (st.cols === 'manual_overrides')     return { data: null, error: null } // syncEventCategories lookup
       if (st.cols === 'id') {
         calls.canonicalCheck++
@@ -1213,6 +1216,129 @@ describe('upsertEventSafe — event_aliases enforcement', () => {
       delete process.env.DISABLE_ALIAS_SKIP
       __setClientForTests(null)
     }
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// upsertEventSafe — time_inferred (scripts/lib/inferred-time.js)
+// ════════════════════════════════════════════════════════════════════════════
+// The shared promotion of the Cuyahoga Falls invented-vs-parsed time boundary:
+// a scraper sets row.time_inferred = true and upsertEventSafe appends
+// TIME_NOTE to the description, flags needs_review UNLESS a human has already
+// locked start_at via manual_overrides, and strips the transient key so it
+// never reaches the (mocked) Postgres upsert payload.
+describe('upsertEventSafe — time_inferred', () => {
+  it('flags needs_review for an invented time with no locked start_at', async () => {
+    const { client, calls } = makeSupabaseMock({
+      existing: { id: 'ev-1', manual_overrides: null, title: 'Aliased Event', start_at: futureIso() },
+    })
+    __setClientForTests(client)
+    try {
+      const res = await upsertEventSafe({
+        ...baseRow(), time_inferred: true, needs_review: false, description: 'Bring your own gear.',
+      })
+      assert.equal(res.error, null)
+      assert.equal(calls.upsertArgs.row.needs_review, true)
+      assert.ok(calls.upsertArgs.row.description.includes(
+        'This listing does not include a start time, so the time shown is a placeholder. Confirm with the organizer before you go.'
+      ))
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('does NOT re-flag a row whose start_at is human-locked via manual_overrides', async () => {
+    const { client, calls } = makeSupabaseMock({
+      existing: {
+        id: 'ev-1',
+        manual_overrides: { start_at: { at: '2026-09-01T00:00:00Z', by: 'admin', reason: 'confirmed with venue' } },
+        title: 'Aliased Event',
+        start_at: futureIso(),
+      },
+    })
+    __setClientForTests(client)
+    try {
+      const res = await upsertEventSafe({
+        ...baseRow(), time_inferred: true, needs_review: false, description: 'Bring your own gear.',
+      })
+      assert.equal(res.error, null)
+      assert.notEqual(calls.upsertArgs.row.needs_review, true)
+      const { TIME_NOTE } = await import('../lib/inferred-time.js')
+      assert.equal(calls.upsertArgs.row.description.includes(TIME_NOTE), false)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('does NOT re-flag a row pinned via the legacy manual_overrides.needs_review marker', async () => {
+    const { client, calls } = makeSupabaseMock({
+      existing: {
+        id: 'ev-1',
+        manual_overrides: { needs_review: true },
+        title: 'Aliased Event',
+        start_at: futureIso(),
+      },
+    })
+    __setClientForTests(client)
+    try {
+      const res = await upsertEventSafe({
+        ...baseRow(), time_inferred: true, needs_review: false, description: 'Bring your own gear.',
+      })
+      assert.equal(res.error, null)
+      assert.notEqual(calls.upsertArgs.row.needs_review, true)
+      const { TIME_NOTE } = await import('../lib/inferred-time.js')
+      assert.equal(calls.upsertArgs.row.description.includes(TIME_NOTE), false)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('a failed override lookup does NOT flag needs_review and does NOT append the note', async () => {
+    const { client, calls } = makeSupabaseMock({ throwOnLookup: true })
+    __setClientForTests(client)
+    try {
+      const res = await upsertEventSafe({
+        ...baseRow(), time_inferred: true, needs_review: false, description: 'Bring your own gear.',
+      })
+      assert.equal(res.error, null)
+      assert.notEqual(calls.upsertArgs.row.needs_review, true)
+      const { TIME_NOTE } = await import('../lib/inferred-time.js')
+      assert.equal(calls.upsertArgs.row.description.includes(TIME_NOTE), false)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+
+  it('never leaks the transient time_inferred key into the Postgres payload', async () => {
+    const { client, calls } = makeSupabaseMock({ existing: null, alias: null })
+    __setClientForTests(client)
+    try {
+      const res = await upsertEventSafe({ ...baseRow(), time_inferred: true })
+      assert.equal(res.error, null)
+      assert.equal('time_inferred' in calls.upsertArgs.row, false)
+    } finally {
+      __setClientForTests(null)
+    }
+  })
+})
+
+describe('inferred-time.js', () => {
+  it('withTimeNote is idempotent and leaves a null/blank base alone', async () => {
+    const { TIME_NOTE, withTimeNote } = await import('../lib/inferred-time.js')
+    assert.equal(withTimeNote(null), null)
+    assert.equal(withTimeNote(''), '')
+    const once = withTimeNote('Bring seeds.')
+    assert.equal(once.split(TIME_NOTE).length - 1, 1)
+    assert.equal(withTimeNote(once).split(TIME_NOTE).length - 1, 1) // idempotent
+  })
+
+  it('undisclosedDefaultTime never mistakes a genuine noon/12-2pm time for an invented one', async () => {
+    const { TIME_NOTE, undisclosedDefaultTime } = await import('../lib/inferred-time.js')
+    // Genuine "12 - 2 p.m." event: parsed, not inferred — must read as disclosed
+    // (i.e. NOT undisclosed) even though the time string alone can't tell.
+    assert.equal(undisclosedDefaultTime({ timeInferred: false }, 'Lunch social.'), false)
+    assert.equal(undisclosedDefaultTime({ timeInferred: true }, 'Lunch social.'), true)
+    assert.equal(undisclosedDefaultTime({ timeInferred: true }, `Lunch social. ${TIME_NOTE}`), false)
   })
 })
 

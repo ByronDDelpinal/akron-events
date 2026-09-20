@@ -61,7 +61,6 @@ import {
 // consumer of the same product decision. LibCal is not an ICS feed, but the
 // note string is what the digest matches on, so it is shared rather than
 // re-declared.
-import { withDateOnlyTimeNote } from './lib/ics.js'
 import { classifySummitLocation } from './lib/summit-county.js'
 
 export const SOURCE_KEY = 'stow_library'
@@ -311,12 +310,10 @@ export function buildRow(e = {}) {
     venue = resolveOffsiteVenueFromDescription(e.description)
   }
   const { price_min, price_max } = parsePrice(e.registration_cost)
-  let desc = e.description ? htmlToText(e.description).slice(0, 5000) || null : null
-  // Disclose the invented time. The note text and the reserve-then-append
-  // shape are imported, not copied: the digest subtracts this exact string
-  // before scoring description length, so a fourth local copy of the literal
-  // is a drift hazard, not a convenience.
-  if (isAllDay) desc = withDateOnlyTimeNote(desc)
+  // Note-appending and needs_review for an invented (all-day) time are now
+  // handled centrally in upsertEventSafe (scripts/lib/inferred-time.js) off
+  // row.time_inferred below, so `desc` is never reassigned here.
+  const desc = e.description ? htmlToText(e.description).slice(0, 5000) || null : null
 
   // Derived from the UTC date of start_at, which the noon shift does not move
   // (00:00 and 12:00 ET both land on the same UTC calendar day), so source_id
@@ -340,8 +337,9 @@ export function buildRow(e = {}) {
       source: SOURCE_KEY,
       source_id: `smfpl_${e.id}_${ymd}`,
       status: 'published',
-      // Noon is a default, not a confirmed time — surface for review.
-      needs_review: isAllDay ? true : undefined,
+      // Noon is a default, not a confirmed time — surface for review via
+      // the shared time_inferred path (scripts/lib/inferred-time.js).
+      time_inferred: isAllDay ? true : undefined,
       featured: false,
     },
     venue,

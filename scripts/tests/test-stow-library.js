@@ -259,7 +259,7 @@ describe('buildRow', () => {
     assert.equal(row.source_id, 'smfpl_111_20260701')
   })
 
-  it('flags an all-day event needs_review and defaults it to noon ET', () => {
+  it('flags an all-day event with time_inferred and defaults it to noon ET', () => {
     // The real LibCal feed never sends a bare date — all-day events arrive as
     // "…  00:00:00" WITH all_day:true, so the missing time must be caught off
     // the authoritative flag, not a clock-in-string regex.
@@ -270,32 +270,39 @@ describe('buildRow', () => {
       categories_arr: [{ name: 'Book Sale' }], registration_cost: '', online_event: false,
     })
     // Noon is a default, not a confirmed time: the review queue is its only
-    // audit trail, so the flag stays even though the time now looks plausible.
-    assert.equal(row.needs_review, true)
+    // audit trail. needs_review itself is now derived centrally by
+    // upsertEventSafe off this transient flag (scripts/lib/inferred-time.js),
+    // not set here — buildRow's job is only to say the time was invented.
+    assert.equal(row.time_inferred, true)
     // SANCTIONED-DEFAULT-TIME: the date survives and the clock is noon ET
     // (16:00Z in EDT), NOT the 04:00Z midnight that fell out of every feed at
     // 00:00:01 on the morning of the event.
     assert.equal(row.start_at, '2026-07-31T16:00:00.000Z')
   })
 
-  it('discloses the invented time in the description, exactly once', () => {
+  it('leaves the description untouched — the note is now applied centrally by upsertEventSafe', () => {
     const base = { id: 445, title: 'Seed Swap', startdt: '2026-07-31 00:00:00',
       all_day: true, ymd: '20260731', url: 'https://events.smfpl.org/event/445',
       location: 'Stow-Munroe Falls Room', audiences: [{ name: 'All Ages' }],
       categories_arr: [{ name: 'Contest' }], registration_cost: '', online_event: false }
 
+    // buildRow no longer appends DATE_ONLY_TIME_NOTE itself (that disclosure
+    // — and needs_review — is applied centrally in upsertEventSafe off
+    // row.time_inferred, via scripts/lib/inferred-time.js, whose TIME_NOTE
+    // is this same string). The raw description passes through untouched.
     const { row } = buildRow({ ...base, description: '<p>Bring seeds, take seeds.</p>' })
-    assert.ok(row.description.endsWith(DATE_ONLY_TIME_NOTE), 'note must be the final clause')
-    assert.equal(row.description.split(DATE_ONLY_TIME_NOTE).length - 1, 1)
+    assert.equal(row.time_inferred, true)
+    assert.equal(row.description, 'Bring seeds, take seeds.')
+    assert.ok(!row.description.includes(DATE_ONLY_TIME_NOTE))
 
-    // A source that already quotes the sentence must not get it twice.
+    // A source that already quotes the sentence is passed through as-is —
+    // buildRow doesn't touch the description either way now.
     const { row: quoted } = buildRow({
       ...base, description: `Bring seeds. ${DATE_ONLY_TIME_NOTE}`,
     })
     assert.equal(quoted.description.split(DATE_ONLY_TIME_NOTE).length - 1, 1)
 
-    // No prose = no note. A note-only description would read as a real
-    // listing to anything measuring description length.
+    // No prose stays null.
     assert.equal(buildRow({ ...base, description: '' }).row.description, null)
   })
 

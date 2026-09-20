@@ -353,7 +353,9 @@ export function buildRow({ slug, title, dateText, timeText, description }, { now
     source_id:       `${slg}-${range.startYmd}`,
     status:          'published',
     featured:        false,
-    ...(needsReview ? { needs_review: true } : {}),
+    // Disclose + route to review via the shared time_inferred path
+    // (scripts/lib/inferred-time.js) instead of hand-setting needs_review.
+    ...(needsReview ? { time_inferred: true } : {}),
   }
   return row
 }
