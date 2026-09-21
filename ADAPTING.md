@@ -211,7 +211,7 @@ After retargeting, confirm the basics before deploying:
 - [ ] `npm run dev` boots and the homepage shows your seed/scraped events, not Akron's.
 - [ ] Search the repo for `akron`, `summit`, `330`, `pulse` (case-insensitive) — every remaining hit is intentional (a renamed identifier or a doc comment you've reviewed).
 - [ ] Run two or three scrapers and confirm rows land in `events` with correct **dates/times** (timezone sanity — pick an event and compare to the source site) and correct **venue → neighborhood** classification.
-- [ ] `npm run health` shows your active scrapers; `npm run check:venues` flags no obvious duplicate venues.
+- [ ] `npm run health` shows your active scrapers; `npm run check:venues` flags no obvious duplicate venues. Read the HIGH bucket first — those are same-name-and-same-address rows, the ones `npm run audit:venues` would auto-merge. LOW means "one building, two businesses" and is usually correct as-is. `--min-similarity` (and `npm run check:venues:confident`, formerly `:strict`) is a CONFIDENCE knob, not a recall knob: it can only lower an existing cluster's confidence, never surface more clusters, so a clean `:confident` run is not a tighter duplicate search. Exit code 2 means the `venue_aliases` ledger could not be read and the report is unusable.
 - [ ] `npm run lint` and `npm test` pass.
 - [ ] The `/technical` page lists exactly your active sources (DATA_SOURCES is in sync with `package.json`).
 - [ ] OG preview: load `/api/preview/event/<an-id>` and confirm your site name/branding, not Akron's.

@@ -58,6 +58,27 @@ import { normalizeStreetAddress, looksLikeStreetAddress, decodeEntities, eastern
  */
 export function sameVenueName(a, b) {
   if (looksLikeStreetAddress(a) || looksLikeStreetAddress(b)) return true  // junk address-named row
+  return venueNameContains(a, b)
+}
+
+/**
+ * The containment half of sameVenueName, WITHOUT the address-named
+ * short-circuit: true when two names are equal after normalization, or when one
+ * fully contains the other on whole-word boundaries ("The KillBox" ⊂ "The
+ * KillBox Comedy Club"). Pure, order-independent, nothing fuzzy.
+ *
+ * Exported so check-venue-duplicates.js can link on exactly this rule and the
+ * two tools stop disagreeing about names — they already share
+ * normalizeStreetAddress for addresses.
+ *
+ * DO NOT fold the looksLikeStreetAddress short-circuit in here. sameVenueName
+ * applies it only INSIDE an already-established same-address group, where a
+ * name like "1305 E Tallmadge Ave" is a junk row standing in for that group's
+ * real venue. As a standalone linker it would make every address-named venue in
+ * the database equal to every other one — a fresh mega-cluster of exactly the
+ * kind this report was rewritten to stop producing.
+ */
+export function venueNameContains(a, b) {
   // decodeEntities first so "Let&#8217;s …" equals "Let's …" (entity-only diff).
   const norm = (s) => decodeEntities(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()
   const na = norm(a), nb = norm(b)
