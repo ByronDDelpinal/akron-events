@@ -8,7 +8,7 @@
  *   node --test scripts/tests/test-normalize.js
  */
 
-import { describe, it, before, after } from 'node:test'
+import { describe, it, before, after, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
 
@@ -44,6 +44,7 @@ const {
   _resetVenueAddressIndex,
   _resetVenueNameIndex,
   _resetVenueAliasNameIndex,
+  _resetVenueGeoCache,
 } = await import('../lib/normalize.js')
 
 describe('orgNameKey', () => {
@@ -1471,10 +1472,14 @@ describe('isProseContactVenueName', () => {
 //                  check (select 'id' + maybeSingle).
 //   • aliases    — { alias_venue_id: canonical_venue_id } backing the
 //                  venue_aliases hop lookups.
+//   • geoError   — when set, the _venueMissingGeo read (venues
+//                  'address, lat, lng' + maybeSingle) returns { error }.
+// existingRows / allVenues entries may carry address/lat/lng; the geo read
+// returns them by id (null fields when absent).
 // When allVenues is omitted, `existingRows` backs the name lookup and the
 // thenable loads resolve empty — exactly the old mock's behavior.
-function makeVenuesMock({ existingRows = [], insertedId = 'v-new', allVenues = null, aliases = {}, aliasNames = [], aliasNamesError = null } = {}) {
-  const calls = { insert: 0, insertRow: null, aliasLookups: 0 }
+function makeVenuesMock({ existingRows = [], insertedId = 'v-new', allVenues = null, aliases = {}, aliasNames = [], aliasNamesError = null, geoError = null } = {}) {
+  const calls = { insert: 0, insertRow: null, aliasLookups: 0, update: 0, geoReads: 0 }
   function builder(table) {
     const st = { table, cols: null, op: null, filters: {} }
     const chain = {
@@ -1482,7 +1487,7 @@ function makeVenuesMock({ existingRows = [], insertedId = 'v-new', allVenues = n
       eq(col, val) { st.filters[col] = val; return chain },
       not()    { return chain },
       order()  { return chain },
-      update() { st.op = 'update'; return chain },
+      update() { st.op = 'update'; calls.update++; return chain },
       limit()  {
         const rows = allVenues
           ? allVenues
@@ -1502,6 +1507,13 @@ function makeVenuesMock({ existingRows = [], insertedId = 'v-new', allVenues = n
         if (st.table === 'venues' && st.cols === 'id') {
           const alive = (allVenues ?? []).some((v) => v.id === st.filters.id)
           return Promise.resolve({ data: alive ? { id: st.filters.id } : null, error: null })
+        }
+        if (st.table === 'venues' && st.cols === 'address, lat, lng') {
+          calls.geoReads++
+          if (geoError) return Promise.resolve({ data: null, error: geoError })
+          const v = [...(allVenues ?? []), ...existingRows].find((r) => r.id === st.filters.id)
+          const data = v ? { address: v.address ?? null, lat: v.lat ?? null, lng: v.lng ?? null } : null
+          return Promise.resolve({ data, error: null })
         }
         return Promise.resolve({ data: null, error: null })
       },
@@ -1545,17 +1557,20 @@ describe('ensureVenue — junk-name mint gate', () => {
     }
   })
 
-  it('junk name ALREADY in the DB keeps resolving by exact name (gate is mint-time only)', async () => {
+  it('junk name ALREADY in the DB but geo-less (legacy placeholder) is skipped: null, no insert, no update', async () => {
+    _resetVenueGeoCache()
     const { client, calls } = makeVenuesMock({
-      existingRows: [{ id: 'v-virtual', neighborhood_slug: null }],
+      existingRows: [{ id: 'v-virtual', neighborhood_slug: null, address: null, lat: null, lng: null }],
     })
     __setClientForTests(client)
     try {
       const id = await ensureVenue('Virtual')
-      assert.equal(id, 'v-virtual')
+      assert.equal(id, null)
       assert.equal(calls.insert, 0)
+      assert.equal(calls.update, 0)
     } finally {
       __setClientForTests(null)
+      _resetVenueGeoCache()
     }
   })
 
@@ -1770,6 +1785,27 @@ describe('ensureVenue — split + name-key + alias-hop resolution', () => {
     }
   })
 
+  it('(8b′) alias_name hit still beats the junk guard when the exact-name row is a geo-less placeholder', async () => {
+    // Exact-name hit is a junk-named, geo-less placeholder → skipped; the
+    // alias index then resolves the canonical row before the guard runs.
+    _resetVenueGeoCache()
+    const calls = fresh({
+      allVenues: [
+        { id: 'v-elm-placeholder', name: 'Elm Avenue' },
+        { id: 'v-elm-canon', name: 'Elm Community Hall', address: '10 Elm Ave', lat: 41.1, lng: -81.5 },
+      ],
+      aliasNames: [{ alias_name: 'Elm Avenue', canonical_venue_id: 'v-elm-canon' }],
+    })
+    try {
+      assert.equal(await ensureVenue('Elm Avenue'), 'v-elm-canon')
+      assert.equal(calls.insert, 0)
+      assert.equal(calls.update, 0)
+    } finally {
+      __setClientForTests(null)
+      _resetVenueGeoCache()
+    }
+  })
+
   it('(8c) alias-name index load error fails open: no throw, today\'s mint/null result unchanged', async () => {
     const calls = fresh({
       allVenues: [],
@@ -1786,6 +1822,98 @@ describe('ensureVenue — split + name-key + alias-hop resolution', () => {
     } finally {
       __setClientForTests(null)
     }
+  })
+})
+
+describe('ensureVenue — geo-less junk placeholder rows are skipped', () => {
+  // Per-process name cache has no reset: every test uses a distinct name.
+  beforeEach(() => {
+    _resetVenueNameIndex()
+    _resetVenueAddressIndex()
+    _resetVenueAliasNameIndex()
+    _resetVenueGeoCache()
+  })
+  function fresh(config) {
+    const { client, calls } = makeVenuesMock(config)
+    __setClientForTests(client)
+    return calls
+  }
+  function done() {
+    __setClientForTests(null)
+    _resetVenueGeoCache()
+  }
+
+  it('junk-named existing row WITH address/coords keeps resolving by exact name', async () => {
+    const calls = fresh({ existingRows: [{ id: 'v-front', address: '2085 Front St', lat: 41.13, lng: -81.48 }] })
+    try {
+      assert.equal(await ensureVenue('Front Street'), 'v-front')
+      assert.equal(calls.insert, 0)
+    } finally { done() }
+  })
+
+  it('opts.allowGenericName resolves a geo-less junk row without probing geo', async () => {
+    const calls = fresh({ existingRows: [{ id: 'v-zoom', address: null, lat: null, lng: null }] })
+    try {
+      assert.equal(await ensureVenue('Zoom', {}, { allowGenericName: true }), 'v-zoom')
+      assert.equal(calls.insert, 0)
+      assert.equal(calls.geoReads, 0)
+    } finally { done() }
+  })
+
+  it('name-key index hit on a geo-less junk row is skipped too', async () => {
+    // Double space: exact .eq('name') misses, venueNameKey matches.
+    const calls = fresh({ allVenues: [{ id: 'v-tbh', name: 'Throughout  Hudson' }] })
+    try {
+      assert.equal(await ensureVenue('Throughout Hudson'), null)
+      assert.equal(calls.insert, 0)
+      assert.equal(calls.update, 0)
+      assert.equal(calls.geoReads, 1)
+    } finally { done() }
+  })
+
+  it('non-junk address-less venue is untouched: resolves, no geo read', async () => {
+    const calls = fresh({ allVenues: [{ id: 'v-tn', name: 'TrueNorth Akron' }] })
+    try {
+      assert.equal(await ensureVenue('TrueNorth Akron'), 'v-tn')
+      assert.equal(calls.geoReads, 0)
+    } finally { done() }
+  })
+
+  it('geo read error fails open: existing junk row resolves as before', async () => {
+    const calls = fresh({
+      existingRows: [{ id: 'v-tba', address: null, lat: null, lng: null }],
+      geoError: { message: 'connection reset' },
+    })
+    try {
+      assert.equal(await ensureVenue('(location to be announced)'), 'v-tba')
+      assert.equal(calls.insert, 0)
+    } finally { done() }
+  })
+
+  it('details.address does not heal a skipped placeholder: no update issued', async () => {
+    const calls = fresh({ existingRows: [{ id: 'v-online', address: null, lat: null, lng: null }] })
+    try {
+      assert.equal(await ensureVenue('Online', { address: '1 Main St' }), null)
+      assert.equal(calls.update, 0)
+      assert.equal(calls.insert, 0)
+    } finally { done() }
+  })
+
+  it('placeholder present in BOTH the exact lookup and the name index warns exactly once', async () => {
+    // In production the name index holds the very row the exact lookup just
+    // skipped; the name-key path must treat that hit as a silent miss.
+    const row = { id: 'v-tba-both', name: 'To Be Announced', address: null, lat: null, lng: null }
+    const calls = fresh({ existingRows: [row], allVenues: [row] })
+    const origWarn = console.warn
+    const warns = []
+    console.warn = (...args) => { warns.push(args.join(' ')) }
+    try {
+      assert.equal(await ensureVenue('To Be Announced'), null)
+      const placeholderWarns = warns.filter((w) => w.includes('Ignoring existing placeholder'))
+      assert.equal(placeholderWarns.length, 1)
+      assert.equal(calls.insert, 0)
+      assert.equal(calls.update, 0)
+    } finally { console.warn = origWarn; done() }
   })
 })
 

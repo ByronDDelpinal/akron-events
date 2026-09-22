@@ -1603,7 +1603,26 @@ export async function ensureVenue(name, details = {}, opts = {}) {
   }
   const existing = existingRows?.[0] ?? null
 
-  if (existing) {
+  // Legacy placeholder guard: a junk-named row ("Virtual", "Front Street",
+  // "Throughout Hudson") that ALSO carries no address and no coordinates is a
+  // geo-less placeholder minted before the junk-name gate existed. Resolving
+  // onto it pins the event to a venue that can't be mapped. Skip such rows in
+  // the exact-name and name-key paths and fall through; the alias index and
+  // the address fallback still get their shot, and the mint guard below is
+  // what finally caches null. `junkName` is shared with the mint guard below
+  // (same `trimmed` input, so isJunkVenueName runs once); the geo read only
+  // fires for the rare junk-named hit (cached per run by _venueMissingGeo,
+  // which fails open → the row resolves as before on a read error).
+  const junkName = !opts.allowGenericName && isJunkVenueName(trimmed)
+  const isGeolessPlaceholder = async (id) => junkName && await _venueMissingGeo(id)
+  const warnPlaceholder = (id) => console.warn(
+    `  ⚠ Ignoring existing placeholder venue "${trimmed}" (${id}) — junk name with no address/coords; falling through` +
+    (details.address ? ` (row not healed with "${details.address}"; address fallback may resolve a different venue)` : ''),
+  )
+
+  if (existing && await isGeolessPlaceholder(existing.id)) {
+    warnPlaceholder(existing.id)
+  } else if (existing) {
     // Update details on existing venue (e.g. corrected coordinates)
     const updates = {}
     if (details.address)       updates.address       = details.address
@@ -1650,9 +1669,13 @@ export async function ensureVenue(name, details = {}, opts = {}) {
   // curly-vs-straight-apostrophe split ("People's Park" from Eventbrite vs the
   // DB's "People's Park") where one-sided normalization used to mint a
   // duplicate row on every scrape. Fail-safe: the index loads empty on error.
+  // A skipped placeholder is also in the name index under the same key, so
+  // treat a hit on that same row as a miss to avoid warning twice.
   const nameIndex = await _getVenueNameIndex()
   const byNameKey = nameIndex.get(cacheKey)
-  if (byNameKey) {
+  if (byNameKey && byNameKey !== existing?.id && await isGeolessPlaceholder(byNameKey)) {
+    warnPlaceholder(byNameKey)
+  } else if (byNameKey && byNameKey !== existing?.id) {
     const resolved = await _resolveVenueAliasCanonical(byNameKey)
     _venueNameCache.set(cacheKey, resolved)
     return resolved
@@ -1693,12 +1716,15 @@ export async function ensureVenue(name, details = {}, opts = {}) {
   }
 
   // Guard: never MINT a venue from a junk generic name ("Virtual", "Ohio",
-  // "Church Street" — see isJunkVenueName). Deliberately placed AFTER both the
-  // exact-name lookup and the address fallback so any venue that already
-  // exists in the DB under such a name keeps resolving; this gate only stops
-  // NEW rows, which would otherwise land with city defaulting to 'Akron'.
-  // opts.allowGenericName lets a curated caller opt out.
-  if (!opts.allowGenericName && isJunkVenueName(trimmed)) {
+  // "Church Street" — see isJunkVenueName). Deliberately placed AFTER the
+  // exact-name / name-key / alias lookups and the address fallback so a venue
+  // that already exists in the DB under such a name keeps resolving — but only
+  // when it carries an address or coordinates (or the caller passes
+  // opts.allowGenericName); geo-less junk placeholders are skipped above and
+  // land here. This gate only stops NEW rows, which would otherwise land with
+  // city defaulting to 'Akron'. opts.allowGenericName lets a curated caller
+  // opt out.
+  if (junkName) {
     console.warn(
       `  ⚠ Refusing to create junk-named venue "${trimmed}" — bare state / virtual marker / street fragment / placeholder. ` +
       `Event left venue-less; pass opts.allowGenericName to override.`,
