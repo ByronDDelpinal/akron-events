@@ -56,6 +56,12 @@ const LISTING_URL  = `${BASE_URL}/events`
 const NAV_TIMEOUT  = 30_000
 const HYDRATE_WAIT = 1_800   // ms — Seat Engine hydrates anchors after first paint
 
+// KillBox lists ~35–36 shows every night; a zero-event scrape has never been a
+// legitimate state for this source. Flip to `true` (and say why) only if the
+// club actually goes dark — same explicit-true opt-out convention as
+// `allowEmptyFeed` in lib/ics.js.
+const ALLOW_EMPTY_LISTING = false
+
 const VENUE_INFO = {
   name:    'The KillBox Comedy Club',
   address: '1305 E Tallmadge Ave',
@@ -111,14 +117,19 @@ const MONTH_MAP = {
  * Open the listing page and harvest unique `/events/<slug>` paths.
  * The listing is server-rendered but the slug anchors are React-hydrated,
  * so we wait a beat after `networkidle2` before reading the DOM.
+ *
+ * Returns `{ slugs, hydrateTimedOut }` — the hydrate wait is still
+ * non-fatal, but whether it timed out now reaches scraper_runs via
+ * emptyListingOutcome() instead of being swallowed.
  */
 async function harvestSlugs(browser) {
+  let hydrateTimedOut = false
   const page = await newConfiguredPage(browser)
   await page.goto(LISTING_URL, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await page.waitForFunction(
     () => document.querySelectorAll('a[href^="/events/"]').length > 1,
     { timeout: NAV_TIMEOUT },
-  ).catch(() => {})
+  ).catch(() => { hydrateTimedOut = true })
   // Extra short pause — some cards hydrate in a second render pass.
   await new Promise(r => setTimeout(r, HYDRATE_WAIT))
 
@@ -136,7 +147,7 @@ async function harvestSlugs(browser) {
   })
 
   await page.close()
-  return slugs
+  return { slugs, hydrateTimedOut }
 }
 
 /**
@@ -373,6 +384,56 @@ async function processEvents(detailRows, venueId, organizerId) {
   return { inserted, skipped }
 }
 
+/**
+ * Decide how a zero-event scrape should be reported, and say which stage came
+ * back empty. Pure.
+ *
+ * WHY (2026-09-23): the listing's hydrate wait swallowed its timeout with
+ * `.catch(() => {})`, per-slug detail failures were only `console.warn`ed, and
+ * the run then logged 0 events through `logUpsertResult`, which defaults to
+ * `status='success'`. A night where Seat Engine never hydrated was therefore
+ * indistinguishable in scraper_runs from a healthy night, and nothing alerted.
+ * A silently empty scrape is a broken scrape until a maintainer says
+ * otherwise, so the default is `error`, and the failing stage (hydrate
+ * timeout / no anchors / every detail page failed) rides along in the message
+ * so the cause is visible without re-running.
+ *
+ * `events_found` stays 0 either way, so scraper_health's consecutive-zero
+ * streak still answers "is this source producing"; `status` only answers "did
+ * the pipeline work".
+ *
+ * @param {object} [config]
+ * @param {boolean} [config.allowEmptyFeed]  listing is legitimately empty
+ * @param {number}  [config.slugsFound]      `/events/<slug>` anchors harvested
+ * @param {number}  [config.detailFailures]  detail pages that failed to fetch
+ * @param {boolean} [config.hydrateTimedOut] listing hydrate wait timed out
+ * @returns {{status: 'success'|'error', errorMessage: string|null, reason: string}}
+ */
+export function emptyListingOutcome({ allowEmptyFeed, slugsFound, detailFailures, hydrateTimedOut } = {}) {
+  if (allowEmptyFeed === true) {
+    return {
+      status: 'success',
+      errorMessage: null,
+      reason: 'Listing parsed cleanly and is empty — expected for this source, recording 0 events',
+    }
+  }
+
+  const slugs    = Number.isFinite(slugsFound) ? slugsFound : 0
+  const failures = Number.isFinite(detailFailures) ? detailFailures : 0
+
+  let msg
+  if (slugs === 0 && hydrateTimedOut === true) {
+    msg = `Listing hydrated no /events/<slug> links (hydrate wait timed out after ${NAV_TIMEOUT / 1000}s)`
+  } else if (slugs === 0) {
+    msg = 'Listing hydrated no /events/<slug> links (page loaded, 0 slug anchors)'
+  } else {
+    // Rows are empty, so every harvested slug failed; fall back to the slug
+    // count if the tally wasn't passed.
+    msg = `${slugs} slugs found but all ${failures > 0 ? failures : slugs} detail pages failed to fetch`
+  }
+  return { status: 'error', errorMessage: msg, reason: msg }
+}
+
 // ── Entry point ───────────────────────────────────────────────────────────
 
 async function main() {
@@ -384,22 +445,42 @@ async function main() {
     const organizerId = await ensureOrganization(ORG_INFO.name, ORG_INFO.details)
     if (venueId && organizerId) await linkOrganizationVenue(organizerId, venueId)
 
-    const detailRows = await withBrowser(async (browser) => {
+    const { detailRows, slugsFound, detailFailures, hydrateTimedOut } = await withBrowser(async (browser) => {
       console.log(`\n🔍  Fetching listing: ${LISTING_URL}`)
-      const slugs = await harvestSlugs(browser)
+      const { slugs, hydrateTimedOut } = await harvestSlugs(browser)
+      if (hydrateTimedOut) console.warn(`  ⚠ Listing hydrate wait timed out after ${NAV_TIMEOUT / 1000}s`)
       console.log(`  Found ${slugs.length} event slugs`)
 
       const rows = []
+      let failures = 0
       for (const slug of slugs) {
         try {
           const data = await fetchDetailPage(browser, slug)
           rows.push({ slug, data })
         } catch (err) {
+          failures++
           console.warn(`  ⚠ Failed to fetch ${slug}: ${err.message}`)
         }
       }
-      return rows
+      return { detailRows: rows, slugsFound: slugs.length, detailFailures: failures, hydrateTimedOut }
     })
+
+    if (detailRows.length === 0) {
+      const outcome = emptyListingOutcome({
+        allowEmptyFeed: ALLOW_EMPTY_LISTING,
+        slugsFound,
+        detailFailures,
+        hydrateTimedOut,
+      })
+      await logUpsertResult(SOURCE_KEY, 0, 0, 0, {
+        status:       outcome.status,
+        errorMessage: outcome.errorMessage,
+        eventsFound:  0,
+        durationMs:   Date.now() - start,
+      })
+      console.warn(`  ⚠ ${outcome.reason} — exiting 0 so the next scheduled run still tries.`)
+      process.exit(0)
+    }
 
     console.log(`\n📥  Processing ${detailRows.length} events…`)
     const { inserted, skipped } = await processEvents(detailRows, venueId, organizerId)

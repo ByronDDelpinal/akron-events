@@ -30,7 +30,7 @@ import {
 
 // Closure guard is imported from the REAL module (main() is guarded, so this
 // is import-safe) — never re-implement it here.
-const { isClosureTitle } = await import('../scrape-jillys.js')
+const { isClosureTitle, emptyCalendarOutcome } = await import('../scrape-jillys.js')
 
 // Re-implement parsing logic from scraper
 function extractTicketUrl(html = '', permalink = '') {
@@ -380,5 +380,52 @@ describe("Jilly's: Closure Title Guard", () => {
     assert.equal(isClosureTitle(null), false)
     assert.equal(isClosureTitle(''), false)
     assert.equal(isClosureTitle(undefined), false)
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// Zero-event reporting guard
+// ════════════════════════════════════════════════════════════════════════════
+//
+// logUpsertResult defaults to status='success', so an empty EventON response
+// was indistinguishable from a healthy night. The monitor has to be able to
+// tell an empty calendar from a broken one.
+describe("Jilly's: emptyCalendarOutcome", () => {
+  it('defaults to an error and carries the AJAX status', () => {
+    const out = emptyCalendarOutcome({ ajaxStatus: 'GOOD' })
+    assert.equal(out.status, 'error')
+    assert.equal(out.errorMessage, 'EventON AJAX returned 0 upcoming events (status=GOOD)')
+  })
+
+  it('reports a missing AJAX status as "missing"', () => {
+    for (const s of [undefined, null, '', '  ', NaN]) {
+      assert.equal(
+        emptyCalendarOutcome({ ajaxStatus: s }).errorMessage,
+        'EventON AJAX returned 0 upcoming events (status=missing)',
+        `value: ${String(s)}`
+      )
+    }
+  })
+
+  it('treats an empty calendar as a clean zero-event run when allowEmptyFeed is set', () => {
+    const out = emptyCalendarOutcome({ allowEmptyFeed: true, ajaxStatus: 'GOOD' })
+    assert.equal(out.status, 'success')
+    assert.equal(out.errorMessage, null)
+    assert.match(out.reason, /expected for this source/)
+  })
+
+  it('only opts in on an explicit true — never on a truthy accident', () => {
+    for (const v of [undefined, null, false, 0, '', 'yes', 1]) {
+      assert.equal(
+        emptyCalendarOutcome({ allowEmptyFeed: v }).status, 'error',
+        `value: ${JSON.stringify(v)}`
+      )
+    }
+  })
+
+  it('is safe with no argument at all — no NaN/undefined leaks', () => {
+    const out = emptyCalendarOutcome()
+    assert.equal(out.status, 'error')
+    assert.doesNotMatch(out.errorMessage, /NaN|undefined/)
   })
 })

@@ -44,6 +44,12 @@ const REST_BASE  = 'https://jillysmusicroom.com/wp-json/wp/v2/ajde_events'
 const DAYS_AHEAD = 180
 const BATCH_SIZE = 50   // WP REST API include= batch size
 
+// Jilly's books live music most nights; an empty EventON calendar has never
+// been a legitimate state for this source. Flip to `true` (and say why) only if
+// the room actually goes dark for a season — same explicit-true opt-out
+// convention as `allowEmptyFeed` in lib/ics.js.
+const ALLOW_EMPTY_CALENDAR = false
+
 // ── Helpers ───────────────────────────────────────────────────────────────
 // stripHtml imported from normalize.js — handles all named + numeric HTML entities
 
@@ -174,7 +180,7 @@ async function fetchEventonEvents() {
 
   const events = data.json ?? []
   console.log(`  EventON AJAX returned ${events.length} upcoming events`)
-  return events
+  return { events, ajaxStatus: data.status }
 }
 
 // ── Step 2: Batch-fetch full post data via WP REST API ────────────────────
@@ -316,6 +322,43 @@ async function processEvents(ajaxEvents, restById, venueId, organizerId) {
   return { inserted, skipped: skipped + closureSkipped }
 }
 
+/**
+ * Decide how a zero-event EventON response should be reported. Pure.
+ *
+ * WHY (2026-09-23): this scraper logged an empty AJAX result through
+ * `logUpsertResult`, which defaults to `status='success'`, so a night where
+ * EventON's shortcode/params drifted and returned nothing was
+ * indistinguishable in scraper_runs from a healthy night, and nothing alerted.
+ * A silently empty calendar is a broken calendar until a maintainer says
+ * otherwise, so the default is `error`, and EventON's own `status` field rides
+ * along in the message so the cause is visible without re-running.
+ * `allowEmptyFeed` is the explicit-true opt-out, mirroring `emptyFeedOutcome()`
+ * in lib/ics.js.
+ *
+ * `events_found` stays 0 either way, so scraper_health's consecutive-zero
+ * streak still answers "is this source producing"; `status` only answers "did
+ * the pipeline work".
+ *
+ * @param {object} [config]
+ * @param {boolean} [config.allowEmptyFeed] calendar is legitimately empty
+ * @param {string}  [config.ajaxStatus]     `status` field of the AJAX response
+ * @returns {{status: 'success'|'error', errorMessage: string|null, reason: string}}
+ */
+export function emptyCalendarOutcome({ allowEmptyFeed, ajaxStatus } = {}) {
+  if (allowEmptyFeed === true) {
+    return {
+      status: 'success',
+      errorMessage: null,
+      reason: 'EventON calendar returned cleanly and is empty — expected for this source, recording 0 events',
+    }
+  }
+  const shown = (typeof ajaxStatus === 'string' && ajaxStatus.trim() !== '') || Number.isFinite(ajaxStatus)
+    ? String(ajaxStatus).trim()
+    : 'missing'
+  const msg = `EventON AJAX returned 0 upcoming events (status=${shown})`
+  return { status: 'error', errorMessage: msg, reason: msg }
+}
+
 // ── Entry point ───────────────────────────────────────────────────────────
 
 async function main() {
@@ -326,11 +369,17 @@ async function main() {
     const [venueId, organizerId] = await Promise.all([ensureJillysVenue(), ensureJillysOrganizer()])
 
     // Step 1: EventON AJAX — get upcoming event IDs and timestamps
-    const ajaxEvents = await fetchEventonEvents()
+    const { events: ajaxEvents, ajaxStatus } = await fetchEventonEvents()
     if (!ajaxEvents.length) {
-      console.log('  No upcoming events found.')
-      await logUpsertResult('jillys_music_room', 0, 0, 0, { eventsFound: 0, durationMs: Date.now() - start })
-      return
+      const outcome = emptyCalendarOutcome({ allowEmptyFeed: ALLOW_EMPTY_CALENDAR, ajaxStatus })
+      await logUpsertResult('jillys_music_room', 0, 0, 0, {
+        status:       outcome.status,
+        errorMessage: outcome.errorMessage,
+        eventsFound:  0,
+        durationMs:   Date.now() - start,
+      })
+      console.warn(`  ⚠ ${outcome.reason} — exiting 0 so the next scheduled run still tries.`)
+      process.exit(0)
     }
 
     // Step 2: WP REST API — get content, images, taxonomies
