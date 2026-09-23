@@ -884,7 +884,9 @@ describe('extractBodyText (2026-09-06 truncated-meta incident)', () => {
     `<html><head>
       <meta property="og:description" content="Date: Saturday, April 25, 2026">
     </head><body>
+      <article class="node"><div class="node__content">
       <div class="clearfix text-formatted field field--name-body field--type-text-with-summary field--label-hidden field__item">${inner}</div>
+      </div></article>
     </body></html>`
 
   const FULL_BODY_INNER =
@@ -914,8 +916,10 @@ describe('extractBodyText (2026-09-06 truncated-meta incident)', () => {
 
   it('is attribute-order agnostic for the field--name-body class token', () => {
     const html =
+      '<article class="node"><div class="node__content">' +
       '<div data-x="1" class="field--name-body clearfix text-formatted">' +
-      '<p>Time: 3:00 PM</p></div>'
+      '<p>Time: 3:00 PM</p></div>' +
+      '</div></article>'
     assert.match(extractBodyText(html), /Time: 3:00 PM/)
   })
 
@@ -929,7 +933,10 @@ describe('extractBodyText (2026-09-06 truncated-meta incident)', () => {
   })
 
   it('returns null when the body div is present but empty of text', () => {
-    assert.equal(extractBodyText('<div class="field field--name-body">   </div>'), null)
+    assert.equal(
+      extractBodyText('<article class="node"><div class="node__content"><div class="field field--name-body">   </div></div></article>'),
+      null,
+    )
   })
 })
 
@@ -942,7 +949,9 @@ describe('detailFromHtml (2026-09-06 truncated-meta incident)', () => {
       ? `<meta property="og:description" content="${meta}">`
       : ''
     const bodyDiv = body
-      ? `<div class="clearfix text-formatted field field--name-body field--type-text-with-summary field--label-hidden field__item">${body}</div>`
+      ? '<article class="node"><div class="node__content">' +
+        `<div class="clearfix text-formatted field field--name-body field--type-text-with-summary field--label-hidden field__item">${body}</div>` +
+        '</div></article>'
       : ''
     return `<html><head>${metaTag}</head><body><h1>${h1}</h1>${bodyDiv}</body></html>`
   }
@@ -998,5 +1007,105 @@ describe('detailFromHtml (2026-09-06 truncated-meta incident)', () => {
     assert.equal(detail.timeInferred, false)
     // The stored description still prefers the body text, not the meta.
     assert.match(detail.description, /Family fun on the riverfront/)
+  })
+})
+
+describe('extractBodyText / detailFromHtml — body scoped to the event node (2026-09-23 nav-text incident)', () => {
+  // Real cityofcf.com order: top-nav body div, then the event node's body div,
+  // then sidebar and footer body divs. The first page-wide match is the nav.
+  const NAV_FIRST = fixture('city-of-cf-detail-nav-first.html')
+  const NAV_RE = /\bNews\b|\bPayments\b|Report an Issue|City Services|Emergency Info|Contact Us/
+
+  it('returns the event body, not the nav/sidebar/footer body divs', () => {
+    const body = extractBodyText(NAV_FIRST)
+    assert.ok(body, 'expected a non-null body')
+    assert.match(body, /^Join the Mayor for a lunchtime concert/)
+    assert.match(body, /Bring a chair\./, 'nested <div> inside the body survives')
+    assert.match(body, /Time: 12 Noon - 1 pm/, 'text after the nested </div> survives')
+    assert.doesNotMatch(body, NAV_RE)
+  })
+
+  it('detailFromHtml parses "12 Noon - 1 pm" from the event body as a real noon', () => {
+    const detail = detailFromHtml(NAV_FIRST)
+    assert.equal(detail.timeStr, '12:00:00')
+    assert.equal(detail.timeInferred, false)
+    assert.ok(!detail.description.startsWith('News'), detail.description)
+    assert.doesNotMatch(detail.description, NAV_RE)
+    assert.equal(detail.title, 'Lunchtime Concert')
+  })
+
+  it('falls back to div.node__content-less <article class="node">', () => {
+    const html =
+      '<div class="top-nav"><div class="field--name-body">News Calendar</div></div>' +
+      '<article class="node node--type-event"><div class="field field--name-body"><p>Event text 7 p.m.</p></div></article>'
+    assert.equal(extractBodyText(html), 'Event text 7 p.m.')
+  })
+
+  it('page whose only body divs are nav/footer: null body, meta used, never the nav text', () => {
+    const html =
+      '<html><head><meta property="og:description" content="Family fun on the riverfront."></head><body>' +
+      '<div id="block-topnavitems" class="top-nav"><div class="clearfix field field--name-body"><a href="/news">News</a> <a href="/online-services">Payments</a></div></div>' +
+      '<main><p>Event page with no node wrapper.</p></main>' +
+      '<footer><div id="block-footer" class="footer"><div class="field field--name-body"><a href="/contact">Contact Us</a> 9 a.m.</div></div></footer>' +
+      '</body></html>'
+    assert.equal(extractBodyText(html), null)
+    const detail = detailFromHtml(html)
+    assert.equal(detail.description, 'Family fun on the riverfront.')
+    assert.equal(detail.timeStr, '12:00:00')
+    assert.equal(detail.timeInferred, true, 'the footer "9 a.m." must not be read as the event time')
+  })
+  it('a teaser div.node__content ABOVE the event article does not win', () => {
+    const html =
+      '<div class="teaser"><div class="node__content"><div class="field field--name-body">Related: Fall Fest 9 a.m.</div></div></div>' +
+      '<article class="node node--type-event"><div class="node__content">' +
+      '<div class="field field--name-body"><p>Event text 7 p.m.</p></div></div></article>'
+    assert.equal(extractBodyText(html), 'Event text 7 p.m.')
+  })
+
+  it('a page-level div.node__content with no event article is not used', () => {
+    const html = '<div class="node__content"><div class="field field--name-body">Related: Fall Fest 9 a.m.</div></div>'
+    assert.equal(extractBodyText(html), null)
+  })
+
+  it('data-class="node__content" is not a class attribute', () => {
+    const html =
+      '<article class="node node--type-event">' +
+      '<div data-class="node__content" class="promo"><div class="field field--name-body">Promo 9 a.m.</div></div>' +
+      '<div class="node__content"><div class="field field--name-body"><p>Event text 7 p.m.</p></div></div></article>'
+    assert.equal(extractBodyText(html), 'Event text 7 p.m.')
+    assert.equal(
+      extractBodyText('<article data-class="node"><div class="field field--name-body">Nav 9 a.m.</div></article>'),
+      null,
+    )
+  })
+})
+
+describe('parseTimeFromTextDetailed — "noon" is a clock time (2026-09-23)', () => {
+  for (const text of ['Time: 12 Noon - 1 pm', '12 noon to 1 p.m.', 'Noon \u2013 1 p.m.', 'Noon - 1 pm', 'Lunch at noon']) {
+    it(`"${text}" → 12:00, not inferred`, () => {
+      assert.deepEqual(parseTimeFromTextDetailed(text), { time: '12:00:00', inferred: false })
+    })
+  }
+
+  it('"afternoon tea" is not noon: still the inferred default', () => {
+    assert.deepEqual(parseTimeFromTextDetailed('Join us for afternoon tea'), { time: '12:00:00', inferred: true })
+  })
+
+  for (const text of ['12:00 noon - 1:00 pm', 'Noon to 3']) {
+    it(`"${text}" → 12:00, not inferred`, () => {
+      assert.deepEqual(parseTimeFromTextDetailed(text), { time: '12:00:00', inferred: false })
+    })
+  }
+
+  it('"noontime" is not rewritten: still the inferred default', () => {
+    assert.deepEqual(parseTimeFromTextDetailed('A noontime stroll'), { time: '12:00:00', inferred: true })
+  })
+
+  it('"High Noon" is a proper noun, not a clock time', () => {
+    assert.deepEqual(parseTimeFromTextDetailed('High Noon Saloon tribute, doors 7 p.m.'), { time: '19:00:00', inferred: false })
+  })
+
+  it('"Doors 7 p.m." is unchanged', () => {
+    assert.deepEqual(parseTimeFromTextDetailed('Doors 7 p.m.'), { time: '19:00:00', inferred: false })
   })
 })

@@ -179,6 +179,15 @@ function timeStr(hr, min, isPm) {
 export function parseTimeFromTextDetailed(text) {
   if (!text) return { time: '12:00:00', inferred: true }   // SANCTIONED-DEFAULT-TIME, see above
 
+  // "12 Noon - 1 pm", "Noon – 1 p.m.", "at noon": the patterns below only know
+  // digits + meridiem, so a bare "noon" made the range fail and the single-time
+  // scan grab the END time (13:00, not inferred). Rewrite it to "12 p.m." first.
+  // `\b` keeps "afternoon"/"noontime" intact; "12 Noon" collapses to one
+  // "12 p.m."; the lookbehind leaves the proper noun "High Noon" alone.
+  // Known gap: "Lunch at noon; concert 7 p.m." now reads 12:00 — genuinely
+  // ambiguous prose, left as is.
+  text = text.replace(/(?<!\bhigh\s+)\b(?:12\s*)?noon\b/gi, '12 p.m.')
+
   // Range: "<start>[meridiem] (-|–|—|to) <end> meridiem".
   //
   // `\b` in front of each number and `(?!\d)` behind it are the digit-boundary
@@ -613,6 +622,38 @@ function metaContent(html, prop) {
 }
 
 /**
+ * Inner HTML of the element opened by `openMatch` (a RegExp exec result whose
+ * [0] is the full opening tag), up to its MATCHING close tag, or null when the
+ * close is never found. Walks <tag / </tag> tokens and tracks depth: a lazy
+ * `</div>` regex would stop at the FIRST inner close and truncate at whatever
+ * nested <div> happens to appear first (there is always at least one inside
+ * the Drupal body, wrapping the field item). `tag` defaults to div; the
+ * article fallback in extractBodyText passes 'article'.
+ */
+function sliceDivInner(html, openMatch, tag = 'div') {
+  const tagRe = new RegExp(`<${tag}\\b[^>]*>|<\\/${tag}\\s*>`, 'gi')
+  const innerStart = openMatch.index + openMatch[0].length
+  tagRe.lastIndex = innerStart
+  let depth = 1
+  let m
+  while ((m = tagRe.exec(html))) {
+    if (m[0][1] === '/') {
+      depth -= 1
+      if (depth === 0) return html.slice(innerStart, m.index)
+    } else {
+      depth += 1
+    }
+  }
+  return null
+}
+
+// Opening tag whose class attribute carries `token` as a whole class name
+// (not a prefix of "node--type-event" etc.). Attribute order does not matter;
+// `(?<![\w-])` keeps "data-class=" from standing in for the class attribute.
+const openTagWithClass = (tag, token) =>
+  new RegExp(`<${tag}\\b[^>]*(?<![\\w-])class=["'](?:[^"']*\\s)?${token}(?=[\\s"'])[^"']*["'][^>]*>`, 'i')
+
+/**
  * Pull the full event-body text out of the Drupal node body wrapper:
  *   <div class="clearfix text-formatted field field--name-body ...">…</div>
  * The og:/meta description Drupal generates from this same body is truncated
@@ -620,40 +661,37 @@ function metaContent(html, prop) {
  * text one line before "Time: 9:00 AM – 12:00 PM" and silently falls back to
  * the noon default. The body div has no such limit.
  *
- * Finds the opening <div> whose class attribute contains `field--name-body`
- * (attribute order in the tag doesn't matter — class can come before or after
- * other attributes), then walks <div / </div> tokens from there to find the
- * matching close. A lazy `</div>` regex match would stop at the FIRST inner
- * close and truncate the body at whatever nested <div> (there is always at
- * least one, wrapping the field item) happens to appear first.
+ * SCOPED TO THE EVENT NODE. `field--name-body` is not unique on cityofcf.com:
+ * every Drupal custom block uses the same wrapper, and the real page order is
+ *   #block-topnavitems (top nav: "News Calendar Payments Contact Search")
+ *   → main > article.node--type-event > div.node__content > body div  ← this one
+ *   → #block-sidebarcta body div → #block-footer body div.
+ * Taking the first page-wide match stored the nav links as every event's
+ * description and parsed times from them. So the search runs only inside the
+ * first <article class="node">: its div.node__content if it has one, else the
+ * whole article, each sliced to its matching close. A page-level
+ * div.node__content outside any article is NOT used: a teaser/related-content
+ * block can carry that class above the event. When there is no article this
+ * returns null
+ * and detailFromHtml falls back to the meta description; it must NEVER fall
+ * back to the first page-wide body div, which is nav text by construction.
  *
- * Returns stripHtml() of the inner slice, or null when the div is absent or
- * its stripped text is empty.
+ * Returns stripHtml() of the body div's inner slice, or null when the div is
+ * absent from the node region or its stripped text is empty.
  */
 export function extractBodyText(html) {
-  const openRe = /<div\b[^>]*class=["'][^"']*\bfield--name-body\b[^"']*["'][^>]*>/i
-  const openMatch = openRe.exec(html)
-  if (!openMatch) return null
+  if (!html) return null
+  const articleOpen = openTagWithClass('article', 'node').exec(html)
+  if (!articleOpen) return null
+  const article = sliceDivInner(html, articleOpen, 'article')
+  if (article === null) return null
+  const contentOpen = openTagWithClass('div', 'node__content').exec(article)
+  const region = (contentOpen && sliceDivInner(article, contentOpen)) ?? article
 
-  const tagRe = /<div\b[^>]*>|<\/div>/gi
-  tagRe.lastIndex = openMatch.index + openMatch[0].length
-  let depth = 1
-  let innerEnd = null
-  let m
-  while ((m = tagRe.exec(html))) {
-    if (m[0].toLowerCase() === '</div>') {
-      depth -= 1
-      if (depth === 0) {
-        innerEnd = m.index
-        break
-      }
-    } else {
-      depth += 1
-    }
-  }
-  if (innerEnd === null) return null
-
-  const inner = html.slice(openMatch.index + openMatch[0].length, innerEnd)
+  const bodyOpen = openTagWithClass('div', 'field--name-body').exec(region)
+  if (!bodyOpen) return null
+  const inner = sliceDivInner(region, bodyOpen)
+  if (inner === null) return null
   const text = stripHtml(inner)
   return text ? text : null
 }
