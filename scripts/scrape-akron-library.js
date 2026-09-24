@@ -106,6 +106,23 @@ export const BRANCH_INFO = {
   'Odom Boulevard Branch Library':    { address: '600 Vernon Odom Blvd',    zip: '44307', lat: 41.071137, lng: -81.544269, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
 }
 
+// Feed venue names that are a DEPARTMENT inside a branch, not a place of their
+// own. The Children's Library is a department inside Main Library (60 S High
+// St); the feed files it under Main's location_id but names it separately, so
+// without this it minted a geo-less venue of its own. Keys are matched via
+// venueNameKey (case and curly/straight apostrophes fold); values must be
+// BRANCH_INFO keys.
+// Matching is by room NAME only, deliberately: the feed uses "Children's
+// Library" solely under Main (location_id 1477), so any row with that name maps
+// to Main regardless of its location_id. If another branch ever gets a
+// same-named room, this needs a new entry keyed on (name, location_id) instead.
+export const LIBRARY_ROOM_BRANCH = {
+  "Children's Library": 'Main Library',
+}
+const ROOM_BRANCH_BY_KEY = new Map(
+  Object.entries(LIBRARY_ROOM_BRANCH).map(([room, branch]) => [venueNameKey(room), branch]),
+)
+
 /**
  * Normalize a URL from the library API.
  * The Communico/Libnet API occasionally returns paths with duplicate slashes,
@@ -121,6 +138,18 @@ function sanitizeUrl(url) {
   } catch {
     return url  // not a valid URL — store as-is and let the UI handle it
   }
+}
+
+/**
+ * Undo the backslash escapes the Communico feed leaves in some text fields:
+ * `venue_name` arrives as "Children\'s Library" (a literal backslash after
+ * JSON.parse) while `location` has the clean "Children's Library". Only `\'`,
+ * `\"` and `\\` are unescaped; every other character is left alone.
+ * Null/empty safe. Pure + exported for tests.
+ */
+export function unescapeFeedText(s) {
+  if (!s) return ''
+  return String(s).replace(/\\(['"\\])/g, '$1')
 }
 
 // ── Category mapping ──────────────────────────────────────────────────────
@@ -288,9 +317,12 @@ export function libraryVenueCacheKey(venue) {
  * Exported for tests.
  */
 export function parseLibraryVenue(ev) {
-  const name = stripHtml(ev?.venue_name || ev?.location || '')
-  if (!name) return null
-  if (VIRTUAL_VENUE_RE.test(name)) return null
+  const cleaned = stripHtml(unescapeFeedText(ev?.venue_name || ev?.location || ''))
+  if (!cleaned) return null
+  if (VIRTUAL_VENUE_RE.test(cleaned)) return null
+  // A department inside a branch resolves to the branch itself, so
+  // ensureLibraryVenue gets the BRANCH_INFO address and coordinate.
+  const name = ROOM_BRANCH_BY_KEY.get(venueNameKey(cleaned)) ?? cleaned
 
   // Every venue in this feed is a Summit-County-area library program site; the
   // state is the one field the source never varies and never states wrongly.
@@ -407,7 +439,7 @@ async function ensureOrganizer() {
 
 // ── Fetch ─────────────────────────────────────────────────────────────────
 
-async function fetchEvents() {
+export async function fetchEvents() {
   const startDate = easternTodayIso()
   console.log(`\n🔍  Fetching library events for next ${DAYS_AHEAD} days…`)
 

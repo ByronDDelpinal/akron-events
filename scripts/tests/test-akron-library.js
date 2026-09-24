@@ -789,6 +789,65 @@ describe('parseLibraryVenue', async () => {
   })
 })
 
+// Communico writes some venue names with backslash escapes that survive
+// JSON.parse ("Children\'s Library"), and the Children's Library is a
+// department inside Main Library — it must resolve to the Main branch venue,
+// not mint a junk or geo-less one of its own.
+describe('library feed backslash escapes + room→branch mapping', async () => {
+  const { parseLibraryVenue, unescapeFeedText, libraryVenueCacheKey, LIBRARY_ROOM_BRANCH } =
+    await import('../scrape-akron-library.js')
+
+  // Verbatim shape of the live row (location_id 1477 = Main).
+  const childrensRow = {
+    venue_name: "Children\\'s Library",
+    location: "Children's Library",
+    location_id: '1477',
+    venue_type: 'external',
+    venue_description: '',
+  }
+
+  it('unescapeFeedText undoes only \\\', \\" and \\\\', () => {
+    assert.equal(unescapeFeedText("O\\'Neil's"), "O'Neil's")
+    assert.equal(unescapeFeedText('Say \\"hi\\"'), 'Say "hi"')
+    assert.equal(unescapeFeedText('a\\\\b'), 'a\\b')
+    assert.equal(unescapeFeedText('Main Library'), 'Main Library')
+    assert.equal(unescapeFeedText('C:\\n path'), 'C:\\n path')
+    assert.equal(unescapeFeedText(null), '')
+    assert.equal(unescapeFeedText(undefined), '')
+    assert.equal(unescapeFeedText(''), '')
+  })
+
+  it('maps the escaped Children\'s Library row to the Main Library branch', () => {
+    const v = parseLibraryVenue(childrensRow)
+    assert.equal(v.name, 'Main Library')
+    assert.ok(SCRAPER_BRANCH_INFO[v.name], 'mapped name must be a BRANCH_INFO key')
+  })
+
+  it('maps a curly-apostrophe / clean Children\'s Library to Main Library', () => {
+    assert.equal(parseLibraryVenue({ venue_name: 'Children’s Library' }).name, 'Main Library')
+    assert.equal(parseLibraryVenue({ location: "children's library" }).name, 'Main Library')
+    assert.equal(parseLibraryVenue({ location: 'children’s library' }).name, 'Main Library')
+  })
+
+  it('every LIBRARY_ROOM_BRANCH target is a BRANCH_INFO key', () => {
+    for (const branch of Object.values(LIBRARY_ROOM_BRANCH)) assert.ok(SCRAPER_BRANCH_INFO[branch], branch)
+  })
+
+  it('unescapes other venue names without mapping them', () => {
+    const v = parseLibraryVenue({ venue_name: "St. Paul\\'s Church", venue_description: '' })
+    assert.equal(v.name, "St. Paul's Church")
+    assert.ok(!v.name.includes('\\'))
+  })
+
+  it('escaped and clean Children\'s rows share one cache key', () => {
+    const clean = { ...childrensRow, venue_name: "Children's Library" }
+    assert.equal(
+      libraryVenueCacheKey(parseLibraryVenue(childrensRow)),
+      libraryVenueCacheKey(parseLibraryVenue(clean)),
+    )
+  })
+})
+
 describe('library venue cache key (mechanism A regression)', async () => {
   const { parseLibraryVenue, libraryVenueCacheKey } = await import('../scrape-akron-library.js')
 
