@@ -32,9 +32,12 @@
  *      would otherwise land >45 days before publication).
  *   4. Times: ONLY explicit-meridiem times are trusted ("5:00pm", "10:30am",
  *      noon/midnight). Bare meridiem-less ranges ("10:00-1:00", "1:00-4:00")
- *      are deliberately treated as time-less rather than guessing AM/PM — a
- *      time-less date becomes easternToIso(date, '') (no fabricated default
- *      time; see the stan_hywet 09:00 lesson).
+ *      are deliberately treated as time-less rather than guessing AM/PM. A
+ *      time-less date gets the sanctioned noon-Eastern default (see the
+ *      SANCTIONED-DEFAULT-TIME note in scripts/lib/ics.js) and is flagged
+ *      time_inferred so upsertEventSafe sets needs_review. The inferred-time
+ *      note (scripts/lib/inferred-time.js withTimeNote) is appended only when
+ *      a description exists — this source has none, so no visible note.
  *   5. Multi-day ranges ("June 16-20", "6/22-6/26") carry an end date.
  *   6. Geography: every village event is in Reminderville (Summit County). We
  *      still route the resolved venue's city through classifySummitLocation so
@@ -409,7 +412,17 @@ export function buildRow(post) {
   const parsed = parseEventDate(title, post.date)
   if (!parsed) return null
 
-  const start_at = easternToIso(parsed.dateStr, parsed.timeStr ?? '')
+  // SANCTIONED-DEFAULT-TIME — same product decision as scripts/lib/ics.js:167
+  // (mirrors scrape-stow-library.js). A row stored at midnight falls out of
+  // every feed at 00:00:01 on the day it happens (feeds filter
+  // `start_at >= now()` with no grace window). Noon keeps it visible;
+  // time_inferred below makes upsertEventSafe set needs_review. withTimeNote
+  // only annotates a non-empty description, and this source's description is
+  // always null, so no visible time note is added. Two-arg easternToIso.
+  const timeInferred = !parsed.timeStr
+  const start_at = timeInferred
+    ? easternToIso(parsed.dateStr, '12:00:00')
+    : easternToIso(parsed.dateStr, parsed.timeStr)
   if (!start_at) return null
 
   // End time / date.
@@ -449,6 +462,9 @@ export function buildRow(post) {
       source: SOURCE_KEY,
       source_id: String(post.id),
       status: 'published',
+      // Noon is a placeholder, not a confirmed time — time_inferred makes
+      // upsertEventSafe set needs_review (no time note: description is null).
+      time_inferred: timeInferred ? true : undefined,
       featured: false,
     },
   }

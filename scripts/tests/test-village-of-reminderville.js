@@ -213,14 +213,33 @@ describe('buildRow', () => {
     assert.equal(b.row.source_id, '1')
     assert.equal(b.venueSpec.name, 'Heritage Hall')
     assert.ok(b.row.start_at.startsWith('2024-06-27'))
-    assert.ok(b.row.end_at) // 3h default
+    assert.equal(b.row.start_at, '2024-06-27T21:00:00.000Z') // 5:00pm EDT
+    assert.equal(b.row.end_at, '2024-06-28T00:00:00.000Z') // 3h default kept
+    assert.equal(b.row.time_inferred, undefined)
   })
 
-  it('builds a multi-day date-only span with an end date and no fabricated time', () => {
+  it('builds a multi-day date-only span at sanctioned noon with time_inferred', () => {
     const b = buildRow(post(2, '2025-04-02T00:00:00', 'Reminderville Safety Town: June 16-20'))
-    assert.ok(b.row.start_at.startsWith('2025-06-16'))
+    assert.equal(b.row.start_at, '2025-06-16T16:00:00.000Z') // noon EDT
     assert.ok(b.row.end_at.startsWith('2025-06-20'))
+    assert.equal(b.row.time_inferred, true)
     assert.equal(b.row.is_family, true)
+  })
+
+  it('time-less single-day event gets noon, time_inferred, null end', () => {
+    const b = buildRow(post(5, '2026-09-10T00:00:00', 'Annual Seniors Spaghetti Dinner on October 6'))
+    assert.equal(b.row.start_at, '2026-10-06T16:00:00.000Z')
+    assert.equal(b.row.end_at, null)
+    assert.equal(b.row.time_inferred, true)
+    // upsertEventSafe owns needs_review; the scraper must not set it.
+    assert.equal('needs_review' in b.row, false)
+  })
+
+  it('meridiem-less range stays time-less → noon + time_inferred, null end', () => {
+    const b = buildRow(post(6, '2026-07-01T00:00:00', 'Community Shred Day – August 9 10:00-1:00 at City Hall'))
+    assert.equal(b.row.start_at, '2026-08-09T16:00:00.000Z')
+    assert.equal(b.row.end_at, null)
+    assert.equal(b.row.time_inferred, true)
   })
 
   it('returns null for a news post even when it has a date', () => {
