@@ -2625,6 +2625,28 @@ async function _resolveAliasCanonical(source, sourceId) {
   }
 }
 
+/**
+ * True when `status` is pinned in a row's manual_overrides.
+ *
+ * A status pin is a human decision (or a deliberate, stamped retirement), and
+ * _stripOverriddenFields below already keeps the upsert path from clobbering
+ * it. That protection only covers upsertEventSafe. A scraper that changes
+ * `status` with its own targeted UPDATE (retiring rows the source dropped,
+ * cancelling rows the source marked canceled) bypasses it, so it must ask this
+ * first and leave a pinned row alone.
+ *
+ * Only the presence of the key matters: manual_overrides entries are
+ * provenance markers ({ at, by, reason }), never values. Pure, so callers can
+ * use it inside a testable planner.
+ *
+ * @param {{manual_overrides?: object|null}|null|undefined} row
+ * @returns {boolean}
+ */
+export function hasStatusOverride(row) {
+  const overrides = row?.manual_overrides
+  return !!overrides && typeof overrides === 'object' && Object.prototype.hasOwnProperty.call(overrides, 'status')
+}
+
 async function _stripOverriddenFields(table, row) {
   // Only events have source/source_id for lookup
   if (table !== 'events' || !row.source || !row.source_id) return { row, existed: false, lookupFailed: true }

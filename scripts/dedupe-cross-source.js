@@ -126,6 +126,7 @@ export const SOURCE_PRIORITY = [
   'akron_library',
   'akron_public_schools',
   'akron_roller_derby',      // first-party (home bouts at Summit County Fairgrounds)
+  'barberton_library',       // first-party (library programs; main_street_barberton republishes them at the same venue)
   'blu_jazz',
   'city_of_akron_lock3',     // first-party source for city programming
   'cvfm',                    // first-party (Cuyahoga Valley Farmers Market, Summit venues)

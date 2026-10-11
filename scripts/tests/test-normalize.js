@@ -2221,3 +2221,35 @@ describe('enrichWithImageDimensions — org photo fallback', () => {
     }
   })
 })
+
+// ════════════════════════════════════════════════════════════════════════════
+// hasStatusOverride: is `status` pinned in manual_overrides?
+// ════════════════════════════════════════════════════════════════════════════
+// Used by scrapers that change `status` with their own targeted UPDATE, which
+// bypasses the override strip in upsertEventSafe.
+describe('hasStatusOverride', () => {
+  it('is true only when manual_overrides carries a status key', async () => {
+    const { hasStatusOverride } = await import('../lib/normalize.js')
+    const stamp = { at: '2026-10-01T00:00:00Z', by: 'admin', reason: 'venue confirmed it is on' }
+    assert.equal(hasStatusOverride({ manual_overrides: { status: stamp } }), true)
+    // Presence of the key is the pin, whatever the stamp holds.
+    assert.equal(hasStatusOverride({ manual_overrides: { status: null } }), true)
+    assert.equal(hasStatusOverride({ manual_overrides: { status: stamp, title: stamp } }), true)
+  })
+
+  it('is false for a pin on another field, an empty object, or no overrides', async () => {
+    const { hasStatusOverride } = await import('../lib/normalize.js')
+    assert.equal(hasStatusOverride({ manual_overrides: { title: { at: 'x', by: 'admin' } } }), false)
+    assert.equal(hasStatusOverride({ manual_overrides: {} }), false)
+    assert.equal(hasStatusOverride({ manual_overrides: null }), false)
+    assert.equal(hasStatusOverride({}), false)
+  })
+
+  it('never throws on a malformed row and ignores inherited keys', async () => {
+    const { hasStatusOverride } = await import('../lib/normalize.js')
+    assert.equal(hasStatusOverride(null), false)
+    assert.equal(hasStatusOverride(undefined), false)
+    assert.equal(hasStatusOverride({ manual_overrides: 'status' }), false)
+    assert.equal(hasStatusOverride({ manual_overrides: Object.create({ status: true }) }), false)
+  })
+})

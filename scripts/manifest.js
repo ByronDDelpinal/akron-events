@@ -180,6 +180,7 @@ export const SCRAPERS = [
   // ── Census wave 2026-07-14 ─────────────────────────────────────────────
   { key: 'cvsr',                 script: 'scripts/scrape-cvsr.js',                    label: 'Cuyahoga Valley Scenic Railroad', group: 'custom',      active: true, defaultCategory: 'outdoors' },
   { key: 'stow_library',         script: 'scripts/scrape-stow-library.js',            label: 'Stow-Munroe Falls Library',    group: 'custom',         active: true, defaultCategory: 'learning' },
+  { key: 'barberton_library',    script: 'scripts/scrape-barberton-library.js',       label: 'Barberton Public Library',     group: 'libcal',         active: true, defaultCategory: 'learning' },
   { key: 'christ_community_chapel', script: 'scripts/scrape-christ-community-chapel.js', label: 'Christ Community Chapel',  group: 'custom',         active: true  },
   { key: 'bath_township',        script: 'scripts/scrape-bath-township.js',           label: 'Bath Township',                group: 'civicplus',      active: true  },
   { key: 'richfield_township',   script: 'scripts/scrape-richfield-township.js',      label: 'Richfield Township',           group: 'civicplus',      active: true  },

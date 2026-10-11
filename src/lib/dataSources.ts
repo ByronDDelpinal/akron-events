@@ -855,6 +855,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'barberton_library',
+    method:      'JSON feed',
+    methodDetail:"LibCal (Springshare): the calendar widget's own paginated JSON feed (/ajax/calendar/list), read through the shared scripts/lib/libcal.js. It lists ongoing and upcoming events in date order, with pre-parsed Eastern start/end, an all-day flag, audiences, categories, images, cost, and location per event. The list is capped server-side (about 240 rows when verified on 2026-10-08), so lookahead is the shorter of 180 days and the cap",
+    venue:       'Barberton Public Library (602 West Park Avenue, Barberton) + occasional off-site program locations',
+    notes:       "Story times, book clubs, craft programs, classes, and community services for all ages from the Barberton Public Library, pulled from its LibCal event calendar. Recognized room names collapse onto the single library venue; a location that is not recognizably a room is left venue-less and flagged for review, and online programs get no venue. A series that meets off-site and says so only in its description ('meets at White Rabbit Galleries, 571 W. Tuscarawas Ave.') is attached to that venue when the sentence parses, and is otherwise left venue-less and flagged for review instead of being asserted at the library. Board meetings, closures, the Friends of the Library's own meetings and donation days, and passive all-day entries (take-home book club kits, contest entry windows) are skipped. A program the library cancels (it prefixes the title) is skipped, and the copy already published is set to cancelled unless an admin has pinned its status. An all-day entry has no clock time, so any that is kept is stored at a noon placeholder, disclosed in its description and flagged for review. Events past the feed's cap are picked up on a later night as their dates approach. The library's audience field drives the family flag, its category field maps to up to two categories, and registration cost is the explicit price signal (empty = free).",
+    status:      'active',
+  },
+  {
     key:         'christ_community_chapel',
     method:      'HTML scrape',
     methodDetail:'Bespoke server-rendered theme over Planning Center Events — event-item list rows, then per-event detail pages for descriptions and the "Upcoming Event Dates" instance blocks',
@@ -1663,6 +1671,11 @@ export const SOURCE_GROUPS: SourceGroup[] = [
     title: 'GrowthZone (chamber of commerce platform)',
     description: "GrowthZone (growthzone.com, formerly ChamberMaster/WebLink) is a chamber-of-commerce management platform. Member-facing event calendars are server-fed by a shared, un-authenticated JSON API at api-internal.weblinkconnect.com, tenant-scoped by an x-tenant request header — the list endpoint returns the full event set, and a per-event Details endpoint carries the rich description, coordinates, and fee schedule. Shared fetch/shape logic lives in scripts/lib/growthzone.js.",
   },
+  {
+    id:    'libcal',
+    title: 'LibCal (Springshare library calendars)',
+    description: "LibCal (Springshare) is the event-calendar product most public libraries run. The public calendar is a client-side widget fed by an un-authenticated, paginated JSON endpoint on the library's own LibCal origin (/ajax/calendar/list). In its upcoming mode the endpoint lists ongoing and upcoming events in date order, with pre-parsed Eastern start/end times, an all-day flag, controlled audience and category vocabularies, images, and registration cost. The list is not the whole calendar: verified live on the Barberton calendar on 2026-10-08, it is capped server-side at about 240 rows and its total_results field reports the capped number, so a scraper's effective lookahead is the shorter of its own horizon (180 days for Barberton) and however far the cap reaches that night. Events past the cap are picked up on a later night as their dates approach, and a row that drops off the end of the list has not been cancelled. Shared fetch, pagination, and shape logic lives in scripts/lib/libcal.js, which the Barberton scraper uses; the Stow-Munroe Falls scraper predates it and has its own fetch code. Each library's scraper supplies its own skip rules, venues, and category mapping.",
+  },
 ]
 
 // Maps each DATA_SOURCES key to its SOURCE_GROUPS id. Kept separate from the
@@ -1777,6 +1790,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   // Census wave 2026-07-14
   cvsr:                    'html',
   stow_library:            'libcal',
+  barberton_library:       'libcal',
   christ_community_chapel: 'html',
   bath_township:           'revize',
   richfield_township:      'revize',

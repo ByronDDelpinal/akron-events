@@ -1,0 +1,1414 @@
+{
+  "total_results": 235,
+  "perpage": 100,
+  "status": 1,
+  "results": [
+    {
+      "id": 16909118,
+      "title": "Wee Ones Storytime",
+      "description": "<p>Enjoy stories, songs, and rhymes, followed by playtime with fun &amp; educational toys. This storytime is designed for children ages birth to 2.&nbsp;</p>\n\n<hr />\n<p><strong>Check out our other storytimes:</strong></p>\n\n<p><strong>Discovery Storytime</strong></p>\n\n<p>Tuesdays, September 8 - December 8 at 10:30 a.m.</p>\n\n<p>This storytime is designed for children ages 3-5.</p>\n\n<p><strong>Kindergarten Readiness Storytimes</strong></p>\n\n<p>Saturdays, October 10, November 14 &amp; December 12 at 11:00 a.m.</p>\n\n<p>This storytime is designed for children ages 3-5.</p>\n\n<p><strong>Sprouts in Motion</strong></p>\n\n<p>Mondays, October 12 - November 30 at 10:30 a.m.</p>\n\n<p>This program is designed for children ages 2-5.</p>\n\n<p>&nbsp;</p>\n\n<p><em><strong>Our storytimes are inclusive and welcoming to children of all abilities.&nbsp; Families are encouraged to attend the storytime that best meets their child&#39;s needs.</strong></em></p>\n",
+      "fromTime": "10:30am Thursday, October 8, 2026",
+      "toTime": "11:30am Thursday, October 8, 2026",
+      "more_info": "<p>Want to be notified about events like this? <a href=\"https://www.barbertonlibrary.org/subscribe\">Sign up to receive library e-newsletter updates.&nbsp;</a></p>\n",
+      "shortdesc": "Enjoy stories, songs, and rhymes, followed by playtime with fun & educational toys. This storytime is designed for children ages birth to 2. \n\n\nCheck out our other storytimes:\n\nDiscovery...",
+      "shortdesc_was_truncated": true,
+      "registration_cost": "",
+      "start": "10:30am",
+      "end": "11:30am",
+      "all_day": false,
+      "startdt": "2026-10-08 10:30:00",
+      "enddt": "2026-10-08 11:30:00",
+      "date": "Thursday, October 8, 2026",
+      "ymd": "20261008",
+      "year": "2026",
+      "monthnum": 10,
+      "day": "8",
+      "daypostfix": "th",
+      "dayfull": "Thursday",
+      "dayshort": "Thu",
+      "monthfull": "October",
+      "monthshort": "Oct",
+      "url": "https://events.barbertonlibrary.org/event/16909118",
+      "color": "#90E8B0",
+      "locationCount": 1,
+      "location": "Children's Activity Room",
+      "locations": [
+        {
+          "id": 99641,
+          "name": "Children's Activity Room",
+          "map": "",
+          "mapId": 0,
+          "last": true
+        }
+      ],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d2jv02qf7xgjwx.cloudfront.net/customers/6650/images/Wee_Ones_Storytime.jpg",
+      "featured_image_alt_text": "Children's toys on a purple background",
+      "audiences": [
+        {
+          "id": 3990,
+          "name": "Birth to Age 5",
+          "color": "#90E8B0"
+        }
+      ],
+      "categories": "Storytime",
+      "categories_arr": [
+        {
+          "cat_id": 52834,
+          "name": "Storytime",
+          "color": "#90E8B0"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": false,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": true,
+      "registration_enabled": false
+    },
+    {
+      "id": 16630329,
+      "title": "Wicked: For Good Sing-Along",
+      "description": "<p>Watch <em>Wicked: For Good</em> on the Library&#39;s big screen and sing along to the songs. All ages and abilities are welcome.&nbsp;</p>\n\n<hr />\n<p>Defy gravity with us at a spellbinding sing-along at the Library!&nbsp;Whether you&#39;re a longtime fan or just discovering the magic of Oz, this is your chance to belt out your favorite songs.</p>\n\n<p>Wicked: For Good</p>\n\n<p>PG, 2025, 138 minutes</p>\n\n<p>Synopsis:&nbsp;Elphaba and Glinda are now estranged, each living with the consequences of their choices. Elphaba, now demonized as The Wicked Witch of the West, lives in exile, continuing her fight to expose The Wizard. Meanwhile, Glinda has become a glamorous symbol of Goodness, basking in the perks of fame and popularity. As the angry citizens of Oz rise up against the Wicked Witch, Glinda and Elphaba must reunite and truly see each other.</p>",
+      "fromTime": "1:00pm Friday, October 9, 2026",
+      "toTime": "4:00pm Friday, October 9, 2026",
+      "more_info": "<p>Want to be notified about events like this?&nbsp;<strong><a href=\"https://www.barbertonlibrary.org/subscribe\">Sign up to receive library e-newsletter updates.&nbsp;</a></strong></p>",
+      "shortdesc": "Watch Wicked: For Good on the Library's big screen and sing along to the songs. All ages and abilities are welcome. \n\n\nDefy gravity with us at a spellbinding sing-along at the Library! Whether you're...",
+      "shortdesc_was_truncated": true,
+      "registration_cost": "",
+      "start": "1:00pm",
+      "end": "4:00pm",
+      "all_day": false,
+      "startdt": "2026-10-09 13:00:00",
+      "enddt": "2026-10-09 16:00:00",
+      "date": "Friday, October 9, 2026",
+      "ymd": "20261009",
+      "year": "2026",
+      "monthnum": 10,
+      "day": "9",
+      "daypostfix": "th",
+      "dayfull": "Friday",
+      "dayshort": "Fri",
+      "monthfull": "October",
+      "monthshort": "Oct",
+      "url": "https://events.barbertonlibrary.org/event/16630329",
+      "color": "#ACC8E5",
+      "locationCount": 1,
+      "location": "Spillette Meeting Room",
+      "locations": [
+        {
+          "id": 99622,
+          "name": "Spillette Meeting Room",
+          "map": "",
+          "mapId": 0,
+          "last": true
+        }
+      ],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d68g328n4ug0e.cloudfront.net/misc/4451/events/14558/2026_06_26_14_26_01.png",
+      "featured_image_alt_text": "Wicked: For Good Movie cover",
+      "audiences": [
+        {
+          "id": 3994,
+          "name": "All Abilities",
+          "color": "#ACC8E5"
+        },
+        {
+          "id": 3996,
+          "name": "All Ages",
+          "color": "#ACC8E5"
+        }
+      ],
+      "categories": "Movies & Music",
+      "categories_arr": [
+        {
+          "cat_id": 65221,
+          "name": "Movies & Music",
+          "color": "#ACC8E5"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": true,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": false,
+      "registration_enabled": true,
+      "seats": 50,
+      "seatsleft": 50,
+      "seatsleft_multiple": true,
+      "seatsleft_text": "50 seats left"
+    },
+    {
+      "id": 16636971,
+      "title": "Chair Yoga with Colleen Hohl",
+      "description": "<p>Join us at the Library to improve your flexibility by participating in a free chair yoga class.</p>\n\n<hr />\n<p>Improve your flexibility by participating in a free chair yoga class!&nbsp;This gentle program is designed for seniors and individuals struggling with mobility.</p>\n\n<p>The class will be led by Colleen Hohl, a 200-hour certified yoga instructor from the Asheville Yoga Center in North Carolina. Registration is not required.&nbsp;</p>",
+      "fromTime": "12:00pm Tuesday, October 13, 2026",
+      "toTime": "12:45pm Tuesday, October 13, 2026",
+      "more_info": "",
+      "shortdesc": "Join us at the Library to improve your flexibility by participating in a free chair yoga class.\n\n\nImprove your flexibility by participating in a free chair yoga class! This gentle program is designed...",
+      "shortdesc_was_truncated": true,
+      "registration_cost": "",
+      "start": "12:00pm",
+      "end": "12:45pm",
+      "all_day": false,
+      "startdt": "2026-10-13 12:00:00",
+      "enddt": "2026-10-13 12:45:00",
+      "date": "Tuesday, October 13, 2026",
+      "ymd": "20261013",
+      "year": "2026",
+      "monthnum": 10,
+      "day": "13",
+      "daypostfix": "th",
+      "dayfull": "Tuesday",
+      "dayshort": "Tue",
+      "monthfull": "October",
+      "monthshort": "Oct",
+      "url": "https://events.barbertonlibrary.org/event/16636971",
+      "color": "#AE90BA",
+      "locationCount": 1,
+      "location": "Spillette Meeting Room",
+      "locations": [
+        {
+          "id": 99622,
+          "name": "Spillette Meeting Room",
+          "map": "",
+          "mapId": 0,
+          "last": true
+        }
+      ],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d2jv02qf7xgjwx.cloudfront.net/customers/6650/images/chair_yoga.png",
+      "featured_image_alt_text": "",
+      "audiences": [
+        {
+          "id": 3994,
+          "name": "All Abilities",
+          "color": "#ACC8E5"
+        },
+        {
+          "id": 3995,
+          "name": "Adult",
+          "color": "#AE90BA"
+        }
+      ],
+      "categories": "Health & Wellness",
+      "categories_arr": [
+        {
+          "cat_id": 88718,
+          "name": "Health & Wellness",
+          "color": "#AE90BA"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": false,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": true,
+      "registration_enabled": false
+    },
+    {
+      "id": 17148102,
+      "title": "Pumpkin Decorating Contest Drop-Off",
+      "description": "<p>Get ready to show off your creativity at our annual pumpkin decorating contest! Beginning on October 14, participants can drop off their masterpieces at the Customer Services Desk with a completed registration form. All ages are welcome to join in on this spook-tacular fun.&nbsp;</p>\n\n<p><i>Carved pumpkins will not be accepted.</i></p>\n\n<hr />\n<p><strong>Drop-off decorated pumpkins: October 14-19&nbsp;(at the&nbsp;Customer Service Desk).&nbsp;</strong></p>\n\n<ul>\n\t<li>Carved pumpkins will not be accepted.</li>\n</ul>\n\n<p><strong>Vote for the Best Pumpkin:&nbsp;October 20-26. Pumpkins will be displayed on&nbsp;the Main Floor.&nbsp;</strong></p>\n\n<p><strong>Winners announced:&nbsp;October 27.</strong></p>\n\n<ul>\n\t<li>Categories include: Kids (up to 5th grade), Teens (6th-12th grade), Adults, Families/Community Groups, &amp; People&#39;s Choice.</li>\n</ul>\n\n<p><strong>Pumpkins must be picked up by October 31.&nbsp;</strong></p>\n",
+      "fromTime": "Wednesday, October 14, 2026",
+      "toTime": "Wednesday, October 14, 2026",
+      "more_info": "<p>Want to be notified about events like this?&nbsp;<strong><a href=\"https://www.barbertonlibrary.org/subscribe\">Sign up to receive library e-newsletter updates.&nbsp;</a></strong></p>\n",
+      "shortdesc": "Get ready to show off your creativity at our annual pumpkin decorating contest! Beginning on October 14, participants can drop off their masterpieces at the Customer Services Desk with a completed...",
+      "shortdesc_was_truncated": true,
+      "registration_cost": "",
+      "start": "All Day Event",
+      "end": "",
+      "all_day": true,
+      "startdt": "2026-10-14 00:00:00",
+      "enddt": "2026-10-14 23:59:59",
+      "date": "Wednesday, October 14, 2026",
+      "ymd": "20261014",
+      "year": "2026",
+      "monthnum": 10,
+      "day": "14",
+      "daypostfix": "th",
+      "dayfull": "Wednesday",
+      "dayshort": "Wed",
+      "monthfull": "October",
+      "monthshort": "Oct",
+      "url": "https://events.barbertonlibrary.org/event/17148102",
+      "color": "#ACC8E5",
+      "locationCount": 0,
+      "location": "",
+      "locations": [],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d68g328n4ug0e.cloudfront.net/misc/4451/events/14558/2026_07_06_08_56_15.png",
+      "featured_image_alt_text": "",
+      "audiences": [
+        {
+          "id": 3994,
+          "name": "All Abilities",
+          "color": "#ACC8E5"
+        },
+        {
+          "id": 3996,
+          "name": "All Ages",
+          "color": "#ACC8E5"
+        }
+      ],
+      "categories": "Challenges & Contests",
+      "categories_arr": [
+        {
+          "cat_id": 82776,
+          "name": "Challenges & Contests",
+          "color": "#ACC8E5"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": false,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": true,
+      "registration_enabled": false
+    },
+    {
+      "id": 16909307,
+      "title": "Pumpkin Decorating",
+      "description": "<p>Decorate a pumpkin to enter our annual Pumpkin Decorating Contest.</p>\n\n<hr />\n<p>This program is open to children &amp; teens.&nbsp; Registration is required to ensure we have enough pumpkins for everyone to decorate.&nbsp; Participants are welcome to bring their own pumpkins.</p>",
+      "fromTime": "4:30pm Wednesday, October 14, 2026",
+      "toTime": "5:30pm Wednesday, October 14, 2026",
+      "more_info": "<p>Want to be notified about events like this?&nbsp;<strong><a href=\"https://www.barbertonlibrary.org/subscribe\">Sign up to receive library e-newsletter updates.&nbsp;</a></strong></p>",
+      "shortdesc": "Decorate a pumpkin to enter our annual Pumpkin Decorating Contest.\n\n\nThis program is open to children & teens.  Registration is required to ensure we have enough pumpkins for everyone to decorate. ...",
+      "shortdesc_was_truncated": true,
+      "registration_cost": "",
+      "start": "4:30pm",
+      "end": "5:30pm",
+      "all_day": false,
+      "startdt": "2026-10-14 16:30:00",
+      "enddt": "2026-10-14 17:30:00",
+      "date": "Wednesday, October 14, 2026",
+      "ymd": "20261014",
+      "year": "2026",
+      "monthnum": 10,
+      "day": "14",
+      "daypostfix": "th",
+      "dayfull": "Wednesday",
+      "dayshort": "Wed",
+      "monthfull": "October",
+      "monthshort": "Oct",
+      "url": "https://events.barbertonlibrary.org/event/16909307",
+      "color": "#4FAD73",
+      "locationCount": 1,
+      "location": "Spillette Meeting Room",
+      "locations": [
+        {
+          "id": 99622,
+          "name": "Spillette Meeting Room",
+          "map": "",
+          "mapId": 0,
+          "last": true
+        }
+      ],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d68g328n4ug0e.cloudfront.net/misc/4451/events/14558/2026_06_27_13_23_09.png",
+      "featured_image_alt_text": "Painted pumpkins",
+      "audiences": [
+        {
+          "id": 3990,
+          "name": "Birth to Age 5",
+          "color": "#90E8B0"
+        },
+        {
+          "id": 3991,
+          "name": "Grades K - 5",
+          "color": "#629B78"
+        },
+        {
+          "id": 3993,
+          "name": "Grades 6 - 12",
+          "color": "#D8924B"
+        }
+      ],
+      "categories": "",
+      "categories_arr": [],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": true,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": false,
+      "registration_enabled": true,
+      "seats": 100,
+      "seatsleft": 87,
+      "seatsleft_multiple": true,
+      "seatsleft_text": "87 seats left"
+    },
+    {
+      "id": 16637165,
+      "title": "Evening Hooks & Books",
+      "description": "<p>Bring your portable crafts and we&rsquo;ll share what books we&rsquo;ve been reading.</p>\n\n<hr />\n<p>Find a community of craft-loving bookworms! Whether you love crocheting, knitting, or another portable craft, everyone is welcome.</p>\n\n<p>Join us with your craft to discuss our current reads. You are welcome to bring a snack and a beverage.</p>\n\n<p>Evening Hooks &amp; Books meets in the Board Room at the Library.</p>",
+      "fromTime": "6:00pm Wednesday, October 14, 2026",
+      "toTime": "7:30pm Wednesday, October 14, 2026",
+      "more_info": "",
+      "shortdesc": "Bring your portable crafts and we’ll share what books we’ve been reading.\n\n\nFind a community of craft-loving bookworms! Whether you love crocheting, knitting, or another portable craft, everyone is...",
+      "shortdesc_was_truncated": true,
+      "registration_cost": "",
+      "start": "6:00pm",
+      "end": "7:30pm",
+      "all_day": false,
+      "startdt": "2026-10-14 18:00:00",
+      "enddt": "2026-10-14 19:30:00",
+      "date": "Wednesday, October 14, 2026",
+      "ymd": "20261014",
+      "year": "2026",
+      "monthnum": 10,
+      "day": "14",
+      "daypostfix": "th",
+      "dayfull": "Wednesday",
+      "dayshort": "Wed",
+      "monthfull": "October",
+      "monthshort": "Oct",
+      "url": "https://events.barbertonlibrary.org/event/16637165",
+      "color": "#AE90BA",
+      "locationCount": 1,
+      "location": "Board Room",
+      "locations": [
+        {
+          "id": 99637,
+          "name": "Board Room",
+          "map": "",
+          "mapId": 0,
+          "last": true
+        }
+      ],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d2jv02qf7xgjwx.cloudfront.net/customers/6650/images/evening_hooks___books.png",
+      "featured_image_alt_text": "",
+      "audiences": [
+        {
+          "id": 3995,
+          "name": "Adult",
+          "color": "#AE90BA"
+        }
+      ],
+      "categories": "Arts & Crafts, Book Club",
+      "categories_arr": [
+        {
+          "cat_id": 52778,
+          "name": "Arts & Crafts",
+          "color": "#AE90BA"
+        },
+        {
+          "cat_id": 52783,
+          "name": "Book Club",
+          "color": "#AE90BA"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": false,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": true,
+      "registration_enabled": false
+    },
+    {
+      "id": 17056178,
+      "title": "Book Club to Go",
+      "description": "<p>Stop in to check out Book Club to Go: no meetings or deadlines, just great books.</p>\n\n<p>Each title comes with a discussion guide with questions to think about while reading, author information, and librarian recommendations. Read the book at your leisure and return when you&#39;re finished!</p>\n\n<p>Our October selection is <em>The Hacienda</em>&nbsp;by Isabel Canas. Copies will be available at the reference desk starting on the first Monday of the month.</p>\n\n<p>Want a digital copy? Search for the eBook or audiobook on&nbsp;<a href=\"https://www.overdrive.com/apps/libby?utm_origin=lightning&amp;utm_page_genre=toast_note&amp;utm_l%E2%80%A6=\">Libby</a>.</p>\n\n<hr />\n<p><img alt=\"Book Cover\" loading=\"lazy\" src=\"https://search.barbertonlibrary.org/bookcover.php?id=8bae0c41-4fe1-532e-6e62-3ea66a973c90-eng&amp;size=large&amp;type=grouped_work\" /></p>\n\n<p><a href=\"https://search.barbertonlibrary.org/GroupedWork/8bae0c41-4fe1-532e-6e62-3ea66a973c90-eng/Home?searchId=47398768&amp;recordIndex=1&amp;page=1&amp;searchSource=local&amp;referred=resultIndex\">The Hacienda</a> by Isabel Canas</p>\n\n<p>In the overthrow of the Mexican government, Beatriz&#39;s father is executed and her home destroyed. When handsome Don Rodolfo Sol&oacute;rzano proposes, Beatriz ignores the rumors surrounding his first wife&#39;s sudden demise, choosing instead to seize the security his estate in the countryside provides. She will have her own home again, no matter the cost. But Hacienda San Isidro is not the sanctuary she imagined. When Rodolfo returns to work in the capital, visions and voices invade Beatriz&#39;s sleep. The weight of invisible eyes follows her every move. Rodolfo&#39;s sister, Juana, scoffs at Beatriz&#39;s fears--but why does she refuse to enter the house at night? Why does the cook burn copal incense at the edge of the kitchen and mark its doorway with strange symbols? What really happened to the first Do&ntilde;a Sol&oacute;rzano? Beatriz only knows two things for certain. Something is wrong with the hacienda. And no one there will help her.</p>",
+      "fromTime": "Monday, October 19, 2026",
+      "toTime": "Monday, October 19, 2026",
+      "more_info": "",
+      "shortdesc": "Stop in to check out Book Club to Go: no meetings or deadlines, just great books.\n\nEach title comes with a discussion guide with questions to think about while reading, author information, and...",
+      "shortdesc_was_truncated": true,
+      "registration_cost": "",
+      "start": "All Day Event",
+      "end": "",
+      "all_day": true,
+      "startdt": "2026-10-19 00:00:00",
+      "enddt": "2026-10-19 23:59:59",
+      "date": "Monday, October 19, 2026",
+      "ymd": "20261019",
+      "year": "2026",
+      "monthnum": 10,
+      "day": "19",
+      "daypostfix": "th",
+      "dayfull": "Monday",
+      "dayshort": "Mon",
+      "monthfull": "October",
+      "monthshort": "Oct",
+      "url": "https://events.barbertonlibrary.org/event/17056178",
+      "color": "#AE90BA",
+      "locationCount": 0,
+      "location": "",
+      "locations": [],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d2jv02qf7xgjwx.cloudfront.net/customers/6650/images/book_club_to_go.png",
+      "featured_image_alt_text": "",
+      "audiences": [
+        {
+          "id": 3995,
+          "name": "Adult",
+          "color": "#AE90BA"
+        }
+      ],
+      "categories": "Book Club",
+      "categories_arr": [
+        {
+          "cat_id": 52783,
+          "name": "Book Club",
+          "color": "#AE90BA"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": false,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": false,
+      "registration_enabled": false
+    },
+    {
+      "id": 16636475,
+      "title": "Job Assistance with OhioMeansJobs",
+      "description": "<p>Get help with job-related services from OhioMeansJobs Summit County.</p>\n\n<hr />\n<p>OhioMeansJobs Summit County is the local, all-in-one workforce resource center and provides a full range of free services to job seekers. All community members can receive help with resumes, job searches, interview preparation, and more. For more information about OhioMeansJobs Summit County and find their online resources, <a href=\"https://www.summitmedinaomj.org/entry/For-Job-Seekers.html\">click this link</a>.&nbsp;</p>",
+      "fromTime": "1:00pm Monday, October 19, 2026",
+      "toTime": "4:00pm Monday, October 19, 2026",
+      "more_info": "",
+      "shortdesc": "Get help with job-related services from OhioMeansJobs Summit County.\n\n\nOhioMeansJobs Summit County is the local, all-in-one workforce resource center and provides a full range of free services to job...",
+      "shortdesc_was_truncated": true,
+      "registration_cost": "",
+      "start": "1:00pm",
+      "end": "4:00pm",
+      "all_day": false,
+      "startdt": "2026-10-19 13:00:00",
+      "enddt": "2026-10-19 16:00:00",
+      "date": "Monday, October 19, 2026",
+      "ymd": "20261019",
+      "year": "2026",
+      "monthnum": 10,
+      "day": "19",
+      "daypostfix": "th",
+      "dayfull": "Monday",
+      "dayshort": "Mon",
+      "monthfull": "October",
+      "monthshort": "Oct",
+      "url": "https://events.barbertonlibrary.org/event/16636475",
+      "color": "#AE90BA",
+      "locationCount": 0,
+      "location": "",
+      "locations": [],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d2jv02qf7xgjwx.cloudfront.net/customers/6650/images/OhioMeansJobs_logo.png",
+      "featured_image_alt_text": "",
+      "audiences": [
+        {
+          "id": 3995,
+          "name": "Adult",
+          "color": "#AE90BA"
+        }
+      ],
+      "categories": "Community Connections",
+      "categories_arr": [
+        {
+          "cat_id": 55319,
+          "name": "Community Connections",
+          "color": "#AE90BA"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": false,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": true,
+      "registration_enabled": false
+    },
+    {
+      "id": 16738055,
+      "title": "CANCELED- Author Visit: Delsie Moore",
+      "description": "<p>This program is canceled due to unforeseen circumstances.&nbsp;</p>\n\n<p>Meet with local author, Delsie Moore, as she highlights her book about death and grief, <em>Her Wings Were Ready, My Heart Was Not</em>.&nbsp;</p>\n\n<hr />\n<p>Visit with Delsie on the Main Floor of the Library. She also writes Fantasy &amp; Romantic Fiction books.&nbsp;</p>\n\n<p>Delsie Moore was born in Charleston, West Virginia, and raised in Houston, Texas, where her love for storytelling and imagination first took root. A devoted mother and proud grandmother, she finds her greatest joy in spending time with her growing family, especially her amazing grandchildren, who continue to inspire her sense of wonder and creativity.</p>\n\n<p>Delsie Now resides in Ohio, where she has embraced a new chapter of her life and with it, her long-awaited dream of becoming an author. THE BAD WITCH marks her official debut, a project fueled by the passion, heart, and the desire to create something memorable for readers of all ages.</p>\n\n<p>Her writing blends the spirit of her roots, the wisdom of her experiences, and the spark of playfulness she&#39;s never let go of. The Bad Witch is only the beginning of a journey she&#39;s excited to share with the world.</p>",
+      "fromTime": "4:30pm Wednesday, October 21, 2026",
+      "toTime": "6:30pm Wednesday, October 21, 2026",
+      "more_info": "<p>Want to be notified about events like this?&nbsp;<strong><a href=\"https://www.barbertonlibrary.org/subscribe\">Sign up to receive library e-newsletter updates.&nbsp;</a></strong></p>",
+      "shortdesc": "This program is canceled due to unforeseen circumstances. \n\nMeet with local author, Delsie Moore, as she highlights her book about death and grief, Her Wings Were Ready, My Heart Was Not. \n\n\nVisit...",
+      "shortdesc_was_truncated": true,
+      "registration_cost": "",
+      "start": "4:30pm",
+      "end": "6:30pm",
+      "all_day": false,
+      "startdt": "2026-10-21 16:30:00",
+      "enddt": "2026-10-21 18:30:00",
+      "date": "Wednesday, October 21, 2026",
+      "ymd": "20261021",
+      "year": "2026",
+      "monthnum": 10,
+      "day": "21",
+      "daypostfix": "st",
+      "dayfull": "Wednesday",
+      "dayshort": "Wed",
+      "monthfull": "October",
+      "monthshort": "Oct",
+      "url": "https://events.barbertonlibrary.org/event/16738055",
+      "color": "#AE90BA",
+      "locationCount": 0,
+      "location": "",
+      "locations": [],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d68g328n4ug0e.cloudfront.net/misc/4451/events/14558/2026_06_26_12_44_47.png",
+      "featured_image_alt_text": "",
+      "audiences": [
+        {
+          "id": 3995,
+          "name": "Adult",
+          "color": "#AE90BA"
+        }
+      ],
+      "categories": "Special Event",
+      "categories_arr": [
+        {
+          "cat_id": 52781,
+          "name": "Special Event",
+          "color": "#AE90BA"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": false,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": false,
+      "registration_enabled": false
+    },
+    {
+      "id": 15357287,
+      "title": "Regular Board Meeting",
+      "description": "<p>This is a regular monthly meeting of the Barberton Public Library Board of Trustees. &nbsp;In accordance with the provisions of the Ohio Revised Code, Section 121.22, all Board meetings are open to the public, except during executive sessions.&nbsp;</p>\n\n<p>&nbsp;</p>",
+      "fromTime": "6:30pm Thursday, October 22, 2026",
+      "toTime": "8:00pm Thursday, October 22, 2026",
+      "more_info": "",
+      "shortdesc": "This is a regular monthly meeting of the Barberton Public Library Board of Trustees.  In accordance with the provisions of the Ohio Revised Code, Section 121.22, all Board meetings are open to the...",
+      "shortdesc_was_truncated": true,
+      "registration_cost": "",
+      "start": "6:30pm",
+      "end": "8:00pm",
+      "all_day": false,
+      "startdt": "2026-10-22 18:30:00",
+      "enddt": "2026-10-22 20:00:00",
+      "date": "Thursday, October 22, 2026",
+      "ymd": "20261022",
+      "year": "2026",
+      "monthnum": 10,
+      "day": "22",
+      "daypostfix": "nd",
+      "dayfull": "Thursday",
+      "dayshort": "Thu",
+      "monthfull": "October",
+      "monthshort": "Oct",
+      "url": "https://events.barbertonlibrary.org/event/15357287",
+      "color": "#EBCF7B",
+      "locationCount": 1,
+      "location": "Board Room",
+      "locations": [
+        {
+          "id": 99637,
+          "name": "Board Room",
+          "map": "",
+          "mapId": 0,
+          "last": true
+        }
+      ],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://lcimages.s3.amazonaws.com/data/feat_img/4451/14558/1697740506.png",
+      "featured_image_alt_text": "",
+      "audiences": [
+        {
+          "id": 3995,
+          "name": "Adult",
+          "color": "#AE90BA"
+        }
+      ],
+      "categories": "Board Meeting",
+      "categories_arr": [
+        {
+          "cat_id": 53807,
+          "name": "Board Meeting",
+          "color": "#EBCF7B"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": false,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": true,
+      "registration_enabled": false
+    },
+    {
+      "id": 16640304,
+      "title": "Afternoon Hooks & Books",
+      "description": "<p>Bring your portable crafts and we&rsquo;ll share what books we&rsquo;ve been reading.</p>\n\n<hr />\n<p>Find a community of craft-loving bookworms! Whether you love crocheting, knitting, or another portable craft, everyone is welcome.</p>\n\n<p>Join us with your craft to discuss our current reads. Feel free to bring a snack and drink.</p>\n\n<p>Afternoon Hooks &amp; Books meets at White Rabbit Galleries, 571 W. Tuscarawas Ave.</p>",
+      "fromTime": "2:00pm Wednesday, October 28, 2026",
+      "toTime": "3:30pm Wednesday, October 28, 2026",
+      "more_info": "",
+      "shortdesc": "Bring your portable crafts and we’ll share what books we’ve been reading.\n\n\nFind a community of craft-loving bookworms! Whether you love crocheting, knitting, or another portable craft, everyone is...",
+      "shortdesc_was_truncated": true,
+      "registration_cost": "",
+      "start": "2:00pm",
+      "end": "3:30pm",
+      "all_day": false,
+      "startdt": "2026-10-28 14:00:00",
+      "enddt": "2026-10-28 15:30:00",
+      "date": "Wednesday, October 28, 2026",
+      "ymd": "20261028",
+      "year": "2026",
+      "monthnum": 10,
+      "day": "28",
+      "daypostfix": "th",
+      "dayfull": "Wednesday",
+      "dayshort": "Wed",
+      "monthfull": "October",
+      "monthshort": "Oct",
+      "url": "https://events.barbertonlibrary.org/event/16640304",
+      "color": "#AE90BA",
+      "locationCount": 0,
+      "location": "",
+      "locations": [],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d2jv02qf7xgjwx.cloudfront.net/customers/6650/images/afternoon_hooks___books.png",
+      "featured_image_alt_text": "",
+      "audiences": [
+        {
+          "id": 3995,
+          "name": "Adult",
+          "color": "#AE90BA"
+        }
+      ],
+      "categories": "Book Club, Arts & Crafts",
+      "categories_arr": [
+        {
+          "cat_id": 52783,
+          "name": "Book Club",
+          "color": "#AE90BA"
+        },
+        {
+          "cat_id": 52778,
+          "name": "Arts & Crafts",
+          "color": "#AE90BA"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": false,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": true,
+      "registration_enabled": false
+    },
+    {
+      "id": 16636588,
+      "title": "CANCELLED- Job & Family Services",
+      "description": "<p>Meet one-on-one with a case manager from the Summit County Job &amp; Family Services.</p>\n\n<hr />\n<p>Due to funding and administrative needs, Job and Family Services is temporarily suspending all outreach services beginning September 1.</p>\n\n<p>This program is a partnership with Summit County Department of Job &amp; Family Services. To learn more about the Department of Job &amp; Family Services, <a href=\"https://www.summitdjfs.org/\">click this link</a>. The case manager will be at the Library from 10 AM - 4 PM on the first Tuesday of the month.&nbsp;</p>\n\n<p>Case managers can assist with:</p>\n\n<ul>\n\t<li>Applying for or renewing cash, food, or medical&nbsp;assistance.</li>\n\t<li>Answering case or eligibility questions.</li>\n\t<li>Scanning documents and verifications.</li>\n\t<li>Making copies of important documents, such as birth certificates, Social Security cards, pay stubs, etc.&nbsp;</li>\n\t<li>Accessing benefit&nbsp;issuance history.</li>\n\t<li>Getting additional resources and support services.</li>\n</ul>",
+      "fromTime": "10:00am Tuesday, November 3, 2026",
+      "toTime": "4:00pm Tuesday, November 3, 2026",
+      "more_info": "",
+      "shortdesc": "Meet one-on-one with a case manager from the Summit County Job & Family Services.\n\n\nDue to funding and administrative needs, Job and Family Services is temporarily suspending all outreach services...",
+      "shortdesc_was_truncated": true,
+      "registration_cost": "",
+      "start": "10:00am",
+      "end": "4:00pm",
+      "all_day": false,
+      "startdt": "2026-11-03 10:00:00",
+      "enddt": "2026-11-03 16:00:00",
+      "date": "Tuesday, November 3, 2026",
+      "ymd": "20261103",
+      "year": "2026",
+      "monthnum": 11,
+      "day": "3",
+      "daypostfix": "rd",
+      "dayfull": "Tuesday",
+      "dayshort": "Tue",
+      "monthfull": "November",
+      "monthshort": "Nov",
+      "url": "https://events.barbertonlibrary.org/event/16636588",
+      "color": "#AE90BA",
+      "locationCount": 1,
+      "location": "Study Room 1",
+      "locations": [
+        {
+          "id": 146554,
+          "name": "Study Room 1",
+          "map": "",
+          "mapId": 0,
+          "last": true
+        }
+      ],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d2jv02qf7xgjwx.cloudfront.net/customers/6650/images/job___family_services.png",
+      "featured_image_alt_text": "",
+      "audiences": [
+        {
+          "id": 3995,
+          "name": "Adult",
+          "color": "#AE90BA"
+        }
+      ],
+      "categories": "Community Connections",
+      "categories_arr": [
+        {
+          "cat_id": 55319,
+          "name": "Community Connections",
+          "color": "#AE90BA"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": false,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": true,
+      "registration_enabled": false
+    },
+    {
+      "id": 16160669,
+      "title": "Friends of the Library Meeting",
+      "description": "<p>The Friends of the Barberton Public Library is a 501(c) 3 volunteer organization that exists to help enrich the programs, services, and materials provided to the community by the Library.&nbsp; Through Friends support, additional programs and services that cannot be included in the Library&#39;s tax-supported budget are made possible. The Friends of the Library has two main sources of funding: the generous support of members who pay yearly dues and the revenues generated by book sales.&nbsp;</p>\n\n<p>Regular bi-monthly meetings are&nbsp;on the third Wednesday of every other month in&nbsp;January, March, May, July, September, and November at 6:00&nbsp;p.m. in the&nbsp;Spillette Meeting&nbsp;Room.</p>\n\n<p>All are welcome to attend!</p>",
+      "fromTime": "6:00pm Wednesday, November 18, 2026",
+      "toTime": "7:00pm Wednesday, November 18, 2026",
+      "more_info": "",
+      "shortdesc": "The Friends of the Barberton Public Library is a 501(c) 3 volunteer organization that exists to help enrich the programs, services, and materials provided to the community by the Library.  Through...",
+      "shortdesc_was_truncated": true,
+      "registration_cost": "",
+      "start": "6:00pm",
+      "end": "7:00pm",
+      "all_day": false,
+      "startdt": "2026-11-18 18:00:00",
+      "enddt": "2026-11-18 19:00:00",
+      "date": "Wednesday, November 18, 2026",
+      "ymd": "20261118",
+      "year": "2026",
+      "monthnum": 11,
+      "day": "18",
+      "daypostfix": "th",
+      "dayfull": "Wednesday",
+      "dayshort": "Wed",
+      "monthfull": "November",
+      "monthshort": "Nov",
+      "url": "https://events.barbertonlibrary.org/event/16160669",
+      "color": "#C6B089",
+      "locationCount": 1,
+      "location": "Spillette Meeting Room",
+      "locations": [
+        {
+          "id": 99622,
+          "name": "Spillette Meeting Room",
+          "map": "",
+          "mapId": 0,
+          "last": true
+        }
+      ],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d68g328n4ug0e.cloudfront.net/data/feat_img/4451/template/1736273143.png",
+      "featured_image_alt_text": "",
+      "audiences": [
+        {
+          "id": 3994,
+          "name": "All Abilities",
+          "color": "#ACC8E5"
+        },
+        {
+          "id": 3995,
+          "name": "Adult",
+          "color": "#AE90BA"
+        }
+      ],
+      "categories": "Friends of the Library",
+      "categories_arr": [
+        {
+          "cat_id": 67455,
+          "name": "Friends of the Library",
+          "color": "#C6B089"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": false,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": false,
+      "registration_enabled": false
+    },
+    {
+      "id": 15357239,
+      "title": "Library Closes Early",
+      "description": "<p>The Library will close at 6:00 p.m.</p>",
+      "fromTime": "Wednesday, November 25, 2026",
+      "toTime": "Wednesday, November 25, 2026",
+      "more_info": "",
+      "shortdesc": "The Library will close at 6:00 p.m.",
+      "shortdesc_was_truncated": false,
+      "registration_cost": "",
+      "start": "All Day Event",
+      "end": "",
+      "all_day": true,
+      "startdt": "2026-11-25 00:00:00",
+      "enddt": "2026-11-25 23:59:59",
+      "date": "Wednesday, November 25, 2026",
+      "ymd": "20261125",
+      "year": "2026",
+      "monthnum": 11,
+      "day": "25",
+      "daypostfix": "th",
+      "dayfull": "Wednesday",
+      "dayshort": "Wed",
+      "monthfull": "November",
+      "monthshort": "Nov",
+      "url": "https://events.barbertonlibrary.org/event/15357239",
+      "color": "#E47F7F",
+      "locationCount": 0,
+      "location": "",
+      "locations": [],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d2jv02qf7xgjwx.cloudfront.net/customers/6650/images/Board_Meetings.png",
+      "featured_image_alt_text": "",
+      "audiences": [
+        {
+          "id": 3994,
+          "name": "All Abilities",
+          "color": "#ACC8E5"
+        },
+        {
+          "id": 3996,
+          "name": "All Ages",
+          "color": "#ACC8E5"
+        }
+      ],
+      "categories": "Library Closing",
+      "categories_arr": [
+        {
+          "cat_id": 57052,
+          "name": "Library Closing",
+          "color": "#E47F7F"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": false,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": true,
+      "registration_enabled": false
+    },
+    {
+      "id": 15357221,
+      "title": "Library Closed",
+      "description": "",
+      "fromTime": "Thursday, November 26, 2026",
+      "toTime": "Thursday, November 26, 2026",
+      "more_info": "",
+      "shortdesc": "",
+      "shortdesc_was_truncated": false,
+      "registration_cost": "",
+      "start": "All Day Event",
+      "end": "",
+      "all_day": true,
+      "startdt": "2026-11-26 00:00:00",
+      "enddt": "2026-11-26 23:59:59",
+      "date": "Thursday, November 26, 2026",
+      "ymd": "20261126",
+      "year": "2026",
+      "monthnum": 11,
+      "day": "26",
+      "daypostfix": "th",
+      "dayfull": "Thursday",
+      "dayshort": "Thu",
+      "monthfull": "November",
+      "monthshort": "Nov",
+      "url": "https://events.barbertonlibrary.org/event/15357221",
+      "color": "#E47F7F",
+      "locationCount": 0,
+      "location": "",
+      "locations": [],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d2jv02qf7xgjwx.cloudfront.net/customers/6650/images/Board_Meetings.png",
+      "featured_image_alt_text": "",
+      "audiences": [
+        {
+          "id": 3994,
+          "name": "All Abilities",
+          "color": "#ACC8E5"
+        },
+        {
+          "id": 3996,
+          "name": "All Ages",
+          "color": "#ACC8E5"
+        }
+      ],
+      "categories": "Library Closing",
+      "categories_arr": [
+        {
+          "cat_id": 57052,
+          "name": "Library Closing",
+          "color": "#E47F7F"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": false,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": true,
+      "registration_enabled": false
+    },
+    {
+      "id": 16537941,
+      "title": "Ohio Justice Bus",
+      "description": "<p>Visit the Ohio Justice Bus and the Summit County Domestic Court.&nbsp;</p>\n\n<hr />\n<p>The Summit County Domestic Relations Court is proud to host the Ohio Justice Bus at the Barberton Public Library. This free legal clinic will provide members of the community with a &ldquo;One-Stop Shop&rdquo; legal aid service and court access. It is ready to help resolve family matters and offers legal help with divorce, separation, civil protection orders, or child custody.&nbsp;&nbsp;</p>\n\n<p>Register at&nbsp;<a data-auth=\"NotApplicable\" data-linkindex=\"3\" href=\"https://drcourt.org/wp/ojb-registration/\" rel=\"noopener noreferrer\" target=\"_blank\">https://drcourt.org/wp/ojb-registration/</a>. Walk-ins are also welcome.&nbsp;</p>\n\n<p>&nbsp;</p>",
+      "fromTime": "11:00am Friday, December 11, 2026",
+      "toTime": "3:00pm Friday, December 11, 2026",
+      "more_info": "<p>Want to be notified about events like this?&nbsp;<strong><a href=\"https://www.barbertonlibrary.org/subscribe\">Sign up to receive library e-newsletter updates.</a></strong></p>",
+      "shortdesc": "Visit the Ohio Justice Bus and the Summit County Domestic Court. \n\n\nThe Summit County Domestic Relations Court is proud to host the Ohio Justice Bus at the Barberton Public Library. This free legal...",
+      "shortdesc_was_truncated": true,
+      "registration_cost": "",
+      "start": "11:00am",
+      "end": "3:00pm",
+      "all_day": false,
+      "startdt": "2026-12-11 11:00:00",
+      "enddt": "2026-12-11 15:00:00",
+      "date": "Friday, December 11, 2026",
+      "ymd": "20261211",
+      "year": "2026",
+      "monthnum": 12,
+      "day": "11",
+      "daypostfix": "th",
+      "dayfull": "Friday",
+      "dayshort": "Fri",
+      "monthfull": "December",
+      "monthshort": "Dec",
+      "url": "https://events.barbertonlibrary.org/event/16537941",
+      "color": "#AE90BA",
+      "locationCount": 2,
+      "location": "Board Room, Spillette Meeting Room",
+      "locations": [
+        {
+          "id": 99637,
+          "name": "Board Room",
+          "map": "",
+          "mapId": 0,
+          "last": false
+        },
+        {
+          "id": 99622,
+          "name": "Spillette Meeting Room",
+          "map": "",
+          "mapId": 0,
+          "last": true
+        }
+      ],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d68g328n4ug0e.cloudfront.net/misc/4451/events/14558/2026_10_08_08_39_10.jpg",
+      "featured_image_alt_text": "",
+      "audiences": [
+        {
+          "id": 3995,
+          "name": "Adult",
+          "color": "#AE90BA"
+        }
+      ],
+      "categories": "Community Connections",
+      "categories_arr": [
+        {
+          "cat_id": 55319,
+          "name": "Community Connections",
+          "color": "#AE90BA"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": false,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": false,
+      "registration_enabled": false
+    },
+    {
+      "id": 16925346,
+      "title": "Family Cookie Decorating",
+      "description": "<p>We&rsquo;ll bring the cookies; you bring the creativity! Everyone is welcome to create a delicious design.</p>\n\n<p>This drop-in program is intended for families, and adults are required to participate and assist their children.&nbsp; All ages and family structures are welcome.</p>",
+      "fromTime": "1:30pm Saturday, December 19, 2026",
+      "toTime": "3:30pm Saturday, December 19, 2026",
+      "more_info": "<p>Want to be notified about events like this?&nbsp;<strong><a href=\"https://www.barbertonlibrary.org/subscribe\">Sign up to receive library e-newsletter updates.&nbsp;</a></strong></p>",
+      "shortdesc": "We’ll bring the cookies; you bring the creativity! Everyone is welcome to create a delicious design.\n\nThis drop-in program is intended for families, and adults are required to participate and assist t...",
+      "shortdesc_was_truncated": true,
+      "registration_cost": "",
+      "start": "1:30pm",
+      "end": "3:30pm",
+      "all_day": false,
+      "startdt": "2026-12-19 13:30:00",
+      "enddt": "2026-12-19 15:30:00",
+      "date": "Saturday, December 19, 2026",
+      "ymd": "20261219",
+      "year": "2026",
+      "monthnum": 12,
+      "day": "19",
+      "daypostfix": "th",
+      "dayfull": "Saturday",
+      "dayshort": "Sat",
+      "monthfull": "December",
+      "monthshort": "Dec",
+      "url": "https://events.barbertonlibrary.org/event/16925346",
+      "color": "#ACC8E5",
+      "locationCount": 1,
+      "location": "Spillette Meeting Room",
+      "locations": [
+        {
+          "id": 99622,
+          "name": "Spillette Meeting Room",
+          "map": "",
+          "mapId": 0,
+          "last": true
+        }
+      ],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d68g328n4ug0e.cloudfront.net/misc/4451/events/14558/2026_07_01_11_52_50.png",
+      "featured_image_alt_text": "",
+      "audiences": [
+        {
+          "id": 3994,
+          "name": "All Abilities",
+          "color": "#ACC8E5"
+        },
+        {
+          "id": 3996,
+          "name": "All Ages",
+          "color": "#ACC8E5"
+        }
+      ],
+      "categories": "Arts & Crafts, Food & Cooking",
+      "categories_arr": [
+        {
+          "cat_id": 52778,
+          "name": "Arts & Crafts",
+          "color": "#AE90BA"
+        },
+        {
+          "cat_id": 88717,
+          "name": "Food & Cooking",
+          "color": "#629B78"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": false,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": false,
+      "registration_enabled": false
+    },
+    {
+      "id": 17341927,
+      "title": "Afternoon Hooks & Books",
+      "description": "<p>Bring your portable crafts and we&rsquo;ll share what books we&rsquo;ve been reading.</p>\n\n<hr />\n<p>Find a community of craft-loving bookworms! Whether you love crocheting, knitting, or another portable craft, everyone is welcome.</p>\n\n<p>Join us with your craft to discuss our current reads.&nbsp;</p>",
+      "fromTime": "2:00pm Wednesday, December 30, 2026",
+      "toTime": "3:30pm Wednesday, December 30, 2026",
+      "more_info": "<p>Want to be notified about events like this?&nbsp;<a href=\"https://www.barbertonlibrary.org/subscribe\">Sign up to receive library e-newsletter updates.</a></p>",
+      "shortdesc": "Bring your portable crafts and we’ll share what books we’ve been reading.\n\n\nFind a community of craft-loving bookworms! Whether you love crocheting, knitting, or another portable craft, everyone is...",
+      "shortdesc_was_truncated": true,
+      "registration_cost": "",
+      "start": "2:00pm",
+      "end": "3:30pm",
+      "all_day": false,
+      "startdt": "2026-12-30 14:00:00",
+      "enddt": "2026-12-30 15:30:00",
+      "date": "Wednesday, December 30, 2026",
+      "ymd": "20261230",
+      "year": "2026",
+      "monthnum": 12,
+      "day": "30",
+      "daypostfix": "th",
+      "dayfull": "Wednesday",
+      "dayshort": "Wed",
+      "monthfull": "December",
+      "monthshort": "Dec",
+      "url": "https://events.barbertonlibrary.org/event/17341927",
+      "color": "#AE90BA",
+      "locationCount": 1,
+      "location": "Board Room",
+      "locations": [
+        {
+          "id": 99637,
+          "name": "Board Room",
+          "map": "",
+          "mapId": 0,
+          "last": true
+        }
+      ],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d2jv02qf7xgjwx.cloudfront.net/customers/6650/images/afternoon_hooks___books.png",
+      "featured_image_alt_text": "",
+      "audiences": [
+        {
+          "id": 3995,
+          "name": "Adult",
+          "color": "#AE90BA"
+        }
+      ],
+      "categories": "Arts & Crafts, Book Club",
+      "categories_arr": [
+        {
+          "cat_id": 52778,
+          "name": "Arts & Crafts",
+          "color": "#AE90BA"
+        },
+        {
+          "cat_id": 52783,
+          "name": "Book Club",
+          "color": "#AE90BA"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": false,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": false,
+      "registration_enabled": false
+    },
+    {
+      "id": 17346631,
+      "title": "Afternoon Hooks & Books",
+      "description": "<p>Bring your portable crafts and we&rsquo;ll share what books we&rsquo;ve been reading.</p>\n\n<hr />\n<p>Find a community of craft-loving bookworms! Whether you love crocheting, knitting, or another portable craft, everyone is welcome.</p>\n\n<p>Join us with your craft to discuss our current reads. And maybe get yourself a treat from&nbsp;<a href=\"https://www.kavecoffeebar.com/\">Kav&eacute;</a>!&nbsp;</p>\n\n<p>Afternoon Hooks &amp; Books meets at Kav&eacute; Coffee Bar, 584 W. Tuscarawas Ave.</p>",
+      "fromTime": "2:00pm Wednesday, January 27, 2027",
+      "toTime": "3:30pm Wednesday, January 27, 2027",
+      "more_info": "<p>Want to be notified about events like this?&nbsp;<a href=\"https://www.barbertonlibrary.org/subscribe\">Sign up to receive library e-newsletter updates.</a></p>",
+      "shortdesc": "Bring your portable crafts and we’ll share what books we’ve been reading.\n\n\nFind a community of craft-loving bookworms! Whether you love crocheting, knitting, or another portable craft, everyone is...",
+      "shortdesc_was_truncated": true,
+      "registration_cost": "",
+      "start": "2:00pm",
+      "end": "3:30pm",
+      "all_day": false,
+      "startdt": "2027-01-27 14:00:00",
+      "enddt": "2027-01-27 15:30:00",
+      "date": "Wednesday, January 27, 2027",
+      "ymd": "20270127",
+      "year": "2027",
+      "monthnum": 1,
+      "day": "27",
+      "daypostfix": "th",
+      "dayfull": "Wednesday",
+      "dayshort": "Wed",
+      "monthfull": "January",
+      "monthshort": "Jan",
+      "url": "https://events.barbertonlibrary.org/event/17346631",
+      "color": "#AE90BA",
+      "locationCount": 0,
+      "location": "",
+      "locations": [],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d2jv02qf7xgjwx.cloudfront.net/customers/6650/images/afternoon_hooks___books.png",
+      "featured_image_alt_text": "",
+      "audiences": [
+        {
+          "id": 3995,
+          "name": "Adult",
+          "color": "#AE90BA"
+        }
+      ],
+      "categories": "Arts & Crafts, Book Club",
+      "categories_arr": [
+        {
+          "cat_id": 52778,
+          "name": "Arts & Crafts",
+          "color": "#AE90BA"
+        },
+        {
+          "cat_id": 52783,
+          "name": "Book Club",
+          "color": "#AE90BA"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": false,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": true,
+      "registration_enabled": false
+    },
+    {
+      "id": 17323484,
+      "title": "Friends of the Library Book Sale",
+      "description": "<p>Find great reads at even better prices! Shop the Friends of the Library book sale.</p>\n\n<p><strong>Cash or check only.</strong></p>\n\n<p>&nbsp;</p>",
+      "fromTime": "10:00am Friday, May 21, 2027",
+      "toTime": "4:00pm Saturday, May 22, 2027",
+      "more_info": "",
+      "shortdesc": "Find great reads at even better prices! Shop the Friends of the Library book sale.\n\nCash or check only.\n\n ",
+      "shortdesc_was_truncated": false,
+      "registration_cost": "",
+      "start": "10:00am",
+      "end": "4:00pm",
+      "all_day": false,
+      "startdt": "2027-05-21 10:00:00",
+      "enddt": "2027-05-22 16:00:00",
+      "date": "Friday, May 21, 2027",
+      "ymd": "20270521",
+      "year": "2027",
+      "monthnum": 5,
+      "day": "21",
+      "daypostfix": "st",
+      "dayfull": "Friday",
+      "dayshort": "Fri",
+      "monthfull": "May",
+      "monthshort": "May",
+      "multi_day_event": true,
+      "multi_day_end": {
+        "year": "2027",
+        "monthnum": 5,
+        "day": "22",
+        "daypostfix": "nd",
+        "dayfull": "Saturday",
+        "dayshort": "Sat",
+        "monthfull": "May",
+        "monthshort": "May"
+      },
+      "multi_day_end_date": "Saturday, May 22, 2027",
+      "url": "https://events.barbertonlibrary.org/event/17323484",
+      "color": "#F2B25E",
+      "locationCount": 1,
+      "location": "Spillette Meeting Room",
+      "locations": [
+        {
+          "id": 99622,
+          "name": "Spillette Meeting Room",
+          "map": "",
+          "mapId": 0,
+          "last": true
+        }
+      ],
+      "campus": "",
+      "presenter": "",
+      "featured_image": "https://d68g328n4ug0e.cloudfront.net/data/feat_img/4451/template/1762373749.png",
+      "featured_image_alt_text": "",
+      "audiences": [
+        {
+          "id": 3991,
+          "name": "Grades K - 5",
+          "color": "#629B78"
+        },
+        {
+          "id": 3993,
+          "name": "Grades 6 - 12",
+          "color": "#D8924B"
+        },
+        {
+          "id": 3994,
+          "name": "All Abilities",
+          "color": "#ACC8E5"
+        },
+        {
+          "id": 3995,
+          "name": "Adult",
+          "color": "#AE90BA"
+        },
+        {
+          "id": 3996,
+          "name": "All Ages",
+          "color": "#ACC8E5"
+        }
+      ],
+      "categories": "Friends of the Library",
+      "categories_arr": [
+        {
+          "cat_id": 67455,
+          "name": "Friends of the Library",
+          "color": "#C6B089"
+        }
+      ],
+      "calendar": "Barberton Public Library Event Calendar",
+      "calendar_url": "https://events.barbertonlibrary.org/calendar/Events?",
+      "calendar_id": 14558,
+      "online_event": false,
+      "online_registration": false,
+      "in_person_registration": false,
+      "org": "Library Staff",
+      "orgurl": "https://events.barbertonlibrary.org/profile/0",
+      "recurring_event": false,
+      "registration_enabled": false
+    }
+  ]
+}
