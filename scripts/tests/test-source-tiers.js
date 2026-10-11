@@ -18,6 +18,9 @@ import {
   TIER_PLATFORM,
   TIER_AGGREGATOR,
 } from '../lib/source-tiers.js'
+// sourceTierLabel is browser-side analytics policy: it lives in the shared
+// module and is not re-exported by the server-side wrapper above.
+import { sourceTierLabel } from '../../src/lib/sourceTiers.js'
 
 describe('source-tiers: sourceTier', () => {
   it('classifies known aggregators as Tier 3', () => {
@@ -41,6 +44,17 @@ describe('source-tiers: sourceTier', () => {
     assert.equal(isTrustedSource('downtown_akron'), false)
     assert.equal(isAggregatorSource('stan_hywet'), false)
     assert.equal(isTrustedSource('stan_hywet'), true)
+  })
+
+  // 2026-10-11: Main Street Barberton's calendar republishes other hosts'
+  // events (library programs, Kavé Coffee Bar events) alongside its own, so
+  // it is an aggregator, not a first-party source. Before this it fell through
+  // to the unlisted-source Tier 1 default.
+  it('main_street_barberton is a Tier-3 aggregator, not a trusted source', () => {
+    assert.equal(sourceTier('main_street_barberton'), TIER_AGGREGATOR)
+    assert.equal(isAggregatorSource('main_street_barberton'), true)
+    assert.equal(isTrustedSource('main_street_barberton'), false)
+    assert.equal(sourceTierLabel('main_street_barberton'), 'aggregator')
   })
 })
 
@@ -95,6 +109,15 @@ describe('source-tiers: aggregatorRank', () => {
 
   it('eventbrite outranks downtown_akron', () => {
     assert.ok(aggregatorRank('eventbrite') < aggregatorRank('downtown_akron'))
+  })
+
+  // A district calendar like downtown_akron, so it sits directly behind it;
+  // its structured iCal times put it ahead of the hand-edited prose page.
+  it('main_street_barberton ranks after downtown_akron and before stewarts_partner_events', () => {
+    assert.ok(AGGREGATOR_PRIORITY.includes('main_street_barberton'))
+    assert.ok(aggregatorRank('downtown_akron') < aggregatorRank('main_street_barberton'))
+    assert.ok(aggregatorRank('main_street_barberton') < aggregatorRank('stewarts_partner_events'))
+    assert.ok(aggregatorRank('main_street_barberton') < aggregatorRank('akron_life'))
   })
 
   // Byron's call (2026-08-23): akron_life is the last-resort aggregator. Pinned

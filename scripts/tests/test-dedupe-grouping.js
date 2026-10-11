@@ -17,6 +17,7 @@ import {
   venuelessTitleMatch, typoTolerantTitlesMatch, withinOneEdit,
   collectLinkDonations,
   buildGroupPlan, selectPlansWithinCap, hasSiblingSessionRisk, buildAliasRow,
+  SOURCE_PRIORITY,
 } from '../dedupe-cross-source.js'
 import { normalizeStreetAddress } from '../lib/normalize.js'
 import { resolveVenueAlias } from '../scrape-better-kenmore.js'
@@ -342,6 +343,57 @@ describe('dedupe: first-party beats aggregators in priority', () => {
   it('newly ranked first-party venue/municipal sources beat aggregator copies', () => {
     assert.ok(priority('ejthomas_hall') < priority('ticketmaster'))
     assert.ok(priority('city_of_hudson') < priority('eventbrite'))
+  })
+})
+
+// 2026-10-11: main_street_barberton is a Tier-3 aggregator (community calendar
+// that republishes library programs and other hosts' events). It used to be an
+// unlisted source, which ranked it level with every unlisted first-party
+// scraper (900) and let it win a tie on input order alone.
+describe('dedupe: main_street_barberton ranks as an aggregator', () => {
+  const venue = [{ venue_id: 'v-bpl', venues: { name: 'Barberton Public Library', address: '602 W Park Ave' } }]
+  const row = (id, source, extra = {}) => ({
+    id, source, source_id: `${source}-1`, title: 'Family Story Time',
+    start_at: '2026-10-20T14:30:00+00:00', end_at: '2026-10-20T15:15:00+00:00',
+    event_venues: venue, ...extra,
+  })
+
+  it('ranks below the library and below any unlisted first-party source', () => {
+    assert.ok(priority('barberton_library') < priority('main_street_barberton'))
+    assert.ok(priority('some_unlisted_venue') < priority('main_street_barberton'))
+  })
+
+  it('is ranked through AGGREGATOR_PRIORITY, never SOURCE_PRIORITY', () => {
+    assert.ok(!SOURCE_PRIORITY.includes('main_street_barberton'))
+    assert.ok(priority('main_street_barberton') >= 1000)
+    assert.ok(priority('downtown_akron') < priority('main_street_barberton'))
+    assert.ok(priority('main_street_barberton') < priority('akron_life'))
+  })
+
+  it('equal-quality pair: the library copy is canonical and the MSB copy is deleted', () => {
+    // MSB listed first, so a tie would keep it canonical on input order.
+    const plan = buildGroupPlan([row('msb', 'main_street_barberton'), row('lib', 'barberton_library')])
+    assert.equal(plan.canonical.id, 'lib')
+    assert.deepEqual(plan.deleteIds, ['msb'])
+    assert.equal(plan.preservedCount, 0)
+  })
+
+  it('equal-quality pair against an UNLISTED first-party source: the first-party copy is canonical', () => {
+    // The case the tier change actually moves: both used to score 900.
+    const plan = buildGroupPlan([row('msb', 'main_street_barberton'), row('own', 'some_unlisted_venue')])
+    assert.equal(plan.canonical.id, 'own')
+    assert.deepEqual(plan.deleteIds, ['msb'])
+  })
+
+  it('an MSB dupe with manual_overrides is preserved, never deleted', () => {
+    const plan = buildGroupPlan([
+      row('msb', 'main_street_barberton', { manual_overrides: { title: true } }),
+      row('lib', 'barberton_library'),
+    ])
+    assert.equal(plan.canonical.id, 'lib')
+    assert.equal(plan.preservedCount, 1)
+    assert.ok(!plan.deleteIds.includes('msb'))
+    assert.deepEqual(plan.deleteIds, [])
   })
 })
 

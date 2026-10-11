@@ -23,6 +23,11 @@
  * the meeting filter (municipal meetings are city_of_barberton territory,
  * and we filter them there as well).
  *
+ * Attribution: this is a Tier-3 aggregator (src/lib/sourceTiers.js). The
+ * calendar republishes other hosts' events and the feed carries no organizer
+ * field, so the scraper credits no organization at all: real organizer or
+ * none, never Main Street Barberton as presenter of every row.
+ *
  * Usage:   node scripts/scrape-main-street-barberton.js
  * Env:     VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  */
@@ -87,11 +92,9 @@ async function main() {
     mapCategory,
     parseLocation,
     mapTags: () => ['barberton', 'downtown-barberton', 'main-street-barberton'],
-    organizationName: 'Main Street Barberton',
-    organizationDetails: {
-      website:     'https://www.mainstreetbarberton.com',
-      description: 'Downtown Barberton revitalization nonprofit — Lake Anna concerts, the .5K, the Summer Crawl, art classes, and downtown business events.',
-    },
+    // No organizationName: this is a Tier-3 aggregator (AGGREGATOR_SELF_ORG in
+    // src/lib/sourceTiers.js). Crediting it on every row told the public it hosts
+    // library programs and city trick-or-treat. Real organizer or none.
     defaultVenueName: 'Downtown Barberton',
     defaultVenueDetails: {
       address: 'W Tuscarawas Ave & 2nd St NW',

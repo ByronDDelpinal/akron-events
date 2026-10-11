@@ -2532,9 +2532,10 @@ export async function linkEventOrganization(eventId, organizationId, opts = {}) 
   // the full rationale.
   //
   // Ordering matters for cost: check the ORG first (a pure in-memory set
-  // lookup against 7 names). Only if the org is some aggregator's self-identity
-  // do we pay for the event's source. For the ~99% of links whose org is an
-  // ordinary venue/organizer this adds zero queries.
+  // lookup against the short AGGREGATOR_SELF_ORG list). Only if the org is
+  // some aggregator's self-identity do we pay for the event's source. For the
+  // ~99% of links whose org is an ordinary venue/organizer this adds zero
+  // queries.
   const orgName = await orgNameById(organizationId)
   if (isAggregatorSelfOrgName(orgName)) {
     const source = opts.source ?? await eventSourceById(eventId)

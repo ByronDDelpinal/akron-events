@@ -55,6 +55,10 @@ export const TIER_3_SOURCES = new Set([
   // Republishes partner-hosted fundraisers (real hosts vary per event), so a
   // venue's own copy of the same event must always outrank it.
   'stewarts_partner_events',
+  // Downtown Barberton's community calendar: republishes other hosts' events
+  // (library programs, Kavé, city trick-or-treat) alongside its own, so an
+  // organizer's own copy of the same event must always outrank it.
+  'main_street_barberton',
 ])
 
 export function sourceTier(source) {
@@ -123,6 +127,7 @@ export const AGGREGATOR_PRIORITY = [
   'runsignup',
   'ohio_festivals',
   'downtown_akron',
+  'main_street_barberton', // district calendar like downtown_akron; structured iCal with real times
   'stewarts_partner_events', // hand-edited page with year-less prose dates
   // Byron's call (2026-08-23): akron_life is the last-resort aggregator, so its
   // copy of an event loses to every other aggregator's copy of the same event.
@@ -190,6 +195,9 @@ export const AGGREGATOR_SELF_ORG = {
   // The Tier-1 stewarts_caring_place scraper is a different source key, so its
   // legitimate self-attribution is untouched (isSelfCredit is pair-keyed).
   stewarts_partner_events: "Stewart's Caring Place",
+  // Mixed calendar: most rows are other hosts' events, and the feed carries no
+  // organizer field to tell them apart, so it asserts no presenter at all.
+  main_street_barberton: 'Main Street Barberton',
 }
 
 /**

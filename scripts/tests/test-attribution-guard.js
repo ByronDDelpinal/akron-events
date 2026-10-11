@@ -82,6 +82,26 @@ describe('attribution: isSelfCredit', () => {
     assert.equal(isSelfCredit('downtown_akron', 'Visit Akron / Summit County'), false)
   })
 
+  // 2026-10-11: main_street_barberton became a Tier-3 aggregator. Its scraper
+  // used to hardcode 'Main Street Barberton' onto every row, including library
+  // programs it merely republishes.
+  it('blocks main_street_barberton crediting itself, in every fold the guard handles', () => {
+    assert.equal(isSelfCredit('main_street_barberton', 'Main Street Barberton'), true)
+    // orgNameMatchKey folds case, whitespace and a leading "The" only.
+    assert.equal(isSelfCredit('main_street_barberton', '  main street  BARBERTON '), true)
+    assert.equal(isSelfCredit('main_street_barberton', 'The Main Street Barberton'), true)
+  })
+
+  it('main_street_barberton may still credit a REAL organizer', () => {
+    assert.equal(isSelfCredit('main_street_barberton', 'Barberton Public Library'), false)
+  })
+
+  it('a first-party Barberton source naming Main Street Barberton is not a self-credit', () => {
+    // Pair-keyed: the library crediting Main Street Barberton as a real
+    // co-presenter is a legitimate organizer link, not a self-credit.
+    assert.equal(isSelfCredit('barberton_library', 'Main Street Barberton'), false)
+  })
+
   it('handles null/undefined without throwing', () => {
     assert.equal(isSelfCredit(null, 'Downtown Akron Partnership'), false)
     assert.equal(isSelfCredit('downtown_akron', null), false)
@@ -104,6 +124,7 @@ describe('attribution: isAggregatorSelfOrgName (guard pre-filter)', () => {
   it('recognises any aggregator self-identity', () => {
     assert.equal(isAggregatorSelfOrgName('Downtown Akron Partnership'), true)
     assert.equal(isAggregatorSelfOrgName('Visit Akron / Summit County'), true)
+    assert.equal(isAggregatorSelfOrgName('Main Street Barberton'), true)
   })
 
   it('ignores ordinary organizations', () => {
