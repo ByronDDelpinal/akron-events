@@ -223,6 +223,52 @@ export const FOOD_EVENT = {
 }
 
 // ── Complete test suite of all fixtures ───────────────────────────────────────
+
+// ── Cancelled by the library (feed keeps the row, flags it) ─────────────────
+// Real shape from 2026-10-19: Job and Family Services series, cancelled end of
+// August due to JFS funding cuts, still served with changed:"1" and no
+// changed_* details. See feedback #57.
+export const CANCELLED_EVENT = {
+  id: 17021840,
+  title: 'Job and Family Services: Case Managers at the Library',
+  description: '',
+  long_description: '<p>Case managers can assist with submitting documents.</p>',
+  raw_start_time: '2026-10-20 10:00:00',
+  raw_end_time:   '2026-10-20 16:00:00',
+  location_id:    1491,
+  location:       'Odom Boulevard Branch Library',
+  tags:           'Education, Community Event',
+  ages:           'Adults',
+  image:          'Case_Managers_at_the_Library_1.png',
+  url:            'https://akronlibrary.libnet.info/event/17021840',
+  changed:        '1',
+  changed_reason: '',
+  changed_time_string: null,
+  changed_datestring:  null,
+  changed_start_time:  null,
+  changed_end_time:    null,
+  changed_venue:       null,
+}
+
+// Cancelled with staff note (Food as Art: Autumn Pies, 2026-10-16)
+export const CANCELLED_WITH_REASON = {
+  ...CANCELLED_EVENT,
+  id: 17068744,
+  title: 'Food as Art: Autumn Pies',
+  changed_reason: '10/16/26 - Event is cancelled per PSO/ASO - TJG',
+}
+
+// Rescheduled, not cancelled: changed:"1" but a new start time is given.
+export const RESCHEDULED_EVENT = {
+  ...CANCELLED_EVENT,
+  id: 17021899,
+  title: 'Rescheduled Craft Night',
+  changed_reason: '',
+  changed_start_time: '2026-10-27 10:00:00',
+  changed_end_time:   '2026-10-27 16:00:00',
+  changed_datestring: 'Tuesday, October 27',
+}
+
 export const ALL_FIXTURES = [
   COMPLETE_EVENT,
   HTML_ENTITY_TITLE,
@@ -237,4 +283,7 @@ export const ALL_FIXTURES = [
   ALL_AGE_GROUPS,
   NULL_LOCATION_NAME,
   FOOD_EVENT,
+  CANCELLED_EVENT,
+  CANCELLED_WITH_REASON,
+  RESCHEDULED_EVENT,
 ]

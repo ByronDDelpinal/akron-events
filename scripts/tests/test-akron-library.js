@@ -36,12 +36,15 @@ import {
   ALL_AGE_GROUPS,
   NULL_LOCATION_NAME,
   FOOD_EVENT,
+  CANCELLED_EVENT,
+  CANCELLED_WITH_REASON,
+  RESCHEDULED_EVENT,
   ALL_FIXTURES,
 } from './fixtures/library-events.js'
 
 // ── Import shared utilities (pure functions) ─────────────────────────────────
 import { stripHtml, easternToIso } from '../lib/normalize.js'
-import { BRANCH_INFO as SCRAPER_BRANCH_INFO } from '../scrape-akron-library.js'
+import { BRANCH_INFO as SCRAPER_BRANCH_INFO, libnetStatus } from '../scrape-akron-library.js'
 import { resolveNeighborhoodSlug } from '../lib/neighborhood-resolver.js'
 
 // Recognized Summit County places that map to a city hub or a regional rollup
@@ -258,7 +261,7 @@ function normalizeLibraryEvent(ev) {
     ticket_url:      sanitizeUrl(ev.url),
     source:          'akron_library',
     source_id:       String(ev.id),
-    status:          'published',
+    status:          libnetStatus(ev),
     featured:        false,
   }
 }
@@ -886,5 +889,44 @@ describe('library venue cache key (mechanism A regression)', async () => {
 
   it('is null for a virtual row, which must never occupy a cache slot', () => {
     assert.equal(libraryVenueCacheKey(parseLibraryVenue({ location: 'Zoom: Main Library' })), null)
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// TESTS: Cancellation signal (feedback #57, 2026-10-19)
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('Library: libnetStatus (cancellation flag)', () => {
+  it('maps changed:"1" with no reschedule details to cancelled', () => {
+    assert.equal(libnetStatus(CANCELLED_EVENT), 'cancelled')
+  })
+
+  it('maps a changed_reason mentioning cancellation to cancelled', () => {
+    assert.equal(libnetStatus(CANCELLED_WITH_REASON), 'cancelled')
+    // reason alone is enough even if `changed` is missing
+    assert.equal(libnetStatus({ changed_reason: 'Event is Cancelled' }), 'cancelled')
+  })
+
+  it('keeps a rescheduled occurrence (new time/date/venue given) published', () => {
+    assert.equal(libnetStatus(RESCHEDULED_EVENT), 'published')
+    assert.equal(libnetStatus({ changed: '1', changed_venue: 'Main Library' }), 'published')
+  })
+
+  it('keeps ordinary rows published', () => {
+    assert.equal(libnetStatus(COMPLETE_EVENT), 'published')
+    assert.equal(libnetStatus({ changed: null }), 'published')
+    assert.equal(libnetStatus({ changed: '0' }), 'published')
+    assert.equal(libnetStatus({}), 'published')
+    assert.equal(libnetStatus(null), 'published')
+  })
+
+  it('tolerates numeric/boolean changed flags', () => {
+    assert.equal(libnetStatus({ changed: 1 }), 'cancelled')
+    assert.equal(libnetStatus({ changed: true }), 'cancelled')
+  })
+
+  it('normalized row carries the cancelled status (never re-published by re-scrape)', () => {
+    assert.equal(normalizeLibraryEvent(CANCELLED_EVENT).status, 'cancelled')
+    assert.equal(normalizeLibraryEvent(RESCHEDULED_EVENT).status, 'published')
   })
 })

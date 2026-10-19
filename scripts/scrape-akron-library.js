@@ -252,6 +252,35 @@ export function parseIsFamily(ageStr = '', tagStr = '') {
   return /\b(bab(y|ies)|toddlers?|preschool|kids?|child(ren)?|family|families|grades? [k0-9]|tweens?|teens?|youth)\b/.test(t) || undefined
 }
 
+/**
+ * Publication status for a Communico/Libnet feed row.
+ *
+ * The library never removes a cancelled event from the API — it flags it.
+ * A cancelled occurrence comes through with `changed: "1"` and every
+ * `changed_*` detail field (new time / date / venue) empty, sometimes with a
+ * free-text `changed_reason` ("Event is cancelled per PSO/ASO"). The event's
+ * own page shows a "Cancelled" banner. A genuine reschedule populates
+ * `changed_start_time` / `changed_datestring` / `changed_venue` instead.
+ *
+ * Verified 2026-10-19 across a 45-day window: all 25 `changed: "1"` rows were
+ * marked Cancelled on the library's site; a `changed: null` control was not.
+ * Before this, the scraper hardcoded 'published' and re-asserted cancelled
+ * events every night (feedback #57 — Job and Family Services series,
+ * cancelled end of August, still live in October).
+ *
+ * @param {object} ev — raw feed row
+ * @returns {'published'|'cancelled'}
+ */
+export function libnetStatus(ev) {
+  if (!ev) return 'published'
+  if (/\bcancel/i.test(String(ev.changed_reason ?? ''))) return 'cancelled'
+  const changed = ev.changed === '1' || ev.changed === 1 || ev.changed === true
+  if (!changed) return 'published'
+  const rescheduled = [ev.changed_start_time, ev.changed_end_time, ev.changed_datestring, ev.changed_venue]
+    .some((v) => v != null && String(v).trim() !== '')
+  return rescheduled ? 'published' : 'cancelled'
+}
+
 export function parseTags(tagStr = '', ageStr = '') {
   const tags = []
   if (tagStr) tags.push(...tagStr.toLowerCase().split(',').map(t => t.trim()).filter(Boolean))
@@ -492,6 +521,9 @@ async function processEvents(rawEvents, organizerId) {
 
       if (!startAt) { skipped++; continue }
 
+      const status = libnetStatus(ev)
+      if (status === 'cancelled') console.log(`  ✖ cancelled by library: "${title}" (${ev.raw_start_time})`)
+
       const row = {
         title,
         description:     descText || null,
@@ -509,7 +541,10 @@ async function processEvents(rawEvents, organizerId) {
         ticket_url:      sanitizeUrl(ev.url),
         source:          'akron_library',
         source_id:       String(ev.id),
-        status:          'published',
+        status,
+        // schema.org eventStatus for the event page's JSON-LD; mirrors `status`
+        // so an un-cancelled occurrence doesn't stay "cancelled" in search.
+        event_status:    status === 'cancelled' ? 'cancelled' : 'scheduled',
         featured:        false,
       }
 
