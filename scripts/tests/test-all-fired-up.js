@@ -98,6 +98,23 @@ describe('parseStartTime / parseEndTime', () => {
   it('returns null end when only one time is present', () => {
     assert.equal(parseEndTime('7:00 PM'), null)
   })
+  it('parses hour-only and no-space meridiem forms', () => {
+    assert.equal(parseStartTime('6 PM'), '6:00 PM')
+    assert.equal(parseStartTime('7PM'), '7:00 PM')
+    assert.equal(parseStartTime('10:30am'), '10:30 AM')
+    assert.equal(parseEndTime('6 PM - 8 PM'), '8:00 PM')
+    assert.equal(parseEndTime('6:30 PM-8PM'), '8:00 PM')
+  })
+  it('"6-8 PM": end parsed, start null (does not borrow the meridiem)', () => {
+    assert.equal(parseStartTime('6-8 PM'), null)
+    assert.equal(parseEndTime('6-8 PM'), '8:00 PM')
+  })
+  it('returns null for empty / non-time text', () => {
+    for (const v of ['', null, undefined, 'TBD', 'All day', '13 PM']) {
+      assert.equal(parseStartTime(v), null)
+      assert.equal(parseEndTime(v), null)
+    }
+  })
 })
 
 describe('isNonEvent', () => {
@@ -173,6 +190,30 @@ describe('buildRow', () => {
     assert.equal(row.title, 'Harvest Gems: Corn Pumpkins')
     assert.equal(row.price_min, null)   // no detail → no price
     assert.equal(venueSpec.city, 'Copley')  // falls back to the fixed studio venue
+  })
+
+  it('empty timeText: keeps date, noon placeholder, time_inferred, end_at null', () => {
+    const summer = buildRow({ title: 'Open Studio', token: 'abc', dataId: '2026091320001358330', timeText: '' }, null, TODAY)
+    assert.equal(summer.row.start_at, '2026-09-13T16:00:00.000Z') // noon EDT
+    assert.equal(summer.row.end_at, null)
+    assert.equal(summer.row.time_inferred, true)
+    const winter = buildRow({ title: 'Open Studio', token: 'abc', dataId: '2026121520001358330', timeText: null }, null, TODAY)
+    assert.equal(winter.row.start_at, '2026-12-15T17:00:00.000Z') // noon EST
+    assert.equal(winter.row.end_at, null)
+    assert.equal(winter.row.time_inferred, true)
+  })
+
+  it('"6-8 PM" (unparseable start): placeholder noon and no end_at', () => {
+    const { row } = buildRow({ title: 'Open Studio', token: 'abc', dataId: '2026091320001358330', timeText: '6-8 PM' }, null, TODAY)
+    assert.equal(row.start_at, '2026-09-13T16:00:00.000Z')
+    assert.equal(row.end_at, null)
+    assert.equal(row.time_inferred, true)
+  })
+
+  it('real times are not flagged time_inferred', () => {
+    const { row } = buildRow(cardFor(/Goose Bumps/), parseDetail(GOOSE), TODAY)
+    assert.equal(row.time_inferred, undefined)
+    assert.equal(row.end_at, '2026-09-13T22:00:00.000Z')
   })
 
   it('drops non-event products by title', () => {

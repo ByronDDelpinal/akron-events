@@ -117,16 +117,39 @@ export function resolveCardDate(dataId, dateText, todayIso = easternTodayIso()) 
   return `${year}-${pad2(month)}-${pad2(day)}`
 }
 
-/** Extract the START time from a "4:00 PM -  6:00 PM" range. Exported for tests. */
-export function parseStartTime(timeText) {
-  const m = String(timeText || '').match(/(\d{1,2}:\d{2}\s*[AP]M)/i)
-  return m ? m[1].replace(/\s+/g, ' ').toUpperCase() : null
+/**
+ * Tokenise every clock-like time in a string: "6", "6 PM", "7:30pm". Tokens
+ * with an out-of-range hour/minute are dropped. `meridiem` is null when the
+ * token carries none (the "6" in "6-8 PM").
+ */
+function timeTokens(timeText) {
+  const out = []
+  const re = /(\d{1,2})(?::(\d{2}))?(?:\s*([AP])M(?![A-Za-z]))?/gi
+  for (const m of String(timeText || '').matchAll(re)) {
+    const h = parseInt(m[1], 10)
+    const min = m[2] == null ? 0 : parseInt(m[2], 10)
+    if (h < 1 || h > 12 || min > 59) continue
+    out.push({ h, min, meridiem: m[3] ? `${m[3].toUpperCase()}M` : null })
+  }
+  return out
 }
 
-/** Extract the END time from a time range, or null. Exported for tests. */
+const fmtToken = (t) => `${t.h}:${pad2(t.min)} ${t.meridiem}`
+
+/**
+ * Extract the START time from "4:00 PM - 6:00 PM", "6 PM" or "7PM". Returns
+ * "H:MM AM/PM", or null. Conservative: the start must carry its OWN meridiem,
+ * so "6-8 PM" yields null rather than a guessed "6:00 PM". Exported for tests.
+ */
+export function parseStartTime(timeText) {
+  const first = timeTokens(timeText)[0]
+  return first && first.meridiem ? fmtToken(first) : null
+}
+
+/** Extract the END time from a time range (needs its own meridiem), or null. Exported for tests. */
 export function parseEndTime(timeText) {
-  const all = String(timeText || '').match(/(\d{1,2}:\d{2}\s*[AP]M)/gi)
-  return all && all.length > 1 ? all[1].replace(/\s+/g, ' ').toUpperCase() : null
+  const second = timeTokens(timeText)[1]
+  return second && second.meridiem ? fmtToken(second) : null
 }
 
 /** Parse one stack card block into a raw record, or null. Exported for tests. */
@@ -227,9 +250,15 @@ export function buildRow(card, detail = null, todayIso = easternTodayIso()) {
   if (!dateIso) return { skip: 'nodata' }
 
   const startTime = parseStartTime(card.timeText)
+  // SANCTIONED-DEFAULT-TIME: no parseable start time, so keep the date and use
+  // the noon-Eastern placeholder. time_inferred makes upsertEventSafe append the
+  // placeholder-time note and set needs_review (scripts/lib/inferred-time.js);
+  // it is a transient key and never reaches Postgres. An end time is meaningless
+  // against an invented start, so end_at is forced to null.
+  const timeInferred = !startTime
   const start_at = easternToIso(dateIso, startTime || '12:00 pm')
   if (!start_at) return { skip: 'nodata' }
-  const endTime = parseEndTime(card.timeText)
+  const endTime = timeInferred ? null : parseEndTime(card.timeText)
   const end_at = endTime ? easternToIso(dateIso, endTime) : null
 
   // Summit gate on the detail address city (studio = Copley = in). With no
@@ -266,6 +295,8 @@ export function buildRow(card, detail = null, todayIso = easternTodayIso()) {
       // One row per occurrence: token repeats across dates, so the date makes it unique.
       source_id: `${card.token}-${dateIso}`,
       status: 'published',
+      // Undefined (never false) so upsertEventSafe's own needs_review default runs.
+      time_inferred: timeInferred ? true : undefined,
       featured: false,
     },
   }
