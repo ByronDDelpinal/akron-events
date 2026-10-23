@@ -59,6 +59,33 @@ export function loadConfig() {
   return { propertyId, sa }
 }
 
+/**
+ * GA4 dimension filter restricting a report to US traffic.
+ *
+ * Akron Pulse serves Summit County, Ohio, and the site is US-only by explicit
+ * decision (no Consent Mode). Every non-US visitor seen so far has been a
+ * headless crawler: 2026-09/10 a Chrome-on-Windows bot walking /events/* and
+ * /organizations/* from China, then Singapore ranges, at up to 340 "users" a
+ * day against ~50 real ones. Left unfiltered it reported as record traffic in
+ * the morning briefing and was baked into site_metrics_daily. Applying the
+ * filter at the request runner means no individual report can forget it.
+ */
+export const US_ONLY_FILTER = {
+  filter: { fieldName: 'country', stringFilter: { matchType: 'EXACT', value: 'United States' } },
+}
+
+/**
+ * Return a copy of a runReport body scoped to US traffic. An existing
+ * dimensionFilter is preserved by AND-ing it with the country filter; a body
+ * without one simply gains it. The input object is never mutated.
+ */
+export function usOnly(body) {
+  const dimensionFilter = body.dimensionFilter
+    ? { andGroup: { expressions: [US_ONLY_FILTER, body.dimensionFilter] } }
+    : US_ONLY_FILTER
+  return { ...body, dimensionFilter }
+}
+
 /** Base64url encoding per RFC 7515 (JWT segments). */
 export function b64url(input) {
   return Buffer.from(input).toString('base64url')
@@ -118,7 +145,7 @@ async function getAccessToken(sa) {
   return data.access_token
 }
 
-/** Run the GA4 report: yesterday only, three metrics, date dimension. */
+/** Run the GA4 report: yesterday only, three metrics, date dimension, US traffic only. */
 async function runReport(token, propertyId) {
   const url = `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`
   return fetchJson(url, {
@@ -127,11 +154,13 @@ async function runReport(token, propertyId) {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      dateRanges: [{ startDate: 'yesterday', endDate: 'yesterday' }],
-      metrics: METRICS.map((name) => ({ name })),
-      dimensions: [{ name: 'date' }],
-    }),
+    body: JSON.stringify(
+      usOnly({
+        dateRanges: [{ startDate: 'yesterday', endDate: 'yesterday' }],
+        metrics: METRICS.map((name) => ({ name })),
+        dimensions: [{ name: 'date' }],
+      })
+    ),
   })
 }
 

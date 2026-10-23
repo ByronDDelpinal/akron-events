@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { pathToFileURL } from 'node:url'
-import { loadConfig, mintJwt } from './ga-snapshot.js'
+import { loadConfig, mintJwt, usOnly } from './ga-snapshot.js'
 
 /**
  * GA4 embed-reach snapshot: which partner sites embed Akron Pulse and how many
@@ -60,25 +60,27 @@ async function getAccessToken(sa) {
   return data.access_token
 }
 
-/** Run the GA4 report: yesterday, views + users by embed_host, embed surface only. */
+/** Run the GA4 report: yesterday, views + users by embed_host, embed surface only, US traffic only. */
 async function runEmbedReport(token, propertyId) {
   const url = `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`
   return fetchJson(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      dateRanges: [{ startDate: 'yesterday', endDate: 'yesterday' }],
-      dimensions: [{ name: 'customEvent:embed_host' }],
-      metrics: [{ name: 'screenPageViews' }, { name: 'activeUsers' }],
-      dimensionFilter: {
-        filter: {
-          fieldName: 'customEvent:surface',
-          stringFilter: { matchType: 'EXACT', value: 'embed' },
+    body: JSON.stringify(
+      usOnly({
+        dateRanges: [{ startDate: 'yesterday', endDate: 'yesterday' }],
+        dimensions: [{ name: 'customEvent:embed_host' }],
+        metrics: [{ name: 'screenPageViews' }, { name: 'activeUsers' }],
+        dimensionFilter: {
+          filter: {
+            fieldName: 'customEvent:surface',
+            stringFilter: { matchType: 'EXACT', value: 'embed' },
+          },
         },
-      },
-      orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
-      limit: LIMIT,
-    }),
+        orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
+        limit: LIMIT,
+      })
+    ),
   })
 }
 
