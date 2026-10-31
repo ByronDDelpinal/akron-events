@@ -1348,6 +1348,20 @@ describe('inferred-time.js', () => {
 // ════════════════════════════════════════════════════════════════════════════
 
 describe('isJunkVenueName', () => {
+  it('flags schedule/date fragments (family 5)', () => {
+    for (const n of ['Opens', 'THROUGH', 'Beginners 10:30', 'Doors 7pm', 'Doors 7 pm', 'Beginners 10:30 am', 'Doors 10:30 p.m.', 'Starts at Hudson Middle Schools',
+      'Parade makes its way down Main', 'more information to come']) {
+      assert.equal(isJunkVenueName(n), true, n)
+    }
+  })
+
+  it('does not flag real names resembling family 5', () => {
+    for (const n of ['Opens Mind Studio', 'Lock 3', 'Front Street Brewing', 'Beginners Yoga Studio',
+      'Studio 54', 'Route 59 Taproom', 'The Route 8 Diner', 'The Route Taproom']) {
+      assert.equal(isJunkVenueName(n), false, n)
+    }
+  })
+
   it('flags virtual/placeholder markers (exact, case-insensitive)', () => {
     assert.equal(isJunkVenueName('Virtual'), true)
     assert.equal(isJunkVenueName('ONLINE EVENT'), true)

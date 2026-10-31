@@ -1013,6 +1013,9 @@ const VIRTUAL_MARKERS = new Set([
   'livestream', 'tbd', 'tba',
 ])
 
+// Bare date-words that leak out of event text as a venue name (family 5a).
+const DATE_WORDS = new Set(['opens', 'through', 'begins', 'starts', 'ends', 'until', 'closes'])
+
 /**
  * TBA / citywide placeholder phrases CivicPlus-style feeds put in the location
  * field ("Fairlawn (location to be announced)", "Barberton - City-wide").
@@ -1044,6 +1047,15 @@ const PLACEHOLDER_PHRASES = new Set([
  *      "Lock 3 - TBD" (digit) and "Hudson (Throughout)" never match. Only
  *      the remainder is consulted, so a prefix-side placeholder
  *      ("TBD - Hudson") still mints — accepted; not seen in feeds.
+ *   5. schedule/date fragments that leak out of event text (checked BEFORE the
+ *      digit bail-out so time tokens can be seen): (a) a single bare date-word
+ *      ("Opens", "Through", "Begins", "Starts", "Ends", "Until", "Closes");
+ *      (b) a short name (<=3 tokens, no street suffix) ENDING in a clock time
+ *      with a colon or am/pm ("Beginners 10:30", "Doors 7pm"); (c) a leading
+ *      "starts at|begins at|meets at" or a "makes its way" / "parade|race
+ *      route" phrase. "Opens Mind Studio", "Lock 3", "Studio 54" and
+ *      "Route 59 Taproom" never match. Family 5 is JS-only: NOT mirrored in
+ *      partner_venue_name_blocked() (061_partner_accounts.sql).
  *      NOTE: family 4 (added 2026-09-14) is JS-only until a follow-up
  *      migration mirrors PLACEHOLDER_PHRASES + the one-wrapper split into
  *      partner_venue_name_blocked() (061_partner_accounts.sql); the shared
@@ -1057,6 +1069,17 @@ export function isJunkVenueName(name) {
   if (!key) return false
   if (US_STATE_NAMES.has(key)) return true
   if (VIRTUAL_MARKERS.has(key)) return true
+  // Family 5: schedule/date fragments (before the digit bail-out; see doc).
+  const ftokens = key.split(' ')
+  if (ftokens.length === 1 && DATE_WORDS.has(key)) return true
+  // Family 5b: <=2 head tokens (no street suffix) then a clock time. The time
+  // may itself contain a space ("7 pm", "10:30 p.m."), so match it on the key.
+  const clock = key.match(/\b\d{1,2}(:\d{2}(\s?[ap]\.?m\.?)?|\s?[ap]\.?m\.?)$/)
+  if (clock) {
+    const head = key.slice(0, clock.index).split(' ').filter(Boolean)
+    if (head.length <= 2 && !head.some((t) => STREET_SUFFIXES.has(STREET_SUFFIX_MAP[t] ?? t))) return true
+  }
+  if (/^(starts|begins|meets) at\b/.test(key) || /\bmakes? its way\b|\b(parade|race) route\b/.test(key)) return true
   // Street fragments: digit-bearing strings are looksLikeStreetAddress's
   // territory (or legit number-led names like "Lock 3") — never ours.
   if (/\d/.test(key)) return false
