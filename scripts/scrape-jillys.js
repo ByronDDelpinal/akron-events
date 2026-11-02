@@ -9,6 +9,9 @@
  *   2. Batch-fetch full event data (content, image, taxonomies) from the WP
  *      REST API using the `include` parameter — one request per 50-ID chunk.
  *   3. Merge both datasets by post ID and upsert to Supabase.
+ *   4. Retire rows the calendar no longer lists — but ONLY after WordPress
+ *      itself confirms the post is gone (per-ID REST 404) or unpublished
+ *      (401). See "Retirement" below.
  *
  * Why two sources?
  *   EventON stores event dates in custom meta fields that the WP REST API does
@@ -36,6 +39,7 @@ import {
   linkEventOrganization,
   ensureVenue,
   ensureOrganization,
+  hasStatusOverride,
 } from './lib/normalize.js'
 import { fetchWithRetry } from './lib/http.js'
 
@@ -359,6 +363,211 @@ export function emptyCalendarOutcome({ allowEmptyFeed, ajaxStatus } = {}) {
   return { status: 'error', errorMessage: msg, reason: msg }
 }
 
+// ── Step 4: Retirement of posts Jilly's removed ───────────────────────────
+//
+// WHY (2026-11-02): Jill Bacon Madden cancelled "Swing Night with Sam Ross
+// Jazz" (post 4614) a month before the show and deleted it from her site. This
+// scraper is upsert-only, so our row simply stopped being touched and rode
+// into the Friday digest. The venue had to tell us.
+//
+// A row merely vanishing from the AJAX list is NOT treated as a cancellation —
+// a partial fetch or shortcode drift looks identical (the ohio-festivals
+// precedent and the guides copy both say so). What makes retirement safe here
+// is that WordPress answers a per-ID REST GET authoritatively:
+//
+//   GET /wp-json/wp/v2/ajde_events/{id}
+//     200                        → still published; leave the row alone
+//     404 rest_post_invalid_id   → deleted/trashed            → retire
+//     401 rest_forbidden         → exists but draft/private   → retire
+//     anything else / network    → unknown; leave the row alone
+//
+// The batch `?include=` fetch in step 2 silently drops missing ids, so only the
+// per-ID probe can see a removal. Probes run only for rows absent from the AJAX
+// result, so steady state is 0–3 extra GETs a night.
+//
+// Guards mirror planRetirement in scrape-city-of-cuyahoga-falls.js: a floor on
+// the AJAX count (parse broke → retire nothing), a ceiling on the fraction
+// retired per run (the run changed, not the venue), rows pinned by a human via
+// manual_overrides.status are never touched, and nothing is ever deleted —
+// status flips to 'cancelled' with a stamped override so it is auditable and a
+// later re-scrape cannot silently re-publish it.
+
+// Below this many AJAX events the calendar read is assumed broken. Jilly's
+// lists 40–50 events in a 180-day window; 10 is well under that floor.
+export const RETIREMENT_MIN_FOUND = 10
+
+// Retire at most this fraction of retire-eligible in-window rows per run.
+export const RETIREMENT_MAX_FRACTION = 0.25
+
+// Explicit bound on the retirement query so PostgREST's implicit 1000-row page
+// can never silently understate the ceiling's denominator.
+export const RETIREMENT_QUERY_LIMIT = 2000
+
+export const RETIREMENT_STAMP_BY = 'scrape-jillys:retirement'
+
+/**
+ * Classify a per-ID WP REST response. Pure.
+ *
+ * @param {number} status  HTTP status
+ * @param {object|null} body  parsed JSON body (may be null)
+ * @returns {'live'|'gone'|'unpublished'|'unknown'}
+ */
+export function classifyRestProbe(status, body = null) {
+  if (status === 200) return 'live'
+  if (status === 404 && body?.code === 'rest_post_invalid_id') return 'gone'
+  if (status === 401 && body?.code === 'rest_forbidden') return 'unpublished'
+  return 'unknown'
+}
+
+/** Retirement reason stamped into manual_overrides, keyed by probe verdict. */
+export function retirementReason(verdict, probedAt) {
+  const day = String(probedAt).slice(0, 10)
+  return verdict === 'gone'
+    ? `post deleted on jillysmusicroom.com (WP REST 404 rest_post_invalid_id on ${day})`
+    : `post unpublished on jillysmusicroom.com (WP REST 401 rest_forbidden on ${day})`
+}
+
+/**
+ * Which in-window rows need a probe: published, not status-pinned, and absent
+ * from this run's AJAX result. Pure, so the caller can probe only these.
+ */
+export function retirementCandidates({ rows = [], seenSourceIds = new Set() } = {}) {
+  return rows.filter(r => r.status === 'published' && !hasStatusOverride(r) && !seenSourceIds.has(r.source_id))
+}
+
+/**
+ * Decide which rows to retire. Pure — the guards are the point.
+ *
+ * @param rows           in-window rows for this source, ALL statuses
+ * @param seenSourceIds  source_ids present in this run's AJAX result
+ * @param ajaxCount      number of events the AJAX call returned
+ * @param verdicts       Map<source_id, 'live'|'gone'|'unpublished'|'unknown'>
+ *                       from classifyRestProbe; a candidate with no entry is
+ *                       treated as 'unknown'
+ */
+export function planRetirement({ rows = [], seenSourceIds = new Set(), ajaxCount = 0, verdicts = new Map() } = {}) {
+  const eligible   = rows.filter(r => r.status === 'published' && !hasStatusOverride(r))
+  const pinned     = rows.filter(r => r.status === 'published' && hasStatusOverride(r))
+  const candidates = retirementCandidates({ rows, seenSourceIds })
+  const base = {
+    retire: [], leftLive: [], leftUnknown: [],
+    examined: rows.length, eligible: eligible.length, candidates: candidates.length,
+    protectedCount: pinned.length, fraction: 0, skipped: null, reason: null,
+  }
+
+  if (ajaxCount < RETIREMENT_MIN_FOUND) {
+    return { ...base, skipped: 'below-floor',
+      reason: `EventON returned only ${ajaxCount} event(s) (floor ${RETIREMENT_MIN_FOUND}) — the calendar read looks broken, retiring nothing` }
+  }
+
+  const retire = [], leftLive = [], leftUnknown = []
+  for (const row of candidates) {
+    const v = verdicts.get(row.source_id) ?? 'unknown'
+    if (v === 'gone' || v === 'unpublished') retire.push({ row, verdict: v })
+    else if (v === 'live') leftLive.push(row)
+    else leftUnknown.push(row)
+  }
+
+  // Denominator is the retire-ELIGIBLE set, not every in-window row, so
+  // already-cancelled closure notices cannot dilute the measurement.
+  const fraction = eligible.length ? retire.length / eligible.length : 0
+  if (fraction > RETIREMENT_MAX_FRACTION) {
+    return { ...base, leftLive, leftUnknown, fraction, skipped: 'above-ceiling',
+      reason: `${retire.length}/${eligible.length} retire-eligible rows (${(fraction * 100).toFixed(0)}%) confirmed gone, ` +
+        `over the ${(RETIREMENT_MAX_FRACTION * 100).toFixed(0)}% ceiling — the run, not the venue, probably changed. Investigate before retiring.` }
+  }
+
+  return { ...base, retire, leftLive, leftUnknown, fraction }
+}
+
+/**
+ * Ask WordPress whether one post still exists. Never throws: any transport
+ * failure or unexpected shape is 'unknown', which the planner leaves alone.
+ *
+ * @param {string|number} postId
+ * @param {object} [opts]  `fetchImpl` is forwarded to fetchWithRetry for tests
+ */
+export async function probeWpPost(postId, { fetchImpl } = {}) {
+  try {
+    const res = await fetchWithRetry(`${REST_BASE}/${postId}`, {
+      headers: { Accept: 'application/json' },
+      ...(fetchImpl ? { fetchImpl } : {}),
+    })
+    let body = null
+    try { body = await res.json() } catch { body = null }
+    return classifyRestProbe(res.status, body)
+  } catch {
+    return 'unknown'
+  }
+}
+
+/**
+ * Fetch in-window rows, probe the ones the AJAX result dropped, and retire the
+ * confirmed-removed ones. Returns the number retired. NEVER deletes.
+ */
+async function retireRemovedPosts({ seenSourceIds, ajaxCount }) {
+  const { supabaseAdmin } = await import('./lib/supabase-admin.js')
+
+  const from = new Date()
+  const to   = new Date(Date.now() + DAYS_AHEAD * 86400 * 1000)
+  const { data: rows, error } = await supabaseAdmin
+    .from('events')
+    .select('id, title, source_id, status, start_at, manual_overrides')
+    .eq('source', 'jillys_music_room')
+    .gte('start_at', from.toISOString())
+    .lte('start_at', to.toISOString())
+    .limit(RETIREMENT_QUERY_LIMIT)
+  if (error) {
+    console.warn(`  ⚠ Retirement query failed: ${error.message} — retiring nothing.`)
+    return 0
+  }
+  if ((rows?.length ?? 0) >= RETIREMENT_QUERY_LIMIT) {
+    console.warn(`  ⚠ Retirement query hit the ${RETIREMENT_QUERY_LIMIT}-row bound — result may be truncated. Retiring nothing.`)
+    return 0
+  }
+
+  const candidates = retirementCandidates({ rows: rows ?? [], seenSourceIds })
+  const verdicts = new Map()
+  if (candidates.length) {
+    console.log(`\n🔎  ${candidates.length} published row(s) missing from the EventON result — asking WordPress…`)
+    for (const row of candidates) {
+      verdicts.set(row.source_id, await probeWpPost(row.source_id))
+      await sleep(200)
+    }
+  }
+
+  const plan = planRetirement({ rows: rows ?? [], seenSourceIds, ajaxCount, verdicts })
+  if (plan.skipped) {
+    console.warn(`  ⏭  Retirement SKIPPED (${plan.skipped}): ${plan.reason}`)
+    return 0
+  }
+  for (const r of plan.leftLive)    console.log(`  ↩  still published on WordPress, kept: "${r.title}" (${r.source_id}) — EventON window/parse drift?`)
+  for (const r of plan.leftUnknown) console.warn(`  ❓ probe inconclusive, kept: "${r.title}" (${r.source_id})`)
+  if (plan.protectedCount) console.log(`  🛡  ${plan.protectedCount} row(s) skipped: manual_overrides.status is a human decision`)
+  if (!plan.retire.length) return 0
+
+  const at = new Date().toISOString()
+  let retired = 0
+  for (const { row, verdict } of plan.retire) {
+    const manual_overrides = {
+      ...(row.manual_overrides ?? {}),
+      status: { at, by: RETIREMENT_STAMP_BY, reason: retirementReason(verdict, at) },
+    }
+    const { error: upErr } = await supabaseAdmin
+      .from('events')
+      .update({ status: 'cancelled', manual_overrides })
+      .eq('id', row.id)
+      .eq('status', 'published')   // never race a human who just changed it
+    if (upErr) {
+      console.warn(`  ⚠ Retirement failed for ${row.source_id}: ${upErr.message}`)
+      continue
+    }
+    console.log(`  🗄  retired (${verdict}): "${row.title}" (${row.source_id})`)
+    retired++
+  }
+  return retired
+}
+
 // ── Entry point ───────────────────────────────────────────────────────────
 
 async function main() {
@@ -389,6 +598,12 @@ async function main() {
     // Step 3: Merge and upsert
     console.log(`\n📥  Processing ${ajaxEvents.length} events…`)
     const { inserted, skipped } = await processEvents(ajaxEvents, restById, venueId, organizerId)
+
+    // Step 4: retire posts the venue removed (see "Retirement" above). Runs
+    // after the upsert so every row EventON still lists has a fresh touch.
+    const retired = await retireRemovedPosts({ seenSourceIds: new Set(ids.map(String)), ajaxCount: ajaxEvents.length })
+    if (retired) console.log(`  🗄  ${retired} row(s) retired (status → cancelled)`)
+
     await logUpsertResult('jillys_music_room', inserted, 0, skipped, {
       eventsFound: ajaxEvents.length,
       durationMs:  Date.now() - start,

@@ -429,3 +429,105 @@ describe("Jilly's: emptyCalendarOutcome", () => {
     assert.doesNotMatch(out.errorMessage, /NaN|undefined/)
   })
 })
+
+// ── Retirement of removed posts (2026-11-02) ──────────────────────────────
+//
+// Imported from the REAL module — the guards are the point, never re-implement.
+const {
+  classifyRestProbe, planRetirement, retirementCandidates, probeWpPost, retirementReason,
+  RETIREMENT_MIN_FOUND, RETIREMENT_MAX_FRACTION, RETIREMENT_STAMP_BY,
+} = await import('../scrape-jillys.js')
+
+const row = (source_id, extra = {}) => ({ id: `id-${source_id}`, title: `Event ${source_id}`, source_id: String(source_id), status: 'published', manual_overrides: {}, ...extra })
+
+describe('classifyRestProbe — the three WordPress answers', () => {
+  it('200 is live', () => assert.equal(classifyRestProbe(200, { id: 4613, status: 'publish' }), 'live'))
+  it('404 rest_post_invalid_id is gone (deleted/trashed) — the Swing Night case', () =>
+    assert.equal(classifyRestProbe(404, { code: 'rest_post_invalid_id', data: { status: 404 } }), 'gone'))
+  it('401 rest_forbidden is unpublished (draft/private) — the Modern Jazz Brunch case', () =>
+    assert.equal(classifyRestProbe(401, { code: 'rest_forbidden', data: { status: 401 } }), 'unpublished'))
+  it('a 404 without the WP code is unknown (could be a WAF/HTML page)', () =>
+    assert.equal(classifyRestProbe(404, null), 'unknown'))
+  it('5xx / 403 / 429 are unknown, never a removal signal', () => {
+    for (const s of [500, 502, 503, 403, 429]) assert.equal(classifyRestProbe(s, { code: 'x' }), 'unknown')
+  })
+})
+
+describe('probeWpPost — transport failures never retire', () => {
+  const resp = (status, body) => ({ ok: status < 400, status, json: async () => body, text: async () => JSON.stringify(body), clone() { return this } })
+  it('maps a 404 body through classifyRestProbe', async () => {
+    const v = await probeWpPost(4614, { fetchImpl: async () => resp(404, { code: 'rest_post_invalid_id' }) })
+    assert.equal(v, 'gone')
+  })
+  it('network error → unknown', async () => {
+    const v = await probeWpPost(4614, { fetchImpl: async () => { throw new Error('ECONNRESET') } })
+    assert.equal(v, 'unknown')
+  })
+  it('non-JSON body → unknown', async () => {
+    const v = await probeWpPost(4614, { fetchImpl: async () => ({ ok: false, status: 404, json: async () => { throw new SyntaxError('html') }, clone() { return this } }) })
+    assert.equal(v, 'unknown')
+  })
+})
+
+describe('retirementCandidates — who gets probed', () => {
+  it('only published, un-pinned rows absent from the AJAX result', () => {
+    const rows = [
+      row(1), row(2),
+      row(3, { status: 'cancelled' }),
+      row(4, { manual_overrides: { status: { at: 'x' } } }),
+    ]
+    const c = retirementCandidates({ rows, seenSourceIds: new Set(['1']) })
+    assert.deepEqual(c.map(r => r.source_id), ['2'])
+  })
+})
+
+describe('planRetirement — guards', () => {
+  const rows = Array.from({ length: 20 }, (_, i) => row(i + 1))
+  const seen = new Set(rows.slice(0, 18).map(r => r.source_id))   // 19 and 20 missing
+  const healthy = { rows, seenSourceIds: seen, ajaxCount: 40 }
+
+  it('retires rows WordPress confirms gone or unpublished', () => {
+    const plan = planRetirement({ ...healthy, verdicts: new Map([['19', 'gone'], ['20', 'unpublished']]) })
+    assert.equal(plan.skipped, null)
+    assert.deepEqual(plan.retire.map(r => [r.row.source_id, r.verdict]), [['19', 'gone'], ['20', 'unpublished']])
+  })
+  it('keeps a row WordPress still publishes (EventON drift), and reports it', () => {
+    const plan = planRetirement({ ...healthy, verdicts: new Map([['19', 'live'], ['20', 'gone']]) })
+    assert.deepEqual(plan.leftLive.map(r => r.source_id), ['19'])
+    assert.deepEqual(plan.retire.map(r => r.row.source_id), ['20'])
+  })
+  it('keeps a row whose probe was inconclusive or missing', () => {
+    const plan = planRetirement({ ...healthy, verdicts: new Map([['19', 'unknown']]) })
+    assert.deepEqual(plan.retire, [])
+    assert.deepEqual(plan.leftUnknown.map(r => r.source_id).sort(), ['19', '20'])
+  })
+  it('never touches a human status pin, even when WordPress says gone', () => {
+    const pinnedRows = [...rows, row(21, { manual_overrides: { status: { at: 'x', by: 'byron' } } })]
+    const plan = planRetirement({ rows: pinnedRows, seenSourceIds: seen, ajaxCount: 40, verdicts: new Map([['21', 'gone']]) })
+    assert.ok(!plan.retire.some(r => r.row.source_id === '21'))
+    assert.equal(plan.protectedCount, 1)
+  })
+  it('retires nothing when the AJAX read is below the floor', () => {
+    const plan = planRetirement({ ...healthy, ajaxCount: RETIREMENT_MIN_FOUND - 1, verdicts: new Map([['19', 'gone']]) })
+    assert.equal(plan.skipped, 'below-floor')
+    assert.deepEqual(plan.retire, [])
+  })
+  it('retires nothing above the ceiling, even with every probe confirming', () => {
+    const verdicts = new Map(rows.map(r => [r.source_id, 'gone']))
+    const plan = planRetirement({ rows, seenSourceIds: new Set(), ajaxCount: 40, verdicts })
+    assert.equal(plan.skipped, 'above-ceiling')
+    assert.ok(plan.fraction > RETIREMENT_MAX_FRACTION)
+    assert.deepEqual(plan.retire, [])
+  })
+  it('ceiling denominator is retire-eligible rows, so cancelled closure notices do not dilute it', () => {
+    // 4 eligible, 2 confirmed gone = 50%; 20 extra already-cancelled rows must not rescue it.
+    const small = [row(1), row(2), row(3), row(4), ...Array.from({ length: 20 }, (_, i) => row(100 + i, { status: 'cancelled' }))]
+    const plan = planRetirement({ rows: small, seenSourceIds: new Set(['1', '2']), ajaxCount: 40, verdicts: new Map([['3', 'gone'], ['4', 'gone']]) })
+    assert.equal(plan.skipped, 'above-ceiling')
+  })
+  it('stamp names the scraper and the reason carries the WP verdict + date', () => {
+    assert.equal(RETIREMENT_STAMP_BY, 'scrape-jillys:retirement')
+    assert.match(retirementReason('gone', '2026-11-02T09:10:00.000Z'), /404 rest_post_invalid_id on 2026-11-02/)
+    assert.match(retirementReason('unpublished', '2026-11-02T09:10:00.000Z'), /401 rest_forbidden on 2026-11-02/)
+  })
+})
