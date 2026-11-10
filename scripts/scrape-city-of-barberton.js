@@ -1,100 +1,57 @@
 /**
  * scrape-city-of-barberton.js
  *
- * City of Barberton, Ohio (Summit County). Barberton runs its site on WordPress
- * with The Events Calendar (Tribe), which publishes a clean all-events iCal feed
- * at /?post_type=tribe_events&ical=1&eventDisplay=list. The good stuff is the
- * Barberton Parks & Rec summer programming: the Friday & Wednesday Summer Concert
- * Series at the Lake Anna Gazebo, the Purple Paw Party pet event at Decker Park,
- * and the Labor Day Fireworks. The feed also carries City Council / Committee of
- * the Whole meetings, which we drop (includeEvent).
+ * City of Barberton, Ohio (Summit County) — CivicPlus (CivicEngage) site.
  *
- * The Tribe iCal LOCATION is "Name, Street, City, [ST], Zip, Country" (the state
- * is sometimes omitted); parseBarbertonLocation splits it into a clean venue.
+ * The city replaced its WordPress site with CivicPlus on or about 2026-11-06.
+ * The old Tribe iCal feed (/?post_type=tribe_events&ical=1) now returns the
+ * CivicPlus home page, which is why this source went from 30 events a night
+ * to an error overnight. This is the rewrite onto the shared CivicPlus runner.
+ *
+ * Calendar → catID: the new home page's two "View All Events" links point at
+ * /calendar.aspx?CID=14 and ?CID=23, and both iCalendar feeds answer with a
+ * valid VCALENDAR.
+ *
+ * NOT YET VERIFIED AGAINST REAL EVENTS. As of 2026-11-10 the city has not
+ * populated the new calendar: both feeds are valid but hold zero VEVENTs, and
+ * the calendar page lists no calendars to pick from. Until they post, this
+ * source reports "0 public-facing events after filter" like any off-season
+ * CivicPlus town. On the first night it finds events, check two things:
+ *   • which catID carries community events versus governance (drop the other
+ *     if the shared admin filter is not enough);
+ *   • start times. The empty feeds declare X-WR-TIMEZONE America/Chicago, the
+ *     CivicPlus default for an unconfigured site. If the city never corrects
+ *     it, events will land one hour late.
+ *
+ * What the old feed carried, and what to expect back: the Parks & Rec summer
+ * programming (the Friday and Wednesday Summer Concert Series at the Lake Anna
+ * Gazebo, the Purple Paw Party at Decker Park, the Labor Day Fireworks), mixed
+ * with City Council and committee meetings, which the runner's public-event
+ * filter drops. Events with no LOCATION fall back to Lake Anna Park.
  *
  * Usage:   node scripts/scrape-city-of-barberton.js
- * Env:     VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  */
 
-import { pathToFileURL } from 'node:url'
-import 'dotenv/config'
-import { runIcsScraper } from './lib/ics.js'
+import { runCivicPlusScraper } from './lib/civicplus.js'
 
-export const SOURCE_KEY = 'city_of_barberton'
-const FEED_URL = 'https://www.cityofbarberton.com/?post_type=tribe_events&ical=1&eventDisplay=list'
-
-/**
- * Parse a Tribe / Events-Calendar iCal LOCATION — "Name, Street, City, [ST],
- * Zip, Country" (state optional; the name may itself contain commas) — into
- * { name, details }. Exported for tests.
- */
-export function parseBarbertonLocation(loc) {
-  if (!loc) return null
-  const parts = String(loc).split(',').map((s) => s.trim()).filter(Boolean)
-  if (!parts.length) return null
-
-  if (/^(united states|usa|us)$/i.test(parts[parts.length - 1] || '')) parts.pop()
-  let zip = null, state = null, city = null
-  if (/^\d{5}(-\d{4})?$/.test(parts[parts.length - 1] || '')) zip = parts.pop()
-  if (/^[A-Z]{2}$/.test(parts[parts.length - 1] || '')) state = parts.pop()
-  if (parts.length) city = parts.pop()
-
-  let address = null, name = null
-  if (parts.length >= 2) {
-    address = parts.pop()
-    name = parts.join(', ')
-  } else {
-    name = parts.join(', ') || city
-  }
-  if (!name) return null
-  return { name, details: { address, city: city || 'Barberton', state: state || 'OH', zip } }
-}
-
-/** Drop governance rows (council / committee / board meetings, hearings). */
-const ADMIN_RE = /\b(meeting|council|committee|caucus|work session|board of|commission|hearing|zoning|trustees?)\b/i
-export function includeEvent(ev) {
-  return !ADMIN_RE.test(ev?.SUMMARY || '')
-}
-
-/** Concerts → music; fireworks/festivals/parties → festival; else inference. */
-export function mapCategory(ev) {
-  const s = (ev?.SUMMARY || '').toLowerCase()
-  if (/concert|music|band|symphon/.test(s)) return 'music'
-  if (/fireworks|festival|\bfest\b|parade|\bparty\b/.test(s)) return 'festival'
-  return null
-}
-
-export function mapTags(ev) {
-  const s = (ev?.SUMMARY || '').toLowerCase()
-  const tags = ['city-of-barberton', 'barberton-ohio', 'summit-county']
-  if (/concert|music|band|symphon/.test(s)) tags.push('music', 'outdoor', 'concert')
-  if (/fireworks/.test(s)) tags.push('fireworks', 'seasonal')
-  return [...new Set(tags)]
-}
-
-async function main() {
-  await runIcsScraper({
-    source: SOURCE_KEY,
-    feedUrl: FEED_URL,
-    organizationName: 'City of Barberton',
-    organizationDetails: {
-      website: 'https://www.cityofbarberton.com',
+runCivicPlusScraper({
+  source:    'city_of_barberton',
+  origin:    'https://www.cityofbarberton.com',
+  catIDs:    [14, 23],
+  cityLabel: 'Barberton',
+  emoji:     '🎆',
+  organization: {
+    name: 'City of Barberton',
+    details: {
+      website:     'https://www.cityofbarberton.com',
       description: 'City of Barberton (Summit County, OH) Parks & Recreation community events — the Summer Concert Series at Lake Anna Gazebo, the Purple Paw Party, and the Labor Day Fireworks.',
     },
-    defaultVenueName: 'Lake Anna Park',
-    defaultVenueDetails: {
-      address: '615 W. Park Ave', city: 'Barberton', state: 'OH', zip: '44203',
-      website: 'https://www.cityofbarberton.com',
-    },
-    includeEvent,
-    parseLocation: parseBarbertonLocation,
-    mapCategory,
-    mapTags,
-    ageRestriction: 'all_ages',
-    skipPast: true,
-  })
-}
-
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main()
-}
+  },
+  defaultVenue: {
+    name:    'Lake Anna Park',
+    address: '615 W. Park Ave',
+    zip:     '44203',
+    website: 'https://www.cityofbarberton.com',
+  },
+  baseTags: ['city-of-barberton', 'barberton-ohio', 'summit-county'],
+})

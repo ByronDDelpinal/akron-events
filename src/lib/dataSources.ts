@@ -564,10 +564,10 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
   },
   {
     key:         'city_of_barberton',
-    method:      'iCal feed',
-    methodDetail:'WordPress + The Events Calendar (Tribe) all-events iCal (/?post_type=tribe_events&ical=1) via lib/ics.js runIcsScraper',
-    venue:       'Lake Anna Gazebo / Lake Anna Park (default) — Barberton, OH',
-    notes:       "City of Barberton (Summit County) runs WordPress + The Events Calendar, which publishes a clean all-events iCal feed. The value is the Barberton Parks & Rec summer programming: the Friday & Wednesday Summer Concert Series at the Lake Anna Gazebo (tribute/variety bands, each paired with a food truck), the Purple Paw Party pet event at Decker Park, and the Labor Day Fireworks. The feed also carries City Council / Committee of the Whole meetings, dropped by an includeEvent admin filter. The Tribe iCal LOCATION is \"Name, Street, City, [ST], Zip, Country\" (state sometimes omitted); a parseLocation hook splits it into a clean venue. Concerts → music, fireworks/festivals → festival; price left null (never assume free).",
+    method:      'ICS feed',
+    methodDetail:'CivicPlus iCalendar — the two calendars the home page links to (catID=14, catID=23) via the shared lib/civicplus.js runner',
+    venue:       'Lake Anna Park (default) — Barberton, OH',
+    notes:       "The City of Barberton (Summit County) moved from WordPress to CivicPlus around 2026-11-06, which retired the Tribe iCal feed this source used to read. The scraper now reads the CivicPlus iCalendar feeds, but as of 2026-11-10 the city has not yet populated its new calendar, so the source reports zero public events until they do. Expected content, as before: the Parks & Rec summer programming (the Friday & Wednesday Summer Concert Series at the Lake Anna Gazebo, the Purple Paw Party at Decker Park, the Labor Day Fireworks), with council and committee meetings dropped by the shared public-event filter. Price left null (never assume free).",
     status:      'active',
   },
   {
@@ -1709,7 +1709,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   akron_symphony:      'ics',
   north_hill_cdc:      'ics',
   akron_pride:         'ics',
-  city_of_barberton:   'ics',
+  city_of_barberton:   'civicplus',
   united_way_summit:   'ics',
   pegs_foundation:     'ics',
   village_of_mogadore: 'ics',

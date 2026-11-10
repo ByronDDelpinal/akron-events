@@ -91,7 +91,7 @@ export const SCRAPERS = [
   // Retired 2026-08-23 — their site now embeds Akron Pulse; scraping it would re-ingest our own listings. See dataSources notes.
   { key: 'north_hill_cdc',       script: 'scripts/scrape-north-hill-cdc.js',          label: 'North Hill CDC',               group: 'ics',            active: false },
   { key: 'akron_pride',          script: 'scripts/scrape-akron-pride.js',             label: 'Akron Pride Festival',         group: 'ics',            active: true, defaultCategory: 'festival' },
-  { key: 'city_of_barberton',    script: 'scripts/scrape-city-of-barberton.js',       label: 'City of Barberton',            group: 'ics',            active: true  },
+  { key: 'city_of_barberton',    script: 'scripts/scrape-city-of-barberton.js',       label: 'City of Barberton',            group: 'civicplus',      active: true  },
   { key: 'united_way_summit',    script: 'scripts/scrape-united-way-summit.js',       label: 'United Way of Summit & Medina', group: 'ics',           active: true  },
   { key: 'pegs_foundation',      script: 'scripts/scrape-pegs-foundation.js',         label: "Peg's Foundation",             group: 'ics',            active: true  },
   { key: 'village_of_mogadore',  script: 'scripts/scrape-village-of-mogadore.js',     label: 'Village of Mogadore',          group: 'ics',            active: true  },
