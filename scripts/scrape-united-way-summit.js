@@ -6,8 +6,13 @@
  * Calendar (Tribe), which publishes a clean all-events iCal feed. We consume it
  * via the shared lib/ics.js runIcsScraper.
  *
- * Feed: https://www.uwsummitmedina.org/events/?ical=1 (Tribe "?ical=1"). At the
- * time of build it carries a single upcoming VEVENT ("Bold Glow", a night-golf
+ * Feed: https://www.uwsummitmedina.org/calendar/?ical=1 (Tribe "?ical=1"). The
+ * calendar moved from /events/ to /calendar/ in 2026-09: /events/ now redirects
+ * to the volunteer page, which is HTML and can never parse. As of 2026-11-10
+ * the organization lists no upcoming events (Tribe REST total: 0), and Tribe
+ * answers an empty calendar with an empty body, so this source reports an
+ * error until they post again. That is the source being empty, not a break.
+ * At the time of build it carried a single upcoming VEVENT ("Bold Glow", a night-golf
  * fundraiser at J. E. Good Park Golf Course in Akron), emitted as a date-only
  * (VALUE=DATE) all-day event — so we flag those rows needs_review, because their
  * noon-ET start is the SANCTIONED-DEFAULT-TIME and not a confirmed time.
@@ -32,7 +37,7 @@ import { runIcsScraper, isDateOnlyIcsEvent } from './lib/ics.js'
 import { classifySummitLocation } from './lib/summit-county.js'
 
 export const SOURCE_KEY = 'united_way_summit'
-const FEED_URL = 'https://www.uwsummitmedina.org/events/?ical=1'
+const FEED_URL = 'https://www.uwsummitmedina.org/calendar/?ical=1'
 
 /**
  * Parse a Tribe / Events-Calendar iCal LOCATION — "Name, Street, City, [ST],
