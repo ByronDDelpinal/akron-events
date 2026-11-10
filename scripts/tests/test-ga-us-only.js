@@ -1,7 +1,8 @@
 /**
  * test-ga-us-only.js - the US-only scope every GA4 report goes through.
  *
- * All four GA scripts route their runReport bodies through usOnly(). What
+ * All four GA scripts route their runReport bodies through realTrafficOnly(),
+ * which is usOnly() plus the unidentified-agent exclusion. What
  * needs pinning is that it composes rather than replaces: a report that
  * already filters on eventName or a custom dimension must keep that filter
  * AND gain the country one, or the install / embed numbers quietly become
@@ -13,7 +14,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { usOnly, US_ONLY_FILTER } from '../ga-snapshot.js'
+import { usOnly, US_ONLY_FILTER, realTrafficOnly, NOT_GENERIC_AGENT_FILTER } from '../ga-snapshot.js'
 
 describe('usOnly', () => {
   it('adds the country filter to a body that has none', () => {
@@ -41,5 +42,39 @@ describe('usOnly', () => {
     assert.equal(US_ONLY_FILTER.filter.fieldName, 'country')
     assert.equal(US_ONLY_FILTER.filter.stringFilter.value, 'United States')
     assert.equal(US_ONLY_FILTER.filter.stringFilter.matchType, 'EXACT')
+  })
+})
+
+describe('realTrafficOnly', () => {
+  it('scopes a bare body to US traffic minus unidentified agents', () => {
+    const out = realTrafficOnly({ metrics: [{ name: 'sessions' }] })
+    assert.deepEqual(out.dimensionFilter, {
+      andGroup: { expressions: [US_ONLY_FILTER, NOT_GENERIC_AGENT_FILTER] },
+    })
+    assert.deepEqual(out.metrics, [{ name: 'sessions' }])
+  })
+
+  it('keeps an existing dimensionFilter alongside both scope filters', () => {
+    const existing = { filter: { fieldName: 'eventName', stringFilter: { matchType: 'EXACT', value: 'pwa_standalone_launch', caseSensitive: true } } }
+    const out = realTrafficOnly({ dimensionFilter: existing })
+    assert.deepEqual(out.dimensionFilter, {
+      andGroup: {
+        expressions: [US_ONLY_FILTER, { andGroup: { expressions: [NOT_GENERIC_AGENT_FILTER, existing] } }],
+      },
+    })
+  })
+
+  it('never mutates the input body', () => {
+    const body = { dimensionFilter: { filter: { fieldName: 'eventName', inListFilter: { values: ['x'] } } } }
+    const snapshot = JSON.stringify(body)
+    realTrafficOnly(body)
+    assert.equal(JSON.stringify(body), snapshot)
+  })
+
+  it('excludes by the exact browser label GA4 reports, as a negation', () => {
+    const f = NOT_GENERIC_AGENT_FILTER.notExpression.filter
+    assert.equal(f.fieldName, 'browser')
+    assert.equal(f.stringFilter.value, 'Mozilla Compatible Agent')
+    assert.equal(f.stringFilter.matchType, 'EXACT')
   })
 })

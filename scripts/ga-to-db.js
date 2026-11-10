@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { pathToFileURL } from 'node:url'
-import { loadConfig, mintJwt, usOnly } from './ga-snapshot.js'
+import { loadConfig, mintJwt, realTrafficOnly } from './ga-snapshot.js'
 
 /**
  * GA4 -> Postgres loader. The storage half of the six read-only GA scripts.
@@ -363,12 +363,12 @@ async function getAccessToken(sa) {
 
 function makeRunner(token, propertyId) {
   return async function runReport(body) {
-    // Every report is scoped to US traffic here, once, so no caller can
-    // forget it (see usOnly in ga-snapshot.js for why).
+    // Every report is scoped to real US traffic here, once, so no caller
+    // can forget it (see realTrafficOnly in ga-snapshot.js for why).
     const rep = await fetchJson(`${API}/properties/${propertyId}:runReport`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(usOnly(body)),
+      body: JSON.stringify(realTrafficOnly(body)),
     })
     // Truncation is DETECTED, not assumed away. rowCount is the total number
     // of matching rows; rows is what fitted in the response.

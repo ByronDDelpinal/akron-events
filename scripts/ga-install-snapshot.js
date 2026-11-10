@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { pathToFileURL } from 'node:url'
-import { loadConfig, mintJwt, usOnly } from './ga-snapshot.js'
+import { loadConfig, mintJwt, realTrafficOnly } from './ga-snapshot.js'
 
 /**
  * GA4 PWA-install snapshot for the 9am morning briefing.
@@ -105,13 +105,13 @@ async function getAccessToken(sa) {
   return data.access_token
 }
 
-/** Every report is scoped to US traffic (usOnly, ga-snapshot.js). */
+/** Every report is scoped to real US traffic (realTrafficOnly, ga-snapshot.js). */
 function runReport(token, propertyId, requestBody) {
   const url = `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`
   return fetchJson(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(usOnly(requestBody)),
+    body: JSON.stringify(realTrafficOnly(requestBody)),
   })
 }
 

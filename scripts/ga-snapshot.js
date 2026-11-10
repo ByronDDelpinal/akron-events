@@ -86,6 +86,36 @@ export function usOnly(body) {
   return { ...body, dimensionFilter }
 }
 
+/**
+ * GA4 dimension filter dropping the "Mozilla Compatible Agent" browser class.
+ *
+ * GA4 files a user agent it cannot identify as a real browser under this
+ * label, and the US-only filter cannot see it when the client is US-hosted.
+ * 2026-11-08 one such client, a single "user" in nine sessions, fired 5,522
+ * page views at one organization page inside an hour (513 more on 11-06),
+ * against about 250 real page views a day. It reported as a record day and
+ * was baked into site_metrics_daily. Across the property's whole history the
+ * class is about 50 of 8,350 users, so excluding it costs well under 1% of
+ * real traffic and removes the only way one script can outvote every reader.
+ */
+export const NOT_GENERIC_AGENT_FILTER = {
+  notExpression: {
+    filter: { fieldName: 'browser', stringFilter: { matchType: 'EXACT', value: 'Mozilla Compatible Agent' } },
+  },
+}
+
+/**
+ * The scope every stored or reported GA4 number goes through: US traffic
+ * (usOnly) minus unidentified agents. Composes exactly like usOnly: an
+ * existing dimensionFilter is kept and AND-ed, and the input is never mutated.
+ */
+export function realTrafficOnly(body) {
+  const dimensionFilter = body.dimensionFilter
+    ? { andGroup: { expressions: [NOT_GENERIC_AGENT_FILTER, body.dimensionFilter] } }
+    : NOT_GENERIC_AGENT_FILTER
+  return usOnly({ ...body, dimensionFilter })
+}
+
 /** Base64url encoding per RFC 7515 (JWT segments). */
 export function b64url(input) {
   return Buffer.from(input).toString('base64url')
@@ -145,7 +175,7 @@ async function getAccessToken(sa) {
   return data.access_token
 }
 
-/** Run the GA4 report: yesterday only, three metrics, date dimension, US traffic only. */
+/** Run the GA4 report: yesterday only, three metrics, date dimension, real US traffic only. */
 async function runReport(token, propertyId) {
   const url = `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`
   return fetchJson(url, {
@@ -155,7 +185,7 @@ async function runReport(token, propertyId) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(
-      usOnly({
+      realTrafficOnly({
         dateRanges: [{ startDate: 'yesterday', endDate: 'yesterday' }],
         metrics: METRICS.map((name) => ({ name })),
         dimensions: [{ name: 'date' }],
