@@ -493,8 +493,13 @@ describe('users-first refactor (2026-08-17) changed the vocabulary, not the doll
     assert.equal(totalAtShare(0.48), 2001, `total at s=0.48 is $${totalAtShare(0.48)}, expected $2,001`)
   })
 
-  it('s = 1.0 (the ceiling) totals exactly $4,060/mo, matching TIER_TOTALS', () => {
-    assert.equal(totalAtShare(1), 4060, `total at s=1.0 is $${totalAtShare(1)}, expected $4,060`)
+  // Pin re-baselined 2026-11-10 at the reach refresh (a measured-input
+  // change, not drift): SUBSCRIBER_CONVERSION is TODAY_SUBSCRIBERS /
+  // ANNUAL_UNIQUE_USERS, and re-measuring both (138 / 3,127 -> 197 / 8,302)
+  // moved it from 4.4% to 2.4%, which lowers the subscriber email line at
+  // the ceiling by $30. The other pins did not move. Pre-refresh value 4060.
+  it('s = 1.0 (the ceiling) totals exactly $4,030/mo, matching TIER_TOTALS', () => {
+    assert.equal(totalAtShare(1), 4030, `total at s=1.0 is $${totalAtShare(1)}, expected $4,030`)
   })
 
   it('CEILING_VIEWS_PER_USER_MONTH round-trips to EMBED_CEILING_VIEWS_PER_MONTH within rounding', () => {

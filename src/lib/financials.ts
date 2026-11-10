@@ -90,17 +90,22 @@ export const ACTIVE_SOURCE_COUNT = ACTIVE_SCRAPERS.length
  * Annual unique users, GA4 property 538991588, trailing 365 days through
  * REACH_MEASURED_THROUGH (identical to 2026 year-to-date - the site is new,
  * so the calendar year and the trailing year cover the same traffic).
+ * Pulled 2026-11-10 as totalUsers under the reporting scope every stored GA
+ * number uses (realTrafficOnly in scripts/ga-snapshot.js: US traffic, minus
+ * unidentified agents). The 2026-08-17 pull predated that scope and counted
+ * all countries, so this refresh is a like-for-like figure only from here on.
  *
  * The denominator is annual UNIQUE users, not monthly actives multiplied by
  * twelve. A visitor who returns in a second month is one person who came
  * back, not a second new person; compounding monthly actives into a
  * pseudo-annual figure would count them twice.
  */
-export const ANNUAL_UNIQUE_USERS = 3127
+export const ANNUAL_UNIQUE_USERS = 8302
 
 /**
  * MEASURED, GA4 property 538991588, trailing 30 days through
- * REACH_MEASURED_THROUGH (pulled 2026-08-17). THE public traffic metric
+ * REACH_MEASURED_THROUGH (pulled 2026-11-10, same scope as
+ * ANNUAL_UNIQUE_USERS above). THE public traffic metric
  * (maintainer decision, 2026-08-17): active users, not pageviews - this is
  * what TIERS' "today" tier label names below, and what the /financials stat
  * card leads with. LAST_30D_USERS, further down in the "Local spending
@@ -109,7 +114,7 @@ export const ANNUAL_UNIQUE_USERS = 3127
  * so the two figures can never drift apart. Update this value (and
  * REACH_MEASURED_THROUGH) together at each reach refresh.
  */
-export const TODAY_MONTHLY_ACTIVE_USERS = 2859
+export const TODAY_MONTHLY_ACTIVE_USERS = 2098
 
 /** census.gov QuickFacts, V2025 estimate for Summit County, Ohio (2025-07-01). */
 export const SUMMIT_COUNTY_POPULATION = 538376
@@ -179,12 +184,12 @@ export function adoptersAtShare(share: number): number {
 // measurement rather than a derivation from TODAY_MONTHLY_ACTIVE_USERS - a
 // real measurement needs no derivation.
 
-/** MEASURED (embed-EXCLUDING), GA4 property 538991588, pulled 2026-08-17: GA4 totalUsers x average pageviews/user, trailing 365 days = 23,260 total pageviews. Kept as a named reference for VIEWS_PER_USER_YEAR below; not used to calibrate CEILING_VIEWS_PER_USER_MONTH, which is ceiling-calibrated instead (see that constant's comment for why the two numbers are not meant to agree). */
-export const GA4_TOTAL_PAGEVIEWS_TRAILING_365D = 23260
+/** MEASURED (embed-EXCLUDING), GA4 property 538991588, pulled 2026-11-10 (same scope as ANNUAL_UNIQUE_USERS): screenPageViews on non-/embed paths, trailing 365 days through REACH_MEASURED_THROUGH = 51,845 total pageviews. Kept as a named reference for VIEWS_PER_USER_YEAR below; not used to calibrate CEILING_VIEWS_PER_USER_MONTH, which is ceiling-calibrated instead (see that constant's comment for why the two numbers are not meant to agree). */
+export const GA4_TOTAL_PAGEVIEWS_TRAILING_365D = 51845
 
 /**
- * DERIVED, measured 2026-08-17, embed-EXCLUDING: GA4_TOTAL_PAGEVIEWS_TRAILING_365D
- * / ANNUAL_UNIQUE_USERS = 7.44 pageviews per user per year, the real,
+ * DERIVED, measured 2026-11-10, embed-EXCLUDING: GA4_TOTAL_PAGEVIEWS_TRAILING_365D
+ * / ANNUAL_UNIQUE_USERS = 6.24 pageviews per user per year, the real,
  * site-only measured rate (no habitual-use multiplier, Byron 2026-08-17).
  * CEILING_VIEWS_PER_USER_MONTH below is a deliberately different, larger
  * figure - see its comment.
@@ -331,12 +336,12 @@ export const VERCEL_GB_PER_VIEW = VERCEL_TRANSFER_GB_BASELINE / USAGE_BASELINE_V
 /** DERIVED. GB of Supabase egress per pageview: SUPABASE_EGRESS_GB_BASELINE / USAGE_BASELINE_VIEWS. */
 export const SUPABASE_GB_PER_VIEW = SUPABASE_EGRESS_GB_BASELINE / USAGE_BASELINE_VIEWS
 
-/** MEASURED, 2026-08-17 (Supabase, confirmed subscriber rows). The driver value the Today column evaluates the 'subscribers' line at, and the numerator of SUBSCRIBER_CONVERSION below. */
-export const TODAY_SUBSCRIBERS = 138
+/** MEASURED, 2026-11-10 (Supabase, confirmed subscriber rows not unsubscribed). The driver value the Today column evaluates the 'subscribers' line at, and the numerator of SUBSCRIBER_CONVERSION below. */
+export const TODAY_SUBSCRIBERS = 197
 
 /**
  * DERIVED from two measured figures (TODAY_SUBSCRIBERS / ANNUAL_UNIQUE_USERS
- * = 4.4%), but the CONSTANCY of that ratio at other adoption shares is an
+ * = 2.4%), but the CONSTANCY of that ratio at other adoption shares is an
  * ASSUMPTION: nothing says the share of visitors who subscribe stays fixed
  * as the audience grows. Labeled assumed for that reason.
  */
@@ -1003,7 +1008,7 @@ export function facilitatedSpendAtShare(share: number): number {
 // claim about the world, not a routine data refresh.
 
 /** Last day of the GA4 windows above and below. Guarded for staleness by the model test. */
-export const REACH_MEASURED_THROUGH = '2026-08-17'
+export const REACH_MEASURED_THROUGH = '2026-11-09'
 
 /**
  * DERIVED from TODAY_MONTHLY_ACTIVE_USERS above - same GA4 measurement
@@ -1011,12 +1016,11 @@ export const REACH_MEASURED_THROUGH = '2026-08-17'
  * name because this section reads it as reach CONTEXT for the impact
  * ladder, not as the users-first traffic driver TIERS names it as; deriving
  * rather than re-typing the figure means the two can never drift apart.
- * Context, not an input to the model: about 91% of the trailing year's
- * traffic arrived in this 30-day window behind a single
- * news5cleveland.com referral, and that spike is already decaying (549
- * users on 08-14, then 136, then 118). ANNUAL_UNIQUE_USERS therefore
- * understates the current run rate, and this figure overstates the steady
- * state. The page states both, plainly, rather than picking whichever one
+ * Context, not an input to the model: the site launched in late May 2026,
+ * so the trailing year holds under six months of traffic, and this 30-day
+ * window is about a quarter of it. (At the 2026-08-17 pull it was about 91%,
+ * behind a single news5cleveland.com referral that has since decayed.) The
+ * page states both figures, plainly, rather than picking whichever one
  * flatters.
  */
 export const LAST_30D_USERS = TODAY_MONTHLY_ACTIVE_USERS
@@ -1363,7 +1367,7 @@ export const ASSUMPTIONS: string[] = [
   'Every rung above Today assumes $29.77 in local spending per person per outing, excluding admission, the local-attendee figure from Americans for the Arts\' AEP6 study. No AEP6 study region exists for Akron or Summit County specifically, so this is a national published figure applied locally.',
   'The preset adoption levels (Small 15%, Medium 30%, Large 50%, Optimistic 75%) are named assumptions, stated plainly, compared to nothing; only Today is measured, and it doubles as the slider floor, so the calculator cannot model a world with less adoption than the site already has.',
   'The ceiling rung assumes every adult in Summit County uses Akron Pulse and attends one outing a year they would otherwise have missed. It is a ceiling, not a forecast.',
-  'The measured reach figure is young and spiky: about 91% of the trailing year of traffic arrived in the last 30 days behind one referral (news5cleveland.com) that is already decaying.',
+  'The measured reach figure is young: the site launched in late May 2026, so the trailing year covers under six months of traffic, and about a quarter of it arrived in the last 30 days.',
 ]
 
 // ── One-off expenses ─────────────────────────────────────────────────────────
