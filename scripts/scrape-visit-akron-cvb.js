@@ -67,8 +67,22 @@ const TOKEN_PATH    = '/plugins/core/get_simple_token/'
 const EVENTS_PATH   = '/includes/rest_v2/plugins_events_events_by_date/find/'
 
 const DAYS_AHEAD    = 180
-const PAGE_SIZE     = 200
-const MAX_PAGES     = 20      // hard ceiling — sanity guard against runaway pagination
+// Page size, and the floor the adaptive retry may shrink it to.
+//
+// The site's edge (Akamai) answers "HTTP 403 Access Denied" to any response
+// from this endpoint larger than roughly 250 KB. It is the RESPONSE size, not
+// the request, the caller's address or the user agent: measured 2026-11-10
+// with the full field list, limit 105 returned 200 (248 KB) and limit 110
+// returned 403, from a residential IP, with a bot, Firefox and Chrome UA
+// alike; either half of the same window on its own returned 200. At the old
+// page size of 200 the first page crossed that line on 2026-09-10 as the
+// autumn calendar filled, and every run failed for two months.
+//
+// 50 rows is about 120 KB today. Descriptions vary, so fetchAllEvents also
+// halves the page and retries when a page is refused, down to MIN_PAGE_SIZE.
+const PAGE_SIZE     = 50
+const MIN_PAGE_SIZE = 5
+const MAX_PAGES     = 80      // hard ceiling — sanity guard against runaway pagination (4,000 rows at PAGE_SIZE)
 const PAGE_DELAY_MS = 300     // be nice to the CVB
 
 // ── Eastern-midnight ISO helper ────────────────────────────────────────────
@@ -123,7 +137,7 @@ async function fetchToken() {
  * Fetch a single page of events from the Simpleview rest_v2 endpoint.
  * Returns `{ count, docs }`.
  */
-async function fetchEventsPage(token, startIso, endIso, skip) {
+async function fetchEventsPage(token, startIso, endIso, skip, limit = PAGE_SIZE) {
   const query = {
     filter: {
       active: true,
@@ -133,7 +147,7 @@ async function fetchEventsPage(token, startIso, endIso, skip) {
       },
     },
     options: {
-      limit:    PAGE_SIZE,
+      limit,
       skip,
       count:    true,
       castDocs: false,
@@ -159,15 +173,32 @@ async function fetchEventsPage(token, startIso, endIso, skip) {
   })
   if (!res.ok) {
     const body = await res.text()
-    throw new Error(`Events fetch failed: HTTP ${res.status} ${body.slice(0, 200)}`)
+    const err = new Error(`Events fetch failed: HTTP ${res.status} ${body.slice(0, 200)}`)
+    err.status = res.status
+    throw err
   }
   const data = await res.json()
   if (!data || !data.docs) throw new Error(`Unexpected response shape: top-level keys=${Object.keys(data || {}).join(',')}`)
   return data.docs
 }
 
-async function fetchAllEvents() {
-  const token   = await fetchToken()
+/**
+ * The page size to retry with after `err`, or null when the error is not the
+ * edge's size refusal or the page cannot shrink further. Pure; exported for
+ * tests.
+ */
+function nextPageSize(limit, err) {
+  if (err?.status !== 403) return null
+  const smaller = Math.floor(limit / 2)
+  return smaller >= MIN_PAGE_SIZE ? smaller : null
+}
+
+async function fetchAllEvents({
+  fetchPage = fetchEventsPage,
+  getToken = fetchToken,
+  sleep = (ms) => new Promise(r => setTimeout(r, ms)),
+} = {}) {
+  const token   = await getToken()
   const today   = new Date();              today.setHours(0, 0, 0, 0)
   const horizon = new Date(today);         horizon.setDate(horizon.getDate() + DAYS_AHEAD)
   const startIso = easternMidnightUtcIso(today)
@@ -179,17 +210,30 @@ async function fetchAllEvents() {
   let skip = 0
   let reportedCount = null
 
+  let limit = PAGE_SIZE
   for (let page = 0; page < MAX_PAGES; page++) {
-    const { count, docs } = await fetchEventsPage(token, startIso, endIso, skip)
+    let result
+    try {
+      result = await fetchPage(token, startIso, endIso, skip, limit)
+    } catch (err) {
+      const smaller = nextPageSize(limit, err)
+      if (smaller === null) throw err
+      console.warn(`  ⚠ Page of ${limit} refused (HTTP 403, response too large for the edge) — retrying with ${smaller}`)
+      limit = smaller
+      page-- // the refused request fetched nothing; do not spend a page on it
+      await sleep(PAGE_DELAY_MS)
+      continue
+    }
+    const { count, docs } = result
     if (reportedCount === null) reportedCount = count
 
     if (!docs || docs.length === 0) break
     all.push(...docs)
     console.log(`  Page ${page + 1}: ${docs.length} events (total: ${all.length} of ${reportedCount})`)
 
-    if (docs.length < PAGE_SIZE) break
-    skip += PAGE_SIZE
-    if (page + 1 < MAX_PAGES) await new Promise(r => setTimeout(r, PAGE_DELAY_MS))
+    if (docs.length < limit) break
+    skip += docs.length
+    if (page + 1 < MAX_PAGES) await sleep(PAGE_DELAY_MS)
   }
 
   if (reportedCount != null && all.length < reportedCount) {
@@ -672,6 +716,10 @@ export {
   normalizeCvbTitle,
   parseAdmission,
   isEDT,
+  fetchAllEvents,
+  nextPageSize,
+  PAGE_SIZE,
+  MIN_PAGE_SIZE,
 }
 
 // Run only when invoked directly (`node scripts/scrape-visit-akron-cvb.js`); importing the module

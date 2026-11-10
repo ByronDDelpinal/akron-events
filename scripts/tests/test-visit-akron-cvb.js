@@ -25,6 +25,10 @@ import {
   easternLocalToUtcIso,
   isEDT,
   isFirstPartyOwnedTitle,
+  fetchAllEvents,
+  nextPageSize,
+  PAGE_SIZE,
+  MIN_PAGE_SIZE,
 } from '../scrape-visit-akron-cvb.js'
 
 describe('isFirstPartyOwnedTitle', () => {
@@ -175,5 +179,83 @@ describe('isEDT', () => {
     assert.equal(isEDT(new Date('2026-03-07T12:00:00Z')), false) // day before 2nd Sunday in March
     assert.equal(isEDT(new Date('2026-03-09T12:00:00Z')), true)  // day after
     assert.equal(isEDT(new Date('2026-11-02T12:00:00Z')), false) // after 1st Sunday in November
+  })
+})
+
+// ── Paging under the edge's response-size refusal ───────────────────────────
+//
+// The site's edge answers 403 to any response over roughly 250 KB (measured
+// 2026-11-10; see PAGE_SIZE in the scraper). These pin the recovery: a refused
+// page is retried smaller from the SAME offset, and nothing else is retried.
+
+const forbidden = () => Object.assign(new Error('Events fetch failed: HTTP 403 Access Denied'), { status: 403 })
+const noSleep = async () => {}
+const rows = (from, n) => Array.from({ length: n }, (_, i) => ({ recid: from + i }))
+
+/** A fake endpoint over `total` rows that refuses any page larger than `maxOk`. */
+function fakeEndpoint(total, maxOk = Infinity) {
+  const calls = []
+  const fetchPage = async (_token, _start, _end, skip, limit) => {
+    calls.push({ skip, limit })
+    if (limit > maxOk) throw forbidden()
+    return { count: total, docs: rows(skip, Math.max(0, Math.min(limit, total - skip))) }
+  }
+  return { calls, fetchPage }
+}
+const run = (fetchPage) => fetchAllEvents({ fetchPage, getToken: async () => 't', sleep: noSleep })
+
+describe('nextPageSize', () => {
+  it('halves on the 403 size refusal', () => {
+    assert.equal(nextPageSize(50, forbidden()), 25)
+    assert.equal(nextPageSize(25, forbidden()), 12)
+  })
+  it('stops shrinking at the floor', () => {
+    assert.equal(nextPageSize(MIN_PAGE_SIZE, forbidden()), null)
+    assert.equal(nextPageSize(MIN_PAGE_SIZE * 2 - 1, forbidden()), null)
+  })
+  it('does not treat any other failure as a size refusal', () => {
+    assert.equal(nextPageSize(50, Object.assign(new Error('boom'), { status: 500 })), null)
+    assert.equal(nextPageSize(50, new Error('fetch failed')), null)
+  })
+})
+
+describe('fetchAllEvents paging', () => {
+  it('starts well under the size that used to be refused', () => {
+    assert.ok(PAGE_SIZE <= 50, `PAGE_SIZE is ${PAGE_SIZE}; 105 rows was the largest page the edge allowed`)
+  })
+
+  it('pages through every row when nothing is refused', async () => {
+    const { calls, fetchPage } = fakeEndpoint(155)
+    const docs = await run(fetchPage)
+    assert.equal(docs.length, 155)
+    assert.deepEqual(docs.map((d) => d.recid), rows(0, 155).map((d) => d.recid))
+    assert.deepEqual(calls.map((c) => c.skip), [0, 50, 100, 150])
+  })
+
+  it('shrinks a refused page and retries from the same offset, losing no rows', async () => {
+    const { calls, fetchPage } = fakeEndpoint(60, 20)
+    const docs = await run(fetchPage)
+    assert.deepEqual(docs.map((d) => d.recid), rows(0, 60).map((d) => d.recid), 'every row exactly once, in order')
+    assert.deepEqual(calls.slice(0, 3), [{ skip: 0, limit: 50 }, { skip: 0, limit: 25 }, { skip: 0, limit: 12 }])
+    assert.ok(calls.slice(3).every((c) => c.limit === 12), 'stays at the size that worked')
+  })
+
+  it('gives up with the original error once the page cannot shrink further', async () => {
+    const { calls, fetchPage } = fakeEndpoint(60, 0)
+    await assert.rejects(run(fetchPage), /HTTP 403/)
+    assert.ok(calls.length <= 5, `shrinking must be bounded, saw ${calls.length} calls`)
+    assert.ok(calls.at(-1).limit >= MIN_PAGE_SIZE)
+  })
+
+  it('does not retry a non-403 failure', async () => {
+    let n = 0
+    const fetchPage = async () => { n++; throw Object.assign(new Error('Events fetch failed: HTTP 500'), { status: 500 }) }
+    await assert.rejects(run(fetchPage), /HTTP 500/)
+    assert.equal(n, 1)
+  })
+
+  it('returns nothing for an empty calendar', async () => {
+    const { fetchPage } = fakeEndpoint(0)
+    assert.deepEqual(await run(fetchPage), [])
   })
 })
