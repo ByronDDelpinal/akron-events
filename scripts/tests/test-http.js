@@ -23,6 +23,8 @@ import {
   rotateProxySession,
   redactProxyUrl,
   PROXY_CONNECT_TIMEOUT_MS,
+  NON_CHROME_USER_AGENT,
+  fetchTextNonChrome,
 } from '../lib/http.js'
 
 // A minimal Response-like stub with a working clone()/text().
@@ -537,5 +539,99 @@ describe('fetchWithRetry — fresh exit session retry', () => {
       assert.equal(calls.at(-1), 'direct')
       assert.ok(calls.filter((c) => c === 'proxied').length >= 2, 'original session then fresh session')
     })
+  })
+})
+
+// ── fetchTextNonChrome ──────────────────────────────────────────────────────
+
+describe('NON_CHROME_USER_AGENT', () => {
+  it('is a real pooled browser UA that makes no Chrome claim', () => {
+    assert.ok(BROWSER_USER_AGENTS.includes(NON_CHROME_USER_AGENT))
+    assert.doesNotMatch(NON_CHROME_USER_AGENT, /Chrome|Chromium|HeadlessChrome/)
+    assert.match(NON_CHROME_USER_AGENT, /Firefox\//)
+  })
+})
+
+describe('fetchTextNonChrome', () => {
+  const PROXY_ENV = { SCRAPER_PROXY_URL: 'http://user:pass@proxy.test:823' }
+
+  /** A fetchWithRetry stand-in that records each call and answers per rung. */
+  function recorder(answers) {
+    const calls = []
+    const impl = async (url, opts) => {
+      calls.push({ url, useProxy: opts.useProxy, userAgent: opts.userAgent, headers: opts.headers, retries: opts.retries })
+      const answer = answers[opts.useProxy ? 'proxy' : 'direct']
+      if (answer instanceof Error) throw answer
+      return answer
+    }
+    return { calls, impl }
+  }
+
+  it('returns the direct body and never touches the proxy when direct works', async () => {
+    const { calls, impl } = recorder({ direct: resp(200, 'hello'), proxy: resp(200, 'proxied') })
+    const out = await fetchTextNonChrome('https://x.test', { env: PROXY_ENV, fetchWithRetryImpl: impl })
+    assert.deepEqual(out, { text: 'hello', via: 'direct' })
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].useProxy, false)
+  })
+
+  it('always presents the non-Chrome UA and passes caller headers through', async () => {
+    const { calls, impl } = recorder({ direct: resp(200, 'ok') })
+    await fetchTextNonChrome('https://x.test', { env: {}, fetchWithRetryImpl: impl, headers: { Referer: 'https://x.test/events/' } })
+    assert.equal(calls[0].userAgent, NON_CHROME_USER_AGENT)
+    assert.deepEqual(calls[0].headers, { Referer: 'https://x.test/events/' })
+  })
+
+  it('falls through to the proxy rung when direct is refused', async () => {
+    const { calls, impl } = recorder({ direct: resp(403, 'denied'), proxy: resp(200, 'proxied') })
+    const out = await fetchTextNonChrome('https://x.test', { env: PROXY_ENV, fetchWithRetryImpl: impl })
+    assert.deepEqual(out, { text: 'proxied', via: 'proxy' })
+    assert.deepEqual(calls.map((c) => c.useProxy), [false, true])
+  })
+
+  it('falls through when direct throws at the network layer', async () => {
+    const { impl } = recorder({ direct: new Error('fetch failed'), proxy: resp(200, 'proxied') })
+    const out = await fetchTextNonChrome('https://x.test', { env: PROXY_ENV, fetchWithRetryImpl: impl })
+    assert.equal(out.via, 'proxy')
+  })
+
+  it('treats a 200 that fails validate (a challenge page) as a failed rung', async () => {
+    const { impl } = recorder({ direct: resp(200, '<html>captcha</html>'), proxy: resp(200, 'BEGIN:VCALENDAR') })
+    const validate = (t) => (t.includes('BEGIN:VCALENDAR') ? null : 'non-iCalendar body')
+    const out = await fetchTextNonChrome('https://x.test', { env: PROXY_ENV, fetchWithRetryImpl: impl, validate })
+    assert.deepEqual(out, { text: 'BEGIN:VCALENDAR', via: 'proxy' })
+  })
+
+  it('has no proxy rung without SCRAPER_PROXY_URL, and names the failure', async () => {
+    const { calls, impl } = recorder({ direct: resp(403, 'denied'), proxy: resp(200, 'never') })
+    await assert.rejects(
+      fetchTextNonChrome('https://x.test', { env: {}, fetchWithRetryImpl: impl }),
+      /plain HTTP failed \(direct: .*HTTP 403/,
+    )
+    assert.equal(calls.length, 1)
+  })
+
+  it('reports every rung when all fail', async () => {
+    const { impl } = recorder({ direct: resp(403), proxy: new Error('tunnel refused') })
+    await assert.rejects(
+      fetchTextNonChrome('https://x.test', { env: PROXY_ENV, fetchWithRetryImpl: impl }),
+      (err) => /direct: .*HTTP 403/.test(err.message) && /proxy: .*tunnel refused/.test(err.message),
+    )
+  })
+
+  it('can be pinned to one rung', async () => {
+    const { calls, impl } = recorder({ direct: resp(200, 'direct'), proxy: resp(200, 'proxied') })
+    const out = await fetchTextNonChrome('https://x.test', { env: PROXY_ENV, fetchWithRetryImpl: impl, rungs: ['proxy'] })
+    assert.equal(out.via, 'proxy')
+    assert.deepEqual(calls.map((c) => c.useProxy), [true])
+  })
+
+  it('rejects clearly when pinned to the proxy with no proxy configured', async () => {
+    const { calls, impl } = recorder({ direct: resp(200, 'direct') })
+    await assert.rejects(
+      fetchTextNonChrome('https://x.test', { env: {}, fetchWithRetryImpl: impl, rungs: ['proxy'] }),
+      /no rung to try/,
+    )
+    assert.equal(calls.length, 0)
   })
 })

@@ -1177,7 +1177,7 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
   {
     key:         'akron_power_squadron',
     method:      'iCal feed',
-    methodDetail:'WordPress Tribe iCal export fetched through a headless-Chrome fallback (the whole domain sits behind a SiteGround sgcaptcha proof-of-work wall; same pattern as north_hill_cdc); ICS carries proper VTIMEZONE so it sidesteps Tribe REST timezone misconfigs',
+    methodDetail:'WordPress Tribe iCal export over plain HTTP with a non-Chrome user agent (the site\'s WAF drops clients that claim to be Chrome without its fingerprint), direct then via the residential proxy, with headless Chrome as the last fallback for the SiteGround sgcaptcha wall; ICS carries proper VTIMEZONE so it sidesteps Tribe REST timezone misconfigs',
     venue:       'Portage Lakes-area venues per event (Craftsman Park, Mogadore Reservoir boathouse)',
     notes:       "Akron Sail & Power Squadron — the local America's Boating Club chapter — publishes its public boating-safety seminars and open paddle outings on the Portage Lakes, which we pull from its calendar's iCal export. Member-only meetings AND member socials (corn roast, Christmas party, change of watch) are filtered as internal; only public education and open paddles publish, geo-gated per venue city. Requires the Chrome-equipped production environment for the challenge fallback — sandbox runs can't exec Chrome, so first production run should be confirmed.",
     status:      'active',

@@ -54,6 +54,7 @@ import {
   easternToIso,
 } from './lib/normalize.js'
 import { withBrowser, newConfiguredPage } from './lib/puppeteer.js'
+import { fetchTextNonChrome } from './lib/http.js'
 import { isBotChallenge } from './lib/ics.js'
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -260,13 +261,26 @@ function deriveTags(title, venueKeyName) {
 
 // ── HTML fetch ────────────────────────────────────────────────────────────
 
-// akroncivic.com's WAF serves an anti-bot interstitial to plain server-side
-// fetches: the request returns 200 but the body has no show listings, so a raw
-// fetch parses zero events (the symptom that broke this scraper). We drive a
-// real headless browser instead, which clears the challenge; one page is reused
-// for the listing and every detail page. If the listing still yields zero show
-// links (challenge not cleared, or markup changed) the run is logged as an
-// error rather than a silent success/0.
+// Two transports, cheapest first.
+//
+// 1. Plain HTTP (httpHtml), direct and then through the residential proxy,
+//    presenting a non-Chrome UA. akroncivic.com's WAF closes the connection on
+//    any client that claims to be Chrome without Chrome's fingerprint, which
+//    is what kept this source dark from 2026-09-03: the headless browser below
+//    pins a Chrome/124 UA and died every night with
+//    net::ERR_HTTP2_PROTOCOL_ERROR. As Firefox the same pages return in full
+//    (see NON_CHROME_USER_AGENT in lib/http.js). A 200 with no show links is
+//    the WAF's interstitial, so the listing must parse to count as fetched.
+// 2. Headless Chrome (pageHtml) as the fallback, for the day the interstitial
+//    comes back for plain HTTP: a real browser clears it, and one page is
+//    reused for the listing and every detail page.
+//
+// If neither yields show links (challenge not cleared, or markup changed) the
+// run is logged as an error rather than a silent success/0.
+function httpHtml(url, opts = {}) {
+  return fetchTextNonChrome(url, opts)
+}
+
 async function pageHtml(page, url, { waitUntil = 'domcontentloaded' } = {}) {
   await page.goto(url, { waitUntil, timeout: 45_000 })
   return page.content()
@@ -288,19 +302,15 @@ async function main() {
     let inserted = 0, skipped = 0, found = 0
     let listingEmpty = null // set when zero show links parse: { bytes, botChallenge }
 
-    await withBrowser(async (browser) => {
-      const page = await newConfiguredPage(browser, { userAgent: USER_AGENT })
-
-      console.log(`\n🔍  Fetching listing ${LIST_URL}…`)
-      // networkidle2 on the listing lets any WAF challenge resolve + set its
-      // cookie; detail pages then load directly with the faster domcontentloaded.
-      const listHtml = await pageHtml(page, LIST_URL, { waitUntil: 'networkidle2' })
+    // Walk the listing with whichever transport produced it. `getHtml` fetches
+    // one detail page the same way.
+    const ingest = async (listHtml, getHtml) => {
       const showUrls = extractShowPaths(listHtml)
       found = showUrls.length
       console.log(`  Found ${showUrls.length} show detail links`)
       if (showUrls.length === 0) {
-        // Return (not exit) so withBrowser still closes the browser; main()
-        // logs the error run after it resolves.
+        // Return (not exit) so a browser, if open, still closes; main() logs
+        // the error run afterwards.
         listingEmpty = { bytes: listHtml.length, botChallenge: isBotChallenge(listHtml) }
         return
       }
@@ -315,7 +325,7 @@ async function main() {
           if (seen.has(slug)) { skipped++; continue }
           seen.add(slug)
 
-          const html = await pageHtml(page, url)
+          const html = await getHtml(url)
           const parsed = parseDetail(html, url)
           if (!parsed) { skipped++; continue }
 
@@ -357,7 +367,37 @@ async function main() {
           skipped++
         }
       }
-    }, { useProxy: true })
+    }
+
+    console.log(`\n🔍  Fetching listing ${LIST_URL}…`)
+    let viaHttp = null
+    try {
+      viaHttp = await httpHtml(LIST_URL, {
+        validate: (h) => (extractShowPaths(h).length
+          ? null
+          : `0 show links (${h.length}b, botChallenge=${isBotChallenge(h)})`),
+      })
+      console.log(`  ✓ Listing fetched over plain HTTP (${viaHttp.via} egress)`)
+    } catch (err) {
+      console.warn(`  ⚠ ${err.message}`)
+      console.warn('  ↳ Falling back to headless Chrome…')
+    }
+
+    if (viaHttp) {
+      // Stay on the rung that worked for the listing, and pace the detail pages.
+      await ingest(viaHttp.text, async (url) => {
+        await new Promise((r) => setTimeout(r, 200))
+        return (await httpHtml(url, { rungs: [viaHttp.via] })).text
+      })
+    } else {
+      await withBrowser(async (browser) => {
+        const page = await newConfiguredPage(browser, { userAgent: USER_AGENT })
+        // networkidle2 on the listing lets any WAF challenge resolve + set its
+        // cookie; detail pages then load directly with the faster domcontentloaded.
+        const listHtml = await pageHtml(page, LIST_URL, { waitUntil: 'networkidle2' })
+        await ingest(listHtml, (url) => pageHtml(page, url))
+      }, { useProxy: true })
+    }
 
     if (listingEmpty) {
       // House convention (civicplus.js, APS, highland_square_theatre): a parsed-zero

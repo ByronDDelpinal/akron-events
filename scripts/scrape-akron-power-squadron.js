@@ -68,6 +68,7 @@ import { inferCategory } from './lib/category-inference.js'
 import { parseIcs, icsDateToIso, applyDateOnlyDefault } from './lib/ics.js'
 import { classifySummitLocation } from './lib/summit-county.js'
 import { withBrowser, newConfiguredPage } from './lib/puppeteer.js'
+import { fetchTextNonChrome } from './lib/http.js'
 
 export const SOURCE_KEY = 'akron_power_squadron'
 
@@ -80,8 +81,8 @@ const FEED_CANDIDATES = [...new Set([
   'https://akronpowersquadron.com/events/?ical=1',
 ].filter(Boolean))]
 
-// Realistic Chrome-on-Mac fingerprint — matches lib/puppeteer.js so we look
-// identical to a normal browser to the SiteGround WAF.
+// Chrome-on-Mac UA for the headless-Chrome fallback only (matches
+// lib/puppeteer.js). The plain-HTTP path deliberately does NOT use it.
 const BROWSER_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
@@ -229,24 +230,26 @@ export function normalizeEvent(ev, nowMs = Date.now()) {
 
 // ── Fetch (SiteGround sgcaptcha aware) ───────────────────────────────────────
 
-/** Direct fetch of one candidate with browser-like headers; throws unless ICS. */
+/**
+ * Plain-HTTP fetch of one candidate: direct first, then the residential proxy
+ * when one is configured. Throws unless a rung returns iCalendar.
+ *
+ * Presents a non-Chrome UA on purpose. From 2026-09-13 this site's WAF closes
+ * the connection on anything that claims to be Chrome without Chrome's
+ * fingerprint: the old Chrome-UA fetch here died with "other side closed", and
+ * the headless-Chrome fallback below with net::ERR_HTTP2_PROTOCOL_ERROR, for 57
+ * straight nights. The same request as Firefox returns the feed (see
+ * NON_CHROME_USER_AGENT in lib/http.js).
+ */
 async function fetchFeedCandidate(url) {
-  const res = await fetch(url, {
+  const { text, via } = await fetchTextNonChrome(url, {
     headers: {
-      'User-Agent':      BROWSER_UA,
-      'Accept':          'text/calendar, text/plain, */*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.9',
-      'Referer':         EVENTS_PAGE_URL,
-      'Sec-Fetch-Dest':  'document',
-      'Sec-Fetch-Mode':  'navigate',
-      'Sec-Fetch-Site':  'same-origin',
-      'Sec-Fetch-User':  '?1',
+      Accept:  'text/calendar, text/plain, */*;q=0.8',
+      Referer: EVENTS_PAGE_URL,
     },
-    redirect: 'follow',
+    validate: (body) => (body.includes('BEGIN:VCALENDAR') ? null : 'non-iCalendar body (sgcaptcha?)'),
   })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const text = await res.text()
-  if (!text.includes('BEGIN:VCALENDAR')) throw new Error('non-iCalendar body (sgcaptcha?)')
+  if (via !== 'direct') console.log(`  ↳ feed reached via ${via} egress`)
   return text
 }
 
@@ -295,19 +298,19 @@ async function fetchIcsViaBrowser() {
   }, { useProxy: true })
 }
 
-async function getIcsText() {
+export async function getIcsText() {
   const failures = []
   for (const url of FEED_CANDIDATES) {
     try {
       const text = await fetchFeedCandidate(url)
-      console.log(`  ✓ Direct feed fetch succeeded: ${url} (${text.length} bytes)`)
+      console.log(`  ✓ Feed fetch succeeded: ${url} (${text.length} bytes)`)
       return text
     } catch (err) {
-      console.warn(`  ⚠ Direct feed candidate failed: ${url} → ${err.message}`)
+      console.warn(`  ⚠ Feed candidate failed: ${url} → ${err.message}`)
       failures.push(`${url} → ${err.message}`)
     }
   }
-  console.warn('  ↳ All direct fetches failed (sgcaptcha); falling back to Puppeteer…')
+  console.warn('  ↳ All plain-HTTP fetches failed; falling back to Puppeteer…')
   const text = await fetchIcsViaBrowser()
   console.log(`  ✓ Puppeteer fetch succeeded (${text.length} bytes)`)
   return text

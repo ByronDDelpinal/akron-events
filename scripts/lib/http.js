@@ -48,6 +48,22 @@ export const BROWSER_USER_AGENTS = [
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
 ]
 
+/**
+ * A real browser UA that does NOT claim to be Chrome (the Firefox entry above).
+ *
+ * Some WAFs fingerprint Chrome specifically: a client whose User-Agent says
+ * Chrome but whose TLS and header shape are not Chrome's gets its connection
+ * closed with no response at all. Measured 2026-11-10 from a residential IP
+ * against akroncivic.com, akronpowersquadron.com and lifegurukula.org: every
+ * Chrome UA in the pool above died with UND_ERR_SOCKET ("other side closed"),
+ * while the Firefox and Safari UAs got 200 with the full body, repeatably. The
+ * same rule is what headless Chromium trips when it presents a pinned
+ * Chrome/124 UA from a newer Chrome build (net::ERR_HTTP2_PROTOCOL_ERROR),
+ * which kept all three sources dark from 2026-09 on. A client that makes no
+ * Chrome claim has no Chrome fingerprint to fail.
+ */
+export const NON_CHROME_USER_AGENT = BROWSER_USER_AGENTS[2]
+
 /** Pick a random realistic browser User-Agent. `rng` injectable for tests. */
 export function randomUserAgent(rng = Math.random) {
   return BROWSER_USER_AGENTS[Math.floor(rng() * BROWSER_USER_AGENTS.length)]
@@ -486,4 +502,64 @@ export async function fetchWithRetry(url, opts = {}) {
   }
 
   throw lastError ?? new Error(`fetchWithRetry: exhausted retries for ${url}`)
+}
+
+/**
+ * Fetch a page or feed as text over plain HTTP, presenting NON_CHROME_USER_AGENT,
+ * trying direct egress first and then the residential proxy.
+ *
+ * This is the cheap rung to try BEFORE launching a headless browser for a
+ * source behind a Chrome-fingerprinting WAF (see NON_CHROME_USER_AGENT). The
+ * proxy rung only exists when SCRAPER_PROXY_URL is set; without it the proxied
+ * request would be the direct one over again.
+ *
+ * Throws one Error naming every rung's failure when none produce a body that
+ * passes `validate`. Callers catch it and fall back to their browser path.
+ *
+ * @param {string|URL} url
+ * @param {object} [opts]
+ * @param {object}   [opts.headers]   merged over fetchWithRetry's defaults
+ * @param {(text: string) => string|null} [opts.validate] return a reason to
+ *                   reject the body (a challenge page is HTTP 200 too), or null
+ * @param {Array<'direct'|'proxy'>} [opts.rungs] restrict which rungs run, e.g.
+ *                   to stay on the rung that already worked for a listing page
+ * @param {number}   [opts.retries=1] per rung
+ * @param {object}   [opts.env]       injectable environment (tests)
+ * @param {function} [opts.fetchWithRetryImpl] injectable fetchWithRetry (tests)
+ * @returns {Promise<{ text: string, via: 'direct'|'proxy' }>}
+ */
+export async function fetchTextNonChrome(url, opts = {}) {
+  const {
+    headers = {},
+    validate = null,
+    rungs = ['direct', 'proxy'],
+    retries = 1,
+    env = process.env,
+    fetchWithRetryImpl = fetchWithRetry,
+  } = opts
+
+  const available = rungs.filter((r) => r === 'direct' || (r === 'proxy' && env.SCRAPER_PROXY_URL))
+  const failures = []
+  for (const rung of available) {
+    try {
+      const res = await fetchWithRetryImpl(url, {
+        useProxy: rung === 'proxy',
+        userAgent: NON_CHROME_USER_AGENT,
+        headers,
+        retries,
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const text = await res.text()
+      const problem = validate ? validate(text) : null
+      if (problem) throw new Error(problem)
+      return { text, via: rung }
+    } catch (err) {
+      failures.push(`${rung}: ${describeError(err)}`)
+    }
+  }
+  throw new Error(
+    failures.length
+      ? `plain HTTP failed (${failures.join('; ')})`
+      : 'plain HTTP had no rung to try (proxy-only requested without SCRAPER_PROXY_URL)',
+  )
 }
