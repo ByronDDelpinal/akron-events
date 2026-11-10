@@ -5,22 +5,30 @@
  * runs free Renter's Rights and Landlord workshops plus an annual event, mostly
  * at The Well CDC and Akron-area libraries.
  *
- * Platform: Squarespace native Events collection (?format=json&view=upcoming),
- * consumed via the shared lib/squarespace.js.
+ * Platform: Wix Events, read from the server-rendered #wix-warmup-data blob on
+ * /event-list via the shared lib/wix-events.js. The site moved from Squarespace
+ * to Wix in 2026-09; the old /events?format=json endpoint now answers with the
+ * Wix page shell (HTML), which is why this source logged "Unexpected token '<'"
+ * every night from 2026-09-18 until this rewrite.
  *
- * GEOGRAPHY (important — this source needs per-event gating):
+ * GEOGRAPHY (this source needs per-event gating):
  *   Most workshops are in Akron (Summit County), but the series also travels to
- *   Kent (Kent Free Library — Portage County, OUT of scope). Two quirks in the
- *   Squarespace location data:
- *     • `markerLat/markerLng` is a bogus site-wide default (~40.72,-74.00, i.e.
- *       New York) on every event — never trust it. The real pin is `mapLat/
- *       mapLng`; we only accept those coords when they fall in an Ohio bounding
- *       box (the NY default is rejected).
- *     • Some events (the Kent workshop, the annual event) ship with an EMPTY
- *       location object (the NY default coords, no address). For those we can't
- *       gate on coordinates, so we scan the title + description for a recognized
- *       city: a NOT_SUMMIT city ("Kent") → out (dropped); a Summit city
- *       ("Akron") → in; neither → unknown → pending_review.
+ *   Kent (Kent Free Library — Portage County, OUT of scope).
+ *     • An event with a real location is gated on its coordinates and city.
+ *     • An event with no usable location (Wix "location TBD", or one the
+ *       organizer left blank) cannot be gated on a pin, so we scan the title +
+ *       description for a recognized city: a NOT_SUMMIT city ("Kent") → out
+ *       (dropped); a Summit city ("Akron") → in; neither → pending_review.
+ *
+ * VENUES: the organizer sometimes types a street address as the Wix location
+ * name ("21 W North St"). That is handed to ensureVenue as-is, whose
+ * address-named guard resolves it to an existing venue at that address or
+ * leaves the event venue-less, rather than minting a venue called "21 W North St".
+ *
+ * ZERO EVENTS: the widget keeps recent past events in the blob. A page that
+ * parses to at least one event object, none of them upcoming, is a healthy
+ * quiet calendar and logs success with 0 found. A page with NO event objects
+ * at all is indistinguishable from a markup change and logs an error.
  *
  * Usage:   node scripts/scrape-fair-housing-akron.js
  *          node scripts/scrape-fair-housing-akron.js --dry-run
@@ -40,11 +48,7 @@ import {
   stripHtml,
   upsertEventSafe,
 } from './lib/normalize.js'
-import {
-  fetchSquarespaceEvents,
-  normaliseSquarespaceEvent,
-  buildSquarespaceEventUrl,
-} from './lib/squarespace.js'
+import { fetchWixEvents, normaliseWixEvent, parseWixLocation } from './lib/wix-events.js'
 import {
   classifySummitLocation,
   preloadSummitCountyBoundary,
@@ -55,49 +59,41 @@ import {
 // ── Configuration ────────────────────────────────────────────────────────────
 
 const SITE_BASE_URL = 'https://www.fairhousingakron.org'
-const COLLECTION_URL = `${SITE_BASE_URL}/events`
+const EVENTS_URL = `${SITE_BASE_URL}/event-list`
 const SOURCE_KEY = 'fair_housing_akron'
 const DRY_RUN = process.argv.includes('--dry-run') || process.env.DRY_RUN === '1'
 
-// Ohio bounding box — used to reject the NY (~40.72,-74.00) Squarespace default
-// pin that appears on every event's markerLat/markerLng and on the location-less
-// events' mapLat/mapLng.
-const OHIO_BBOX = { latMin: 38.3, latMax: 42.4, lngMin: -85.0, lngMax: -80.5 }
-
-function isOhioCoord(lat, lng) {
-  if (typeof lat !== 'number' || typeof lng !== 'number') return false
-  return lat >= OHIO_BBOX.latMin && lat <= OHIO_BBOX.latMax
-    && lng >= OHIO_BBOX.lngMin && lng <= OHIO_BBOX.lngMax
-}
-
-// ── Location parsing ─────────────────────────────────────────────────────────
+// ── Location ─────────────────────────────────────────────────────────────────
 
 /**
- * Parse the Squarespace `location` object into flat venue fields. Uses the real
- * `mapLat/mapLng` pin ONLY when it's an Ohio coordinate (the NY default is
- * dropped), and reads the city from addressLine2 ("City, ST, ZIP"). Returns null
- * for an empty/absent location. Exported for tests.
+ * Flatten a Wix event `location` into venue fields, or null when it carries
+ * nothing usable: absent, flagged TBD, or with no name, city or coordinates.
+ * Exported for tests.
  */
 export function parseFairHousingLocation(loc) {
-  if (!loc) return null
-  const name = stripHtml(loc.addressTitle || '').trim() || null
-  const address = (loc.addressLine1 || '').trim() || null
-
-  let city = null, state = null, zip = null
-  if (loc.addressLine2) {
-    const parts = String(loc.addressLine2).split(',').map((s) => s.trim()).filter(Boolean)
-    if (parts.length) city = parts[0] || null
-    const stateZip = parts.slice(1).join(' ').trim()
-    const sz = stateZip.match(/^([A-Z]{2})\s*,?\s*(\d{5})?/)
-    if (sz) { state = sz[1]; zip = sz[2] || null }
+  if (!loc || typeof loc !== 'object' || loc.tbd === true) return null
+  const flat = parseWixLocation(loc)
+  if (!flat) return null
+  const name = typeof flat.name === 'string' ? stripHtml(flat.name).trim() || null : null
+  const hasCoords = typeof flat.lat === 'number' && typeof flat.lng === 'number'
+  if (!name && !flat.city && !hasCoords) return null
+  return {
+    name,
+    address: flat.address || null,
+    city: flat.city || null,
+    state: flat.state || null,
+    zip: flat.zip || null,
+    lat: hasCoords ? flat.lat : null,
+    lng: hasCoords ? flat.lng : null,
   }
+}
 
-  const lat = isOhioCoord(loc.mapLat, loc.mapLng) ? loc.mapLat : null
-  const lng = isOhioCoord(loc.mapLat, loc.mapLng) ? loc.mapLng : null
-
-  // A location with no name AND no city is effectively empty.
-  if (!name && !city && lat == null) return null
-  return { name, address, city, state, zip, lat, lng }
+/** Title + description + long-form "about" text of a Wix event, as plain text. */
+function eventText(ev) {
+  return [ev?.title, ev?.description, ev?.about]
+    .filter((s) => typeof s === 'string' && s)
+    .map((s) => stripHtml(s))
+    .join(' ')
 }
 
 /** Find the first recognized city from `citySet` mentioned in `text` (word-bounded). */
@@ -112,36 +108,65 @@ function cityMentioned(text, citySet) {
 
 /**
  * Classify an event 'in' | 'out' | 'unknown'. Prefers the structured location
- * (Ohio coords + city); when the location is empty, falls back to scanning the
- * title + description for a recognized city (NOT_SUMMIT → out, Summit → in).
- * Exported for tests.
+ * (coordinates + city); when there is none, falls back to scanning the event
+ * text for a recognized city (NOT_SUMMIT → out, Summit → in). Exported for tests.
  */
-export function classifyEventLocation(item) {
-  const loc = parseFairHousingLocation(item.location)
+export function classifyEventLocation(ev) {
+  const loc = parseFairHousingLocation(ev?.location)
   if (loc && (loc.lat != null || loc.city)) {
     return classifySummitLocation({ lat: loc.lat, lng: loc.lng, city: loc.city })
   }
-  // No usable structured location — decide from the text.
-  const text = `${item.title || ''} ${stripHtml(item.body || '') || item.excerpt || ''}`
+  const text = eventText(ev)
   if (cityMentioned(text, NOT_SUMMIT_COUNTY_CITIES)) return 'out'
   if (cityMentioned(text, SUMMIT_COUNTY_CITIES)) return 'in'
   return 'unknown'
 }
 
-/** True when the event is explicitly free (workshops all say "FREE"). */
-export function isFreeEvent(item) {
-  const text = `${item.title || ''} ${item.excerpt || ''} ${stripHtml(item.body || '')}`
-  return /\bfree\b/i.test(text)
+/** True when the event is explicitly free (the workshops all say "FREE"). */
+export function isFreeEvent(ev) {
+  return /\bfree\b/i.test(eventText(ev))
+}
+
+/**
+ * True when the event has not finished yet. An event with a published end time
+ * stays in until that end passes; one without is judged on its start. Events
+ * with no date at all (Wix "schedule TBD") are not upcoming. Exported for tests.
+ */
+export function isUpcoming(ev, nowMs = Date.now()) {
+  const cfg = ev?.scheduling?.config
+  if (!cfg || cfg.scheduleTbd || !cfg.startDate) return false
+  const start = Date.parse(cfg.startDate)
+  if (!Number.isFinite(start)) return false
+  const end = cfg.endDate && !cfg.endDateHidden ? Date.parse(cfg.endDate) : NaN
+  return (Number.isFinite(end) ? end : start) >= nowMs
 }
 
 export function mapCategory() {
   return 'civic'
 }
 
-export function mapTags(item) {
+export function mapTags(ev) {
   const tags = ['fair-housing', 'housing', 'akron']
-  if (/workshop/i.test(item.title || '')) tags.push('workshop')
+  if (/workshop/i.test(ev?.title || '')) tags.push('workshop')
   return tags
+}
+
+/**
+ * Build the row for one raw Wix event, or null when it has no title or date.
+ * Pure (no I/O), so the whole row shape is testable. Exported for tests.
+ */
+export function buildRow(ev, geo = classifyEventLocation(ev)) {
+  const row = normaliseWixEvent(ev, {
+    source: SOURCE_KEY,
+    mapCategory,
+    mapTags,
+    ageRestriction: 'all_ages',
+    siteBaseUrl: SITE_BASE_URL,
+  })
+  if (!row.title || !row.start_at || !row.source_id) return null
+  if (isFreeEvent(ev)) { row.price_min = 0; row.price_max = 0 }
+  if (geo === 'unknown') { row.status = 'pending_review'; row.needs_review = true }
+  return row
 }
 
 // ── Process events ───────────────────────────────────────────────────────────
@@ -150,34 +175,32 @@ async function processEvents(rawEvents, organizerId) {
   let inserted = 0, skippedOut = 0, skippedNoData = 0, review = 0
   const venueCache = new Map()
 
-  for (const item of rawEvents) {
+  for (const ev of rawEvents) {
     try {
-      const geo = classifyEventLocation(item)
+      const geo = classifyEventLocation(ev)
       if (geo === 'out') { skippedOut++; continue }
 
-      const row = normaliseSquarespaceEvent(item, { source: SOURCE_KEY, mapTags })
-      row.category = mapCategory(item)
-      row.ticket_url = buildSquarespaceEventUrl(SITE_BASE_URL, item) || row.ticket_url
-      if (isFreeEvent(item)) { row.price_min = 0; row.price_max = 0 }
-      if (geo === 'unknown') { row.status = 'pending_review'; row.needs_review = true }
+      const row = buildRow(ev, geo)
+      if (!row) { skippedNoData++; continue }
 
-      if (!row.title || !row.start_at) { skippedNoData++; continue }
-
-      // Per-event venue from the structured location (Akron libraries / The Well
-      // CDC). Location-less events publish without a venue.
+      // Per-event venue from the structured location. Location-less events
+      // publish without a venue.
       let venueId = null
-      const loc = parseFairHousingLocation(item.location)
+      const loc = parseFairHousingLocation(ev.location)
       if (loc && loc.name) {
-        if (venueCache.has(loc.name)) {
-          venueId = venueCache.get(loc.name)
+        const key = `${loc.name}|${loc.address || ''}`
+        if (venueCache.has(key)) {
+          venueId = venueCache.get(key)
         } else {
           venueId = await ensureVenue(loc.name, {
             address: loc.address || undefined,
             city: loc.city || 'Akron',
             state: loc.state || 'OH',
             zip: loc.zip || undefined,
+            lat: loc.lat ?? undefined,
+            lng: loc.lng ?? undefined,
           })
-          venueCache.set(loc.name, venueId)
+          venueCache.set(key, venueId)
         }
       }
 
@@ -188,7 +211,7 @@ async function processEvents(rawEvents, organizerId) {
       if (geo === 'unknown') review++
       inserted++
     } catch (err) {
-      console.warn(`  ⚠ Error processing "${item.title}": ${err.message}`)
+      console.warn(`  ⚠ Error processing "${ev?.title}": ${err.message}`)
       skippedNoData++
     }
   }
@@ -206,16 +229,29 @@ async function main() {
   try {
     await preloadSummitCountyBoundary() // required before any coordinate-based gate
 
-    console.log(`\n🔍  Fetching events from ${COLLECTION_URL}…`)
-    const events = await fetchSquarespaceEvents(COLLECTION_URL)
-    console.log(`  Found ${events.length} upcoming event(s)`)
+    console.log(`\n🔍  Fetching events from ${EVENTS_URL}…`)
+    const all = await fetchWixEvents(EVENTS_URL)
+    const events = all.filter((ev) => isUpcoming(ev))
+    console.log(`  ${all.length} event(s) on the page → ${events.length} upcoming`)
 
     if (DRY_RUN) {
-      for (const item of events) {
-        const geo = classifyEventLocation(item)
-        console.log(`     • [${geo}] ${item.title}  (${new Date(item.startDate).toISOString()})`)
+      for (const ev of all) {
+        const when = ev?.scheduling?.config?.startDate || 'no date'
+        console.log(`     • [${isUpcoming(ev) ? classifyEventLocation(ev) : 'past'}] ${ev.title}  (${when})`)
       }
       console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s [dry-run]`)
+      return
+    }
+
+    if (all.length === 0) {
+      // No event objects at all: a markup change looks exactly like this.
+      await logUpsertResult(SOURCE_KEY, 0, 0, 0, {
+        status: 'error',
+        errorMessage: `Wix page fetched but carried 0 event objects — the #wix-warmup-data blob at ${EVENTS_URL} may have changed shape`,
+        eventsFound: 0,
+        durationMs: Date.now() - start,
+      })
+      console.warn('  ⚠ No event objects on the page — logged as an error run.')
       return
     }
 
@@ -246,4 +282,4 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   main()
 }
 
-export { SITE_BASE_URL, SOURCE_KEY }
+export { SITE_BASE_URL, SOURCE_KEY, EVENTS_URL }

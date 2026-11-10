@@ -97,7 +97,7 @@ export const SCRAPERS = [
   { key: 'village_of_mogadore',  script: 'scripts/scrape-village-of-mogadore.js',     label: 'Village of Mogadore',          group: 'ics',            active: true  },
   { key: 'village_of_peninsula', script: 'scripts/scrape-village-of-peninsula.js',    label: 'Village of Peninsula',         group: 'html',           active: true  },
   { key: 'music_western_reserve', script: 'scripts/scrape-music-western-reserve.js',  label: 'Music from The Western Reserve', group: 'html',          active: true, defaultCategory: 'music' },
-  { key: 'fair_housing_akron',   script: 'scripts/scrape-fair-housing-akron.js',      label: 'Fair Housing Contact Service', group: 'squarespace',    active: true, defaultCategory: 'civic' },
+  { key: 'fair_housing_akron',   script: 'scripts/scrape-fair-housing-akron.js',      label: 'Fair Housing Contact Service', group: 'wix',            active: true, defaultCategory: 'civic' },
   { key: 'community_legal_aid',  script: 'scripts/scrape-community-legal-aid.js',      label: 'Community Legal Aid',          group: 'html',           active: true, defaultCategory: 'civic' },
   { key: 'all_fired_up',         script: 'scripts/scrape-all-fired-up.js',            label: 'All Fired Up Akron',           group: 'custom',         active: true, defaultCategory: 'visual-art' },
   { key: 'habitat_summit',       script: 'scripts/scrape-habitat-summit.js',          label: 'Habitat for Humanity Summit',  group: 'html',           active: true, defaultCategory: 'civic' },

@@ -604,10 +604,10 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
   },
   {
     key:         'fair_housing_akron',
-    method:      'Squarespace Events',
-    methodDetail:'fairhousingakron.org/events — Squarespace native Events collection (?format=json&view=upcoming) via lib/squarespace.js. Per-event Summit gate: the markerLat/markerLng is a bogus NY site-wide default (ignored), so coords come from an Ohio-validated mapLat/mapLng; location-less events (Kent, the annual event) are gated from title/description text (NOT_SUMMIT city → out, Summit city → in, neither → pending_review).',
-    venue:       'Varies — The Well CDC (647 E Market St) + Akron branch libraries; location-less events publish without a venue',
-    notes:       'Fair Housing Contact Service runs free Renter\'s Rights and Landlord workshops plus an annual event. Most are Akron (Summit); the series also travels to Kent (Portage County) which is dropped out-of-county from its text. Free workshops get price 0; the "save the date" annual event has no location yet and lands in pending_review until details are posted. Category civic; low but steady monthly volume.',
+    method:      'Wix Events JSON',
+    methodDetail:'fairhousingakron.org Wix Events /event-list — shared lib/wix-events.js reads the #wix-warmup-data blob (the site left Squarespace in 2026-09). Per-event Summit gate: an event with a real location is gated on its pin and city; one with no usable location (Wix "location TBD") is gated from title/description text (NOT_SUMMIT city → out, Summit city → in, neither → pending_review).',
+    venue:       'Varies — The Well CDC (647 E Market St) + Akron branch libraries; a location typed as a bare street address resolves by address or stays venue-less; location-less events publish without a venue',
+    notes:       'Fair Housing Contact Service runs free Renter\'s Rights and Landlord workshops plus an annual event. Most are Akron (Summit); the series also travels to Kent (Portage County) which is dropped out-of-county from its text. Free workshops get price 0. The page keeps recent past events, so a calendar with nothing upcoming logs a clean zero while a page with no event objects at all logs an error. Category civic; low volume, often empty between workshop series.',
     status:      'active',
   },
   {
@@ -1811,7 +1811,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   explore_hudson:          'api',
   greater_akron_chamber:   'growthzone',
   leos_italian_social:     'squarespace',
-  fair_housing_akron:      'squarespace',
+  fair_housing_akron:      'wix',
   peninsula_library:       'html',
   lalas_in_the_lakes:      'api',
   city_of_macedonia:       'html',

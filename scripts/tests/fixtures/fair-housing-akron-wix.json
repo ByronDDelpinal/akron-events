@@ -1,0 +1,164 @@
+[
+  {
+    "id": "d92ab4c8-1502-4da6-8016-e7050f072496",
+    "location": {
+      "name": "21 W North St",
+      "coordinates": {
+        "lat": 41.09141049999999,
+        "lng": -81.51716239999999
+      },
+      "address": "21 W North St, Akron, OH 44304, USA",
+      "type": 0,
+      "fullAddress": {
+        "country": "US",
+        "subdivision": "OH",
+        "city": "Akron",
+        "postalCode": "44304",
+        "streetAddress": {
+          "number": "21",
+          "name": "West North Street",
+          "apt": ""
+        },
+        "formattedAddress": "21 W North St, Akron, OH 44304, USA",
+        "geocode": {
+          "latitude": 41.09141049999999,
+          "longitude": -81.51716239999999
+        },
+        "countryFullname": "United States",
+        "subdivisions": [
+          {
+            "code": "OH",
+            "name": "Ohio",
+            "type": 1
+          },
+          {
+            "code": "Summit County",
+            "name": "Summit County",
+            "type": 2
+          },
+          {
+            "code": "Akron",
+            "name": "Akron",
+            "type": 3
+          },
+          {
+            "code": "Cascade Valley",
+            "name": "Cascade Valley",
+            "type": 4
+          },
+          {
+            "code": "US",
+            "name": "United States",
+            "type": 6
+          }
+        ]
+      },
+      "tbd": false
+    },
+    "scheduling": {
+      "config": {
+        "scheduleTbd": false,
+        "startDate": "2026-10-23T22:00:00.000Z",
+        "endDate": "2026-10-24T01:00:00.000Z",
+        "timeZoneId": "America/New_York",
+        "endDateHidden": false,
+        "showTimeZone": false,
+        "recurrences": {
+          "occurrences": [],
+          "status": 0
+        }
+      },
+      "formatted": "October 23, 2026, 6:00 – 9:00 PM",
+      "startDateFormatted": "October 23, 2026",
+      "startTimeFormatted": "6:00 PM",
+      "endDateFormatted": "October 23, 2026",
+      "endTimeFormatted": "9:00 PM"
+    },
+    "title": "FHCS Annual Event",
+    "description": "Save the Date and Check this Page for Updates as they Become Available!",
+    "about": "",
+    "mainImage": {
+      "id": "c56826_131bed77a5b043388b803799e7e67806~mv2.webp",
+      "url": "https://static.wixstatic.com/media/c56826_131bed77a5b043388b803799e7e67806~mv2.webp",
+      "height": 900,
+      "width": 1600
+    },
+    "slug": "fhcs-annual-event",
+    "language": "en",
+    "created": "2026-06-16T19:07:45.376Z",
+    "modified": "2026-09-28T18:42:40.000Z",
+    "status": 2,
+    "registration": {
+      "type": 1,
+      "status": 1,
+      "rsvpCollection": {
+        "config": {
+          "rsvpStatusOptions": 1,
+          "waitlist": false,
+          "confirmationMessages": {
+            "positiveConfirmation": {
+              "title": "Thank you!",
+              "message": "An email with all the event info was sent to you.",
+              "addToCalendarActionLabel": "Add to Calendar",
+              "shareActionLabel": "Share"
+            },
+            "waitlistMessages": {
+              "title": "Thanks! You've been added to the waitlist.",
+              "message": "We'll update you if additional spots become available.",
+              "addToCalendarActionLabel": "Add to Calendar",
+              "shareActionLabel": "Share"
+            },
+            "negativeMessages": {
+              "title": "Sorry You Can't Make It",
+              "shareActionLabel": "Share"
+            }
+          },
+          "formId": "9b87c26c-3a96-4deb-b021-fdddaf44048d"
+        }
+      },
+      "ticketing": {
+        "config": {
+          "guestAssignedTickets": false,
+          "ticketLimitPerOrder": 50,
+          "reservationDurationInMinutes": 20,
+          "gracePeriodInMinutes": 120,
+          "confirmationMessages": {
+            "title": "Thank you, {Guest Name}",
+            "message": "You’re all set for {Event Name}. A confirmation email was sent to {Guest Email}.",
+            "downloadTicketsLabel": "Download Tickets",
+            "addToCalendarActionLabel": "Add to Calendar",
+            "shareActionLabel": "Share"
+          },
+          "checkoutType": 1,
+          "additionalFees": []
+        },
+        "soldOut": true
+      },
+      "restrictedTo": 0,
+      "initialType": 1
+    },
+    "instanceId": "13efc315-6188-4cae-8602-e79eef61c41e",
+    "guestListConfig": {
+      "publicGuestList": true
+    },
+    "userId": "c56826ba-00d5-482d-a4dc-984c5fb8ed15",
+    "onlineConferencing": {
+      "providerName": ""
+    },
+    "categories": [],
+    "eventDisplaySettings": {
+      "hideEventDetailsButton": false,
+      "hideEventDetailsPage": false
+    },
+    "labellingSettings": {
+      "assignedContactsLabelDeleted": false
+    },
+    "publishedDate": "2026-06-16T19:10:06.602Z",
+    "badges": [],
+    "members": [],
+    "totalGuests": {
+      "YES": 3,
+      "NO": 0
+    }
+  }
+]
