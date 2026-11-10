@@ -25,6 +25,7 @@ import { googleDirectionsUrl } from '@/lib/directions'
 import { boundsForPoints, type BBox } from '@/lib/planMapPoints'
 import type { FestivalMapPin } from '@/lib/festivalSchedule'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import '@/lib/maplibreWorker'
 import './MapPopup.css'
 import './FestivalMap.css'
 

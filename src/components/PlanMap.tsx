@@ -38,6 +38,7 @@ import { boundsForPoints, roundCoordKey, type PlanMapPoint, type PlanMarkerGroup
 import { prefersReducedMotion } from '@/lib/feedback'
 import { trackEvent, EVENTS } from '@/lib/analytics'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import '@/lib/maplibreWorker'
 import './MapPopup.css'
 import './PlanMap.css'
 
