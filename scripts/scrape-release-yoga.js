@@ -2,25 +2,45 @@
  * scrape-release-yoga.js
  *
  * Release Yoga — a yoga & wellness studio at 880 E Turkeyfoot Lake Rd in Green
- * (southern Summit County). We deliberately ingest only its ENROLLMENTS page
+ * (southern Summit County). We deliberately ingest only its ENROLLMENTS
  * (workshops, retreats, teacher trainings, sound baths, special events) — NOT
  * the daily drop-in class grid, which would flood an events calendar with
  * recurring classes. Enrollments are the genuine "events" worth surfacing.
  *
- * Platform: MINDBODY, surfaced through a Shopify app proxy at
- *   https://releaseyoga.com/apps/mindbody/enrollments
- * The proxy server-renders the enrollment list as HTML (no JS needed), so we
- * fetch + parse it directly. Each `.enrollment_box` carries the title + price
- * (`.not_entire`), instructor (`.mb_le_staff_*`), a date/time line
- * (`.bold_date`, e.g. "Fri, Jun 19, 2026 at 6:00 pm - 7:00 pm"), a description,
- * and an image. The page exposes no per-event location, so every enrollment is
- * pinned to the single studio venue.
+ * Platform: MINDBODY branded-web ("healcode") enrollments widget. The studio
+ * rebuilt its site in 2026-08: the Shopify app proxy this scraper used to read
+ * (/apps/mindbody/enrollments, server-rendered .enrollment_box markup) now
+ * redirects to /workshops-and-events, a page that holds only an empty
+ *   <healcode-widget data-type="enrollments" data-widget-id="…">
+ * tag which the browser fills in by script. That is why every run since then
+ * parsed 0 enrollments. The widget's own JSON endpoint serves the same markup
+ * the script would inject, with no browser needed:
+ *   https://widgets.mindbodyonline.com/widgets/enrollments/{id}.json
+ *     → { "contents": "<…html…>" }
+ * It returns a 30-day window; `options[start_date]=YYYY-MM-DD` moves it, and
+ * each response names the next window's start in its "Next >" link. We walk
+ * WINDOWS of them.
+ *
+ * Each `.enrollment` block carries the title + price (the
+ * .healcode-enrollment-name link text, "Aerial UnWined - $18"), the
+ * instructor (.trainer), a start date ("Nov 15 2026"), start and end times
+ * (" 6:00 PM"), a description, and an image. The widget exposes no per-event
+ * location, so every enrollment is pinned to the single studio venue.
+ *
+ * The widget id is read from the studio's page on every run and falls back to
+ * the id captured 2026-11-10, so a regenerated widget does not need a deploy.
+ *
+ * ZERO EVENTS: a window whose markup has the widget's .filtered_collection
+ * list but no enrollments in it is a quiet month, and a run where every
+ * window is like that logs success with 0 found. A response without that list
+ * is a markup change and logs an error.
  *
  * Category is left to text inference (yoga → fitness, workshops → learning,
  * etc.) with a 'fitness' default rescue (manifest) for the studio's wellness
  * programming. Price comes from the "$NN" in the title; null when absent.
  *
  * Usage:  node scripts/scrape-release-yoga.js
+ *         node scripts/scrape-release-yoga.js --dry-run
  * Env:    VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  */
 
@@ -33,7 +53,15 @@ import {
 } from './lib/normalize.js'
 
 export const SOURCE_KEY = 'release_yoga'
-const ENROLLMENTS_URL = 'https://releaseyoga.com/apps/mindbody/enrollments'
+const DRY_RUN = process.argv.includes('--dry-run') || process.env.DRY_RUN === '1'
+
+/** The public page a visitor books from; also where the widget id is read. */
+const ENROLLMENTS_URL = 'https://releaseyoga.com/workshops-and-events'
+const WIDGET_BASE = 'https://widgets.mindbodyonline.com/widgets/enrollments'
+/** Widget id captured from the studio's page 2026-11-10; used if discovery fails. */
+export const FALLBACK_WIDGET_ID = 'fe114957e7e9'
+/** 30-day windows to walk (about four months ahead). */
+const WINDOWS = 4
 const USER_AGENT = 'Mozilla/5.0 (compatible; AkronPulse-bot/1.0; +https://akronpulse.com)'
 
 const ORG_NAME = 'Release Yoga'
@@ -65,54 +93,92 @@ function to24h(hm, ampm) {
   return `${String(h).padStart(2, '0')}:${min}:00`
 }
 
-/**
- * Parse a MINDBODY enrollment date line into { dateYmd, start, end } (clock
- * times, Eastern). Handles the single-day form "Fri, Jun 19, 2026 at 6:00 pm
- * - 7:00 pm". Returns null when it can't extract a date + start time (e.g.
- * multi-day retreat ranges we don't yet model).
- */
-export function parseEnrollmentDate(text) {
-  if (!text) return null
-  const m = String(text).match(
-    /([A-Za-z]{3})[a-z]*\.?\s+(\d{1,2}),\s*(\d{4})\s+at\s+(\d{1,2}:\d{2})\s*(am|pm)(?:\s*[-–—]\s*(\d{1,2}:\d{2})\s*(am|pm))?/i,
-  )
+/** "Nov 15 2026" (also "Nov 15, 2026") → "2026-11-15", or null. */
+export function parseWidgetDate(text) {
+  const m = String(text || '').match(/([A-Za-z]{3})[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})/)
   if (!m) return null
   const month = MONTHS[m[1].toLowerCase()]
   if (!month) return null
-  const dateYmd = `${m[3]}-${String(month).padStart(2, '0')}-${String(parseInt(m[2], 10)).padStart(2, '0')}`
-  const start = to24h(m[4], m[5])
-  const end   = m[6] ? to24h(m[6], m[7]) : null
-  return start ? { dateYmd, start, end } : null
+  return `${m[3]}-${String(month).padStart(2, '0')}-${String(parseInt(m[2], 10)).padStart(2, '0')}`
 }
 
-/** Split the enrollments HTML into one entry per `.enrollment_box`. */
+/** " 6:00 PM" → "18:00:00", or null. */
+export function parseWidgetTime(text) {
+  const m = String(text || '').match(/(\d{1,2}:\d{2})\s*(am|pm)/i)
+  return m ? to24h(m[1], m[2]) : null
+}
+
+/**
+ * Resolve an enrollment's date fields into { dateYmd, start, end, multiDay }
+ * (clock times, Eastern). Returns null without a start date AND a start time:
+ * a time-less row would have to invent one. `multiDay` is true when the widget
+ * lists an end date after the start date (a series or retreat), which this
+ * scraper publishes at its first session and flags for review.
+ */
+export function parseEnrollmentWhen({ startDate, endDate, startTime, endTime } = {}) {
+  const dateYmd = parseWidgetDate(startDate)
+  const start = parseWidgetTime(startTime)
+  if (!dateYmd || !start) return null
+  const endYmd = parseWidgetDate(endDate)
+  return {
+    dateYmd,
+    start,
+    end: parseWidgetTime(endTime),
+    multiDay: Boolean(endYmd && endYmd !== dateYmd),
+  }
+}
+
+/** True when `html` is the enrollments widget's markup (has its list container). */
+export function isWidgetMarkup(html) {
+  return typeof html === 'string' && /class="[^"]*\bfiltered_collection\b/.test(html)
+}
+
+/** Split the widget markup into one entry per `.enrollment` block. */
 export function parseEnrollments(html) {
   if (!html || typeof html !== 'string') return []
-  // Split on the box wrapper only — `[\s"]` after "enrollment_box" avoids
-  // matching the nested enrollment_box_image / _text children.
-  const chunks = html.split(/class="enrollment_box[\s"]/).slice(1)
+  // Split on the block wrapper only: `class="enrollment ` with a trailing space
+  // is the block ("enrollment filterable …"); the child classes are all
+  // healcode-* and never start that way.
+  const chunks = html.split(/<div class="enrollment\s/).slice(1)
   const out = []
   for (const chunk of chunks) {
-    // Title + price live as the own-text of .not_entire, before the instructor span.
-    const titleRaw = firstGroup(chunk, /class="[^"]*not_entire[^"]*"[^>]*>\s*([^<]+)/)
+    // Title + price are the text of the name link.
+    const titleRaw = firstGroup(chunk, /class="healcode-enrollment-name"[^>]*>\s*<a[^>]*>([\s\S]*?)<\/a>/)
     if (!titleRaw) continue
-    const titlePrice = decodeEntities(titleRaw)
+    const titlePrice = stripHtml(decodeEntities(titleRaw)).trim()
     const priceMatch = titlePrice.match(/\$\s*(\d+(?:\.\d{2})?)/)
     const price = priceMatch ? parseFloat(priceMatch[1]) : null
     const title = titlePrice.replace(/\s*[-–—]?\s*\$\s*\d+(?:\.\d{2})?\s*$/, '').trim()
     if (!title) continue
 
-    const dateText = firstGroup(chunk, /class="[^"]*bold_date[^"]*"[^>]*>\s*([^<]+?)\s*</)
-    const first = firstGroup(chunk, /mb_le_staff_firstname[^>]*>\s*([^<]+?)\s*</)
-    const last  = firstGroup(chunk, /mb_le_staff_lastname[^>]*>\s*([^<]+?)\s*</)
-    const instructor = [first, last].filter(Boolean).join(' ').trim() || null
-    const descRaw = firstGroup(chunk, /class="description"[^>]*>([\s\S]*?)<\/span>/)
-    const description = descRaw ? stripHtml(decodeEntities(descRaw)).slice(0, 5000) || null : null
-    const imageUrl = firstGroup(chunk, /<img[^>]+src="([^"]+)"/)
+    const instructorRaw = firstGroup(chunk, /class="trainer"[^>]*>\s*(?:<a[^>]*>)?([^<]+)/)
+    const descRaw = firstGroup(chunk, /class="healcode-description-area"[^>]*>([\s\S]*?)<\/div>\s*<div class="healcode-button"/)
+      ?? firstGroup(chunk, /class="healcode-description-area"[^>]*>([\s\S]*?)<div class="clear">/)
 
-    out.push({ title, price, dateText, instructor, description, imageUrl })
+    out.push({
+      title,
+      price,
+      startDate: firstGroup(chunk, /class="healcode-start-date-value"[^>]*>([^<]+)</),
+      endDate:   firstGroup(chunk, /class="healcode-end-date-value"[^>]*>([^<]+)</),
+      startTime: firstGroup(chunk, /class="healcode-start-time-value"[^>]*>([^<]+)</),
+      endTime:   firstGroup(chunk, /class="healcode-end-time-value"[^>]*>([^<]+)</),
+      instructor: instructorRaw ? decodeEntities(instructorRaw).trim() || null : null,
+      description: descRaw ? stripHtml(decodeEntities(descRaw)).slice(0, 5000) || null : null,
+      imageUrl: firstGroup(chunk, /class="healcode-image-area"[^>]*>\s*<img[^>]+src="([^"]+)"/),
+    })
   }
   return out
+}
+
+/** The next window's start date ("2026-12-10") from the widget's "Next >" link. */
+export function nextWindowStart(html) {
+  return firstGroup(String(html || ''), /class="healcode-next"[^>]*>\s*<a[^>]*data-hc-startdate="(\d{4}-\d{2}-\d{2})"/)
+}
+
+/** The enrollments widget id on the studio's page, or null. */
+export function extractWidgetId(pageHtml) {
+  const tag = String(pageHtml || '').match(/<healcode-widget\b[^>]*data-type="enrollments"[^>]*>/i)?.[0]
+  return tag ? firstGroup(tag, /data-widget-id="([a-z0-9]+)"/i) : null
 }
 
 /** Stable slug for source_id. */
@@ -122,7 +188,7 @@ function slug(s) {
 
 /** Build an event row from a parsed enrollment, or null if undatable. */
 export function buildRow(enr) {
-  const when = parseEnrollmentDate(enr.dateText)
+  const when = parseEnrollmentWhen(enr)
   if (!enr.title || !when) return null
   const startAt = easternToIso(`${when.dateYmd} ${when.start}`)
   if (!startAt) return null
@@ -142,42 +208,99 @@ export function buildRow(enr) {
     image_url: enr.imageUrl || null,
     ticket_url: ENROLLMENTS_URL,
     source: SOURCE_KEY,
+    // Same formula as the pre-2026-11 scraper, so rows ingested from the old
+    // page keep their identity.
     source_id: `${SOURCE_KEY}-${slug(enr.title)}-${when.dateYmd}`,
     status: 'published',
     featured: false,
+    ...(when.multiDay ? { needs_review: true } : {}),
   }
 }
 
-// ── Fetch ──────────────────────────────────────────────────────────────────
+// ── Fetch ────────────────────────────────────────────────────────────────────
 
-async function fetchHtml(url) {
+async function fetchText(url, accept) {
   const res = await fetch(url, {
-    headers: { 'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml' },
+    headers: { 'User-Agent': USER_AGENT, Accept: accept },
     redirect: 'follow',
   })
   if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`)
   return res.text()
 }
 
-// ── Main ───────────────────────────────────────────────────────────────────
+/** Read the widget id off the studio's page; fall back to the captured one. */
+async function resolveWidgetId(getText = fetchText) {
+  try {
+    const id = extractWidgetId(await getText(ENROLLMENTS_URL, 'text/html,application/xhtml+xml'))
+    if (id) return id
+    console.warn(`  ⚠ No enrollments widget tag on ${ENROLLMENTS_URL} — using the captured id`)
+  } catch (err) {
+    console.warn(`  ⚠ Could not read ${ENROLLMENTS_URL} (${err.message}) — using the captured id`)
+  }
+  return FALLBACK_WIDGET_ID
+}
+
+/**
+ * Walk `windows` consecutive 30-day windows of the widget, following each
+ * response's own "Next >" start date. Returns every enrollment (de-duplicated
+ * on title + start date + start time, since a window boundary can repeat one)
+ * and how many windows carried the widget's list markup. Exported for tests;
+ * `getText` is injectable.
+ */
+export async function fetchAllEnrollments({ widgetId, windows = WINDOWS, getText = fetchText } = {}) {
+  const seen = new Set()
+  const enrollments = []
+  let validWindows = 0
+  let startDate = null
+  for (let i = 0; i < windows; i++) {
+    const url = `${WIDGET_BASE}/${widgetId}.json` +
+      (startDate ? `?options%5Bstart_date%5D=${startDate}` : '')
+    const body = await getText(url, 'application/json')
+    let html
+    try { html = JSON.parse(body)?.contents } catch { html = null }
+    if (!isWidgetMarkup(html)) break
+    validWindows++
+    for (const enr of parseEnrollments(html)) {
+      const key = `${enr.title}|${enr.startDate}|${enr.startTime}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      enrollments.push(enr)
+    }
+    startDate = nextWindowStart(html)
+    if (!startDate) break
+  }
+  return { enrollments, validWindows }
+}
+
+// ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('🧘  Starting Release Yoga (MINDBODY enrollments) scrape…')
+  console.log('🧘  Starting Release Yoga (MINDBODY enrollments widget) scrape…')
+  if (DRY_RUN) console.log('   [dry-run mode — fetch + parse only, no DB writes]')
   const start = Date.now()
 
   try {
-    const html = await fetchHtml(ENROLLMENTS_URL)
-    const enrollments = parseEnrollments(html)
-    console.log(`  Parsed ${enrollments.length} enrollments`)
+    const widgetId = await resolveWidgetId()
+    const { enrollments, validWindows } = await fetchAllEnrollments({ widgetId })
+    console.log(`  Parsed ${enrollments.length} enrollments from ${validWindows} window(s) of widget ${widgetId}`)
 
-    if (!enrollments.length) {
+    if (DRY_RUN) {
+      for (const enr of enrollments) {
+        const row = buildRow(enr)
+        console.log(`     • ${row ? row.start_at : 'UNDATABLE'}  ${enr.title}  ${enr.price != null ? `$${enr.price}` : ''}`)
+      }
+      console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s [dry-run]`)
+      return
+    }
+
+    if (validWindows === 0) {
       await logUpsertResult(SOURCE_KEY, 0, 0, 0, {
         status: 'error',
-        errorMessage: 'Page fetched but 0 enrollments parsed — the MINDBODY widget markup may have changed (expected .enrollment_box with .not_entire / .bold_date).',
+        errorMessage: `Widget ${widgetId} answered without its enrollment list (.filtered_collection) — the MINDBODY widget markup or id may have changed`,
         durationMs: Date.now() - start,
         eventsFound: 0,
       })
-      console.warn('  ⚠ No enrollments parsed — exiting 0.')
+      console.warn('  ⚠ No widget markup — logged as an error run.')
       process.exit(0)
     }
 

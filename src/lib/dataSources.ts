@@ -1296,8 +1296,8 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
   },
   {
     key:         'release_yoga',
-    method:      'MINDBODY enrollments (HTML)',
-    methodDetail:'Shopify app-proxy server-rendered MINDBODY widget — /apps/mindbody/enrollments',
+    method:      'MINDBODY enrollments widget (JSON)',
+    methodDetail:'MINDBODY branded-web enrollments widget — widgets.mindbodyonline.com/widgets/enrollments/{id}.json returns the markup the page script would inject; walked in 30-day windows about four months ahead (the Shopify app-proxy page it replaced was retired in the studio\'s 2026-08 site rebuild)',
     venue:       'Release Yoga — 880 E Turkeyfoot Lake Rd, Green',
     notes:       "A yoga & wellness studio in Green (southern Summit County). We ingest only its MINDBODY enrollments page — workshops, retreats, teacher trainings, sound baths, special events — and deliberately skip the daily drop-in class grid, which would flood the calendar with recurring classes. MINDBODY is surfaced via a Shopify app proxy that server-renders the list as HTML, so we fetch and parse it directly: each .enrollment_box yields title + price (.not_entire), instructor (.mb_le_staff_*), a date/time line (.bold_date), description, and image. The page exposes no per-event location, so events pin to the single studio venue. Category is left to text inference (yoga → fitness, workshops → learning) with a 'fitness' default; price comes from the '$NN' in the title, null when absent.",
     status:      'active',
