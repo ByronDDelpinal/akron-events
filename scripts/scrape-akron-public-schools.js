@@ -13,6 +13,9 @@
  *
  * Usage:
  *   node scripts/scrape-akron-public-schools.js
+ *   DRY_RUN=1 node scripts/scrape-akron-public-schools.js   (or --dry-run)
+ *     Reads the feed and the existing APS rows, prints what would change,
+ *     and writes nothing (no org/venue/event upserts, no scraper_runs row).
  *
  * Environment overrides:
  *   AKRON_PUBLIC_SCHOOLS_ICS_URL — direct ICS feed URL(s), comma-separated.
@@ -41,13 +44,16 @@ import {
   stripHtml,
   upsertEventSafe,
   easternToIso,
+  sanitizeEventText,
 } from './lib/normalize.js'
 import {
   fetchIcsFeed, parseIcs, normaliseIcsEvent, discoverIcsFeed,
   isDateOnlyIcsEvent, applyNeedsReviewHook, DATE_ONLY_TIME_NOTE,
 } from './lib/ics.js'
+import { supabaseAdmin } from './lib/supabase-admin.js'
 
 const SOURCE_KEY = 'akron_public_schools'
+const DRY_RUN = process.argv.includes('--dry-run') || process.env.DRY_RUN === '1'
 const CALENDAR_PAGE = 'https://www.akronschools.com/district/district-information/calendar'
 
 // The district (Finalsite) publishes one iCal feed per calendar; these are the
@@ -217,8 +223,192 @@ export function applyExplicitTime(row, ev) {
   return true
 }
 
+// ── Stable identity across UID re-issues ──────────────────────────────────
+//
+// The district feed periodically re-issues every VEVENT UID. Upserting on
+// (source, source_id) then tries to INSERT a fresh row, which collides with
+// the DB-only unique index uniq_events_aps_natural_key
+// (source, title_normalized, start_at) and the event is skipped — the stored
+// row is frozen (no description, time, or needs_review updates). Before
+// upserting, adopt the stored source_id of the row with the same natural key
+// so the upsert becomes an UPDATE of that row.
+
+/**
+ * Pure — exported for tests. Natural key mirroring uniq_events_aps_natural_key:
+ * epoch-ms start (so "…Z" and "…+00:00" spellings agree) plus the title
+ * normalised like title_normalized = unaccent(lower(title)) (migrations 024,
+ * 034). unaccent is approximated by NFD + dropping combining marks, which
+ * covers the Latin accents the feed can carry; trim is applied on top
+ * (stored titles are already trimmed by the normaliser). The title first goes
+ * through sanitizeEventText — the same pass upsertEventSafe applies before
+ * writing — so an entity-encoded feed title ("Arts &amp; Crafts") keys like
+ * its stored, decoded form.
+ */
+export function naturalKey(row) {
+  const title = String(sanitizeEventText({ title: row?.title ?? '' }).title ?? '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .trim()
+    .toLowerCase()
+  return `${Date.parse(row?.start_at)}|${title}`
+}
+
+// Map value for a natural key held by more than one stored source_id.
+export const AMBIGUOUS_KEY = null
+
+/**
+ * Pure — exported for tests. When `existingByKey` (naturalKey → stored
+ * source_id) holds this row's key under a different source_id, point the row
+ * at the stored one and return true. Otherwise — no entry, same source_id, or
+ * an AMBIGUOUS_KEY entry (several stored rows share the key, so no single
+ * row is the right target) — leave the row untouched and return false. Only
+ * live `events` rows feed the map, so this never revives a merged-away event
+ * (event_aliases are not consulted or written).
+ */
+export function adoptExistingSourceId(row, existingByKey) {
+  if (!row || !existingByKey) return false
+  const stored = existingByKey.get(naturalKey(row))
+  if (stored === AMBIGUOUS_KEY || stored === undefined || stored === row.source_id) return false
+  row.source_id = stored
+  return true
+}
+
+// Matches the district Administration Building address as written in the
+// Board Meeting descriptions ("…board room… Administration Building,
+// 10 N. Main St."). The optional backslash tolerates a raw ICS `\,` escape
+// should a description ever reach here un-unescaped.
+const ADMIN_BUILDING_RE = /Administration Building\\?,?\s*10 N\.? Main St/i
+
+/**
+ * Pure — exported for tests. Venue for a LOCATION-less VEVENT whose
+ * DESCRIPTION names the district Administration Building, else null. This is
+ * the only description-derived venue; nothing else is guessed.
+ */
+export function venueFromDescription(ev) {
+  const text = stripHtml(ev?.DESCRIPTION || '')
+  if (!ADMIN_BUILDING_RE.test(text)) return null
+  return { name: 'Akron Public Schools', address: '10 N. Main Street', city: 'Akron', state: 'OH' }
+}
+
+const EXISTING_PAGE_SIZE = 1000 // PostgREST's default max-rows; page explicitly.
+
+/**
+ * Exported for tests. Reads this source's upcoming (start_at >= now - 1 day)
+ * rows into naturalKey → source_id, paging EXISTING_PAGE_SIZE at a time. A
+ * key seen under two different source_ids maps to AMBIGUOUS_KEY and is never
+ * adopted. Cancelled rows are excluded (.neq status): normaliseIcsEvent emits
+ * status 'published', so adopting a cancelled row would un-cancel it unless an
+ * admin had locked status in manual_overrides. A cancelled row's key thus
+ * keeps skipping on the unique index, as before this fix, and stays cancelled.
+ * A read failure yields an empty map with readFailed set, so the run degrades
+ * to the pre-fix behaviour and main() discloses it in scraper_runs.
+ *
+ * @returns {Promise<{map: Map<string, string|null>, readFailed: boolean,
+ *   readError: string|null, ambiguous: number}>}
+ */
+export async function loadExistingByKey({ client = supabaseAdmin, now = Date.now() } = {}) {
+  const map = new Map()
+  const since = new Date(now - 24 * 60 * 60 * 1000).toISOString()
+  try {
+    for (let from = 0; ; from += EXISTING_PAGE_SIZE) {
+      const { data, error } = await client
+        .from('events')
+        .select('source_id,title,start_at')
+        .eq('source', SOURCE_KEY)
+        .neq('status', 'cancelled')
+        .gte('start_at', since)
+        .order('start_at', { ascending: true })
+        .order('source_id', { ascending: true })
+        .range(from, from + EXISTING_PAGE_SIZE - 1)
+      if (error) throw new Error(error.message)
+      for (const r of data || []) {
+        if (!r.source_id) continue
+        const key = naturalKey(r)
+        if (!map.has(key)) map.set(key, r.source_id)
+        else if (map.get(key) !== r.source_id) map.set(key, AMBIGUOUS_KEY)
+      }
+      if (!data || data.length < EXISTING_PAGE_SIZE) break
+    }
+  } catch (err) {
+    console.warn(`  ⚠ Could not read existing ${SOURCE_KEY} rows (continuing without UID adoption): ${err.message}`)
+    return { map: new Map(), readFailed: true, readError: err.message, ambiguous: 0 }
+  }
+  let ambiguous = 0
+  for (const v of map.values()) if (v === AMBIGUOUS_KEY) ambiguous++
+  return { map, readFailed: false, readError: null, ambiguous }
+}
+
+const DEFAULT_WRITERS = {
+  ensureVenue, enrichWithImageDimensions, upsertEventSafe, linkEventVenue, linkEventOrganization,
+}
+
+/**
+ * Exported for tests. Normalises, re-times, flags, adopts and (unless dryRun)
+ * writes each public VEVENT. `writers` is injectable so tests can prove a dry
+ * run calls no write path. Returns the run's counters.
+ */
+export async function processEvents(publicEvents, {
+  dryRun = false, existingByKey = new Map(), organizationId = null, writers = DEFAULT_WRITERS,
+} = {}) {
+  const counts = { inserted: 0, skipped: 0, retimed: 0, adopted: 0, venueLinks: 0, flagged: 0 }
+  const venueCache = new Map()
+
+  for (const ev of publicEvents) {
+    try {
+      const row = normaliseIcsEvent(ev, {
+        source: SOURCE_KEY,
+        mapCategory,
+        mapTags,
+        defaultPriceMin: null,
+        defaultPriceMax: null,
+        ageRestriction:  'all_ages',
+      })
+      if (!row || !row.start_at || !row.source_id) { counts.skipped++; continue }
+      // Date-only VEVENT: honour a time stated in the description. Either
+      // way the row is flagged for review, exactly as runIcsScraper feeds
+      // do: noon is invented, and a description-derived time is inferred.
+      if (applyExplicitTime(row, ev)) counts.retimed++
+      applyNeedsReviewHook(row, ev, isDateOnlyIcsEvent)
+      if (row.needs_review === true) counts.flagged++
+      if (adoptExistingSourceId(row, existingByKey)) counts.adopted++
+
+      // LOCATION wins; otherwise only the Administration Building
+      // description match supplies a venue (see venueFromDescription).
+      const locName = (ev.LOCATION || '').trim()
+      const venueInfo = locName
+        ? { name: locName, city: 'Akron', state: 'OH' }
+        : venueFromDescription(ev)
+      if (venueInfo) counts.venueLinks++
+      if (dryRun) { counts.inserted++; continue }
+
+      let venueId = null
+      if (venueInfo) {
+        if (venueCache.has(venueInfo.name)) {
+          venueId = venueCache.get(venueInfo.name)
+        } else {
+          const { name, ...details } = venueInfo
+          venueId = await writers.ensureVenue(name, details)
+          venueCache.set(name, venueId)
+        }
+      }
+
+      const enrichedRow = await writers.enrichWithImageDimensions(row)
+      const { data: upserted, error } = await writers.upsertEventSafe(enrichedRow)
+      if (error) { console.warn(`  ⚠ Upsert failed: ${error.message}`); counts.skipped++; continue }
+
+      if (venueId)        await writers.linkEventVenue(upserted.id, venueId)
+      if (organizationId) await writers.linkEventOrganization(upserted.id, organizationId)
+      counts.inserted++
+    } catch (err) {
+      console.warn(`  ⚠ Error processing "${ev.SUMMARY}":`, err.message)
+      counts.skipped++
+    }
+  }
+  return counts
+}
+
 async function main() {
-  console.log('🚀  Starting Akron Public Schools scrape…')
+  console.log(`🚀  Starting Akron Public Schools scrape…${DRY_RUN ? ' (DRY RUN — no writes)' : ''}`)
   const start = Date.now()
 
   try {
@@ -260,6 +450,7 @@ async function main() {
     console.log(`  Collapsed ${twinsDropped} date-only twins of timed events`)
 
     if (publicEvents.length === 0) {
+      if (DRY_RUN) { console.log('  [dry-run] 0 public-facing events; would log an error run'); process.exit(0) }
       await logUpsertResult(SOURCE_KEY, 0, 0, 0, {
         status: 'error',
         errorMessage: 'Feed parsed but contained 0 public-facing events after filter',
@@ -269,63 +460,41 @@ async function main() {
       process.exit(0)
     }
 
-    const organizationId = await ensureOrganization('Akron Public Schools', {
+    const organizationId = DRY_RUN ? null : await ensureOrganization('Akron Public Schools', {
       website:     'https://www.akronschools.com',
       description: 'Akron Public Schools is the public school district serving Akron, Ohio.',
     })
 
+    const existing = await loadExistingByKey()
+    console.log(`  Loaded ${existing.map.size} existing upcoming ${SOURCE_KEY} keys for UID adoption (${existing.ambiguous} ambiguous)`)
+
     console.log(`\n📥  Processing ${publicEvents.length} events…`)
-    let inserted = 0, skipped = 0, retimed = 0
-    const venueCache = new Map()
+    const { inserted, skipped, retimed, adopted, venueLinks, flagged } = await processEvents(publicEvents, {
+      dryRun: DRY_RUN, existingByKey: existing.map, organizationId,
+    })
+    const summary = `adopted ${adopted}, venue links ${venueLinks}, needs_review ${flagged}, ambiguous keys ${existing.ambiguous}`
 
-    for (const ev of publicEvents) {
-      try {
-        const row = normaliseIcsEvent(ev, {
-          source: SOURCE_KEY,
-          mapCategory,
-          mapTags,
-          defaultPriceMin: null,
-          defaultPriceMax: null,
-          ageRestriction:  'all_ages',
-        })
-        if (!row || !row.start_at || !row.source_id) { skipped++; continue }
-        // Date-only VEVENT: honour a time stated in the description. Either
-        // way the row is flagged for review, exactly as runIcsScraper feeds
-        // do: noon is invented, and a description-derived time is inferred.
-        if (applyExplicitTime(row, ev)) retimed++
-        applyNeedsReviewHook(row, ev, isDateOnlyIcsEvent)
-
-        const locName = (ev.LOCATION || '').trim()
-        let venueId = null
-        if (locName) {
-          if (venueCache.has(locName)) {
-            venueId = venueCache.get(locName)
-          } else {
-            venueId = await ensureVenue(locName, { city: 'Akron', state: 'OH' })
-            venueCache.set(locName, venueId)
-          }
-        }
-
-        const enrichedRow = await enrichWithImageDimensions(row)
-        const { data: upserted, error } = await upsertEventSafe(enrichedRow)
-        if (error) { console.warn(`  ⚠ Upsert failed: ${error.message}`); skipped++; continue }
-
-        if (venueId)        await linkEventVenue(upserted.id, venueId)
-        if (organizationId) await linkEventOrganization(upserted.id, organizationId)
-        inserted++
-      } catch (err) {
-        console.warn(`  ⚠ Error processing "${ev.SUMMARY}":`, err.message)
-        skipped++
-      }
+    if (DRY_RUN) {
+      console.log(`\n[dry-run] ${inserted} rows would upsert, ${skipped} skipped`)
+      console.log(`[dry-run] would adopt ${adopted}, would link venue ${venueLinks}, would flag needs_review ${flagged}, ambiguous keys ${existing.ambiguous}`)
+      if (existing.readFailed) console.log(`[dry-run] would log errorMessage "degraded: existing-row read failed …"`)
+      return
     }
 
     await logUpsertResult(SOURCE_KEY, inserted, 0, skipped, {
       eventsFound: allEvents.length,
       durationMs:  Date.now() - start,
+      // Degraded-but-working run (ics.js convention): status stays 'success',
+      // error_message carries the 'degraded:' marker the health checks grep for.
+      ...(existing.readFailed
+        ? { errorMessage: `degraded: existing-row read failed, UID adoption disabled: ${existing.readError}` }
+        : {}),
     })
+    console.log(`  Re-issued UIDs: ${summary}`)
     console.log(`  Date-only twins dropped: ${twinsDropped}; date-only rows re-timed from description: ${retimed}`)
     console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s`)
   } catch (err) {
+    if (DRY_RUN) { console.error('  [dry-run] failed:', err.message); process.exit(1) }
     await logScraperError(SOURCE_KEY, err, start)
     process.exit(1)
   }

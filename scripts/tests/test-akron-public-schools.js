@@ -8,14 +8,21 @@
  *   node --test scripts/tests/test-akron-public-schools.js
  */
 
-import { describe, it } from 'node:test'
+import { describe, it, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   resolveFeedUrls,
   collapseDateOnlyTwins,
   explicitTimeFromDescription,
   applyExplicitTime,
+  naturalKey,
+  adoptExistingSourceId,
+  venueFromDescription,
+  loadExistingByKey,
+  processEvents,
+  AMBIGUOUS_KEY,
 } from '../scrape-akron-public-schools.js'
+import { __setClientForTests } from '../lib/supabase-admin.js'
 import { normaliseIcsEvent, isDateOnlyIcsEvent, applyNeedsReviewHook, DATE_ONLY_TIME_NOTE } from '../lib/ics.js'
 
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
@@ -526,5 +533,211 @@ describe('Akron Public Schools — date-only rows through normaliseIcsEvent', ()
     applyNeedsReviewHook(row, ev, isDateOnlyIcsEvent)
     assert.equal(row.needs_review, true)
     assert.ok(row.description.includes(DATE_ONLY_TIME_NOTE))
+  })
+})
+
+describe('Akron Public Schools — naturalKey', () => {
+  it('is case- and whitespace-insensitive on title and spelling-insensitive on start_at', () => {
+    const a = naturalKey({ title: 'Board Meeting', start_at: '2026-09-28T21:30:00.000Z' })
+    const b = naturalKey({ title: '  BOARD meeting ', start_at: '2026-09-28T21:30:00+00:00' })
+    assert.equal(a, b)
+  })
+
+  it('folds accents like unaccent()', () => {
+    assert.equal(
+      naturalKey({ title: 'Café Night', start_at: '2026-09-28T16:00:00Z' }),
+      naturalKey({ title: 'cafe night', start_at: '2026-09-28T16:00:00Z' }),
+    )
+  })
+
+  it('differs when start_at differs', () => {
+    assert.notEqual(
+      naturalKey({ title: 'Board Meeting', start_at: '2026-09-28T21:30:00Z' }),
+      naturalKey({ title: 'Board Meeting', start_at: '2026-09-29T21:30:00Z' }),
+    )
+  })
+})
+
+describe('Akron Public Schools — adoptExistingSourceId', () => {
+  const stored = { title: 'Board Meeting', start_at: '2026-09-28T21:30:00+00:00' }
+  const map = new Map([[naturalKey(stored), 'old-uid@akronschools']])
+
+  it('swaps a re-issued UID onto the stored source_id and returns true', () => {
+    const row = { source_id: 'new-uid', title: 'Board Meeting', start_at: '2026-09-28T21:30:00.000Z' }
+    assert.equal(adoptExistingSourceId(row, map), true)
+    assert.equal(row.source_id, 'old-uid@akronschools')
+  })
+
+  it('returns false and leaves the row unchanged when the source_id already matches', () => {
+    const row = { source_id: 'old-uid@akronschools', title: 'Board Meeting', start_at: '2026-09-28T21:30:00Z' }
+    const before = { ...row }
+    assert.equal(adoptExistingSourceId(row, map), false)
+    assert.deepEqual(row, before)
+  })
+
+  it('returns false and leaves the row unchanged when no stored row shares the key', () => {
+    const row = { source_id: 'new-uid', title: 'Board Meeting', start_at: '2026-10-26T21:30:00Z' }
+    const before = { ...row }
+    assert.equal(adoptExistingSourceId(row, map), false)
+    assert.deepEqual(row, before)
+    assert.equal(adoptExistingSourceId(row, new Map()), false)
+    assert.deepEqual(row, before)
+  })
+})
+
+describe('Akron Public Schools — venueFromDescription', () => {
+  const expected = { name: 'Akron Public Schools', address: '10 N. Main Street', city: 'Akron', state: 'OH' }
+
+  it('maps the Board Meeting Administration Building text to the APS venue', () => {
+    const desc = 'The Board meeting will be held at 5:30 p.m. in the board room on the 1st floor of the Administration Building, 10 N. Main St.'
+    assert.deepEqual(venueFromDescription({ DESCRIPTION: desc }), expected)
+  })
+
+  it('tolerates a raw ICS \\, escape', () => {
+    const desc = 'in the board room of the Administration Building\\, 10 N. Main St.'
+    assert.deepEqual(venueFromDescription({ DESCRIPTION: desc }), expected)
+  })
+
+  it('returns null for empty and unrelated descriptions', () => {
+    assert.equal(venueFromDescription({}), null)
+    assert.equal(venueFromDescription({ DESCRIPTION: '' }), null)
+    assert.equal(
+      venueFromDescription({ DESCRIPTION: 'Donations of new coats can be dropped off at any school building through Friday.' }),
+      null,
+    )
+  })
+})
+
+describe('Akron Public Schools — adoption keeps the review flag', () => {
+  it('a date-only VEVENT stays needs_review after source_id adoption', () => {
+    const config = { source: 'akron_public_schools', ageRestriction: 'all_ages' }
+    const ev = dateOnly('reissued-uid', 'Fall Book Fair', '20260928', { DESCRIPTION: 'All week in the library.' })
+    const row = normaliseIcsEvent(ev, config)
+    applyExplicitTime(row, ev)
+    applyNeedsReviewHook(row, ev, isDateOnlyIcsEvent)
+    const map = new Map([[naturalKey({ title: 'Fall Book Fair', start_at: row.start_at }), 'original-uid']])
+    assert.equal(adoptExistingSourceId(row, map), true)
+    assert.equal(row.source_id, 'original-uid')
+    assert.equal(row.needs_review, true)
+  })
+})
+
+// Fake supabase client: records every from()/method call; range() resolves
+// to the next scripted page ({ data } or { error }).
+function fakeClient(pages) {
+  const calls = []
+  let page = 0
+  const builder = new Proxy({}, {
+    get(_t, method) {
+      if (method === 'then') return undefined
+      return (...args) => {
+        calls.push([method, ...args])
+        if (method === 'range') return Promise.resolve(pages[page++] ?? { data: [] })
+        return builder
+      }
+    },
+  })
+  return { calls, from: (table) => { calls.push(['from', table]); return builder } }
+}
+
+const NOW = Date.parse('2026-11-11T05:00:00Z')
+const storedRow = (i, extra = {}) => ({
+  source_id: `uid-${i}`, title: `Event ${i}`, start_at: new Date(NOW + i * 60000).toISOString(), ...extra,
+})
+
+describe('Akron Public Schools — loadExistingByKey', () => {
+  afterEach(() => __setClientForTests(null))
+
+  it('pages past the 1000-row boundary and excludes cancelled rows', async () => {
+    const first = Array.from({ length: 1000 }, (_, i) => storedRow(i))
+    const client = fakeClient([{ data: first }, { data: [storedRow(1000)] }])
+    __setClientForTests(client)
+    const res = await loadExistingByKey({ now: NOW })
+    assert.equal(res.readFailed, false)
+    assert.equal(res.map.size, 1001)
+    const ranges = client.calls.filter(c => c[0] === 'range').map(c => c.slice(1))
+    assert.deepEqual(ranges, [[0, 999], [1000, 1999]])
+    assert.ok(client.calls.some(c => c[0] === 'neq' && c[1] === 'status' && c[2] === 'cancelled'))
+    assert.ok(client.calls.some(c => c[0] === 'eq' && c[1] === 'source' && c[2] === 'akron_public_schools'))
+  })
+
+  it('stops after a short first page', async () => {
+    const client = fakeClient([{ data: [storedRow(1)] }])
+    __setClientForTests(client)
+    await loadExistingByKey({ now: NOW })
+    assert.equal(client.calls.filter(c => c[0] === 'range').length, 1)
+  })
+
+  it('a mid-read error returns an empty map with readFailed', async () => {
+    const first = Array.from({ length: 1000 }, (_, i) => storedRow(i))
+    __setClientForTests(fakeClient([{ data: first }, { data: null, error: { message: 'boom' } }]))
+    const res = await loadExistingByKey({ now: NOW })
+    assert.equal(res.readFailed, true)
+    assert.equal(res.readError, 'boom')
+    assert.equal(res.map.size, 0)
+  })
+
+  it('marks a key held by two source_ids ambiguous and never adopts it', async () => {
+    const a = storedRow(1)
+    const b = { ...a, source_id: 'uid-dup' }
+    __setClientForTests(fakeClient([{ data: [a, b, storedRow(2)] }]))
+    const res = await loadExistingByKey({ now: NOW })
+    assert.equal(res.ambiguous, 1)
+    assert.equal(res.map.get(naturalKey(a)), AMBIGUOUS_KEY)
+    const row = { source_id: 'fresh-uid', title: a.title, start_at: a.start_at }
+    assert.equal(adoptExistingSourceId(row, res.map), false)
+    assert.equal(row.source_id, 'fresh-uid')
+  })
+
+  it('a repeated identical source_id is not ambiguous', async () => {
+    __setClientForTests(fakeClient([{ data: [storedRow(1), storedRow(1)] }]))
+    const res = await loadExistingByKey({ now: NOW })
+    assert.equal(res.ambiguous, 0)
+    assert.equal(res.map.get(naturalKey(storedRow(1))), 'uid-1')
+  })
+})
+
+describe('Akron Public Schools — naturalKey on sanitised titles', () => {
+  it('an entity-encoded feed title keys like its decoded stored form', () => {
+    const start_at = '2026-09-28T16:00:00Z'
+    assert.equal(naturalKey({ title: 'Arts &amp; Crafts Night', start_at }), naturalKey({ title: 'Arts & Crafts Night', start_at }))
+  })
+})
+
+describe('Akron Public Schools — processEvents dry run', () => {
+  afterEach(() => __setClientForTests(null))
+
+  it('DRY_RUN calls no writer and touches no table, but still counts', async () => {
+    const client = fakeClient([])
+    __setClientForTests(client)
+    const writes = []
+    const spy = (name) => async (...args) => { writes.push(name, args); return { data: { id: 'x' } } }
+    const writers = Object.fromEntries(
+      ['ensureVenue', 'enrichWithImageDimensions', 'upsertEventSafe', 'linkEventVenue', 'linkEventOrganization']
+        .map(n => [n, spy(n)]),
+    )
+    const board = dateOnly('new-uid', 'Board Meeting', '20261109', {
+      DESCRIPTION: 'Held at 5:30 p.m. in the board room of the Administration Building, 10 N. Main St.',
+    })
+    const existingByKey = new Map([[naturalKey({ title: 'Board Meeting', start_at: '2026-11-09T22:30:00Z' }), 'old-uid']])
+    const counts = await processEvents([board], { dryRun: true, existingByKey, organizationId: 'org', writers })
+    assert.deepEqual(writes, [])
+    assert.deepEqual(client.calls, [])
+    assert.equal(counts.adopted, 1)
+    assert.equal(counts.venueLinks, 1)
+    assert.equal(counts.flagged, 1)
+    assert.equal(counts.inserted, 1)
+  })
+
+  it('a live run does call the writers (control for the dry-run test)', async () => {
+    const writes = []
+    const spy = (name) => async () => { writes.push(name); return name === 'enrichWithImageDimensions' ? {} : { data: { id: 'x' } } }
+    const writers = Object.fromEntries(
+      ['ensureVenue', 'enrichWithImageDimensions', 'upsertEventSafe', 'linkEventVenue', 'linkEventOrganization']
+        .map(n => [n, spy(n)]),
+    )
+    const board = dateOnly('u1', 'Board Meeting', '20261109', { DESCRIPTION: 'Administration Building, 10 N. Main St.' })
+    await processEvents([board], { dryRun: false, organizationId: 'org', writers })
+    assert.deepEqual(writes, ['ensureVenue', 'enrichWithImageDimensions', 'upsertEventSafe', 'linkEventVenue', 'linkEventOrganization'])
   })
 })
