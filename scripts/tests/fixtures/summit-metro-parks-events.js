@@ -443,6 +443,26 @@ export const EDUCATION_EVENT = {
   }
 }
 
+// ── 15. All-day multi-day event (Tribe reports midnight ET) ─────────────────
+export const ALL_DAY_MULTI_DAY = {
+  id: 1015,
+  title: 'Self-Guided Trail: Amphibian Life',
+  description: '<p>Explore the vernal pools at your own pace.</p>',
+  all_day: true,
+  start_date: '2027-03-23 00:00:00',
+  end_date: '2027-03-30 23:59:59',
+  utc_start_date: '2027-03-23 04:00:00',
+  utc_end_date: '2027-03-31 03:59:59',
+  url: 'https://www.summitmetroparks.org/event/self-guided-trail-amphibian-life/',
+  website: '',
+  cost: 'Free',
+  cost_details: { values: [] },
+  categories: [{ name: 'Nature', slug: 'nature' }],
+  tags: [],
+  image: null,
+  venue: null,
+}
+
 // Array of all fixtures for batch testing
 export const ALL_FIXTURES = [
   COMPLETE_EVENT,
@@ -459,4 +479,5 @@ export const ALL_FIXTURES = [
   MULTIPLE_CATEGORIES,
   SPORTS_EVENT,
   EDUCATION_EVENT,
+  ALL_DAY_MULTI_DAY,
 ]

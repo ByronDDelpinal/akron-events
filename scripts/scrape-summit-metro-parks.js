@@ -21,7 +21,7 @@ import {
   parseCostFromTribe, parseTagsFromTribe, ensureOrganization,
   easternTodayIso,
 } from './lib/normalize.js'
-import { fetchTribeEvents } from './lib/tribe-events.js'
+import { fetchTribeEvents, resolveTribeTimes } from './lib/tribe-events.js'
 
 const BASE_URL   = 'https://www.summitmetroparks.org/wp-json/tribe/events/v1/events'
 const PER_PAGE   = 50
@@ -122,6 +122,42 @@ async function fetchAllPages() {
   })
 }
 
+// ── Build row (pure) ───────────────────────────────────────────────────────
+
+/**
+ * Map one raw Tribe event to the events row this scraper upserts (minus venue
+ * and organization links, which need the DB). Pure, so tests exercise the real
+ * mapping. All-day events get a noon-ET start via resolveTribeTimes and carry
+ * the transient `time_inferred` key, which upsertEventSafe turns into the
+ * disclosure note + needs_review (respecting manual_overrides locks).
+ */
+export function buildRow(ev) {
+  const { price_min, price_max } = parseCostFromTribe(ev.cost, ev.cost_details)
+  const { start_at, end_at, time_inferred } = resolveTribeTimes(ev)
+
+  return {
+    title:           ev.title,
+    description:     stripHtml(ev.description ?? '') || null,
+    start_at,
+    end_at,
+    ...(time_inferred ? { time_inferred: true } : {}),
+    category:        parseCategory(ev.categories, ev.tags),
+    tags:            parseTagsFromTribe(ev.categories, ev.tags, ['parks', 'outdoors', 'nature']),
+    price_min,
+    price_max,
+    age_restriction: 'not_specified',
+    image_url:       ev.image?.url ?? null,
+    ticket_url:      ev.website || ev.url || null,
+    source:          'summit_metro_parks',
+    source_id:       String(ev.id),
+    status:          'published',
+    // NEVER machine-set `featured`. It's a human-only editorial call made
+    // in the admin UI; a source flagging its own event says nothing about
+    // whether it deserves the digest hero slot. (Was `ev.featured ?? false`.)
+    featured:        false,
+  }
+}
+
 // ── Process ────────────────────────────────────────────────────────────────
 
 async function processEvents(rawEvents, orgVenueId, organizerId) {
@@ -129,34 +165,8 @@ async function processEvents(rawEvents, orgVenueId, organizerId) {
 
   for (const ev of rawEvents) {
     try {
-      const { price_min, price_max } = parseCostFromTribe(ev.cost, ev.cost_details)
-      const category = parseCategory(ev.categories, ev.tags)
-      const tags     = parseTagsFromTribe(ev.categories, ev.tags, ['parks', 'outdoors', 'nature'])
-      const imageUrl = ev.image?.url ?? null
-      const descText = stripHtml(ev.description ?? '')
-
       const venueId = await ensureEventVenue(ev.venue, orgVenueId, organizerId)
-
-      const row = {
-        title:           ev.title,
-        description:     descText || null,
-        start_at:        ev.utc_start_date ? ev.utc_start_date.replace(' ', 'T') + 'Z' : null,
-        end_at:          ev.utc_end_date   ? ev.utc_end_date.replace(' ', 'T') + 'Z'   : null,
-        category,
-        tags,
-        price_min,
-        price_max,
-        age_restriction: 'not_specified',
-        image_url:       imageUrl,
-        ticket_url:      ev.website || ev.url || null,
-        source:          'summit_metro_parks',
-        source_id:       String(ev.id),
-        status:          'published',
-        // NEVER machine-set `featured`. It's a human-only editorial call made
-        // in the admin UI; a source flagging its own event says nothing about
-        // whether it deserves the digest hero slot. (Was `ev.featured ?? false`.)
-        featured:        false,
-      }
+      const row = buildRow(ev)
 
       if (!row.start_at) { skipped++; continue }
 

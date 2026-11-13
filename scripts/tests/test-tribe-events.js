@@ -15,6 +15,7 @@ import {
   fetchTribeEvents,
   DEFAULT_PER_PAGE,
   DEFAULT_PAGE_DELAY_MS,
+  resolveTribeTimes,
 } from '../lib/tribe-events.js'
 
 const silent = () => {}
@@ -291,5 +292,58 @@ describe('fetchTribeEvents — logging', () => {
       '  Page 1/2: 2 events (total: 2)',
       '  Page 2/2: 1 events (total: 3)',
     ])
+  })
+})
+
+describe('resolveTribeTimes', () => {
+  // easternToIso emits Date#toISOString (with milliseconds); timed rows keep
+  // the feed's own "…Z" form. Both are valid timestamptz input.
+  it('all-day EDT row starts at noon ET, end_date wall time converts', () => {
+    assert.deepEqual(
+      resolveTribeTimes({ all_day: true, start_date: '2026-07-15 00:00:00', end_date: '2026-07-15 23:59:59' }),
+      { start_at: '2026-07-15T16:00:00.000Z', end_at: '2026-07-16T03:59:59.000Z', time_inferred: true },
+    )
+  })
+
+  it('all-day EST row starts at 17:00Z', () => {
+    assert.equal(resolveTribeTimes({ all_day: true, start_date: '2027-01-12' }).start_at, '2027-01-12T17:00:00.000Z')
+  })
+
+  it('multi-day all-day row spanning the DST change uses each date\'s own offset', () => {
+    const r = resolveTribeTimes({ all_day: true, start_date: '2027-03-01 00:00:00', end_date: '2027-03-20 23:59:59' })
+    assert.equal(r.start_at, '2027-03-01T17:00:00.000Z')
+    assert.equal(r.end_at, '2027-03-21T03:59:59.000Z')
+  })
+
+  it('timed event is unchanged and not inferred', () => {
+    assert.deepEqual(
+      resolveTribeTimes({ all_day: false, utc_start_date: '2026-05-15 14:00:00', utc_end_date: '2026-05-15 16:00:00' }),
+      { start_at: '2026-05-15T14:00:00Z', end_at: '2026-05-15T16:00:00Z', time_inferred: false },
+    )
+    assert.deepEqual(resolveTribeTimes({}), { start_at: null, end_at: null, time_inferred: false })
+  })
+
+  it('all-day row without end_date has a null end', () => {
+    assert.equal(resolveTribeTimes({ all_day: true, start_date: '2027-01-12 00:00:00' }).end_at, null)
+  })
+
+  it('end_date at or before the noon start is dropped', () => {
+    assert.equal(resolveTribeTimes({ all_day: true, start_date: '2027-01-12', end_date: '2027-01-12 08:00:00' }).end_at, null)
+  })
+
+  it('only boolean true counts as all-day', () => {
+    const base = { start_date: '2026-07-15 00:00:00', utc_start_date: '2026-07-15 04:00:00' }
+    for (const all_day of ['true', 1, undefined]) {
+      const r = resolveTribeTimes({ ...base, all_day })
+      assert.equal(r.start_at, '2026-07-15T04:00:00Z')
+      assert.equal(r.time_inferred, false)
+    }
+  })
+
+  it('all-day row missing start_date falls back to utc_start_date\'s date at noon ET', () => {
+    const r = resolveTribeTimes({ all_day: true, utc_start_date: '2027-03-23 04:00:00' })
+    assert.equal(r.start_at, '2027-03-23T16:00:00.000Z')
+    assert.equal(r.time_inferred, true)
+    assert.notEqual(r.start_at, '2027-03-23T04:00:00Z', 'never midnight ET')
   })
 })

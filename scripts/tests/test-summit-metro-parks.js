@@ -32,11 +32,16 @@ import {
   MULTIPLE_CATEGORIES,
   SPORTS_EVENT,
   EDUCATION_EVENT,
+  ALL_DAY_MULTI_DAY,
   ALL_FIXTURES,
 } from './fixtures/summit-metro-parks-events.js'
 
 // ── Import shared utilities (pure functions) ─────────────────────────────────
 import { stripHtml, parseCostFromTribe, parseTagsFromTribe } from '../lib/normalize.js'
+
+// ── Real scraper code (import-safe: main() is guarded) ───────────────────────
+import { resolveTribeTimes } from '../lib/tribe-events.js'
+import { buildRow } from '../scrape-summit-metro-parks.js'
 
 // ════════════════════════════════════════════════════════════════════════════
 // RE-IMPLEMENT SCRAPER LOGIC FOR TESTABILITY
@@ -68,13 +73,8 @@ function normalizeTribalEvent(ev) {
   const imageUrl = ev.image?.url ?? null
   const descText = stripHtml(ev.description ?? '')
 
-  // Parse start_at from utc_start_date format: "2026-05-15 14:00:00" → ISO
-  const start_at = ev.utc_start_date
-    ? ev.utc_start_date.replace(' ', 'T') + 'Z'
-    : null
-  const end_at = ev.utc_end_date
-    ? ev.utc_end_date.replace(' ', 'T') + 'Z'
-    : null
+  // Times come from the real shared helper the scraper uses.
+  const { start_at, end_at, time_inferred } = resolveTribeTimes(ev)
 
   if (!start_at) return null
 
@@ -83,6 +83,7 @@ function normalizeTribalEvent(ev) {
     description:     descText || null,
     start_at,
     end_at,
+    ...(time_inferred ? { time_inferred: true } : {}),
     category,
     tags,
     price_min,
@@ -463,5 +464,46 @@ describe('Summit Metro Parks: Batch Processing', () => {
       assert.ok(row.ticket_url === null || /^https?:\/\//.test(row.ticket_url),
         `fixture id=${fixture.id} has invalid ticket_url: ${row.ticket_url}`)
     }
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// TESTS: Start/end times via the real scraper buildRow()
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Eastern wall-clock "HH:MM" of an ISO instant. */
+const etClock = (iso) => new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+}).format(new Date(iso))
+
+describe('Summit Metro Parks: buildRow times', () => {
+  it('timed event keeps the feed UTC instants and is not inferred', () => {
+    const row = buildRow(COMPLETE_EVENT)
+    assert.equal(row.start_at, '2026-05-15T14:00:00Z')
+    assert.equal(row.end_at, '2026-05-15T16:00:00Z')
+    assert.equal('time_inferred' in row, false)
+  })
+
+  it('all-day multi-day event starts at noon ET and is marked time_inferred', () => {
+    const row = buildRow(ALL_DAY_MULTI_DAY)
+    assert.equal(row.start_at, '2027-03-23T16:00:00.000Z')
+    assert.equal(row.end_at, '2027-03-31T03:59:59.000Z')
+    assert.equal(row.time_inferred, true)
+    assert.equal(row.featured, false)
+    assert.equal('needs_review' in row, false, 'upsertEventSafe owns needs_review')
+  })
+
+  it('no all-day fixture yields a midnight-ET start', () => {
+    const allDay = ALL_FIXTURES.filter((f) => f.all_day === true)
+    assert.ok(allDay.length > 0)
+    for (const fixture of allDay) {
+      const row = buildRow(fixture)
+      assert.ok(row.start_at, `fixture id=${fixture.id} has no start_at`)
+      assert.notEqual(etClock(row.start_at), '00:00', `fixture id=${fixture.id} starts at midnight ET`)
+    }
+  })
+
+  it('a missing start still yields a null start_at (row is skipped)', () => {
+    assert.equal(buildRow(MISSING_START_DATE).start_at, null)
   })
 })

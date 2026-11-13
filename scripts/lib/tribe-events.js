@@ -44,6 +44,8 @@
  * doing only if a fourth source needs it.
  */
 
+import { easternToIso } from './normalize.js'
+
 /** Tribe's default page size across every source in this project. */
 export const DEFAULT_PER_PAGE = 50
 
@@ -138,4 +140,55 @@ export async function fetchTribeEvents({
   }
 
   return all
+}
+
+/** Noon ET: the house placeholder time for a date-only (all-day) event. */
+const ALL_DAY_START_TIME = '12:00:00'
+
+/** End-of-day wall time used when an all-day `end_date` carries no clock. */
+const ALL_DAY_END_TIME = '23:59:59'
+
+/** Tribe "YYYY-MM-DD HH:MM:SS" (UTC) → ISO 8601 "YYYY-MM-DDTHH:MM:SSZ", or null. */
+function tribeUtcToIso(utc) {
+  return utc ? utc.replace(' ', 'T') + 'Z' : null
+}
+
+/**
+ * Resolve start_at / end_at for one raw Tribe event.
+ *
+ * Timed events keep the feed's own UTC instants (`utc_start_date` /
+ * `utc_end_date`), unchanged. All-day events are the exception: Tribe reports
+ * them as midnight ET, which renders as a real "12:00 AM" start. Those rows
+ * get the house noon-ET placeholder instead and are marked `time_inferred`,
+ * so upsertEventSafe adds the disclosure note and flags needs_review (while
+ * respecting any manual_overrides lock).
+ *
+ * `all_day` must be the boolean `true`; anything else (missing, the string
+ * "true") is treated as a timed event, exactly as before.
+ *
+ * @param {object} [ev] Raw Tribe event.
+ * @returns {{ start_at: string|null, end_at: string|null, time_inferred: boolean }}
+ */
+export function resolveTribeTimes(ev = {}) {
+  if (ev.all_day !== true) {
+    return {
+      start_at:      tribeUtcToIso(ev.utc_start_date),
+      end_at:        tribeUtcToIso(ev.utc_end_date),
+      time_inferred: false,
+    }
+  }
+
+  // start_date is the ET wall date; utc_start_date of a midnight-ET all-day
+  // row shares that calendar date, so its date part is a safe fallback.
+  const startDate = ev.start_date || ev.utc_start_date
+  const start_at  = startDate ? easternToIso(startDate, ALL_DAY_START_TIME) : null
+
+  let end_at = null
+  if (ev.end_date && start_at) {
+    const [endDay, endClock] = String(ev.end_date).trim().split(/[ T]/)
+    end_at = easternToIso(endDay, endClock || ALL_DAY_END_TIME)
+    if (end_at && Date.parse(end_at) <= Date.parse(start_at)) end_at = null
+  }
+
+  return { start_at, end_at, time_inferred: true }
 }
