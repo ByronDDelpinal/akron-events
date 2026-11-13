@@ -39,12 +39,13 @@ import {
   CANCELLED_EVENT,
   CANCELLED_WITH_REASON,
   RESCHEDULED_EVENT,
+  ALL_DAY_EVENT,
   ALL_FIXTURES,
 } from './fixtures/library-events.js'
 
 // ── Import shared utilities (pure functions) ─────────────────────────────────
-import { stripHtml, easternToIso } from '../lib/normalize.js'
-import { BRANCH_INFO as SCRAPER_BRANCH_INFO, libnetStatus } from '../scrape-akron-library.js'
+import { stripHtml } from '../lib/normalize.js'
+import { BRANCH_INFO as SCRAPER_BRANCH_INFO, libnetStatus, libnetTimes } from '../scrape-akron-library.js'
 import { resolveNeighborhoodSlug } from '../lib/neighborhood-resolver.js'
 
 // Recognized Summit County places that map to a city hub or a regional rollup
@@ -241,8 +242,7 @@ function normalizeLibraryEvent(ev) {
   const title    = stripHtml(ev.title || '')
   const category = parseCategory(ev.tags, title)
   const tags     = parseTags(ev.tags, ev.age)
-  const startAt  = easternToIso(ev.raw_start_time)
-  const endAt    = easternToIso(ev.raw_end_time)
+  const { startAt, endAt, timeInferred } = libnetTimes(ev)
   const descText = stripHtml(ev.long_description || ev.description || '')
 
   if (!startAt) return null
@@ -262,6 +262,7 @@ function normalizeLibraryEvent(ev) {
     source:          'akron_library',
     source_id:       String(ev.id),
     status:          libnetStatus(ev),
+    time_inferred:   timeInferred ? true : undefined,
     featured:        false,
   }
 }
@@ -928,5 +929,71 @@ describe('Library: libnetStatus (cancellation flag)', () => {
   it('normalized row carries the cancelled status (never re-published by re-scrape)', () => {
     assert.equal(normalizeLibraryEvent(CANCELLED_EVENT).status, 'cancelled')
     assert.equal(normalizeLibraryEvent(RESCHEDULED_EVENT).status, 'published')
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// TESTS: All-day times — noon default, mirrors scrape-stow-library.js
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('Library: all-day times (SANCTIONED-DEFAULT-TIME)', () => {
+  it('pins an EST all-day program to noon Eastern with no end', () => {
+    const t = libnetTimes(ALL_DAY_EVENT)
+    assert.equal(t.startAt, '2027-02-27T17:00:00.000Z')
+    assert.equal(t.endAt, null)
+    assert.equal(t.timeInferred, true)
+  })
+
+  it('uses the EDT offset in summer', () => {
+    const t = libnetTimes({ ...ALL_DAY_EVENT, raw_start_time: '2026-07-15 00:00:00', raw_end_time: '2026-07-15 23:59:00' })
+    assert.equal(t.startAt, '2026-07-15T16:00:00.000Z')
+  })
+
+  it('lands on noon EDT on the spring-forward day', () => {
+    const t = libnetTimes({ ...ALL_DAY_EVENT, raw_start_time: '2027-03-14 00:00:00', raw_end_time: '2027-03-14 23:59:00' })
+    assert.equal(t.startAt, '2027-03-14T16:00:00.000Z')
+  })
+
+  it('accepts the "All day" label with any case and surrounding whitespace', () => {
+    const t = libnetTimes({ ...ALL_DAY_EVENT, time_string: ' all day ', raw_end_time: '' })
+    assert.equal(t.startAt, '2027-02-27T17:00:00.000Z')
+    assert.equal(t.timeInferred, true)
+  })
+
+  it('detects a same-date 00:00 → 23:59 span without a time_string', () => {
+    const { time_string: _ts, ...noLabel } = ALL_DAY_EVENT
+    for (const end of ['2027-02-27 23:59:00', '2027-02-27 23:59:59']) {
+      const t = libnetTimes({ ...noLabel, raw_end_time: end })
+      assert.equal(t.startAt, '2027-02-27T17:00:00.000Z', end)
+      assert.equal(t.endAt, null)
+      assert.equal(t.timeInferred, true)
+    }
+  })
+
+  it('does NOT treat a midnight start alone as all-day', () => {
+    const t = libnetTimes({ id: 1, raw_start_time: '2027-02-27 00:00:00', raw_end_time: '2027-02-27 01:30:00' })
+    assert.equal(t.startAt, '2027-02-27T05:00:00.000Z')
+    assert.equal(t.endAt, '2027-02-27T06:30:00.000Z')
+    assert.equal(t.timeInferred, false)
+  })
+
+  it('leaves a timed program unchanged', () => {
+    const t = libnetTimes(COMPLETE_EVENT)
+    assert.equal(t.startAt, '2026-05-15T18:00:00.000Z')
+    assert.equal(t.endAt, '2026-05-15T20:00:00.000Z')
+    assert.equal(t.timeInferred, false)
+    assert.equal(normalizeLibraryEvent(COMPLETE_EVENT).time_inferred, undefined)
+  })
+
+  it('still yields a null start for a row with no start time', () => {
+    assert.equal(libnetTimes(MISSING_START_TIME).startAt, null)
+    assert.equal(normalizeLibraryEvent(MISSING_START_TIME), null)
+  })
+
+  it('marks the row time_inferred and leaves the description to upsertEventSafe', () => {
+    const row = normalizeLibraryEvent(ALL_DAY_EVENT)
+    assert.equal(row.time_inferred, true)
+    assert.equal(row.description, 'Can you escape before time runs out?')
+    assert.equal(row.needs_review, undefined)
   })
 })

@@ -269,6 +269,23 @@ export const RESCHEDULED_EVENT = {
   changed_datestring: 'Tuesday, October 27',
 }
 
+// ── All-day program (SANCTIONED-DEFAULT-TIME) ────────────────────────────────
+// Shape captured from the live feed: Libnet has no all-day flag, it sends
+// `time_string: "All day"` with a 00:00:00 → 23:59:00 same-date span.
+export const ALL_DAY_EVENT = {
+  id: '17640642',
+  title: 'Teen Escape Room',
+  description: 'Can you escape before time runs out?',
+  time_string:    'All day',
+  raw_start_time: '2027-02-27 00:00:00',
+  raw_end_time:   '2027-02-27 23:59:00',
+  start_time:     '12:00am',
+  end_time:       '11:59pm',
+  location:       'Main Library',
+  tags:           'teens',
+  url:            'https://akronlibrary.libnet.info/event/17640642',
+}
+
 export const ALL_FIXTURES = [
   COMPLETE_EVENT,
   HTML_ENTITY_TITLE,

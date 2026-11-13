@@ -281,6 +281,51 @@ export function libnetStatus(ev) {
   return rescheduled ? 'published' : 'cancelled'
 }
 
+// SANCTIONED-DEFAULT-TIME — same product decision as scripts/lib/ics.js and
+// scripts/scrape-stow-library.js:282-342 (the precedent this mirrors). The
+// Libnet feed has no all-day flag: an all-day program arrives as
+// `time_string: "All day"` with `raw_start_time "… 00:00:00"` and
+// `raw_end_time "… 23:59:00"`. Stored at midnight it falls out of every feed
+// at 00:00:01 on the morning it happens (feeds filter `start_at >= now()`), so
+// it is pinned to noon Eastern instead. Noon is a default, not a confirmed
+// time: the row carries `time_inferred`, and upsertEventSafe
+// (scripts/lib/inferred-time.js) appends the disclosure note and sets
+// needs_review while respecting manual_overrides locks.
+const DATE_ONLY_DEFAULT_TIME = '12:00:00'
+
+/**
+ * Start/end instants for a raw Libnet row, defaulting all-day programs to noon.
+ *
+ * All-day when the feed says so (`time_string` "All day", case/space
+ * tolerant) or structurally: a same-date 00:00:00 → 23:59(:00|:59) span. A
+ * midnight start alone is NOT all-day — a genuine midnight program keeps its
+ * time. Times are never parsed out of description text.
+ *
+ * @param {object} ev — raw feed row
+ * @returns {{ startAt: string|null, endAt: string|null, timeInferred: boolean }}
+ */
+export function libnetTimes(ev) {
+  const rawStart = String(ev?.raw_start_time ?? '').trim()
+  const rawEnd   = String(ev?.raw_end_time ?? '').trim()
+  const labelledAllDay = /^all\s*day$/i.test(String(ev?.time_string ?? '').trim())
+  const spansWholeDay = rawStart.endsWith(' 00:00:00')
+    && (rawEnd.endsWith(' 23:59:00') || rawEnd.endsWith(' 23:59:59'))
+    && rawStart.split(' ')[0] === rawEnd.split(' ')[0]
+
+  if (rawStart && (labelledAllDay || spansWholeDay)) {
+    // Two-arg easternToIso: date from raw_start_time, time from us. An unknown
+    // end is honest; the source's 23:59 sentinel is not a real end time.
+    const startAt = easternToIso(rawStart.split(' ')[0], DATE_ONLY_DEFAULT_TIME)
+    return { startAt, endAt: null, timeInferred: startAt != null }
+  }
+
+  return {
+    startAt: easternToIso(ev?.raw_start_time),
+    endAt:   easternToIso(ev?.raw_end_time),
+    timeInferred: false,
+  }
+}
+
 export function parseTags(tagStr = '', ageStr = '') {
   const tags = []
   if (tagStr) tags.push(...tagStr.toLowerCase().split(',').map(t => t.trim()).filter(Boolean))
@@ -508,8 +553,7 @@ async function processEvents(rawEvents, organizerId) {
       // for every event until 2026-07-08 (Glow Party leaked past the no-kids
       // toggle with Ages "Tween, School Age, Preschool").
       const tags     = parseTags(ev.tags, ev.ages)
-      const startAt  = easternToIso(ev.raw_start_time)
-      const endAt    = easternToIso(ev.raw_end_time)
+      const { startAt, endAt, timeInferred } = libnetTimes(ev)
       let   descText = stripHtml(ev.long_description || ev.description || '')
       // Fall back to the library's event detail page when the API
       // returns no body — keeps storytimes and program announcements
@@ -545,6 +589,9 @@ async function processEvents(rawEvents, organizerId) {
         // schema.org eventStatus for the event page's JSON-LD; mirrors `status`
         // so an un-cancelled occurrence doesn't stay "cancelled" in search.
         event_status:    status === 'cancelled' ? 'cancelled' : 'scheduled',
+        // Noon is a default, not a confirmed time — surface for review via
+        // the shared time_inferred path (scripts/lib/inferred-time.js).
+        time_inferred:   timeInferred ? true : undefined,
         featured:        false,
       }
 
