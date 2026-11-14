@@ -122,9 +122,36 @@ describe('parseDateRange', () => {
     assert.equal(parseDateRange('VARIOUS', NOW), null)
     assert.equal(parseDateRange('', NOW), null)
   })
-  it('rolls the year forward when the month/day is already past', () => {
+  // Year inference uses the shared nearest-year rule (scripts/lib/year-inference.js,
+  // ±182 days): a just-past listing stays this year rather than jumping ~12
+  // months ahead; only a date well behind today rolls forward.
+  it('keeps a recently-past month/day in the current year (nearest year)', () => {
     const decNow = new Date('2026-12-01T12:00:00-05:00')
-    assert.deepEqual(parseDateRange('Oct 17', decNow), { startYmd: '2027-10-17', endYmd: null })
+    assert.deepEqual(parseDateRange('Oct 17', decNow), { startYmd: '2026-10-17', endYmd: null })
+  })
+  it('keeps a one-day-old listing in the current year', () => {
+    assert.deepEqual(parseDateRange('Oct 11', new Date('2026-10-12T12:00:00-04:00')), { startYmd: '2026-10-11', endYmd: null })
+    assert.deepEqual(parseDateRange('Oct 11', new Date('2026-10-25T12:00:00-04:00')), { startYmd: '2026-10-11', endYmd: null })
+  })
+  it('rolls forward when next year is the nearer occurrence', () => {
+    assert.deepEqual(parseDateRange('Feb 10', new Date('2026-11-14T12:00:00-05:00')), { startYmd: '2027-02-10', endYmd: null })
+    assert.deepEqual(parseDateRange('Jan 10', new Date('2026-12-20T12:00:00-05:00')), { startYmd: '2027-01-10', endYmd: null })
+  })
+  it('rolls back across New Year ("Dec 30" seen Jan 3 → previous year)', () => {
+    assert.deepEqual(parseDateRange('Dec 30', new Date('2027-01-03T12:00:00-05:00')), { startYmd: '2026-12-30', endYmd: null })
+  })
+  it('anchors a Dec→Jan cross-month range on the start year, before and during the run', () => {
+    const expected = { startYmd: '2026-12-30', endYmd: '2027-01-02' }
+    assert.deepEqual(parseDateRange('Dec 30-Jan 2', new Date('2026-12-15T12:00:00-05:00')), expected)
+    assert.deepEqual(parseDateRange('Dec 30-Jan 2', new Date('2027-01-01T12:00:00-05:00')), expected)
+  })
+  it('keeps a long range in progress in the current year (overlap-aware)', () => {
+    assert.deepEqual(parseDateRange('Mar 1-Oct 31', new Date('2026-10-15T12:00:00-04:00')), { startYmd: '2026-03-01', endYmd: '2026-10-31' })
+    assert.deepEqual(parseDateRange('Jun 1-Dec 31', new Date('2026-12-20T12:00:00-05:00')), { startYmd: '2026-06-01', endYmd: '2026-12-31' })
+  })
+  it('returns null for an impossible date (Feb 29 in a non-leap year)', () => {
+    assert.equal(parseDateRange('Feb 29', new Date('2026-11-14T12:00:00-05:00')), null)
+    assert.equal(parseDateRange('Feb 27-29', new Date('2026-11-14T12:00:00-05:00')), null)
   })
 })
 
@@ -197,6 +224,19 @@ describe('buildRow', () => {
     assert.equal(row.start_at, '2026-10-11T18:00:00.000Z') // 2 PM EDT → 18:00Z
     assert.equal(row.end_at, '2026-10-11T20:00:00.000Z')   // 4 PM EDT → 20:00Z
     assert.equal(row.needs_review, undefined)
+  })
+
+  it('keeps the same source_id when re-scraped the day after the event', () => {
+    const d = parseDetail(TRICK)
+    const row = buildRow({ slug: 'downtown-trick-or-treat', ...d }, { now: new Date('2026-10-12T12:00:00-04:00') })
+    assert.equal(row.source_id, 'downtown-trick-or-treat-2026-10-11')
+    assert.equal(row.start_at, '2026-10-11T18:00:00.000Z')
+  })
+
+  it('keeps the same source_id for an upcoming event inside the window', () => {
+    const row = buildRow({ slug: 'tree-lighting', title: 'Tree Lighting', dateText: 'Nov 28', timeText: '4:30-7PM' },
+      { now: new Date('2026-11-14T12:00:00-05:00') })
+    assert.equal(row.source_id, 'tree-lighting-2026-11-28')
   })
 
   it('returns null when the date cannot be parsed', () => {

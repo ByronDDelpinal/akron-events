@@ -27,9 +27,17 @@
  * Parsing decisions:
  *   • Date — a single day is that day; a range ("Sept 18-20") becomes a
  *     multi-day event with start = first day and end = last day. The site never
- *     prints a year, so we infer it by anchoring to Eastern "today" and rolling
- *     forward when the month/day is already past (same approach as
- *     scrape-downtown-akron.js's reconstructDate).
+ *     prints a year. A single day uses the shared inferYearForMonthDay
+ *     (scripts/lib/year-inference.js): the occurrence nearest Eastern "today",
+ *     so a just-past listing stays this year instead of jumping ~12 months
+ *     ahead, and an early-January "Dec 30" resolves to last year. A range picks
+ *     the year whose whole start..end span is nearest today (distance 0 while
+ *     today is inside it; ties → the future year), so "Mar 1-Oct 31" seen in
+ *     October stays this year; the end is +1 year only when the range wraps
+ *     December→January. LIMIT: nearest-year means a listing posted more than
+ *     ~182 days ahead of its date is read as LAST year's (past) occurrence —
+ *     acceptable for this site, which lists only the current season.
+ *     Impossible dates (Feb 29 in a non-leap year) return null.
  *   • Time — a stated range ("3-8PM") gives a real start (3:00 PM) and end
  *     (8:00 PM). "Varies"/absent states NO clock time; rather than silently
  *     fabricating one we apply the SANCTIONED-DEFAULT-TIME convention (midday
@@ -50,6 +58,7 @@ import {
   ensureVenue, ensureOrganization,
 } from './lib/normalize.js'
 import { classifySummitLocation } from './lib/summit-county.js'
+import { inferYearForMonthDay } from './lib/year-inference.js'
 
 export const SOURCE_KEY = 'downtown_cf'
 const BASE_URL   = 'https://www.downtowncf.com'
@@ -103,16 +112,30 @@ function monthIndex(token) {
   return key in MONTHS ? MONTHS[key] : null
 }
 
+/** True when y/m0/d is a real calendar date (rejects Feb 29 in a non-leap year). */
+function isRealDate(y, m0, d) {
+  const t = new Date(Date.UTC(y, m0, d))
+  return t.getUTCFullYear() === y && t.getUTCMonth() === m0 && t.getUTCDate() === d
+}
+
 /**
- * Infer the calendar year for a month/day with no year printed. Anchored to
- * Eastern "today"; if the month/day already passed this year, roll to next.
- * Numbers on both sides — never a Date compared against a string.
+ * Yearless range (0-based months) → { startYmd, endYmd }, choosing the year
+ * whose whole span is nearest Eastern today (0 when today is inside it; ties →
+ * later year). End is +1 year when the range wraps Dec→Jan. Null if invalid.
  */
-function inferYear(monthIdx, day, now) {
+function rangeYmd(m1, d1, m2, d2, now) {
   const [ty, tm, td] = easternTodayIso(now).split('-').map(Number)
-  let year = ty
-  if (Date.UTC(year, monthIdx, day) < Date.UTC(ty, tm - 1, td)) year++
-  return year
+  const today = Date.UTC(ty, tm - 1, td)
+  let best = null, bestDist = Infinity
+  for (const y1 of [ty - 1, ty, ty + 1]) {
+    const y2 = m2 < m1 ? y1 + 1 : y1
+    const start = Date.UTC(y1, m1, d1), end = Date.UTC(y2, m2, d2)
+    const dist = today < start ? start - today : today > end ? today - end : 0
+    if (dist <= bestDist) { bestDist = dist; best = [y1, y2] }
+  }
+  const [y1, y2] = best
+  if (!isRealDate(y1, m1, d1) || !isRealDate(y2, m2, d2)) return null
+  return { startYmd: `${y1}-${pad(m1 + 1)}-${pad(d1)}`, endYmd: `${y2}-${pad(m2 + 1)}-${pad(d2)}` }
 }
 
 /**
@@ -133,9 +156,7 @@ export function parseDateRange(dateText, now = new Date()) {
     const m1 = monthIndex(m[1]), m2 = monthIndex(m[3])
     if (m1 == null || m2 == null) return null
     const d1 = parseInt(m[2], 10), d2 = parseInt(m[4], 10)
-    const y1 = inferYear(m1, d1, now)
-    const y2 = m2 < m1 ? y1 + 1 : y1
-    return { startYmd: `${y1}-${pad(m1 + 1)}-${pad(d1)}`, endYmd: `${y2}-${pad(m2 + 1)}-${pad(d2)}` }
+    return rangeYmd(m1, d1, m2, d2, now)
   }
 
   // Same-month range: "Sept 18-20"
@@ -144,8 +165,7 @@ export function parseDateRange(dateText, now = new Date()) {
     const mi = monthIndex(m[1])
     if (mi == null) return null
     const d1 = parseInt(m[2], 10), d2 = parseInt(m[3], 10)
-    const y = inferYear(mi, d1, now)
-    return { startYmd: `${y}-${pad(mi + 1)}-${pad(d1)}`, endYmd: `${y}-${pad(mi + 1)}-${pad(d2)}` }
+    return rangeYmd(mi, d1, mi, d2, now)
   }
 
   // Single day: "Oct 17"
@@ -154,7 +174,8 @@ export function parseDateRange(dateText, now = new Date()) {
     const mi = monthIndex(m[1])
     if (mi == null) return null
     const d = parseInt(m[2], 10)
-    const y = inferYear(mi, d, now)
+    const y = inferYearForMonthDay(mi + 1, d, now) // month index is 0-based; helper is 1-based
+    if (!isRealDate(y, mi, d)) return null
     return { startYmd: `${y}-${pad(mi + 1)}-${pad(d)}`, endYmd: null }
   }
 
