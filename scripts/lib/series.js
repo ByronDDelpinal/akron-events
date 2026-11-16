@@ -62,14 +62,15 @@ export const TEMPLATE_COPY_COLUMNS = [
  * database defaults (id, created_at, updated_at), admin-only paths
  * (reviewed_at, reviewed_by), trigger-maintained (start_hour_et,
  * title_normalized, description_normalized, category_slugs), generated
- * always (banner_eligible), or not a join key (slug). `category` was dropped
+ * always (banner_eligible), not a join key (slug), or the fingerprint of a
+ * scraper payload that a copied row never had (content_hash). `category` was dropped
  * from the table entirely. Exported so the tests assert against the same list
  * the code is written from.
  */
 export const NEVER_COPY_COLUMNS = [
   'id', 'created_at', 'updated_at', 'reviewed_at', 'reviewed_by',
   'start_hour_et', 'title_normalized', 'description_normalized',
-  'category_slugs', 'banner_eligible', 'slug', 'category',
+  'category_slugs', 'banner_eligible', 'slug', 'category', 'content_hash',
 ]
 
 /** The four junction tables that reference events(id), copied forward verbatim. */

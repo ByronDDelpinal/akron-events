@@ -6,7 +6,9 @@
  *     event_areas) and manual_overrides protection.
  */
 
+import { createHash } from 'node:crypto'
 import { supabaseAdmin } from './supabase-admin.js'
+import { fetchAllRows } from './paginate.js'
 import { screenEvent } from './content-moderation.js'
 import { getImageDimensions } from './image-dimensions.js'
 import { normalizeImageUrl } from './image-url-normalizer.js'
@@ -448,6 +450,8 @@ export async function enrichWithImageDimensions(row, opts = {}) {
  */
 async function _getExistingImageMeta(source, sourceId) {
   if (!source || !sourceId) return null
+  const snapshot = await _snapshotEntry(source, sourceId)
+  if (snapshot) return snapshot
   try {
     const { data, error } = await supabaseAdmin
       .from('events')
@@ -2255,7 +2259,7 @@ export async function upsertEventSafe(row) {
     console.warn(`  ⚠ content moderation skipped (non-fatal): ${err.message}`)
   }
 
-  const { row: safeRow, existed, overrides, lookupFailed } = await _stripOverriddenFields('events', sanitized)
+  const { row: safeRow, existed, overrides, lookupFailed, snapshot } = await _stripOverriddenFields('events', sanitized)
 
   // A human-locked start_at is a settled time, invented or not — re-flagging
   // it for review on every re-scrape is exactly the false-positive pattern
@@ -2326,6 +2330,19 @@ export async function upsertEventSafe(row) {
     }
   }
 
+  // ── Unchanged-event skip ─────────────────────────────────────────────────
+  // Same payload and categories as the last write for this (source,
+  // source_id): write nothing. Counted as an update (the row was re-seen) and
+  // separately as unchanged, so scraper_runs totals keep their meaning. See
+  // the PER-SOURCE SNAPSHOT block for the design and the kill switch.
+  const contentHash = computeEventContentHash(safeRow, categories)
+  if (existed && snapshot?.id && snapshot.content_hash === contentHash) {
+    _recordUpsertObservation(safeRow.source, false)
+    _observedUnchanged.set(safeRow.source, (_observedUnchanged.get(safeRow.source) ?? 0) + 1)
+    return { data: { id: snapshot.id }, error: null, isNew: false, unchanged: true }
+  }
+  safeRow.content_hash = contentHash
+
   const { data, error } = await supabaseAdmin
     .from('events')
     .upsert(safeRow, { onConflict: 'source,source_id', ignoreDuplicates: false })
@@ -2335,7 +2352,36 @@ export async function upsertEventSafe(row) {
   // Sync the content axis into the event_categories join table, unless an admin
   // has manually locked categories on this event.
   if (!error && data?.id) {
-    await syncEventCategories(data.id, categories)
+    // Hand over what this function already knows so the sync needs no read of
+    // its own: the lock state (unless the lookup failed) and, for a new row
+    // or a snapshot row, the categories currently stored.
+    const known = lookupFailed
+      ? undefined
+      : { overrides: overrides ?? null, current: existed ? snapshot?.categories : [] }
+    const applied = await syncEventCategories(data.id, categories, known)
+
+    // Keep the snapshot true to what was just written, so a source that lists
+    // the same event twice in one run does not write it twice.
+    const snapshotMap = await _getSourceSnapshot(safeRow.source)
+    if (snapshotMap) {
+      const field = (key) => (key in safeRow ? safeRow[key] : snapshot?.[key])
+      snapshotMap.set(String(safeRow.source_id), {
+        id: data.id,
+        source_id: String(safeRow.source_id),
+        content_hash: contentHash,
+        manual_overrides: overrides ?? null,
+        title: safeRow.title,
+        start_at: safeRow.start_at,
+        image_url: field('image_url'),
+        image_width: field('image_width'),
+        image_height: field('image_height'),
+        image_file_size: field('image_file_size'),
+        categories: applied ? [...new Set(categories)] : undefined,
+      })
+      if (!existed && !_knownEventLinks.has(data.id)) {
+        _knownEventLinks.set(data.id, { venues: new Set(), orgs: new Set() })
+      }
+    }
   }
 
   // isNew distinguishes insert from update: the upsert returns the row either
@@ -2354,27 +2400,73 @@ export async function upsertEventSafe(row) {
 }
 
 /**
- * Replace an event's content categories in the join table to match `categories`
- * (1–2 slugs). Skips entirely when the event has a manual category override, so
- * admin edits aren't clobbered by a re-scrape. Idempotent.
+ * Make an event's content categories in the join table match `categories`
+ * (1–2 slugs), writing only the difference. Skips entirely when the event has
+ * a manual category override, so admin edits aren't clobbered by a re-scrape.
+ * Idempotent: a matching set costs no write.
+ *
+ * Why a difference and not delete-then-insert: every row deleted or inserted
+ * in event_categories fires a trigger that rewrites the parent `events` row
+ * (category_slugs). Replacing an unchanged set rewrote each event twice or
+ * more per night for nothing.
+ *
+ * `known` lets a caller that already holds the event's state skip the read:
+ *   known.overrides  the event's manual_overrides (null when it has none)
+ *   known.current    the category slugs stored now ([] for a new event);
+ *                    leave undefined when not known and they are read here.
+ *
+ * Returns true when the stored set now equals `categories`, false when it was
+ * left alone (admin lock, bad input) or a write failed.
  */
-export async function syncEventCategories(eventId, categories) {
-  if (!eventId || !Array.isArray(categories) || categories.length === 0) return
+export async function syncEventCategories(eventId, categories, known) {
+  if (!eventId || !Array.isArray(categories) || categories.length === 0) return false
   try {
-    const { data: existing } = await supabaseAdmin
-      .from('events')
-      .select('manual_overrides')
-      .eq('id', eventId)
-      .maybeSingle()
-    const ov = existing?.manual_overrides
-    if (ov && ('categories' in ov || 'category' in ov)) return // admin-locked
+    let overrides = known?.overrides
+    let current   = known?.current
+    if (!known || current === undefined) {
+      const { data: existing } = await supabaseAdmin
+        .from('events')
+        .select('manual_overrides, event_categories(category)')
+        .eq('id', eventId)
+        .maybeSingle()
+      if (!known) overrides = existing?.manual_overrides
+      current = Array.isArray(existing?.event_categories)
+        ? existing.event_categories.map((c) => c.category)
+        : null
+    }
+    if (overrides && ('categories' in overrides || 'category' in overrides)) return false // admin-locked
 
-    await supabaseAdmin.from('event_categories').delete().eq('event_id', eventId)
-    const rows = categories.map((category) => ({ event_id: eventId, category }))
-    const { error } = await supabaseAdmin.from('event_categories').insert(rows)
-    if (error) console.warn(`  ⚠ syncEventCategories failed: ${error.message}`)
+    const wanted = [...new Set(categories)]
+
+    // Stored set unknown (the read returned nothing usable): replace it whole,
+    // which is correct whatever is there.
+    if (current == null) {
+      await supabaseAdmin.from('event_categories').delete().eq('event_id', eventId)
+      const { error } = await supabaseAdmin
+        .from('event_categories')
+        .insert(wanted.map((category) => ({ event_id: eventId, category })))
+      if (error) { console.warn(`  ⚠ syncEventCategories failed: ${error.message}`); return false }
+      return true
+    }
+
+    const toDelete = current.filter((c) => !wanted.includes(c))
+    const toInsert = wanted.filter((c) => !current.includes(c))
+    // Deletes first: the two-category cap is enforced by a trigger on insert.
+    if (toDelete.length > 0) {
+      const { error } = await supabaseAdmin
+        .from('event_categories').delete().eq('event_id', eventId).in('category', toDelete)
+      if (error) { console.warn(`  ⚠ syncEventCategories failed: ${error.message}`); return false }
+    }
+    if (toInsert.length > 0) {
+      const { error } = await supabaseAdmin
+        .from('event_categories')
+        .insert(toInsert.map((category) => ({ event_id: eventId, category })))
+      if (error) { console.warn(`  ⚠ syncEventCategories failed: ${error.message}`); return false }
+    }
+    return true
   } catch (err) {
     console.warn(`  ⚠ syncEventCategories exception: ${err.message}`)
+    return false
   }
 }
 
@@ -2473,12 +2565,17 @@ async function _flagVenueNeedsReview(eventId) {
  */
 export async function linkEventVenue(eventId, venueId) {
   if (!eventId || !venueId) return
-  const { error } = await supabaseAdmin
-    .from('event_venues')
-    .upsert({ event_id: eventId, venue_id: venueId }, { onConflict: 'event_id,venue_id', ignoreDuplicates: true })
-  if (error) {
-    console.warn(`  ⚠ linkEventVenue failed: ${error.message}`)
-    return
+  // Already linked according to this run's snapshot: no request needed.
+  const links = _knownEventLinks.get(eventId)
+  if (!links?.venues.has(venueId)) {
+    const { error } = await supabaseAdmin
+      .from('event_venues')
+      .upsert({ event_id: eventId, venue_id: venueId }, { onConflict: 'event_id,venue_id', ignoreDuplicates: true })
+    if (error) {
+      console.warn(`  ⚠ linkEventVenue failed: ${error.message}`)
+      return
+    }
+    links?.venues.add(venueId)
   }
 
   try {
@@ -2500,12 +2597,19 @@ export async function linkEventVenue(eventId, venueId) {
  */
 export async function setEventVenue(eventId, venueId) {
   if (!eventId || !venueId) return
+  // Already the event's only venue according to this run's snapshot.
+  const links = _knownEventLinks.get(eventId)
+  if (links && links.venues.size === 1 && links.venues.has(venueId)) {
+    await linkEventVenue(eventId, venueId)
+    return
+  }
   const { error: delErr } = await supabaseAdmin
     .from('event_venues')
     .delete()
     .eq('event_id', eventId)
     .neq('venue_id', venueId)
   if (delErr) console.warn(`  ⚠ setEventVenue cleanup failed: ${delErr.message}`)
+  else if (links) links.venues = new Set([...links.venues].filter((v) => v === venueId))
   await linkEventVenue(eventId, venueId)
 }
 
@@ -2575,10 +2679,15 @@ export async function linkEventOrganization(eventId, organizationId, opts = {}) 
     }
   }
 
+  // Already linked according to this run's snapshot: no request needed.
+  const links = _knownEventLinks.get(eventId)
+  if (links?.orgs.has(organizationId)) return
+
   const { error } = await supabaseAdmin
     .from('event_organizations')
     .upsert({ event_id: eventId, organization_id: organizationId }, { onConflict: 'event_id,organization_id', ignoreDuplicates: true })
   if (error) console.warn(`  ⚠ linkEventOrganization failed: ${error.message}`)
+  else links?.orgs.add(organizationId)
 }
 
 /**
@@ -2671,25 +2780,155 @@ export function hasStatusOverride(row) {
   return !!overrides && typeof overrides === 'object' && Object.prototype.hasOwnProperty.call(overrides, 'status')
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// PER-SOURCE SNAPSHOT + UNCHANGED-EVENT SKIP
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Before this, every event a scraper saw cost ~7 sequential REST round trips
+// and ~3 full rewrites of its `events` row, changed or not (incident
+// 2026-11-15: ~15,000 row versions a night into a 19,672-row table on Micro
+// compute). Now:
+//
+//   1. The first time a source is touched in a run, ONE paginated read loads
+//      every row that source already has: identity, overrides, the stored
+//      content hash, image fields, and the three link sets.
+//   2. upsertEventSafe hashes the exact payload it is about to write (after
+//      sanitizing and the manual-override strip) plus its resolved categories.
+//      Same hash as the stored one => nothing is written at all.
+//   3. The link helpers skip their upsert when the snapshot already shows the
+//      link, and syncEventCategories writes only the difference.
+//
+// What the skip changes on purpose: an edit made in the database (a sweep
+// publish, an admin cancel) now survives until the SOURCE changes, instead of
+// being overwritten by an identical re-scrape every night.
+//
+// Fail-safe by construction: any problem loading the snapshot resolves to
+// null and every caller falls back to the per-event reads it replaced. A
+// snapshot miss is never read as "this event does not exist".
+//
+// Kill switch: DISABLE_UNCHANGED_SKIP=1 turns the snapshot, the skip and the
+// link short-circuits off together (the pre-2026-11-15 write path).
+//
+// Bump EVENT_HASH_VERSION to force one full rewrite of every event, e.g.
+// after a change to a database trigger that derives columns from the payload.
+export const EVENT_HASH_VERSION = 1
+
+const EVENT_SNAPSHOT_COLS =
+  'id, source_id, content_hash, manual_overrides, title, start_at, ' +
+  'image_url, image_width, image_height, image_file_size, ' +
+  'event_categories(category), event_venues(venue_id), event_organizations(organization_id)'
+
+const _sourceSnapshots   = new Map() // source → Promise<Map<source_id, entry> | null>
+const _knownEventLinks   = new Map() // eventId → { venues: Set, orgs: Set }
+const _observedUnchanged = new Map() // source → count of skipped-as-unchanged rows
+
+function _canonicalJson(value) {
+  if (value === null || value === undefined) return 'null'
+  if (value instanceof Date) return JSON.stringify(value.toISOString())
+  if (Array.isArray(value)) return '[' + value.map(_canonicalJson).join(',') + ']'
+  if (typeof value === 'object') {
+    const keys = Object.keys(value).filter((k) => value[k] !== undefined).sort()
+    return '{' + keys.map((k) => JSON.stringify(k) + ':' + _canonicalJson(value[k])).join(',') + '}'
+  }
+  return JSON.stringify(value)
+}
+
+/**
+ * Stable fingerprint of what a scraper is about to write for one event: the
+ * events payload (key order irrelevant, undefined keys ignored) plus its
+ * content categories (order irrelevant). `content_hash` itself is excluded.
+ */
+export function computeEventContentHash(row, categories = []) {
+  const payload = { ...row }
+  delete payload.content_hash
+  const canonical = _canonicalJson({ row: payload, categories: [...categories].sort() })
+  return `v${EVENT_HASH_VERSION}:` + createHash('sha256').update(canonical).digest('hex').slice(0, 32)
+}
+
+async function _loadSourceSnapshot(source) {
+  try {
+    const rows = await fetchAllRows((from, to) =>
+      supabaseAdmin
+        .from('events')
+        .select(EVENT_SNAPSHOT_COLS)
+        .eq('source', source)
+        .order('id')
+        .range(from, to))
+    const map = new Map()
+    for (const r of rows) {
+      // Anything that is not the shape we asked for means the read cannot be
+      // trusted as a picture of this source: use none of it.
+      if (!r || !r.id || r.source_id == null) return null
+      const list = (rel, key) => (Array.isArray(r[rel]) ? r[rel].map((x) => x[key]) : undefined)
+      const venues = list('event_venues', 'venue_id')
+      const orgs   = list('event_organizations', 'organization_id')
+      if (venues && orgs) _knownEventLinks.set(r.id, { venues: new Set(venues), orgs: new Set(orgs) })
+      map.set(String(r.source_id), {
+        id: r.id,
+        source_id: String(r.source_id),
+        content_hash: r.content_hash ?? null,
+        manual_overrides: r.manual_overrides ?? null,
+        title: r.title,
+        start_at: r.start_at,
+        image_url: r.image_url,
+        image_width: r.image_width,
+        image_height: r.image_height,
+        image_file_size: r.image_file_size,
+        categories: list('event_categories', 'category'),
+      })
+    }
+    return map
+  } catch {
+    return null
+  }
+}
+
+function _getSourceSnapshot(source) {
+  if (!source || process.env.DISABLE_UNCHANGED_SKIP) return Promise.resolve(null)
+  if (!_sourceSnapshots.has(source)) _sourceSnapshots.set(source, _loadSourceSnapshot(source))
+  return _sourceSnapshots.get(source)
+}
+
+async function _snapshotEntry(source, sourceId) {
+  const snapshot = await _getSourceSnapshot(source)
+  return snapshot?.get(String(sourceId)) ?? null
+}
+
+/** Test-only: forget every per-source snapshot, known link and unchanged tally. */
+export function _resetSourceSnapshots() {
+  _sourceSnapshots.clear()
+  _knownEventLinks.clear()
+  _observedUnchanged.clear()
+}
+
 async function _stripOverriddenFields(table, row) {
   // Only events have source/source_id for lookup
   if (table !== 'events' || !row.source || !row.source_id) return { row, existed: false, lookupFailed: true }
 
   try {
-    const { data: existing } = await supabaseAdmin
-      .from('events')
-      // title/start_at come back so an override on either can be backfilled
-      // into the payload instead of deleted — see REQUIRED_EVENT_COLUMNS.
-      .select('id, manual_overrides, title, start_at')
-      .eq('source', row.source)
-      .eq('source_id', row.source_id)
-      .maybeSingle()
+    // The per-source snapshot (one paginated read per source per run) answers
+    // this for every row the source already has. The per-event read below
+    // only runs on a snapshot miss: a genuinely new event, or a run where the
+    // snapshot could not be loaded.
+    const snapshot = await _snapshotEntry(row.source, row.source_id)
+    let existing = snapshot
+    if (!existing) {
+      const { data } = await supabaseAdmin
+        .from('events')
+        // title/start_at come back so an override on either can be backfilled
+        // into the payload instead of deleted — see REQUIRED_EVENT_COLUMNS.
+        .select('id, manual_overrides, title, start_at')
+        .eq('source', row.source)
+        .eq('source_id', row.source_id)
+        .maybeSingle()
+      existing = data
+    }
 
     const existed = !!existing
     // Seed the per-run cache so the attribution lock in linkEventOrganization
     // — which runs a few lines later in every scraper — costs no second read.
     if (existing?.id) _eventOverridesCache.set(existing.id, existing.manual_overrides ?? null)
-    if (!existing?.manual_overrides) return { row, existed, overrides: existing?.manual_overrides ?? null }
+    if (!existing?.manual_overrides) return { row, existed, overrides: existing?.manual_overrides ?? null, snapshot }
 
     const overrides = existing.manual_overrides
     const filtered = { ...row }
@@ -2730,7 +2969,7 @@ async function _stripOverriddenFields(table, row) {
 
       if (field in filtered) delete filtered[field]
     }
-    return { row: filtered, existed, overrides }
+    return { row: filtered, existed, overrides, snapshot }
   } catch {
     // If lookup fails, proceed with full row (safe default) but mark it so
     // callers that gate on manual_overrides (e.g. the inferred-time
@@ -2770,6 +3009,7 @@ function _recordUpsertObservation(source, isNew) {
 /** Test-only: clear all observed tallies between test cases. */
 export function _resetUpsertObservations() {
   _observedUpserts.clear()
+  _observedUnchanged.clear()
 }
 
 /** Test-only: snapshot the current observed tallies (does not consume them). */
@@ -2817,9 +3057,16 @@ export async function logUpsertResult(source, inserted, updated, skipped, opts =
     _observedUpserts.delete(source)
   }
 
+  // Rows re-seen with an identical payload and therefore not written. A
+  // subset of finalUpdated, reported on its own so "nothing changed" is
+  // distinguishable from "everything was rewritten".
+  const unchanged = _observedUnchanged.get(source) ?? 0
+  _observedUnchanged.delete(source)
+
   const icon = status === 'error' ? '❌' : '✓'
   console.log(
     `[${source}] ${icon}  ${finalInserted} inserted  ${finalUpdated} updated  ${skipped} skipped` +
+    (unchanged > 0 ? `  (${unchanged} of the updated unchanged, not written)` : '') +
     (eventsFound !== finalInserted + finalUpdated + skipped ? `  (${eventsFound} total from source)` : '') +
     (durationMs != null ? `  [${(durationMs / 1000).toFixed(1)}s]` : '')
   )
@@ -2834,6 +3081,7 @@ export async function logUpsertResult(source, inserted, updated, skipped, opts =
         events_inserted: finalInserted,
         events_updated:  finalUpdated,
         events_skipped:  skipped,
+        events_unchanged: unchanged,
         error_message:   errorMessage,
         duration_ms:     durationMs,
       })

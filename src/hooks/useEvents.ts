@@ -6,6 +6,7 @@ import { applyBrowseVisibility } from '@/lib/browseVisibility'
 import { dateRangeBounds } from '@/lib/dateRange'
 import { easternIsoAt } from '@/lib/easternDate'
 import { timeOfDayBounds, type TimeOfDayId } from '@/lib/whenFilter'
+import { withOneRetry } from '@/lib/queryRetry'
 import { useAsync } from './useAsync'
 
 /**
@@ -58,47 +59,58 @@ function errorMessage(err: unknown, fallback: string): string {
   return fallback
 }
 
-/**
- * Normalize a search term for accent-insensitive matching against the
- * title_normalized / description_normalized columns in Postgres.
- *
- * Strategy mirrors the DB trigger (unaccent + lower):
- *   "Pokémon" → NFD decompose → strip combining diacritics → lowercase → "pokemon"
- *   "Pokemon" →                                                           "pokemon"
- *
- * Both resolve to the same form, so either spelling finds "Pokémon Club".
- */
-function normalizeSearch(term: string): string {
-  return term
-    .normalize('NFD')              // decompose: é → e + U+0301 combining acute
-    .replace(/\p{Diacritic}/gu, '') // strip all combining diacritic marks
-    .toLowerCase()
+/** True when a search term is active (non-blank after trimming). */
+function isSearching(search: string | null | undefined): search is string {
+  return !!search && search.trim().length > 0
 }
 
-/** Escape POSIX-regex metacharacters so a user term is matched literally. */
-function regexEscape(term: string): string {
-  return term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+interface EventSourceOptions {
+  search: string | null | undefined
+  /** The start_at floor this result set is pinned to (see floorRef). */
+  floorIso: string
+  neighborhoodSlug: string | null | undefined
+  venueCities: string[]
+  withCount: boolean
 }
 
 /**
- * Build the PostgREST `.or()` filter that searches a term against the
- * title_normalized / description_normalized columns.
+ * Start an events query: the plain `events` table, or — when a search term is
+ * active — the `search_events` RPC (migration 074).
  *
- * Uses a word-boundary regex (`\y…\y`, the POSIX `~` operator) instead of an
- * unbounded substring `ilike.*term*`. Substring matching was the root cause of
- * bad search relevance: searching "improv" (a comedy seeker) matched every
- * description containing "improve", "improvement", "improving", etc. — 72
- * results, 71 of them noise. Word-boundary matching only hits "improv" as a
- * whole word, cutting that to the 6 genuinely improv/comedy events while
- * leaving unaffected terms (e.g. "comedy") completely unchanged.
+ * Why search is an RPC and not a filter on the table: a text-match filter on
+ * `events` (the old word-boundary regex, or a full-text `@@`) is a
+ * non-leakproof operator, and under RLS Postgres will not use an index for
+ * one. It applied the policy first and then ran the match over every upcoming
+ * row, descriptions included — the scan that hit anon's 3s statement timeout
+ * on 2026-11-12. `search_events` is SECURITY DEFINER over a full-text index,
+ * hard-codes the same published-only rule as the policy, and returns SETOF
+ * events, so every filter / order / embed / count chained after this applies
+ * exactly as it does on the table.
  *
- * The term is regex-escaped so metacharacters are matched literally, and it's
- * already lowercased/unaccented to mirror the *_normalized columns (so the
- * case-sensitive `match` operator is correct and cheaper than `imatch`).
+ * Matching: the term must appear as a phrase of whole words in the title,
+ * description or tags ("improv" does not match "improve"). Case, accents,
+ * apostrophes and punctuation are ignored. All normalization happens in SQL
+ * (search_normalize + event_search_tsv), so the trimmed term is sent as typed.
+ *
+ * One PostgREST limit shapes the callers: embedded-resource filters
+ * (`event_venues.venues.city=…`, `_catfilter.category=…`) are rejected on an
+ * RPC result. So while searching, the venue scope travels as `p_neighborhood`
+ * / `p_cities`, and the category filter uses the denormalized
+ * `category_slugs` column (see applyCategoryFilter).
  */
-function buildSearchOr(term: string): string {
-  const pattern = `\\y${regexEscape(term)}\\y`
-  return `title_normalized.match.${pattern},description_normalized.match.${pattern}`
+function selectEvents(columns: string, opts: EventSourceOptions): LooseQuery {
+  const countOption = opts.withCount ? { count: 'exact' as const } : undefined
+  if (!isSearching(opts.search)) {
+    return supabase.from('events').select(columns, countOption)
+  }
+  const args: Record<string, unknown> = { p_term: opts.search.trim(), p_floor: opts.floorIso }
+  if (opts.neighborhoodSlug) args.p_neighborhood = opts.neighborhoodSlug
+  if (opts.venueCities.length > 0) args.p_cities = opts.venueCities
+  // Cast: search_events is newer than the generated Database types. `get`
+  // keeps it a plain GET (read-only transaction, same as the table read).
+  return (supabase as LooseQuery)
+    .rpc('search_events', args, { get: true, ...countOption })
+    .select(columns)
 }
 
 export const PAGE_SIZE = 24
@@ -114,18 +126,20 @@ export const PAGE_SIZE = 24
  *     used purely to filter the parent down to events that have at least one
  *     of the requested categories.
  */
-function categorySelectFragment(categories: string[]): string {
-  const filterEmbed = categories.length > 0
+function categorySelectFragment(categories: string[], searching: boolean): string {
+  const filterEmbed = categories.length > 0 && !searching
     ? '_catfilter:event_categories!inner ( category ),'
     : ''
   return `${filterEmbed} event_categories ( category ),`
 }
 
-function applyCategoryFilter(query: LooseQuery, categories: string[]): LooseQuery {
-  if (categories.length > 0) {
-    query = query.in('_catfilter.category', categories)
-  }
-  return query
+function applyCategoryFilter(query: LooseQuery, categories: string[], searching: boolean): LooseQuery {
+  if (categories.length === 0) return query
+  // Search runs through an RPC, where PostgREST rejects embedded-resource
+  // filters. category_slugs is the trigger-maintained mirror of
+  // event_categories (migration 039), so overlap on it is the same any-match.
+  if (searching) return query.overlaps('category_slugs', categories)
+  return query.in('_catfilter.category', categories)
 }
 
 export interface UseEventsOptions {
@@ -275,7 +289,10 @@ export function useEvents({
         // The venue embed is an inner join only when neighborhoodSlug is
         // set — that flips PostgREST into "filter the parent by the
         // child" mode and lets us hand the slug constraint to Postgres.
-        const useInnerVenue = !!neighborhoodSlug || venueCities.length > 0
+        // While searching, the venue scope is applied inside search_events
+        // (p_neighborhood / p_cities) instead — see selectEvents.
+        const searching = isSearching(search)
+        const useInnerVenue = !searching && (!!neighborhoodSlug || venueCities.length > 0)
         const venueJoin = useInnerVenue ? 'event_venues!inner' : 'event_venues'
         const venueTbl  = useInnerVenue ? 'venues!inner'      : 'venues'
 
@@ -291,15 +308,12 @@ export function useEvents({
         // tail fetch whose total already came from the cached head — is pure
         // overhead. Later pages reuse the page-one total (held in state) for
         // hasMore, so they skip the count entirely.
-        const countOption = withCount ? { count: 'exact' as const } : undefined
-        let query: LooseQuery = supabase
-          .from('events')
-          .select(`
+        let query: LooseQuery = selectEvents(`
             ${EVENT_LIST_COLUMNS},
-            ${categorySelectFragment(categories)}
+            ${categorySelectFragment(categories, searching)}
             ${venueJoin} ( venue:${venueTbl} ( id, name, address, city, state, zip, lat, lng, parking_type, parking_notes, website, image_url, neighborhood_slug ) ),
             event_organizations ( organization:organizations ( id, name, website, description, image_url ) )
-          `, countOption)
+          `, { search, floorIso, neighborhoodSlug, venueCities, withCount })
           .eq('status', 'published')
           // Drop events the moment their start time passes — no in-progress grace window.
           .gte('start_at', floorIso)
@@ -308,18 +322,17 @@ export function useEvents({
         // stands in for them and links to the hub. Skipped when a search
         // term is active — decision 2, search must always find a band name.
         // See src/lib/browseVisibility.js and docs/umbrella-child-hiding.md.
-        const hasSearch = !!search && search.trim().length > 0
-        if (!hasSearch) query = applyBrowseVisibility(query)
+        if (!searching) query = applyBrowseVisibility(query)
 
-        if (neighborhoodSlug) {
+        if (useInnerVenue && neighborhoodSlug) {
           query = query.eq('event_venues.venues.neighborhood_slug', neighborhoodSlug)
         }
-        if (venueCities.length > 0) {
+        if (useInnerVenue && venueCities.length > 0) {
           query = query.in('event_venues.venues.city', venueCities)
         }
 
         // Content axis: any-match against the event_categories join table.
-        query = applyCategoryFilter(query, categories)
+        query = applyCategoryFilter(query, categories, searching)
         // Exclusion axis: anti-join via the denormalized category_slugs array
         // (migration 039). `not.ov` = "has NONE of these categories".
         if (excludedCategories.length > 0) {
@@ -368,14 +381,9 @@ export function useEvents({
           query = query.lte('price_min', 25)
         }
 
-        if (search && search.trim().length > 0) {
-          const term = normalizeSearch(search.trim())
-          // Tags are folded into description_normalized server-side (migration
-          // 031), so this title/description match also covers tag searches
-          // (e.g. "baseball" → events tagged baseball) without a fragile
-          // array-contains filter inside .or().
-          query = query.or(buildSearchOr(term))
-        }
+        // No search filter here: when a term is active the query was started
+        // from search_events (selectEvents above), which already matched it
+        // against title, description and tags.
 
         if (sort === 'latest') {
           query = query.order('start_at', { ascending: false })
@@ -512,7 +520,11 @@ export function useEvents({
       }
 
       try {
-        const { data, error: fetchError, count } = await buildLiveQuery(offset, offset + limit - 1, offset === 0)
+        // One retry on a statement timeout / gateway error (see queryRetry.ts):
+        // the failed attempt warms the pages the second one needs.
+        const { data, error: fetchError, count } = await withOneRetry<{ data: RawRow[] | null; error: unknown; count: number | null; status?: number }>(
+          () => buildLiveQuery(offset, offset + limit - 1, offset === 0),
+        )
 
         if (fetchError) throw fetchError
         if (!cancelled) {
@@ -524,7 +536,18 @@ export function useEvents({
           if (offset === 0) setTotal(count ?? 0)
         }
       } catch (err) {
-        if (!cancelled) setError(errorMessage(err, 'Failed to load events.'))
+        if (!cancelled) {
+          setError(errorMessage(err, 'Failed to load events.'))
+          // A failed page one must not leave the PREVIOUS filter set's rows in
+          // state: the consumers render `events` under the new filters, so a
+          // failed search showed the error above an unfiltered list that read
+          // as wrong results. A failed "load more" (offset > 0) keeps what is
+          // already on screen.
+          if (offset === 0) {
+            setEvents([])
+            setTotal(0)
+          }
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -845,7 +868,10 @@ export function useMapEvents({
     async function fetchAllPages(): Promise<MapFetchResult> {
         // Geo scope forces an inner join so events without a matching venue
         // drop out (mirrors useEvents / the hub pages).
-        const useInnerVenue = !!neighborhoodSlug || venueCities.length > 0
+        // While searching, the venue scope is applied inside search_events
+        // (p_neighborhood / p_cities) instead — see selectEvents.
+        const searching = isSearching(search)
+        const useInnerVenue = !searching && (!!neighborhoodSlug || venueCities.length > 0)
         const venueJoin = useInnerVenue ? 'event_venues!inner' : 'event_venues'
         const venueTbl  = useInnerVenue ? 'venues!inner'      : 'venues'
 
@@ -854,16 +880,15 @@ export function useMapEvents({
         // The exact count is only requested on page 0; re-counting the same
         // filtered set on every parallel page is pure planner overhead.
         const buildQuery = (withCount: boolean): LooseQuery => {
-          let query: LooseQuery = supabase
-            .from('events')
-            .select(`
+          const floorIso = new Date().toISOString()
+          let query: LooseQuery = selectEvents(`
               id, title, start_at, price_min, price_max, is_family, is_fundraiser,
-              ${categorySelectFragment(categories)}
+              ${categorySelectFragment(categories, searching)}
               ${venueJoin} ( venue:${venueTbl} ( id, name, address, city, lat, lng, neighborhood_slug ) )
-            `, withCount ? { count: 'exact' as const } : undefined)
+            `, { search, floorIso, neighborhoodSlug, venueCities, withCount })
             .eq('status', 'published')
             // Drop events the moment their start time passes — no in-progress grace window.
-            .gte('start_at', new Date().toISOString())
+            .gte('start_at', floorIso)
             .order('start_at', { ascending: true })
 
           // Festival children are hidden from the map/calendar too — the
@@ -872,10 +897,9 @@ export function useMapEvents({
           // is active, mirroring buildLiveQuery above (the map cannot
           // diverge from the list under identical filters). See
           // docs/umbrella-child-hiding.md §2.2.
-          const hasSearch = !!search && search.trim().length > 0
-          if (!hasSearch) query = applyBrowseVisibility(query)
+          if (!searching) query = applyBrowseVisibility(query)
 
-          query = applyCategoryFilter(query, categories)
+          query = applyCategoryFilter(query, categories, searching)
           if (excludedCategories.length > 0) {
             query = query.not('category_slugs', 'ov', `{${excludedCategories.join(',')}}`)
           }
@@ -883,10 +907,10 @@ export function useMapEvents({
           else if (excludeFamily) query = query.not('is_family', 'is', true)
           if (fundraiser) query = query.eq('is_fundraiser', true)
 
-          if (neighborhoodSlug) {
+          if (useInnerVenue && neighborhoodSlug) {
             query = query.eq('event_venues.venues.neighborhood_slug', neighborhoodSlug)
           }
-          if (venueCities.length > 0) {
+          if (useInnerVenue && venueCities.length > 0) {
             query = query.in('event_venues.venues.city', venueCities)
           }
 
@@ -915,14 +939,8 @@ export function useMapEvents({
             query = query.lte('price_min', 25)
           }
 
-          if (search && search.trim().length > 0) {
-            const term = normalizeSearch(search.trim())
-            // Tags are folded into description_normalized server-side (migration
-            // 031), so this title/description match also covers tag searches
-            // (e.g. "baseball" → events tagged baseball) without a fragile
-            // array-contains filter inside .or().
-            query = query.or(buildSearchOr(term))
-          }
+          // No search filter here: a term is matched by search_events
+          // (selectEvents above), exactly as in useEvents.
           return query
         }
 
@@ -936,7 +954,10 @@ export function useMapEvents({
         // safety stop against a runaway query.
         const CHUNK = 1000
         const MAX_ROWS = 20000
-        const first = await buildQuery(true).range(0, CHUNK - 1)
+        // One retry per page on a statement timeout / gateway error (see
+        // queryRetry.ts); each attempt builds its own query.
+        type PageResult = { data: RawRow[] | null; error: unknown; count: number | null; status?: number }
+        const first = await withOneRetry<PageResult>(() => buildQuery(true).range(0, CHUNK - 1))
         if (first.error) throw first.error
         const total = (first.count as number | null) ?? (first.data?.length ?? 0)
         const allRows: RawRow[] = [...((first.data ?? []) as RawRow[])]
@@ -947,7 +968,7 @@ export function useMapEvents({
           // Bare builders are lazy thenables; Promise.all assimilates them,
           // firing every page request concurrently.
           const pages = await Promise.all(
-            starts.map((s) => buildQuery(false).range(s, s + CHUNK - 1)),
+            starts.map((s) => withOneRetry<PageResult>(() => buildQuery(false).range(s, s + CHUNK - 1))),
           )
           // Rows can shift between parallel pages if the table changes
           // mid-flight; dedupe by id so a shifted row can't appear twice.
@@ -1001,7 +1022,13 @@ export function useMapEvents({
           setTotal(result.total)
         }
       } catch (err) {
-        if (!cancelled) setError(errorMessage(err, 'Failed to load map events.'))
+        if (!cancelled) {
+          setError(errorMessage(err, 'Failed to load map events.'))
+          // Same rule as useEvents: rows held from a previous filter set must
+          // not be drawn under filters whose fetch failed.
+          setEvents([])
+          setTotal(0)
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }

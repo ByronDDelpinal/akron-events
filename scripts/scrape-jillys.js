@@ -13,6 +13,15 @@
  *      itself confirms the post is gone (per-ID REST 404) or unpublished
  *      (401). See "Retirement" below.
  *
+ * Repeating events:
+ *   EventON returns every date of a repeating post under the SAME post ID.
+ *   Keyed on the post ID alone, all of those dates collapsed into one row
+ *   that each date overwrote in turn, so only the last date in the window was
+ *   ever listed (found 2026-11-15: 13 Sunday Brunch dates stored as one row
+ *   dated four months out). A repeating post's rows are now keyed
+ *   `<postId>-<YYYY-MM-DD>`; a one-off post keeps the bare post ID. See
+ *   "Repeating posts" below.
+ *
  * Why two sources?
  *   EventON stores event dates in custom meta fields that the WP REST API does
  *   not expose publicly. The EventON AJAX endpoint provides correct UTC Unix
@@ -105,6 +114,126 @@ function parseTags(termArrays = []) {
   }
   tags.push('live music', "jilly's")
   return [...new Set(tags)]
+}
+
+// ── Repeating posts ───────────────────────────────────────────────────────
+
+/**
+ * Post IDs that EventON treats as repeating in this result. Pure.
+ *
+ * Three independent signals, any one is enough: a non-zero repeat index
+ * (`ri`) on an instance, the post's own `evcal_repeat` flag (which also marks
+ * the FIRST date, whose `ri` is 0), or the same post ID appearing twice.
+ */
+export function repeatingPostIds(ajaxEvents = []) {
+  const repeating = new Set()
+  const seen = new Set()
+  for (const ev of ajaxEvents) {
+    const postId = String(ev?.ID)
+    const flag = ev?.event_pmv?.evcal_repeat
+    if (Number(ev?.ri ?? ev?.event_repeat_interval ?? 0) > 0
+        || (Array.isArray(flag) ? flag[0] : flag) === 'yes'
+        || seen.has(postId)) {
+      repeating.add(postId)
+    }
+    seen.add(postId)
+  }
+  return repeating
+}
+
+/**
+ * Calendar date of one EventON instance at the venue, YYYY-MM-DD. Pure.
+ * `event_start_unix` is the venue's wall-clock time written as if it were
+ * UTC, so its UTC date IS the local date, with no timezone arithmetic.
+ */
+export function occurrenceDate(ev) {
+  const unix = Number(ev?.event_start_unix ?? ev?.event_start_unix_utc)
+  return Number.isFinite(unix) ? new Date(unix * 1000).toISOString().slice(0, 10) : null
+}
+
+/** source_id for one EventON instance: bare post ID, or post ID + date for a repeating post. Pure. */
+export function occurrenceSourceId(ev, repeating = new Set()) {
+  const postId = String(ev?.ID)
+  const date = occurrenceDate(ev)
+  return repeating.has(postId) && date ? `${postId}-${date}` : postId
+}
+
+/** The WordPress post ID behind either source_id form. Pure. */
+export function postIdFromSourceId(sourceId) {
+  const m = String(sourceId).match(/^(\d+)-\d{4}-\d{2}-\d{2}$/)
+  return m ? m[1] : String(sourceId)
+}
+
+const EASTERN_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' })
+
+/**
+ * Rows stored under a repeating post's bare ID (from before the per-date key,
+ * or because the venue turned a one-off into a repeating post) are the same
+ * event as one of tonight's dates. Renaming such a row to that date's key
+ * keeps its id, slug, pins and links; leaving it would list the date twice.
+ * Pure. A row whose date is not in tonight's result is left exactly as it is.
+ *
+ * @param legacyRows     rows whose source_id is a repeating post's bare ID
+ * @param occurrenceIds  every source_id tonight's result will write
+ */
+export function planLegacyAdoption({ legacyRows = [], occurrenceIds = new Set() } = {}) {
+  const rename = [], leave = []
+  for (const row of legacyRows) {
+    const day = row.start_at ? EASTERN_DATE.format(new Date(row.start_at)) : null
+    const to = day ? `${row.source_id}-${day}` : null
+    if (to && occurrenceIds.has(to)) rename.push({ row, to })
+    else leave.push(row)
+  }
+  return { rename, leave }
+}
+
+/**
+ * Before any upsert: find the repeating posts, adopt legacy rows onto their
+ * per-date keys, and find posts that dedupe has already merged into another
+ * source's listing. That merge was recorded against the bare post ID, so it
+ * is honoured for every date of the post: none of them is ingested.
+ *
+ * Throws on a failed read. Guessing here would either list a merged event
+ * again or strand a legacy row beside its own duplicate.
+ */
+async function prepareRepeatingPosts(ajaxEvents) {
+  const repeating = repeatingPostIds(ajaxEvents)
+  const aliasedPosts = new Set()
+  if (!repeating.size) return { repeating, aliasedPosts }
+
+  const { supabaseAdmin } = await import('./lib/supabase-admin.js')
+  const postIds = [...repeating]
+
+  const { data: aliases, error: aliasErr } = await supabaseAdmin
+    .from('event_aliases')
+    .select('duplicate_source_id, canonical_event_id')
+    .eq('duplicate_source', 'jillys_music_room')
+    .in('duplicate_source_id', postIds)
+  if (aliasErr) throw new Error(`repeating-post alias lookup failed: ${aliasErr.message}`)
+  for (const a of aliases ?? []) if (a.canonical_event_id) aliasedPosts.add(String(a.duplicate_source_id))
+
+  const { data: legacyRows, error: legacyErr } = await supabaseAdmin
+    .from('events')
+    .select('id, title, source_id, start_at')
+    .eq('source', 'jillys_music_room')
+    .in('source_id', postIds)
+  if (legacyErr) throw new Error(`repeating-post legacy lookup failed: ${legacyErr.message}`)
+
+  const occurrenceIds = new Set(ajaxEvents.map(ev => occurrenceSourceId(ev, repeating)))
+  const plan = planLegacyAdoption({ legacyRows: legacyRows ?? [], occurrenceIds })
+  for (const { row, to } of plan.rename) {
+    const { error } = await supabaseAdmin
+      .from('events')
+      .update({ source_id: to })
+      .eq('id', row.id)
+      .eq('source_id', row.source_id)
+    if (error) console.warn(`  ⚠ could not re-key "${row.title}" ${row.source_id} → ${to}: ${error.message}`)
+    else console.log(`  🔑  re-keyed "${row.title}" ${row.source_id} → ${to}`)
+  }
+  for (const row of plan.leave) {
+    console.warn(`  ⚠ "${row.title}" is stored under repeating post ${row.source_id} but its date is not in tonight's result; left as is`)
+  }
+  return { repeating, aliasedPosts }
 }
 
 /** Sleep helper for rate limiting */
@@ -220,12 +349,23 @@ async function fetchAllRestData(ids) {
 
 // ── Step 3: Process and upsert ────────────────────────────────────────────
 
-async function processEvents(ajaxEvents, restById, venueId, organizerId) {
+async function processEvents(ajaxEvents, restById, venueId, organizerId, { repeating = new Set(), aliasedPosts = new Set() } = {}) {
   let inserted = 0, skipped = 0, closureSkipped = 0
+  const aliasLogged = new Set()
 
   for (const ev of ajaxEvents) {
     try {
       const postId  = ev.ID
+
+      // Merged into another source's listing by dedupe (see prepareRepeatingPosts).
+      if (aliasedPosts.has(String(postId))) {
+        if (!aliasLogged.has(String(postId))) {
+          console.log(`  ⤷ post ${postId} "${stripHtml(ev.event_title ?? '')}" is merged into another source's listing; skipping its dates`)
+          aliasLogged.add(String(postId))
+        }
+        skipped++
+        continue
+      }
       const restPost = restById.get(postId)
 
       // Compute UTC timestamps
@@ -295,7 +435,7 @@ async function processEvents(ajaxEvents, restById, venueId, organizerId) {
         image_url:       imageUrl,
         ticket_url:      ticketUrl,
         source:          'jillys_music_room',
-        source_id:       String(postId),
+        source_id:       occurrenceSourceId(ev, repeating),
         status:          'published',
         // NEVER machine-set `featured`. It's a human-only editorial call made
         // in the admin UI; a source flagging its own event says nothing about
@@ -530,9 +670,15 @@ async function retireRemovedPosts({ seenSourceIds, ajaxCount }) {
   const verdicts = new Map()
   if (candidates.length) {
     console.log(`\n🔎  ${candidates.length} published row(s) missing from the EventON result — asking WordPress…`)
+    // One probe per WordPress post, however many of its dates went missing.
+    const byPost = new Map()
     for (const row of candidates) {
-      verdicts.set(row.source_id, await probeWpPost(row.source_id))
-      await sleep(200)
+      const postId = postIdFromSourceId(row.source_id)
+      if (!byPost.has(postId)) {
+        byPost.set(postId, await probeWpPost(postId))
+        await sleep(200)
+      }
+      verdicts.set(row.source_id, byPost.get(postId))
     }
   }
 
@@ -597,11 +743,14 @@ async function main() {
 
     // Step 3: Merge and upsert
     console.log(`\n📥  Processing ${ajaxEvents.length} events…`)
-    const { inserted, skipped } = await processEvents(ajaxEvents, restById, venueId, organizerId)
+    const { repeating, aliasedPosts } = await prepareRepeatingPosts(ajaxEvents)
+    const { inserted, skipped } = await processEvents(ajaxEvents, restById, venueId, organizerId, { repeating, aliasedPosts })
 
-    // Step 4: retire posts the venue removed (see "Retirement" above). Runs
-    // after the upsert so every row EventON still lists has a fresh touch.
-    const retired = await retireRemovedPosts({ seenSourceIds: new Set(ids.map(String)), ajaxCount: ajaxEvents.length })
+    // Step 4: retire posts the venue removed (see "Retirement" above). The
+    // seen set uses the same keys the upsert wrote, so a repeating post's
+    // dates are each accounted for.
+    const seenSourceIds = new Set(ajaxEvents.map(ev => occurrenceSourceId(ev, repeating)))
+    const retired = await retireRemovedPosts({ seenSourceIds, ajaxCount: ajaxEvents.length })
     if (retired) console.log(`  🗄  ${retired} row(s) retired (status → cancelled)`)
 
     await logUpsertResult('jillys_music_room', inserted, 0, skipped, {

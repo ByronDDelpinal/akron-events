@@ -531,3 +531,58 @@ describe('planRetirement — guards', () => {
     assert.match(retirementReason('unpublished', '2026-11-02T09:10:00.000Z'), /401 rest_forbidden on 2026-11-02/)
   })
 })
+
+
+// ── Repeating posts: one row per date, not one row per post ─────────────────
+// Shapes below are trimmed copies of live EventON instances captured
+// 2026-11-15 (post 4662 SUNDAY BRUNCH, post 2852 Dr Sketchy's, one-off 4664).
+const {
+  repeatingPostIds, occurrenceDate, occurrenceSourceId, postIdFromSourceId, planLegacyAdoption,
+} = await import('../scrape-jillys.js')
+
+describe("Jilly's: repeating posts get one source_id per date", () => {
+  const ONE_OFF  = { ID: '4664', event_start_unix: '1795023000', event_start_unix_utc: '1795041000', ri: '0' }
+  const REPEAT_A = { ID: '2852', event_start_unix: '1796929200', event_start_unix_utc: '1796947200', ri: '47' }
+  const REPEAT_B = { ID: '2852', event_start_unix: '1799953200', event_start_unix_utc: '1799971200', ri: '48' }
+  const FIRST    = { ID: '5000', event_start_unix: '1796929200', ri: '0', event_pmv: { evcal_repeat: ['yes'] } }
+
+  it('flags a post by repeat index, by its own repeat flag, or by appearing twice', () => {
+    assert.deepEqual([...repeatingPostIds([ONE_OFF, REPEAT_A, FIRST])].sort(), ['2852', '5000'])
+    const twice = [{ ID: '7', event_start_unix: '1796929200' }, { ID: '7', event_start_unix: '1797534000' }]
+    assert.deepEqual([...repeatingPostIds(twice)], ['7'])
+    assert.equal(repeatingPostIds([ONE_OFF]).size, 0)
+  })
+
+  it('takes the date from the venue wall clock, so a 7pm show keeps its own day', () => {
+    // 1796929200 as-if-UTC is 2026-12-10 19:00; the real instant is 00:00Z on the 11th.
+    assert.equal(occurrenceDate(REPEAT_A), '2026-12-10')
+  })
+
+  it('keys a one-off on the bare post ID and each repeat date on post ID + date', () => {
+    const repeating = repeatingPostIds([ONE_OFF, REPEAT_A, REPEAT_B])
+    assert.equal(occurrenceSourceId(ONE_OFF, repeating), '4664')
+    assert.equal(occurrenceSourceId(REPEAT_A, repeating), '2852-2026-12-10')
+    assert.notEqual(occurrenceSourceId(REPEAT_A, repeating), occurrenceSourceId(REPEAT_B, repeating))
+  })
+
+  it('recovers the WordPress post ID from either key form', () => {
+    assert.equal(postIdFromSourceId('2852-2026-12-10'), '2852')
+    assert.equal(postIdFromSourceId('4664'), '4664')
+  })
+})
+
+describe("Jilly's: planLegacyAdoption", () => {
+  const occurrenceIds = new Set(['4662-2027-03-21', '4662-2027-03-28', '2852-2027-04-08'])
+  it('re-keys a bare-ID row onto the date it currently holds', () => {
+    const row = { id: 'a', source_id: '4662', start_at: '2027-03-28T15:00:00+00:00' }
+    assert.deepEqual(planLegacyAdoption({ legacyRows: [row], occurrenceIds }), { rename: [{ row, to: '4662-2027-03-28' }], leave: [] })
+  })
+  it('uses the Eastern date, so an evening show stored after midnight UTC lands on its own day', () => {
+    const row = { id: 'b', source_id: '2852', start_at: '2027-04-09T00:00:00+00:00' }
+    assert.equal(planLegacyAdoption({ legacyRows: [row], occurrenceIds }).rename[0].to, '2852-2027-04-08')
+  })
+  it('leaves a row alone when its date is not in tonight\'s result', () => {
+    const row = { id: 'c', source_id: '4662', start_at: '2026-10-04T14:00:00+00:00' }
+    assert.deepEqual(planLegacyAdoption({ legacyRows: [row], occurrenceIds }), { rename: [], leave: [row] })
+  })
+})
