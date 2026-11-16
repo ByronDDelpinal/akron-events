@@ -705,3 +705,109 @@ describe('Eventbrite: Edge Cases', () => {
     assert.equal(row.price_min, 25)
   })
 })
+
+// ════════════════════════════════════════════════════════════════════════════
+// VENUE GATE — imports the REAL export from the scraper (import-safe: main()
+// only runs when the file is executed directly).
+// ════════════════════════════════════════════════════════════════════════════
+
+const { applyVenueGate, eventHasLinkedVenue } = await import('../scrape-eventbrite.js')
+
+describe('Eventbrite: Venue gate (applyVenueGate)', () => {
+  const baseRow = () => ({
+    title:        'Fall Craft Fair',
+    source:       'eventbrite',
+    source_id:    '1990000000001',
+    status:       'published',
+    needs_review: undefined,
+    featured:     false,
+  })
+
+  it('null venueId (address-like venue name refused) → pending_review + needs_review true', () => {
+    const row = baseRow()
+    const gated = applyVenueGate(row, null)
+    assert.equal(gated.status, 'pending_review')
+    assert.equal(gated.needs_review, true)
+    assert.equal(gated.featured, false)
+    assert.equal(gated.source_id, row.source_id)
+    // Pure: input row is not mutated
+    assert.equal(row.status, 'published')
+    assert.equal(row.needs_review, undefined)
+  })
+
+  it('undefined venueId is gated the same as null', () => {
+    const gated = applyVenueGate(baseRow(), undefined)
+    assert.equal(gated.status, 'pending_review')
+    assert.equal(gated.needs_review, true)
+  })
+
+  it('valid venueId passes the row through unchanged', () => {
+    const row = baseRow()
+    const gated = applyVenueGate(row, 'b3f1c2d4-0000-4000-8000-000000000001')
+    assert.equal(gated, row)
+    assert.deepEqual(gated, baseRow())
+    assert.equal(gated.status, 'published')
+  })
+
+  it('a row already pending (geo-unknown) stays pending with or without a venue', () => {
+    const pending = { ...baseRow(), status: 'pending_review', needs_review: true }
+    for (const id of [null, 'venue-123']) {
+      const gated = applyVenueGate(pending, id)
+      assert.equal(gated.status, 'pending_review')
+      assert.equal(gated.needs_review, true)
+    }
+  })
+
+  it('never sets featured', () => {
+    const gated = applyVenueGate(baseRow(), null)
+    assert.notEqual(gated.featured, true)
+  })
+})
+
+describe('Eventbrite: Venue gate — admin-linked venue', () => {
+  const row = () => ({ source: 'eventbrite', source_id: '1990000000002', status: 'published', featured: false })
+
+  it('hasLinkedVenue true skips the gate (row returned unchanged)', () => {
+    const r = row()
+    const gated = applyVenueGate(r, null, { hasLinkedVenue: true })
+    assert.equal(gated, r)
+    assert.deepEqual(gated, row())
+  })
+
+  it('hasLinkedVenue false or omitted still gates', () => {
+    for (const opts of [{ hasLinkedVenue: false }, {}, undefined]) {
+      const gated = applyVenueGate(row(), null, opts)
+      assert.equal(gated.status, 'pending_review')
+      assert.equal(gated.needs_review, true)
+    }
+  })
+
+  // Minimal stub of the supabase-js query builder chain used by the helper.
+  const stubClient = (result) => {
+    const q = {
+      select: () => q, eq: () => q, limit: () => q,
+      maybeSingle: async () => {
+        if (result instanceof Error) throw result
+        return result
+      },
+    }
+    return { from: () => q }
+  }
+
+  it('eventHasLinkedVenue → true when the stored event has an event_venues row', async () => {
+    const c = stubClient({ data: { id: 'e1', event_venues: [{ venue_id: 'v1' }] }, error: null })
+    assert.equal(await eventHasLinkedVenue('eventbrite', '1', c), true)
+  })
+
+  it('eventHasLinkedVenue → false when no stored event or no venue link', async () => {
+    assert.equal(await eventHasLinkedVenue('eventbrite', '1', stubClient({ data: null, error: null })), false)
+    assert.equal(await eventHasLinkedVenue('eventbrite', '1',
+      stubClient({ data: { id: 'e1', event_venues: [] }, error: null })), false)
+  })
+
+  it('eventHasLinkedVenue fails closed (false) on DB error or throw', async () => {
+    assert.equal(await eventHasLinkedVenue('eventbrite', '1',
+      stubClient({ data: null, error: { message: 'boom' } })), false)
+    assert.equal(await eventHasLinkedVenue('eventbrite', '1', stubClient(new Error('network'))), false)
+  })
+})

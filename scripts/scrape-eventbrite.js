@@ -1478,6 +1478,67 @@ async function enrichWithDetails(rawEvents, cookie) {
   console.log(`\n  ✓ Detail pass complete: ${enriched} enriched, ${failed} without description`)
 }
 
+// ── Venue gate ───────────────────────────────────────────────────────────────
+/**
+ * Hold an event for review when its venue could not be resolved.
+ *
+ * Eventbrite often gives a bare street address as the venue name
+ * (e.g. "2535 Romig Rd"). ensureVenue refuses to mint a venue from an
+ * address-like name and returns null; linkEventVenue then no-ops, so the
+ * event would otherwise publish with no venue at all. Routing it to the
+ * review queue lets an admin attach the right venue first.
+ *
+ * needs_review is set explicitly (true) so upsertEventSafe's
+ * `needs_review === undefined` recompute cannot reset it to false on a
+ * re-scrape. An admin's manual_overrides.status lock still wins:
+ * _stripOverriddenFields removes locked keys before the write.
+ *
+ * `hasLinkedVenue` skips the gate when the stored event already has an
+ * event_venues row. ensureVenue refuses the same address-like name on every
+ * re-scrape, and the admin event editor attaches a venue + publishes without
+ * pinning manual_overrides.status, so without this the next run would
+ * unpublish an admin-fixed event every time.
+ *
+ * Pure — returns a new object when gating, the same row otherwise.
+ *
+ * @param {object} row — normalised event row (normaliseEvent output)
+ * @param {string|number|null|undefined} venueId — resolved venue id
+ * @param {{ hasLinkedVenue?: boolean }} [opts]
+ * @returns {object}
+ */
+export function applyVenueGate(row, venueId, { hasLinkedVenue = false } = {}) {
+  if (!row) return row
+  if (venueId !== null && venueId !== undefined) return row
+  if (hasLinkedVenue === true) return row
+  return { ...row, status: 'pending_review', needs_review: true }
+}
+
+/**
+ * Does the already-stored event (source, source_id) have a linked venue?
+ * Called only for rows whose venue did not resolve, so the normal path pays
+ * no extra query. Fails CLOSED: any DB error → false (the gate applies) and
+ * a warning, since wrongly holding an event is recoverable and publishing a
+ * venueless one is the bug this gate exists for.
+ *
+ * @param {string} source
+ * @param {string} sourceId
+ * @param {object} [client] — Supabase client (injectable for tests)
+ * @returns {Promise<boolean>}
+ */
+export async function eventHasLinkedVenue(source, sourceId, client = supabaseAdmin) {
+  try {
+    const { data, error } = await client
+      .from('events').select('id, event_venues(venue_id)')
+      .eq('source', source).eq('source_id', sourceId)
+      .limit(1).maybeSingle()
+    if (error) throw new Error(error.message)
+    return Array.isArray(data?.event_venues) && data.event_venues.length > 0
+  } catch (err) {
+    console.warn(`  ⚠ linked-venue lookup failed for ${source}/${sourceId} — gating (fail-closed): ${err.message}`)
+    return false
+  }
+}
+
 // ── Process + upsert ─────────────────────────────────────────────────────────
 async function processEvents(rawEvents) {
   let inserted = 0, updated = 0, skipped = 0
@@ -1487,7 +1548,15 @@ async function processEvents(rawEvents) {
       if (!row) { skipped++; continue }
       const venueId     = await upsertVenue(ev)
       const organizerId = await upsertOrganizer(ev)
-      const enrichedRow = await enrichWithImageDimensions(row)
+      const hasLinkedVenue = venueId == null
+        ? await eventHasLinkedVenue(row.source, row.source_id)
+        : false
+      const gatedRow    = applyVenueGate(row, venueId, { hasLinkedVenue })
+      if (gatedRow !== row && row.status !== 'pending_review') {
+        const v = ev.primary_venue ?? ev.venue
+        console.warn(`  ⚠ No venue resolved for ${row.source_id} (venue name: ${JSON.stringify(v?.name ?? null)}) — holding as pending_review`)
+      }
+      const enrichedRow = await enrichWithImageDimensions(gatedRow)
       const { data: upserted, error, isNew } = await upsertEventSafe(enrichedRow)
       if (error) {
         console.warn(`  ⚠ Upsert failed "${ev.name?.text ?? ev.name}":`, error.message)
