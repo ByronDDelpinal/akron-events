@@ -15,7 +15,7 @@ import assert from 'node:assert/strict'
 process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         || 'https://dummy.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
-const { decideCategories, currentCategories, shouldRecategorize } =
+const { decideCategories, currentCategories, shouldRecategorize, parseArgs } =
   await import('../backfill-categories.js')
 
 const OTHER = () => ({ categories: ['other'], family: false, fundraiser: false })
@@ -63,5 +63,18 @@ describe('decideCategories: inference + per-source default rescue', () => {
     const cats = decideCategories({ title: 'Live Jazz Concert', description: 'live music all night' })
     assert.notDeepEqual(cats, ['other'])
     assert.ok(cats.includes('music'), `expected music, got ${cats.join('+')}`)
+  })
+})
+
+describe('parseArgs: CLI flags', () => {
+  it('defaults to a dry run over published + pending_review, no limit', () => {
+    assert.deepEqual(parseArgs([]), { apply: false, statuses: ['published', 'pending_review'], limit: null })
+  })
+  it('reads --apply, --status and --limit', () => {
+    assert.deepEqual(parseArgs(['--apply', '--status=pending_review', '--limit=20']),
+      { apply: true, statuses: ['pending_review'], limit: 20 })
+  })
+  it('treats --status=all as the default status set', () => {
+    assert.deepEqual(parseArgs(['--status=all']).statuses, ['published', 'pending_review'])
   })
 })

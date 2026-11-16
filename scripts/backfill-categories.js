@@ -33,6 +33,7 @@ import { supabaseAdmin } from './lib/supabase-admin.js'
 import { resolveEventCategories, syncEventCategories } from './lib/normalize.js'
 import { inferCategories } from './lib/category-inference.js'
 import { defaultCategoryFor } from './manifest.js'
+import { fetchAllRowsKeyset } from './lib/paginate.js'
 
 /**
  * The categories inference would assign to an event now, given its text and
@@ -71,7 +72,8 @@ export function shouldRecategorize(current, proposed) {
 
 // ── Runner ────────────────────────────────────────────────────────────────────
 
-function parseArgs(argv) {
+/** Parse CLI flags. Exported for tests. */
+export function parseArgs(argv) {
   const apply = argv.includes('--apply')
   const statusArg = (argv.find((a) => a.startsWith('--status=')) || '').split('=')[1]
   const limitArg = (argv.find((a) => a.startsWith('--limit=')) || '').split('=')[1]
@@ -85,24 +87,28 @@ async function main() {
   const { apply, statuses, limit } = parseArgs(process.argv.slice(2))
   console.log(`🏷️  Category backfill — statuses [${statuses.join(', ')}]${limit ? `, limit ${limit}` : ''} — ${apply ? 'APPLY' : 'dry run'}`)
 
-  // Pull candidates with their current categories embedded. PostgREST paginates
-  // at 1000; page through so a large backlog is fully covered.
+  // Pull candidates with their current categories embedded. Keyset-paged on id
+  // (not OFFSET) so each page is a cheap index range scan and the ~19k-row walk
+  // stays under statement_timeout; timeouts on a page are retried with backoff.
   const candidates = []
-  const PAGE = 1000
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabaseAdmin
-      .from('events')
-      .select('id, title, description, source, event_categories(category)')
-      .in('status', statuses)
-      .range(from, from + PAGE - 1)
-    if (error) { console.error(`  ✗ query failed: ${error.message}`); process.exit(1) }
-    if (!data?.length) break
-    for (const ev of data) {
+  try {
+    const events = await fetchAllRowsKeyset((after, n) => {
+      const q = supabaseAdmin
+        .from('events')
+        .select('id, title, description, source, event_categories(category)')
+        .in('status', statuses)
+        .order('id')
+        .limit(n)
+      return after ? q.gt('id', after) : q
+    })
+    for (const ev of events) {
       const current = currentCategories(ev)
       const proposed = decideCategories(ev)
       if (shouldRecategorize(current, proposed)) candidates.push({ ev, current, proposed })
     }
-    if (data.length < PAGE) break
+  } catch (err) {
+    console.error(`  ✗ query failed: ${err.message}`)
+    process.exit(1)
   }
 
   const work = limit ? candidates.slice(0, limit) : candidates
