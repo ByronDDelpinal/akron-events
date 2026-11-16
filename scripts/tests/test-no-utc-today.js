@@ -178,6 +178,7 @@ const ALLOWLIST = [
   { file: 'scrape-cvsr.js',                   match: 'return d.toISOString()',        reason: 'cutoff is derived from easternTodayYmd(), not from the clock' },
   { file: 'lib/weekly-occurrences.js',        match: 'out.push(new Date(todayUtcMs',  reason: 'todayUtcMs is passed in Eastern-anchored by the caller' },
   { file: 'scrape-akronym.js',                match: 'dateStr: d.toISOString()',      reason: 'baseMs comes from an already-resolved event date, not the clock' },
+  { file: 'scrape-jillys.js',                 match: 'new Date(unix * 1000).toISOString()', reason: 'occurrenceDate: EventON event_start_unix is venue wall-clock time written as if UTC, so its UTC date IS the local date; the clock is never read' },
   { file: 'scrape-nightlight.js',             match: 'const horizonDate',             reason: 'horizon is todayEasternYmd() + N days; only the far end is UTC-formatted' },
   { file: 'scrape-visit-akron-cvb.js',        match: 'offsetHrs * 3600_000',          reason: 'etCalendarDate shifts an explicit ISO instant by the ET offset before formatting' },
   // Narrow on purpose: a bare 'console.log' key would hand every future log
