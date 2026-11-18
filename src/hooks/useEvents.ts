@@ -87,10 +87,14 @@ interface EventSourceOptions {
  * events, so every filter / order / embed / count chained after this applies
  * exactly as it does on the table.
  *
- * Matching: the term must appear as a phrase of whole words in the title,
- * description or tags ("improv" does not match "improve"). Case, accents,
- * apostrophes and punctuation are ignored. All normalization happens in SQL
- * (search_normalize + event_search_tsv), so the trimmed term is sent as typed.
+ * Matching (migration 076): whole words only ("improv" does not match
+ * "improve"), against the title, description, tags, venue names and organizer
+ * names. The words must appear as a phrase; if no event has the phrase, all
+ * the words in any order. Case, accents, apostrophes and punctuation are
+ * ignored, and "G.A.R." / "gar", "theatre" / "theater", "&" / "and" are the
+ * same thing. All normalization happens in SQL (search_canon), so the trimmed
+ * term is sent as typed. Prefixes and misspellings are never matched here —
+ * see fetchSearchSuggestion.
  *
  * One PostgREST limit shapes the callers: embedded-resource filters
  * (`event_venues.venues.city=…`, `_catfilter.category=…`) are rejected on an
@@ -111,6 +115,42 @@ function selectEvents(columns: string, opts: EventSourceOptions): LooseQuery {
   return (supabase as LooseQuery)
     .rpc('search_events', args, { get: true, ...countOption })
     .select(columns)
+}
+
+/** A term that found nothing, and the term whose results are shown instead. */
+export interface SearchReplacement {
+  /** What the visitor searched for (trimmed). */
+  from: string
+  /** The completed or corrected term the results belong to. */
+  to: string
+}
+
+/**
+ * After a search found nothing, ask for a replacement term (migration 076's
+ * `search_suggest`): the last word completed ("jilly" → "jillys") or a
+ * misspelling corrected ("musika" → "musica"). Resolves to null when there is
+ * nothing to offer.
+ *
+ * Why this is a second request and not a looser tier inside search_events:
+ * results are sorted by date, not relevance, so a prefix or fuzzy match
+ * blended into the list is indistinguishable from an exact one. Measured on
+ * prod, "drag" (no whole-word match) silently became 61 Dungeons & Dragons
+ * listings. Asking separately lets the UI say what was substituted, and costs
+ * a round trip only on searches that would otherwise show an empty page.
+ *
+ * Never throws: a failure here (including the function not existing yet,
+ * before 076 is applied) just means the visitor sees the empty state.
+ */
+async function fetchSearchSuggestion(term: string, floorIso: string): Promise<string | null> {
+  try {
+    const { data, error } = await (supabase as LooseQuery)
+      .rpc('search_suggest', { p_term: term.trim(), p_floor: floorIso }, { get: true })
+    if (error || typeof data !== 'string') return null
+    const suggestion = data.trim()
+    return suggestion.length > 0 ? suggestion : null
+  } catch {
+    return null
+  }
 }
 
 export const PAGE_SIZE = 24
@@ -204,6 +244,9 @@ export function useEvents({
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState<string | null>(null)
   const [total,   setTotal]   = useState(0)
+  // Set when page one found nothing for the typed term and the rows on screen
+  // belong to a replacement term instead (see fetchSearchSuggestion).
+  const [searchReplacement, setSearchReplacement] = useState<SearchReplacement | null>(null)
 
   // The `start_at` floor page one of the CURRENT filter set was fetched with,
   // so every later page can reuse it. That floor is "now", and it advances
@@ -212,7 +255,9 @@ export function useEvents({
   // by that many rows, and exactly that many events would be skipped at the
   // page boundary. `sig` scopes the pin to one filter set (limit and offset
   // excluded) so changing a filter starts from a fresh floor.
-  const floorRef = useRef<{ sig: string; floorIso: string } | null>(null)
+  // `searchTerm` rides along for the same reason: when page one was served
+  // for a replacement term, later pages must keep paging THAT term.
+  const floorRef = useRef<{ sig: string; floorIso: string; searchTerm?: string | null } | null>(null)
 
   // The caller may pass fresh array literals on every render, so the fetch
   // effect keys on a serialized form and reads memoized arrays derived from
@@ -285,13 +330,15 @@ export function useEvents({
       //   • the live TAIL beyond a cached head (rows FIRST_PAGE_CACHE_ROWS
       //     .. limit-1, never with a count),
       //   • the serial fallback when the edge layer is unavailable.
-      const buildLiveQuery = (rangeStart: number, rangeEnd: number, withCount: boolean): LooseQuery => {
+      // `term` defaults to the typed search; the replacement-term re-query and
+      // its later pages pass their own.
+      const buildLiveQuery = (rangeStart: number, rangeEnd: number, withCount: boolean, term: string | null | undefined = search): LooseQuery => {
         // The venue embed is an inner join only when neighborhoodSlug is
         // set — that flips PostgREST into "filter the parent by the
         // child" mode and lets us hand the slug constraint to Postgres.
         // While searching, the venue scope is applied inside search_events
         // (p_neighborhood / p_cities) instead — see selectEvents.
-        const searching = isSearching(search)
+        const searching = isSearching(term)
         const useInnerVenue = !searching && (!!neighborhoodSlug || venueCities.length > 0)
         const venueJoin = useInnerVenue ? 'event_venues!inner' : 'event_venues'
         const venueTbl  = useInnerVenue ? 'venues!inner'      : 'venues'
@@ -313,7 +360,7 @@ export function useEvents({
             ${categorySelectFragment(categories, searching)}
             ${venueJoin} ( venue:${venueTbl} ( id, name, address, city, state, zip, lat, lng, parking_type, parking_notes, website, image_url, neighborhood_slug ) ),
             event_organizations ( organization:organizations ( id, name, website, description, image_url ) )
-          `, { search, floorIso, neighborhoodSlug, venueCities, withCount })
+          `, { search: term, floorIso, neighborhoodSlug, venueCities, withCount })
           .eq('status', 'published')
           // Drop events the moment their start time passes — no in-progress grace window.
           .gte('start_at', floorIso)
@@ -520,17 +567,53 @@ export function useEvents({
       }
 
       try {
+        type PageResult = { data: RawRow[] | null; error: unknown; count: number | null; status?: number }
+
+        // Later pages of a replaced search page the replacement term, not the
+        // typed one (which has no rows at all).
+        const pinned = floorRef.current
+        const pageTerm = offset > 0 && pinned?.sig === sig && pinned.searchTerm ? pinned.searchTerm : search
+
         // One retry on a statement timeout / gateway error (see queryRetry.ts):
         // the failed attempt warms the pages the second one needs.
-        const { data, error: fetchError, count } = await withOneRetry<{ data: RawRow[] | null; error: unknown; count: number | null; status?: number }>(
-          () => buildLiveQuery(offset, offset + limit - 1, offset === 0),
+        const first = await withOneRetry<PageResult>(
+          () => buildLiveQuery(offset, offset + limit - 1, offset === 0, pageTerm),
         )
+        if (first.error) throw first.error
 
-        if (fetchError) throw fetchError
+        let rows  = first.data ?? []
+        let count = first.count
+        let replacement: SearchReplacement | null = null
+
+        // Page one of a search that found nothing: ask for a completed or
+        // corrected term and, if there is one, show ITS results instead — with
+        // every other filter still applied. search_suggest only answers when
+        // the typed term matches nothing anywhere, so a search that is empty
+        // merely because of the other filters is left alone. If the
+        // replacement is also empty under those filters, keep the honest
+        // empty state rather than announcing a substitution with no rows.
+        if (offset === 0 && isSearching(search) && rows.length === 0) {
+          const suggestion = await fetchSearchSuggestion(search, floorIso)
+          if (suggestion) {
+            const second = await withOneRetry<PageResult>(
+              () => buildLiveQuery(0, limit - 1, true, suggestion),
+            )
+            if (!second.error && (second.data ?? []).length > 0) {
+              rows  = second.data ?? []
+              count = second.count
+              replacement = { from: search.trim(), to: suggestion }
+            }
+          }
+        }
+
         if (!cancelled) {
-          // Page one of a live feed pins the floor its later pages will use.
-          if (offset === 0) floorRef.current = { sig, floorIso }
-          setEvents((data ?? []).map((r: RawRow) => normalizeEventJoins(r) as AppEvent))
+          // Page one of a live feed pins the floor (and the term) its later
+          // pages will use.
+          if (offset === 0) {
+            floorRef.current = { sig, floorIso, searchTerm: replacement?.to ?? null }
+            setSearchReplacement(replacement)
+          }
+          setEvents(rows.map((r: RawRow) => normalizeEventJoins(r) as AppEvent))
           // Only page one carries a count; later pages leave the page-one
           // total untouched (a filter change resets offset to 0 and recounts).
           if (offset === 0) setTotal(count ?? 0)
@@ -546,6 +629,7 @@ export function useEvents({
           if (offset === 0) {
             setEvents([])
             setTotal(0)
+            setSearchReplacement(null)
           }
         }
       } finally {
@@ -559,7 +643,16 @@ export function useEvents({
 
   const hasMore = offset + limit < total
 
-  return { events, loading, error, total, hasMore }
+  // Only while it still describes the CURRENT term: useEvents starts its fetch
+  // from an effect, so for one render after the term changes the state above
+  // still belongs to the previous search. (The cached first-page paths never
+  // clear it either; they only run with no search term, which this covers.)
+  const activeReplacement =
+    searchReplacement && isSearching(search) && searchReplacement.from === search.trim()
+      ? searchReplacement
+      : null
+
+  return { events, loading, error, total, hasMore, searchReplacement: activeReplacement }
 }
 
 /**

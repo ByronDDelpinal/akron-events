@@ -10,6 +10,7 @@ import SourceOverflowCard from '@/components/SourceOverflowCard'
 import DateHeading from '@/components/DateHeading'
 import { groupEventsByDate, applySourceCap, sortFeaturedFirst } from '@/lib/eventGrouping'
 import { useSearchReporting } from '@/hooks/useSearchReporting'
+import SearchReplacementNotice from '@/components/SearchReplacementNotice'
 // Grid / list / load-more styles live in HomePage.css (global, deduped by Vite).
 import '@/pages/HomePage.css'
 
@@ -124,11 +125,15 @@ export default function EventsBrowser({
   }, [filterKey, resetPagination])
 
   // ── Data fetch (one page at a time) ───────────────────────────────────
-  const { events: page, loading, error, total, hasMore } = useEvents({
+  const { events: page, loading, error, total, hasMore, searchReplacement } = useEvents({
     ...effective,
     limit,
     offset,
   })
+  // When the typed term found nothing and the list is showing a replacement
+  // term's results, the map and calendar must search that same term — the
+  // views can never diverge under identical filters.
+  const viewSearch = searchReplacement?.to ?? effective.search
 
   // Separate unpaginated fetch for the map — same filters, all results. Only
   // runs while the map is showing. Time of day included so map and list can
@@ -143,7 +148,7 @@ export default function EventsBrowser({
     dateFrom: effective.dateFrom,
     dateTo: effective.dateTo,
     timeOfDay: effective.timeOfDay,
-    search: effective.search,
+    search: viewSearch,
     freeOnly: effective.freeOnly,
     priceMax: effective.priceMax,
     neighborhoodSlug: effective.neighborhoodSlug,
@@ -170,7 +175,7 @@ export default function EventsBrowser({
     family: effective.family,
     excludeFamily: effective.excludeFamily,
     fundraiser: effective.fundraiser,
-    search: effective.search,
+    search: viewSearch,
     freeOnly: effective.freeOnly,
     priceMax: effective.priceMax,
     neighborhoodSlug: effective.neighborhoodSlug,
@@ -184,7 +189,7 @@ export default function EventsBrowser({
 
   // Home + embed search reporting. CategoryPage is a separate fork of this
   // component and calls the same hook itself — see useSearchReporting.
-  useSearchReporting({ term: effective.search, total, loading, error, offset, page })
+  useSearchReporting({ term: effective.search, total, loading, error, offset, page, replaced: !!searchReplacement })
 
   // Append each incoming page to the accumulated list.
   useEffect(() => {
@@ -312,6 +317,13 @@ export default function EventsBrowser({
           lockedCategories={lockedCategories}
           showFilterButton={features.filter}
         />
+      )}
+
+      {/* Above every view, in the same centered column as the list. */}
+      {searchReplacement && (
+        <div className="content">
+          <SearchReplacementNotice replacement={searchReplacement} />
+        </div>
       )}
 
       {/* ── MAP VIEW ── */}

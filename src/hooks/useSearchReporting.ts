@@ -31,10 +31,17 @@ interface SearchReportingArgs {
   offset: number
   /** The settled page. Its identity changing is what marks a real settle. */
   page: AppEvent[]
+  /**
+   * True when the rows on screen belong to a replacement term (useEvents'
+   * `searchReplacement`): the typed term itself matched nothing, and THAT is
+   * the count to report. `total` then describes the replacement's results;
+   * reporting it would record a misspelling or a supply gap as a hit.
+   */
+  replaced?: boolean
 }
 
 export function useSearchReporting({
-  term, total, loading, error, offset, page,
+  term, total, loading, error, offset, page, replaced = false,
 }: SearchReportingArgs): void {
   // HAZARD 1 — the term must not be a dependency.
   // useEvents starts its fetch from an effect, so there is exactly one render
@@ -44,6 +51,9 @@ export function useSearchReporting({
   // Mirroring during render is React's sanctioned pattern for this.
   const termRef = useRef(term)
   termRef.current = term
+  // Same pattern, same reason: read at settle time, never a dependency.
+  const replacedRef = useRef(replaced)
+  replacedRef.current = replaced
 
   // Keyed on the term alone: re-firing whenever some OTHER filter is tweaked
   // while a search is active would inflate that term's volume. Cleared when the
@@ -73,7 +83,7 @@ export function useSearchReporting({
     trackEvent(EVENTS.SEARCH, {
       search_term: committed,
       content_type: 'events',
-      result_count: total,
+      result_count: replacedRef.current ? 0 : total,
     })
     // `page` is a dependency because its identity changing is the only reliable
     // signal that a fetch settled and `total` now describes THIS term.

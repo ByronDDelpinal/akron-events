@@ -1,0 +1,12 @@
+/* "No exact matches for X. Showing results for Y." — see the component.
+   Sits directly above the results it describes, in both funnels. */
+.search-replacement {
+  margin: 0 0 var(--space-lg);
+  padding: var(--space-sm) var(--space-md);
+  border-left: 3px solid var(--amber);
+  border-radius: var(--radius-md);
+  background: var(--amber-pale);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+.search-replacement strong { font-weight: 700; }

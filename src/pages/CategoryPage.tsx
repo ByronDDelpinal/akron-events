@@ -13,6 +13,7 @@ import { useParams, Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useEvents, PAGE_SIZE, type AppEvent } from '@/hooks/useEvents'
 import { useRestorablePagination } from '@/hooks/useRestorablePagination'
 import { useSearchReporting } from '@/hooks/useSearchReporting'
+import SearchReplacementNotice from '@/components/SearchReplacementNotice'
 import { trackEvent, EVENTS } from '@/lib/analytics'
 import { INTENTS } from '@/lib/intents'
 import EventCard from '@/components/EventCard'
@@ -300,7 +301,7 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
     !activeIntentId &&
     !hub.dateRange
 
-  const { events: page, loading, error, total, hasMore } = useEvents({
+  const { events: page, loading, error, total, hasMore, searchReplacement } = useEvents({
     categories: effectiveCategories,
     family:     effectiveFamily,
     fundraiser: effectiveFundraiser,
@@ -323,7 +324,7 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
   // own append effect, own filter strip), so it has to call this itself — the
   // hub surface is every neighborhood, city and category page, and it reported
   // nothing at all until this was added.
-  useSearchReporting({ term: search, total, loading, error, offset, page })
+  useSearchReporting({ term: search, total, loading, error, offset, page, replaced: !!searchReplacement })
 
   useEffect(() => {
     if (loading) return
@@ -578,6 +579,8 @@ function CategoryPageContent({ hub, slug }: { hub: Hub; slug?: string }) {
         <h2 id="hub-events-heading" className={hasMap ? 'sr-only' : 'hub-section-heading'}>
           {countLabel}
         </h2>
+
+        <SearchReplacementNotice replacement={searchReplacement} />
 
         {loading && allEvents.length === 0 && !isRefreshing && (
           <p className="hub-empty">Loading events…</p>
