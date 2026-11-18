@@ -101,6 +101,7 @@
     "scrape:summit-humane": "node scripts/scrape-summit-humane.js",
     "scrape:release-yoga": "node scripts/scrape-release-yoga.js",
     "audit:venues": "node scripts/audit-venue-duplicates.js",
+    "sweep:placeholder-venues": "node scripts/sweep-placeholder-venues.js",
     "scrape:meetup": "node scripts/scrape-meetup.js",
     "scrape:hiho-brewing": "node scripts/scrape-hiho-brewing.js",
     "scrape:akron-makerspace": "node scripts/scrape-akron-makerspace.js",

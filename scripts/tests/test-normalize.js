@@ -38,6 +38,7 @@ const {
   isProseContactVenueName,
   looksLikeStreetAddress,
   ensureVenue,
+  cleanVenueDisplayName,
   orgNameKey,
   titleCaseIfShouting,
   absoluteUrl,
@@ -1492,26 +1493,34 @@ describe('isProseContactVenueName', () => {
 // returns them by id (null fields when absent).
 // When allVenues is omitted, `existingRows` backs the name lookup and the
 // thenable loads resolve empty — exactly the old mock's behavior.
-function makeVenuesMock({ existingRows = [], insertedId = 'v-new', allVenues = null, aliases = {}, aliasNames = [], aliasNamesError = null, geoError = null } = {}) {
-  const calls = { insert: 0, insertRow: null, aliasLookups: 0, update: 0, geoReads: 0 }
+function makeVenuesMock({ existingRows = [], insertedId = 'v-new', allVenues = null, aliases = {}, aliasNames = [], aliasNamesError = null, geoError = null, persistInserts = false } = {}) {
+  const calls = { insert: 0, insertRow: null, insertRows: [], aliasLookups: 0, update: 0, geoReads: 0 }
   function builder(table) {
     const st = { table, cols: null, op: null, filters: {} }
     const chain = {
       select(cols) { st.cols = cols; return chain },
       eq(col, val) { st.filters[col] = val; return chain },
+      in(col, vals) { st.filters[`${col}In`] = vals; return chain },
       not()    { return chain },
       order()  { return chain },
-      update() { st.op = 'update'; calls.update++; return chain },
+      update(row) { st.op = 'update'; calls.update++; calls.updateRow = row; return chain },
       limit()  {
         const rows = allVenues
           ? allVenues
-              .filter((v) => v.name === st.filters.name)
-              .map((v) => ({ id: v.id, neighborhood_slug: v.neighborhood_slug ?? null }))
+              .filter((v) => v.name === st.filters.name || st.filters.nameIn?.includes(v.name))
+              .map((v) => ({ id: v.id, name: v.name, city: v.city ?? null, neighborhood_slug: v.neighborhood_slug ?? null }))
           : existingRows
         return Promise.resolve({ data: rows, error: null })
       },
-      insert(row) { calls.insert++; calls.insertRow = row; return chain },
-      single() { return Promise.resolve({ data: { id: insertedId }, error: null }) },
+      insert(row) { calls.insert++; calls.insertRow = row; calls.insertRows.push(row); return chain },
+      single() {
+        // persistInserts: each insert gets a distinct id and becomes visible to
+        // later lookups, so multi-call tests see the rows minted earlier.
+        if (!persistInserts) return Promise.resolve({ data: { id: insertedId }, error: null })
+        const id = `${insertedId}-${calls.insert}`
+        allVenues.push({ id, name: calls.insertRow.name, city: calls.insertRow.city ?? null })
+        return Promise.resolve({ data: { id }, error: null })
+      },
       maybeSingle() {
         if (st.table === 'venue_aliases') {
           calls.aliasLookups++
@@ -1521,6 +1530,10 @@ function makeVenuesMock({ existingRows = [], insertedId = 'v-new', allVenues = n
         if (st.table === 'venues' && st.cols === 'id') {
           const alive = (allVenues ?? []).some((v) => v.id === st.filters.id)
           return Promise.resolve({ data: alive ? { id: st.filters.id } : null, error: null })
+        }
+        if (st.table === 'venues' && st.cols === 'city') {
+          const v = (allVenues ?? []).find((r) => r.id === st.filters.id)
+          return Promise.resolve({ data: v ? { city: v.city ?? null } : null, error: null })
         }
         if (st.table === 'venues' && st.cols === 'address, lat, lng') {
           calls.geoReads++
@@ -2265,5 +2278,118 @@ describe('hasStatusOverride', () => {
     assert.equal(hasStatusOverride(undefined), false)
     assert.equal(hasStatusOverride({ manual_overrides: 'status' }), false)
     assert.equal(hasStatusOverride({ manual_overrides: Object.create({ status: true }) }), false)
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// cleanVenueDisplayName + ensureVenue raw/clean id stability
+// ════════════════════════════════════════════════════════════════════════════
+describe('cleanVenueDisplayName', () => {
+  it('strips " - City, OH" (returning the city) and de-shouts', () => {
+    for (const [input, name, city] of [
+      ["ISALY'S CAFE & CATERING - Stow, OH", "Isaly's Cafe & Catering", 'Stow'],
+      ["Shelly's Uptown Grill - Doylestown, OH", "Shelly's Uptown Grill", 'Doylestown'],
+      ['E.J. THOMAS HALL', 'E.J. Thomas Hall', null],
+      ['Virtual - Akron, OH', 'Virtual', 'Akron'],
+    ]) assert.deepEqual(cleanVenueDisplayName(input), { name, city }, input)
+  })
+
+  it('leaves non-shouting, short, and non-suffix names unchanged', () => {
+    for (const n of ['BLU Jazz+', 'GAR Hall', 'EJ Thomas Hall', 'BLU JAZZ+', 'Lock 3 - TBD', 'AB - Kent, OH',
+      'PorchRokr Porch 24 - 54 Borton Ave', 'Cuyahoga Valley National Park - Oxbow Meadows Area']) {
+      assert.deepEqual(cleanVenueDisplayName(n), { name: n, city: null }, n)
+    }
+  })
+
+  it('titleCaseIfShouting keepShortInitialisms keeps dotted initials', () => {
+    assert.equal(titleCaseIfShouting('U.S. ARMY BAND', { minLength: 0, keepShortInitialisms: true }), 'U.S. Army Band')
+  })
+})
+
+describe('ensureVenue — cleaned names keep stable ids', () => {
+  function fresh(config) {
+    _resetVenueNameIndex()
+    _resetVenueAddressIndex()
+    _resetVenueAliasNameIndex()
+    const { client, calls } = makeVenuesMock(config)
+    __setClientForTests(client)
+    return calls
+  }
+  async function withMock(config, fn) {
+    const calls = fresh(config)
+    try { await fn(calls) } finally { __setClientForTests(null) }
+  }
+
+  it('existing RAW-spelling row → same id; never renamed, suffix city never written', () => withMock(
+    { allVenues: [{ id: 'v-raw', name: "HALLORAN'S PUBLIC HOUSE - Kent, OH", address: '1 Main St' }] },
+    async (calls) => {
+      assert.equal(await ensureVenue("HALLORAN'S PUBLIC HOUSE - Kent, OH"), 'v-raw')
+      assert.equal(calls.insert, 0)
+      assert.equal(calls.updateRow?.name, undefined)
+      assert.equal(calls.updateRow?.city, undefined)
+    }))
+
+  it('existing CLEAN-spelling row with no city → same id, city not overwritten', () => withMock(
+    { allVenues: [{ id: 'v-clean', name: 'Marigold Supper Club', address: '2 Main St' }] },
+    async (calls) => {
+      assert.equal(await ensureVenue('MARIGOLD SUPPER CLUB - Akron, OH'), 'v-clean')
+      assert.equal(calls.insert, 0)
+      assert.equal(calls.updateRow?.city, undefined)
+    }))
+
+  it('prefers the exact RAW-name row when both spellings exist', () => withMock(
+    { allVenues: [
+      { id: 'v-c2', name: 'Copper Kettle Diner', city: 'Tallmadge' },
+      { id: 'v-r2', name: 'COPPER KETTLE DINER - Tallmadge, OH' },
+    ] },
+    async () => assert.equal(await ensureVenue('COPPER KETTLE DINER - Tallmadge, OH'), 'v-r2')))
+
+  it('a miss mints the clean name; suffix city fills only an empty city', () => withMock(
+    { allVenues: [], persistInserts: true, insertedId: 'v-n' },
+    async (calls) => {
+      await ensureVenue('THE VELVET LANTERN LOUNGE - Hudson, OH')
+      await ensureVenue('Orchid Room Bistro - Stow, OH', { city: 'Cuyahoga Falls' })
+      assert.deepEqual(calls.insertRows.map((r) => [r.name, r.city]),
+        [['The Velvet Lantern Lounge', 'Hudson'], ['Orchid Room Bistro', 'Cuyahoga Falls']])
+    }))
+
+  it('across runs: a clean-name row in a DIFFERENT city is a miss, minted under the raw name', () => withMock(
+    { allVenues: [{ id: 'v-stow', name: 'Garnet Grill', city: 'Stow' }], persistInserts: true, insertedId: 'v-g' },
+    async (calls) => {
+      assert.equal(await ensureVenue('Garnet Grill - Stow, OH'), 'v-stow')
+      assert.equal(await ensureVenue('Garnet Grill - Hudson, OH'), 'v-g-1')
+      assert.deepEqual([calls.insertRow.name, calls.insertRow.city], ['Garnet Grill - Hudson, OH', 'Hudson'])
+    }))
+
+  it('within ONE run: two chain locations get two venues and keep resolving to them', () => withMock(
+    { allVenues: [], persistInserts: true, insertedId: 'v-b' },
+    async (calls) => {
+      const stow = await ensureVenue('Birchwood Bakehouse - Stow, OH')
+      const hudson = await ensureVenue('Birchwood Bakehouse - Hudson, OH')
+      assert.notEqual(stow, hudson)
+      assert.deepEqual(calls.insertRows.map((r) => r.name), ['Birchwood Bakehouse', 'Birchwood Bakehouse - Hudson, OH'])
+      assert.equal(await ensureVenue('Birchwood Bakehouse - Stow, OH'), stow)
+      assert.equal(await ensureVenue('Birchwood Bakehouse - Hudson, OH'), hudson)
+      assert.equal(calls.insert, 2)
+    }))
+
+  it('"Virtual - Akron, OH" is refused by the junk gate', () => withMock({ allVenues: [] }, async (calls) => {
+    assert.equal(await ensureVenue('Virtual - Akron, OH'), null)
+    assert.equal(calls.insert, 0)
+  }))
+})
+
+describe('sweep-placeholder-venues — selectPlaceholderVenues', () => {
+  it('selects geo-less junk-named venues and tags online markers', async () => {
+    const { selectPlaceholderVenues } = await import('../sweep-placeholder-venues.js')
+    const picked = selectPlaceholderVenues([
+      { id: 'a', name: 'Virtual', address: null, lat: null },
+      { id: 'b', name: 'more information to come', address: null, lat: null },
+      { id: 'c', name: 'Virtual', address: '1 Main St', lat: null },
+      { id: 'd', name: 'Virtual', address: null, lat: 41.08 },
+      { id: 'e', name: 'Lock 3', address: null, lat: null },
+    ])
+    assert.deepEqual(picked.map((v) => [v.id, v.online]), [['a', true], ['b', false]])
+    assert.deepEqual(selectPlaceholderVenues(null), [])
   })
 })

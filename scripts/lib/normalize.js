@@ -1317,6 +1317,18 @@ async function _resolveVenueAliasCanonical(venueId) {
   }
 }
 
+/** Read venue `id`'s city for ensureVenue's suffix-city rule; `undefined` on a read error. */
+async function _venueCity(id) {
+  try {
+    const { data, error } = await supabaseAdmin.from('venues').select('city').eq('id', id).maybeSingle()
+    if (!error) return data?.city ?? null
+    console.warn(`  ⚠ Venue city read failed for ${id}: ${error.message}`)
+  } catch (err) {
+    console.warn(`  ⚠ Venue city read failed for ${id}: ${err?.message ?? err}`)
+  }
+  return undefined
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // SHARED VENUE LOOKUP / CREATION
 // ════════════════════════════════════════════════════════════════════════════
@@ -1497,6 +1509,29 @@ export function venueNameKey(name) {
 }
 
 /**
+ * Display-clean a scraped venue name → { name, city }. Strips a trailing
+ * " - City, OH" suffix (anchored on the state, so "Lock 3 - TBD" is untouched;
+ * only when ≥3 chars remain) and returns that city (else null). De-shouts an
+ * ALL-CAPS name over 12 chars, keeping "GAR"/"E.J."-style initialisms.
+ * Pure + exported for tests.
+ */
+export function cleanVenueDisplayName(name) {
+  let out = String(name ?? '').trim()
+  let city = null
+  const m = out.match(/\s+[-–—]\s+([A-Za-z][A-Za-z .']{1,30}),\s*(?:OH|Ohio)\.?$/i)
+  if (m) {
+    const head = out.slice(0, m.index).trim()
+    if (head.length >= 3) {
+      out = head
+      city = m[1].trim()
+      if (!/[a-z]/.test(city)) city = titleCaseIfShouting(city, { minLength: 0 })
+    }
+  }
+  out = titleCaseIfShouting(out, { minLength: 12, keepShortInitialisms: true })
+  return { name: out, city }
+}
+
+/**
  * `ensureVenue` for a single-venue scraper's `VENUE_INFO` constant.
  *
  * Eleven fixed-venue scrapers each hand-listed every `VENUE_INFO` field into an
@@ -1540,6 +1575,17 @@ export async function ensureVenue(name, details = {}, opts = {}) {
     if (!details.city && split.city) details.city = split.city
   }
 
+  // Display-clean before lookup. `raw` keeps legacy rows under the uncleaned
+  // spelling resolving to the SAME id (rows are never renamed). The suffix
+  // city separates chain locations ("X - Stow, OH" vs "X - Hudson, OH"): a
+  // clean-name hit counts only if its city agrees (or is empty), and the
+  // suffix city is written only onto a newly minted row.
+  const raw = trimmed
+  const clean = cleanVenueDisplayName(trimmed)
+  trimmed = clean.name
+  const cityFromSuffix = clean.city
+  const rawDiffers = raw !== clean.name
+
   // Fold known name variants onto the canonical venue before any lookup, so a
   // second row is never minted for a place we already have (see VENUE_NAME_ALIASES).
   trimmed = canonicalVenueName(trimmed)
@@ -1567,7 +1613,8 @@ export async function ensureVenue(name, details = {}, opts = {}) {
 
   // Cache keys on the normalized name key so curly-vs-straight-apostrophe
   // spellings of one venue share a single cache entry (and a single row).
-  const cacheKey = venueNameKey(trimmed)
+  const nameKey = venueNameKey(trimmed)
+  const cacheKey = cityFromSuffix ? `${nameKey}|${cityFromSuffix.toLowerCase()}` : nameKey
   if (_venueNameCache.has(cacheKey)) return _venueNameCache.get(cacheKey)
 
   // Guard: never mint a venue whose NAME is a bare street address. These come
@@ -1616,19 +1663,49 @@ export async function ensureVenue(name, details = {}, opts = {}) {
   // migration 035's unique index). On any lookup error we now skip
   // venue creation entirely — a missing venue link for one run is
   // recoverable; a duplicate venue row is not.
-  const { data: existingRows, error: lookupError } = await supabaseAdmin
-    .from('venues')
-    .select('id, neighborhood_slug')
-    .eq('name', trimmed)
+  // Cleaned name → look up BOTH spellings (unique index: ≤1 row each); an
+  // unchanged name keeps the original query. supabase-js double-quotes each
+  // .in() value, so commas/parens/quotes in names can't break the filter.
+  const venuesTable = supabaseAdmin.from('venues')
+  const lookupQuery = rawDiffers
+    ? venuesTable.select('id, name, city, neighborhood_slug').in('name', [trimmed, raw])
+    : venuesTable.select('id, neighborhood_slug').eq('name', trimmed)
+  const { data: existingRows, error: lookupError } = await lookupQuery
     .order('created_at', { ascending: true })
-    .limit(1)
+    .limit(rawDiffers ? 2 : 1)
 
   if (lookupError) {
     console.warn(`  ⚠ Venue lookup failed for "${trimmed}":`, lookupError.message)
     _venueNameCache.set(cacheKey, null)
     return null
   }
-  const existing = existingRows?.[0] ?? null
+  // Prefer the exact RAW-name row. A clean-name row in another city is a
+  // different chain location: a miss, minted under the raw name.
+  const cityOk = (city) => !cityFromSuffix || !city || city.toLowerCase() === cityFromSuffix.toLowerCase()
+  let existing = null
+  let mintName = trimmed
+  if (!rawDiffers) {
+    existing = existingRows?.[0] ?? null
+  } else {
+    const rawRow = existingRows?.find((r) => r.name === raw)
+    const cleanRow = existingRows?.find((r) => r.name === trimmed)
+    if (rawRow) existing = rawRow
+    else if (cleanRow && cityOk(cleanRow.city)) existing = cleanRow
+    else if (cleanRow) mintName = raw
+  }
+  const rawKey = rawDiffers ? venueNameKey(raw) : nameKey
+  // Same rule for name-key/alias hits (raw key first). undefined = city read
+  // failed → caller skips creation rather than risk a duplicate.
+  const keyHit = async (index) => {
+    if (rawKey !== nameKey && index.has(rawKey)) return index.get(rawKey)
+    const id = index.get(nameKey) ?? null
+    if (!id || !cityFromSuffix) return id
+    const city = await _venueCity(id)
+    if (city === undefined) return undefined
+    if (cityOk(city)) return id
+    mintName = raw
+    return null
+  }
 
   // Legacy placeholder guard: a junk-named row ("Virtual", "Front Street",
   // "Throughout Hudson") that ALSO carries no address and no coordinates is a
@@ -1699,7 +1776,8 @@ export async function ensureVenue(name, details = {}, opts = {}) {
   // A skipped placeholder is also in the name index under the same key, so
   // treat a hit on that same row as a miss to avoid warning twice.
   const nameIndex = await _getVenueNameIndex()
-  const byNameKey = nameIndex.get(cacheKey)
+  const byNameKey = await keyHit(nameIndex)
+  if (byNameKey === undefined) { _venueNameCache.set(cacheKey, null); return null }
   if (byNameKey && byNameKey !== existing?.id && await isGeolessPlaceholder(byNameKey)) {
     warnPlaceholder(byNameKey)
   } else if (byNameKey && byNameKey !== existing?.id) {
@@ -1719,7 +1797,8 @@ export async function ensureVenue(name, details = {}, opts = {}) {
   // for these feeds), and the junk-name guard would otherwise block even a
   // successful alias resolution from being attempted.
   const aliasIdx = await _getVenueAliasNameIndex()
-  const byAlias = aliasIdx.get(cacheKey)
+  const byAlias = await keyHit(aliasIdx)
+  if (byAlias === undefined) { _venueNameCache.set(cacheKey, null); return null }
   if (byAlias) {
     const resolved = await _resolveVenueAliasCanonical(byAlias)
     _venueNameCache.set(cacheKey, resolved)
@@ -1762,9 +1841,10 @@ export async function ensureVenue(name, details = {}, opts = {}) {
 
   // Build insert payload, omitting null/undefined values so Postgres
   // uses column defaults (city NOT NULL DEFAULT 'Akron', etc.)
-  const row = { name: trimmed }
+  const row = { name: mintName }
   if (details.address)       row.address       = details.address
   if (details.city)          row.city          = details.city
+  else if (cityFromSuffix)   row.city          = cityFromSuffix
   if (details.state)         row.state         = details.state
   if (details.zip)           row.zip           = details.zip
   if (details.lat != null)   row.lat           = details.lat
@@ -1809,8 +1889,9 @@ export async function ensureVenue(name, details = {}, opts = {}) {
   }
   // Same freshness rule for the name index: a later spelling variant of this
   // brand-new venue must resolve to it, not mint another row.
-  if (_venueNameIndex && cacheKey && !_venueNameIndex.has(cacheKey)) {
-    _venueNameIndex.set(cacheKey, data.id)
+  const mintedKey = venueNameKey(mintName)
+  if (_venueNameIndex && mintedKey && !_venueNameIndex.has(mintedKey)) {
+    _venueNameIndex.set(mintedKey, data.id)
   }
   return data.id
 }
@@ -1902,6 +1983,7 @@ export function titleCaseIfShouting(title, { minLength = 25, keepShortInitialism
           if (!segment) return segment
           if (TITLE_CASE_KEEP_UPPER.has(segment)) return segment
           if (keepShortInitialisms && /^[A-Z]{2,3}$/.test(segment) && !/[AEIOUY]/.test(segment)) return segment
+          if (keepShortInitialisms && /^(?:[A-Z]\.)+$/.test(segment)) return segment // dotted initials: "E.J."
           const lower = segment.toLowerCase()
           const isSegFirst = isFirst && segIdx === 0
           const isSegLast  = isLast && segIdx === segments.length - 1
