@@ -1287,6 +1287,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'western_reserve_community_band',
+    method:      'ICS feed',
+    methodDetail:'Public Google Calendar embedded on wrcband97.org, read through the shared lib/ics.js pipeline; the feed is the band\'s working calendar, so entries are filtered by title to public performances',
+    venue:       'Varies — Hudson Middle School, Hudson Green and other northern Summit County stages',
+    notes:       'Western Reserve Community Band — a volunteer concert band based in Hudson — keeps one calendar for everything it does. Only public performances are listed: concerts, the Hudson Ice Cream Social and similar community dates. Rehearsals (including dress rehearsals), meetings, members-only socials and concerts played for a residence are left out, as are performances outside Summit County. "WRCB" in a title is spelled out as the band\'s name. No price is assumed. Between concerts the calendar holds only rehearsals, so an empty run is normal for this source.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -1892,6 +1900,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   summit_historical:       'html',
   magical_theatre:         'html',
   stow_players:            'html',
+  western_reserve_community_band: 'ics',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',
