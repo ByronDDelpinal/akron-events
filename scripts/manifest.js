@@ -239,6 +239,7 @@ export const SCRAPERS = [
   { key: 'boston_township',      script: 'scripts/scrape-boston-township.js',         label: 'Boston Township',              group: 'html',           active: true, defaultCategory: 'civic' },
   { key: 'one_of_a_kind_pets',   script: 'scripts/scrape-one-of-a-kind-pets.js',      label: 'One of A Kind Pet Rescue',     group: 'wordpress',      active: true },
   { key: 'summit_indoor_mx',     script: 'scripts/scrape-summit-indoor-mx.js',        label: 'Summit Indoor MX',             group: 'html',           active: true, defaultCategory: 'sports' },
+  { key: 'astronomy_club_akron', script: 'scripts/scrape-astronomy-club-akron.js',    label: 'Astronomy Club of Akron',      group: 'html',           active: true, defaultCategory: 'learning' },
 ]
 
 // Active scrapers only — what run-all.js iterates.

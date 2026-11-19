@@ -1343,6 +1343,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'astronomy_club_akron',
+    method:      'HTML scrape',
+    methodDetail:'Hand-edited static home page: the "Upcoming Events" block lists the next public meetings as a dated line, the kind of meeting, the speaker, the talk title and a paragraph about it',
+    venue:       'Portage Lakes Kiwanis Civic Center — 725 Portage Lakes Drive, Akron',
+    notes:       'The Astronomy Club of Akron holds free public lecture meetings most months and announces the next one or two on its home page. Each announced meeting is one event, titled with the talk. The date, year included, is the one printed on the entry. When the entry prints a time it is used; when it does not, the standing meeting time stated elsewhere on the page is used and the listing says the time is a placeholder. The meeting place and free admission are taken from the page\'s own sentences. Star parties are not listed: they are announced a day ahead, depend on the weather, and the seasonal schedule is a PDF. The block often still shows the last meeting until the next is announced, so an empty run is normal. Built and tested against the page as it stood in March 2025 and November 2026.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -1955,6 +1963,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   boston_township:         'html',
   one_of_a_kind_pets:      'api',
   summit_indoor_mx:        'html',
+  astronomy_club_akron:    'html',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',
