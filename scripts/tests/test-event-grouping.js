@@ -11,7 +11,13 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { groupEventsByDate, sortFeaturedFirst } from '../../src/lib/eventGrouping.ts'
+import {
+  groupEventsByDate,
+  sortFeaturedFirst,
+  applySourceCap,
+  SOURCE_CAP,
+  CAPPED_SOURCES,
+} from '../../src/lib/eventGrouping.ts'
 
 /**
  * Build a minimal groupable event. Times are noon-UTC-anchored so the
@@ -112,5 +118,57 @@ describe('sortFeaturedFirst applied per day group (multi-day)', () => {
     // A featured event never crosses its day boundary.
     assert.ok(!ids(day1).includes('d2f'))
     assert.ok(!ids(day3).includes('d2f'))
+  })
+})
+
+describe('applySourceCap', () => {
+  const DAY = '2026-12-01'
+  // n events from one source, an hour apart, all on DAY.
+  const run = (source, n) =>
+    Array.from({ length: n }, (_, i) =>
+      ev(`${source}-${i}`, `2026-12-01T${String(12 + i).padStart(2, '0')}:00:00Z`, false, source))
+  const shown = (items) => items.filter((i) => i.type === 'event').map((i) => i.event.id)
+  const overflow = (items) => items.filter((i) => i.type === 'overflow')
+
+  it('the cap list is exactly the three high-volume sources', () => {
+    assert.deepEqual([...CAPPED_SOURCES].sort(), ['akron_library', 'highland_square_theatre', 'twinsburg_library'])
+  })
+
+  for (const source of ['akron_library', 'highland_square_theatre', 'twinsburg_library']) {
+    it(`${source}: shows SOURCE_CAP events, then one overflow card counting the rest`, () => {
+      const items = applySourceCap(run(source, SOURCE_CAP + 4), new Set(), DAY)
+      assert.equal(shown(items).length, SOURCE_CAP)
+      const cards = overflow(items)
+      assert.equal(cards.length, 1)
+      assert.equal(cards[0].hiddenCount, 4)
+      assert.equal(cards[0].source, source)
+      assert.equal(items[SOURCE_CAP].type, 'overflow') // card sits right after the last shown event
+    })
+  }
+
+  it('a capped source at exactly SOURCE_CAP events gets no overflow card', () => {
+    const items = applySourceCap(run('twinsburg_library', SOURCE_CAP), new Set(), DAY)
+    assert.equal(shown(items).length, SOURCE_CAP)
+    assert.equal(overflow(items).length, 0)
+  })
+
+  it('an uncapped source shows every event and never gets a card', () => {
+    const items = applySourceCap(run('stow_library', SOURCE_CAP + 6), new Set(), DAY)
+    assert.equal(shown(items).length, SOURCE_CAP + 6)
+    assert.equal(overflow(items).length, 0)
+  })
+
+  it('expanding a source reveals its hidden events after the card', () => {
+    const items = applySourceCap(run('twinsburg_library', SOURCE_CAP + 2), new Set([`${DAY}-twinsburg_library`]), DAY)
+    assert.equal(shown(items).length, SOURCE_CAP + 2)
+    assert.equal(overflow(items)[0].isExpanded, true)
+    assert.equal(items.filter((i) => i.type === 'event' && i.isRevealed).length, 2)
+  })
+
+  it('the cap is per source: two capped sources on one day are counted separately', () => {
+    const day = [...run('akron_library', SOURCE_CAP + 1), ...run('twinsburg_library', SOURCE_CAP + 1)]
+    const items = applySourceCap(day, new Set(), DAY)
+    assert.equal(shown(items).length, SOURCE_CAP * 2)
+    assert.equal(overflow(items).length, 2)
   })
 })

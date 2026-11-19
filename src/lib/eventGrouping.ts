@@ -43,10 +43,16 @@ export const SOURCE_CAP = 3
  *   - highland_square_theatre — the cinema's many daily showtimes,
  *                               which otherwise crowd the Highland
  *                               Square neighborhood hub
+ *   - twinsburg_library       — ~250 programs at a time, up to 9 a
+ *                               day (added with the scraper, 2026-11-19)
  * Anything not listed here renders every event uncapped (e.g. Akron
  * Life can surface as many events as it has).
  */
-export const CAPPED_SOURCES = new Set<string>(['akron_library', 'highland_square_theatre'])
+export const CAPPED_SOURCES = new Set<string>([
+  'akron_library',
+  'highland_square_theatre',
+  'twinsburg_library',
+])
 
 /**
  * applySourceCap(dayEvents, expandedSources, dateKey)
