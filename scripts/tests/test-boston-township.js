@@ -97,11 +97,18 @@ describe('rows', () => {
 })
 
 describe('run (dry, fixtures served by a fake fetch)', () => {
-  it('plans the four meetings still to come across three months', async () => {
+  it('reads all six entries and publishes none: they are all government meetings', async () => {
     const result = await run({ dryRun: true, fetchImpl: serve(pages), now: () => NOW, delayMs: 0 })
     assert.equal(result.status, 'dry-run')
     assert.equal(result.found, 6)
-    assert.equal(result.planned, 4)
+    assert.equal(result.planned, 0)
+    assert.equal(result.exitCode, 0)
+  })
+
+  it('a community entry on the same grid is published', async () => {
+    const withCleanup = { ...pages, [monthUrl(2026, 12)]: DEC.replace('Zoning Commission', 'Township Cleanup Day') }
+    const result = await run({ dryRun: true, fetchImpl: serve(withCleanup), now: () => NOW, delayMs: 0 })
+    assert.equal(result.planned, 1)
   })
 
   it('a site that answers a different month than asked is an error, not an empty run', async () => {

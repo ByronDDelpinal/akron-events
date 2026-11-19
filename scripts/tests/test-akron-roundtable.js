@@ -51,7 +51,7 @@ describe('the season list', () => {
 
 describe('places', () => {
   it('maps the hotel to its address, keeps an unfamiliar place by name, and has no venue while TBD', () => {
-    assert.equal(resolvePlace('Doubletree by Hilton Akron/Fairlawn').details.address, '3150 W Market St')
+    assert.equal(resolvePlace('Doubletree by Hilton Akron/Fairlawn').details.address, '3180 W Market St')
     assert.deepEqual(resolvePlace('John S. Knight Center'), { name: 'John S. Knight Center', details: { city: 'Akron', state: 'OH' } })
     assert.equal(resolvePlace('Event Location TBD'), null)
     assert.equal(resolvePlace(''), null)
@@ -67,7 +67,7 @@ describe('rows', () => {
     assert.equal(row.source_id, '25196')
     assert.equal(row.price_min, null)
     assert.match(row.description, /^Akron Roundtable luncheon with Dr\. Rhea Boyd, Pediatrician, public health advocate, and scholar\. Presentation: The Politics, Policing, and Possibilities of Black Motherhood\./)
-    assert.equal(venue.name, 'DoubleTree by Hilton Akron-Fairlawn')
+    assert.equal(venue.name, 'DoubleTree by Hilton Akron Fairlawn')
   })
   it('a luncheon whose location is still TBD is listed without a venue', () => {
     const { row, venue } = buildRow(named(/Callie Brownson/))

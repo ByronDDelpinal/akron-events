@@ -46,7 +46,7 @@ const ORG = {
 
 /** Places the Roundtable names, with the address the listing needs. */
 const KNOWN_VENUES = [
-  { match: /doubletree/i, name: 'DoubleTree by Hilton Akron-Fairlawn', details: { address: '3150 W Market St', city: 'Akron', state: 'OH', zip: '44333' } },
+  { match: /doubletree/i, name: 'DoubleTree by Hilton Akron Fairlawn', details: { address: '3180 W Market St', city: 'Akron', state: 'OH', zip: '44333' } },
   { match: /quaker station/i, name: 'Quaker Station', details: { address: '135 S Broadway St', city: 'Akron', state: 'OH', zip: '44308' } },
 ]
 

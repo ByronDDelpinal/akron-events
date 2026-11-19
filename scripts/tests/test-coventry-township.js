@@ -195,9 +195,9 @@ describe('run (dry, fixtures served by a fake fetch)', () => {
     assert.equal(result.planned, 1)
   })
 
-  it('earlier in the month the zoning meeting is planned too', async () => {
+  it('earlier in the month the zoning meeting is still upcoming, and still not published', async () => {
     const result = await run({ dryRun: true, fetchImpl, now: () => at('2026-11-12T15:00:00Z'), delayMs: 0 })
-    assert.equal(result.planned, 2)
+    assert.equal(result.planned, 1) // the tree lighting only; government meetings are left off
   })
 
   it('a feed of news only is an empty run, not an error', async () => {

@@ -24,6 +24,8 @@
  *          (lib/prose-venue.js). Township meetings are held at the Coventry
  *          Community Center. A post that names no place gets no venue.
  *
+ * Government meetings (zoning commission, zoning appeals, trustees) are not
+ * published: they are counted and skipped by the rule the city calendars use.
  * A title marked cancelled is skipped. The blog feed carries the 20 newest
  * posts; a week with only news in it is a normal empty run.
  *
@@ -40,6 +42,7 @@ import { MONTH_RE, monthNumber } from './lib/clock-time.js'
 import { proseTime } from './lib/prose-time.js'
 import { findAddressedVenue } from './lib/prose-venue.js'
 import { classifySummitLocation } from './lib/summit-county.js'
+import { isPublicCivicPlusEvent } from './lib/civicplus.js'
 
 export const SOURCE_KEY = 'coventry_township'
 const ORIGIN = 'https://www.coventrytownship.com'
@@ -229,6 +232,8 @@ export async function collect({ fetchImpl, now = Date.now, delayMs = PAGE_DELAY_
     found++
     if (isNewsTitle(post.title)) { skip('news'); continue }
     if (isCancelled(post.title)) { skip('cancelled'); continue }
+    // Government meetings are left off the site for now (decided 2026-11-19).
+    if (!isPublicCivicPlusEvent(dated.title)) { skip('government_meeting'); continue }
     // Decide "past" from the title before spending a request on the page.
     const roughYear = eventYear(post.publishedAt, dated.month, dated.day)
     if (!roughYear) { skip('dated_before_posting'); continue }

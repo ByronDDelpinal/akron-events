@@ -14,6 +14,11 @@
  * empty run. The note id is the event id: it survives a retitle or a move to
  * another day.
  *
+ * GOVERNMENT MEETINGS ARE NOT PUBLISHED. Trustee, zoning commission and zoning
+ * appeals meetings are most of this calendar; they are counted and skipped
+ * (isPublicCivicPlusEvent, the rule the city calendars use), which leaves
+ * community entries such as a cleanup day. Most runs therefore publish nothing.
+ *
  * An entry with no clock time is skipped and counted. "Trustees Meeting"
  * means nothing in a county-wide feed, so titles are prefixed with the
  * township's name. A month with no entries is normal (the grid is filled in
@@ -29,6 +34,7 @@ import { htmlToText, easternToIso, easternTodayIso } from './lib/normalize.js'
 import { fetchWithRetry } from './lib/http.js'
 import { runPlannedScraper, isDryRun } from './lib/planned-run.js'
 import { MONTH_RE, monthNumber, parseClockTime } from './lib/clock-time.js'
+import { isPublicCivicPlusEvent } from './lib/civicplus.js'
 
 export const SOURCE_KEY = 'boston_township'
 const ORIGIN = 'https://www.bostontownship.org'
@@ -147,6 +153,9 @@ export async function collect({ fetchImpl, now = Date.now, delayMs = PAGE_DELAY_
       if (seen.has(entry.noteId)) continue
       seen.add(entry.noteId)
       found++
+      // Government meetings are left off the site for now (decided 2026-11-19),
+      // by the same rule the city calendars use.
+      if (!isPublicCivicPlusEvent(entry.title)) { skip('government_meeting'); continue }
       const built = buildRow(entry, parsed)
       if (built.skip) { skip(built.skip); continue }
       if (Date.parse(built.row.start_at) < earliest) { skip('past'); continue }
