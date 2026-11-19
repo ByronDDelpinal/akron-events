@@ -60,6 +60,36 @@ const EVALUATED_SOURCES: EvaluatedSource[] = [
     url:    'whno.org (West Hill), goodyearheights.org, eandc.org (East Akron), progressakron.org (Sherbondy Hill / West Akron)',
     reason: "Highland Square, Better Kenmore, The Well (Middlebury), and North Hill CDC now have direct scrapers. The remaining neighborhood orgs are a mixed CMS stack (Wix, WordPress, Weebly, Squarespace) but operationally Facebook-driven: EANDC and Progressive Alliance publish what little they ticket through Eventbrite (caught by the citywide geo-feed), and the others run <10 public events/year. Revisit any individually if its public-event volume grows.",
   },
+  {
+    name:   'Ballet Theatre of Ohio',
+    url:    'https://ballettheatreohio.org/shows',
+    reason: 'Evaluated November 2026. Every performance it lists is staged at the Akron Civic Theatre and sold through Ticketmaster, so each one is already published from the ticketmaster source. A direct scraper would only create duplicates. Revisit if the company starts performing at a venue that is not already covered.',
+  },
+  {
+    name:   'Dynamics Community Theater',
+    url:    'https://www.dynamicstheater.org/auditions',
+    reason: 'Evaluated November 2026. The site announces productions with their dates but has never shown a performance time or a venue, on the live page or in archived copies. A listing would need a guessed time and place, and we do not publish guesses. Revisit when a show page carries both.',
+  },
+  {
+    name:   'Stow Historical Society (including the Joshua Stow Festival)',
+    url:    'https://stowhistory.org/category/events/',
+    reason: 'Evaluated November 2026. About two posts a year, each titled and dated differently, and the site\'s API refuses automated requests. There is no stable layout to read. The annual festival is announced in a single free-text sentence and is better added by hand each spring.',
+  },
+  {
+    name:   'Crave, Ignite Brewing Company',
+    url:    'https://www.eatdrinkcrave.com/crave-events · https://www.ignite.beer/news-and-events/',
+    reason: 'Evaluated November 2026. Crave\'s events page holds standing promotions (happy hour, weekly specials) and no dated events. Ignite\'s events blog has had one post since July 2025. Revisit either if they begin posting dated events on their own site.',
+  },
+  {
+    name:   'Direction Home Akron Canton, Northfield Center Township',
+    url:    'https://www.dhad.org/events · https://northfieldcenter.com/events/',
+    reason: 'Evaluated November 2026. Direction Home lists its public events as "TBA"; the only dated entry is a paid training session for professionals. Northfield Center Township publishes recaps of events after they happen and has no calendar of upcoming ones.',
+  },
+  {
+    name:   'Church and school calendars',
+    url:    'Planning Center and Church Center calendars, public Google Calendars, Finalsite school calendars',
+    reason: 'Several congregations and school districts in the county publish calendars that are technically easy to read. Most entries are worship services, committee meetings, class schedules and closure days, not public events. They stay out until there is a clear rule for which entries count as open to the public, as there already is for Akron Public Schools.',
+  },
 ]
 
 
@@ -354,8 +384,11 @@ export default function TechnicalPage() {
             <h2 className="tp-section__title">Scraper Health</h2>
             <p className="tp-section__desc">
               Every time a scraper runs it writes a record here. An alert fires when a
-              scraper hasn't run in 26+ hours, returns an error, or produces zero events
-              two runs in a row.
+              scraper hasn't run in 26+ hours, returns an error, or finds zero listings
+              two runs in a row. Sources with a seasonal schedule report the listings
+              they found even when every one is in the past, so an off-season is not
+              mistaken for a broken scraper. A page that has lost the section a scraper
+              reads is recorded as an error, never as a quiet night.
             </p>
           </div>
 
@@ -495,22 +528,29 @@ export default function TechnicalPage() {
             <div className="tp-how-step">
               <div className="tp-how-step__num">2</div>
               <div className="tp-how-step__body">
+                <strong>Verify</strong>
+                <p>Scrapers are tested against pages captured from the real site, and the newer ones can be run against the live site without writing anything. A start time or year the source does not state is never filled in silently: the listing is skipped and counted, or published with a note that the time is a placeholder. Seasonal sources are tested against past seasons with the clock set back, so they are ready before the next schedule is posted.</p>
+              </div>
+            </div>
+            <div className="tp-how-step">
+              <div className="tp-how-step__num">3</div>
+              <div className="tp-how-step__body">
                 <strong>Deduplicate</strong>
                 <p>Every event is keyed by <code>source + source_id</code>. Re-running a scraper updates existing events rather than creating duplicates.</p>
               </div>
             </div>
             <div className="tp-how-step">
-              <div className="tp-how-step__num">3</div>
+              <div className="tp-how-step__num">4</div>
               <div className="tp-how-step__body">
                 <strong>Serve</strong>
                 <p>The frontend queries Supabase directly. Events are filtered, sorted, and searched client-side without a custom backend.</p>
               </div>
             </div>
             <div className="tp-how-step">
-              <div className="tp-how-step__num">4</div>
+              <div className="tp-how-step__num">5</div>
               <div className="tp-how-step__body">
                 <strong>Monitor</strong>
-                <p>Every scraper run logs its result to <code>scraper_runs</code>. The health view above flags stale, errored, or zero-yield scrapers automatically.</p>
+                <p>Every scraper run logs its result to <code>scraper_runs</code>. The health view above flags stale, errored, or zero-listing scrapers automatically.</p>
               </div>
             </div>
           </div>
