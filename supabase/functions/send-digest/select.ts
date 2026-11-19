@@ -74,9 +74,19 @@ export interface Subscriber {
 // removed 2026-07-15 as unhelpful filler. Everything that ships now is a
 // card, which means every event in the email has a real image.
 export const MAX_EVENTS_PER_EMAIL = 14
-// Diversity cap: at most this many picks from one organizer/venue, so a
-// single high-volume org can't crowd out the rest of the region.
+// Diversity cap: at most this many picks from one organizer, one venue, or
+// one diversity group (see diversityKeys), so a single high-volume source
+// can't crowd out the rest of the region. This is the ONLY place the number
+// lives; every check below reads it.
 export const MAX_PER_ORG = 2
+
+// Libraries are one group for the cap. Each library system is its own
+// organizer (Akron-Summit County, Stow-Munroe Falls, Hudson, Barberton,
+// Cuyahoga Falls, Peninsula, Twinsburg), so a per-organizer cap alone still
+// let a dozen story times into one email, two from each city. A reader does
+// not tell them apart: to them it is "library events".
+export const LIBRARY_GROUP = 'group:library'
+const LIBRARY_NAME = /\blibrar(?:y|ies)\b/i
 
 // Quality weights. Stable, audience-appropriate signals — kept small and
 // named so they're easy to tune and assert on. Featured events are
@@ -357,8 +367,40 @@ export function baseScore(e: Event): number {
 }
 
 // Diversity key: prefer organizer id, then venue name, then the title.
+// Kept for callers that want one label per event; the cap itself counts
+// every key from diversityKeys() below.
 export function orgKey(e: Event): string {
   return e.organizations?.[0]?.id || e.venues?.[0]?.name || e.title
+}
+
+/**
+ * True for a library's own program: any organizer whose name says library,
+ * or, when the event has no organizer at all, a venue that does. A different
+ * organizer holding a clinic in a library meeting room is NOT a library
+ * event; it is capped by its own organizer and by the venue.
+ */
+export function isLibraryEvent(e: Event): boolean {
+  const orgs = e.organizations ?? []
+  if (orgs.length > 0) return orgs.some((o) => LIBRARY_NAME.test(o?.name ?? ''))
+  return LIBRARY_NAME.test(e.venues?.[0]?.name ?? '')
+}
+
+/**
+ * Every bucket this event counts against. An event is admitted only while
+ * ALL of its buckets are under MAX_PER_ORG, so the email holds at most that
+ * many picks from the same organizer, AND from the same venue, AND from all
+ * libraries combined. Organizer-only keying (the old orgKey) missed two
+ * cases: several promoters at one venue, and several libraries.
+ */
+export function diversityKeys(e: Event): string[] {
+  const keys: string[] = []
+  for (const o of e.organizations ?? []) if (o?.id) keys.push(`org:${o.id}`)
+  const v = e.venues?.[0] as { id?: string; name?: string } | undefined
+  const venueKey = v?.id || v?.name
+  if (venueKey) keys.push(`venue:${venueKey}`)
+  if (isLibraryEvent(e)) keys.push(LIBRARY_GROUP)
+  if (keys.length === 0) keys.push(`title:${e.title}`)
+  return keys
 }
 
 // ── Event URL ────────────────────────────────────────────────────────
@@ -454,8 +496,12 @@ export interface DigestSelection {
  *     so coverage reaches the end, not just the front.
  *   - Round-robin one best-scoring, org-allowed event per day before any
  *     day gets a second — temporal spread first, density second.
- *   - Backfill (relaxing the org cap) only if slots remain, so we never
- *     ship a needlessly thin email.
+ *   - Backfill from anywhere in the window, still inside the cap.
+ *   - Last resort, only if the email is still short: raise the organizer
+ *     and venue cap one step at a time (3 each, then 4, ...) until it
+ *     fills. A thin email is worse than a repeated organizer, but the
+ *     repeats are spread evenly instead of all coming from whoever is
+ *     first in the window. The library group is never raised.
  *
  * Only events with a resolvable image are eligible — see the gate below.
  *
@@ -481,13 +527,23 @@ export function selectDigestEvents(matched: Event[], sub: Subscriber, now: Date)
   const used = new Set<string>()
   const orgCount = new Map<string, number>()
 
-  const take = (e: Event): boolean => {
+  // The library group is a HARD cap: the last resort below raises `limit`
+  // for organizers and venues, never for libraries. No email carries more
+  // than MAX_PER_ORG library programs, whichever branch or city they are
+  // from. The one exception is a subscriber who picked specific venues or
+  // organizers in their preferences: if they follow a library, its programs
+  // are what they asked for.
+  const choseSources = (sub.preferences.venue_ids?.length ?? 0) > 0 || (sub.preferences.org_ids?.length ?? 0) > 0
+  const limitFor = (key: string, limit: number): number =>
+    key === LIBRARY_GROUP && !choseSources ? MAX_PER_ORG : limit
+
+  const take = (e: Event, limit: number = MAX_PER_ORG): boolean => {
     if (used.has(e.id)) return false
-    const k = orgKey(e)
-    if ((orgCount.get(k) ?? 0) >= MAX_PER_ORG) return false
+    const keys = diversityKeys(e)
+    if (keys.some((k) => (orgCount.get(k) ?? 0) >= limitFor(k, limit))) return false
     picks.push(e)
     used.add(e.id)
-    orgCount.set(k, (orgCount.get(k) ?? 0) + 1)
+    for (const k of keys) orgCount.set(k, (orgCount.get(k) ?? 0) + 1)
     return true
   }
 
@@ -536,12 +592,19 @@ export function selectDigestEvents(matched: Event[], sub: Subscriber, now: Date)
     }
   }
 
-  // 5) Last resort: only if a handful of orgs dominate the entire window
-  //    and we're still short, relax the cap so we never ship a thin email.
-  if (picks.length < MAX_EVENTS_PER_EMAIL) {
+  // 5) Last resort: the whole window is a handful of organizers, venues or
+  //    libraries and the cap left the email short. Never ship a thin email:
+  //    raise the cap one step at a time and refill, so the extra picks are
+  //    shared out (3 each before anyone gets 4) rather than handed to
+  //    whichever organizer happens to come first. Libraries stay at
+  //    MAX_PER_ORG throughout (see limitFor), so the only email this can
+  //    leave short is one whose window is almost nothing but library
+  //    programs. Only thin windows reach here; a normal send exits at
+  //    step 3 or 4.
+  for (let limit = MAX_PER_ORG + 1; picks.length < MAX_EVENTS_PER_EMAIL && picks.length < cardEligible.length && limit <= MAX_EVENTS_PER_EMAIL; limit++) {
     for (const e of cardEligible) {
       if (picks.length >= MAX_EVENTS_PER_EMAIL) break
-      if (!used.has(e.id)) { picks.push(e); used.add(e.id) }
+      take(e, limit)
     }
   }
 

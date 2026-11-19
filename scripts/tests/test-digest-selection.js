@@ -32,6 +32,9 @@ const {
   SCORE,
   baseScore,
   orgKey,
+  diversityKeys,
+  isLibraryEvent,
+  LIBRARY_GROUP,
   eventPath,
   hasImage,
   TIME_NOTES,
@@ -418,5 +421,124 @@ describe('default-time note does not inflate ranking (2026-07-28)', async () => 
     const noted = ev(4, 1, { description: `${PROSE} ${scraperNotes[0]}`, categories: ['music'] })
     const s = keywordSub(['fireworks'], { keywords_title_only: true })
     assert.deepEqual(filterEventsForSubscriber([noted], s, NOW).map(e => e.id), [])
+  })
+})
+
+describe('digest diversity cap: organizer, venue and the library group (2026-11-19)', () => {
+  // A library program: the organizer is that city's library system.
+  const lib = (id, day, city) =>
+    ev(id, day, { org: `${city} Public Library`, venue: `${city} Branch ${id}` })
+  const count = (picks, pred) => picks.filter(pred).length
+
+  it('all libraries share one cap: never more than MAX_PER_ORG library picks across cities', () => {
+    const events = []
+    let id = 0
+    // Six library systems, a program every day for 10 days each...
+    for (const city of ['Akron', 'Stow', 'Hudson', 'Barberton', 'Twinsburg', 'Cuyahoga Falls']) {
+      for (let day = 0; day < 10; day++) events.push(lib(id++, day, city))
+    }
+    // ...and plenty of everything else.
+    for (let day = 0; day < 14; day++) events.push(ev(id++, day))
+    const { picks } = selectDigestEvents(events, sub(), NOW)
+    assert.equal(count(picks, isLibraryEvent), MAX_PER_ORG)
+    assert.equal(picks.length, MAX_EVENTS_PER_EMAIL)
+  })
+
+  it('caps one venue even when every event there has a different organizer', () => {
+    const events = []
+    let id = 0
+    for (let day = 0; day < 12; day++) events.push(ev(id++, day, { org: `promoter-${id}`, venue: 'The Big Room' }))
+    for (let day = 0; day < 14; day++) events.push(ev(id++, day))
+    const { picks } = selectDigestEvents(events, sub(), NOW)
+    assert.equal(count(picks, (e) => e.venues[0].name === 'The Big Room'), MAX_PER_ORG)
+  })
+
+  it('still caps one organizer spread over many venues', () => {
+    const events = []
+    let id = 0
+    for (let day = 0; day < 12; day++) events.push(ev(id++, day, { org: 'BIG', venue: `Hall ${id}` }))
+    for (let day = 0; day < 14; day++) events.push(ev(id++, day))
+    const { picks } = selectDigestEvents(events, sub(), NOW)
+    assert.equal(count(picks, (e) => e.organizations[0].id === 'BIG'), MAX_PER_ORG)
+  })
+
+  it('last resort: a few organizers still fill the email, shared evenly', () => {
+    const events = []
+    let id = 0
+    for (const org of ['Hall A', 'Hall B', 'Hall C']) {
+      for (let day = 0; day < 10; day++) events.push(ev(id++, day, { org, venue: `${org} room ${id}` }))
+    }
+    const { picks } = selectDigestEvents(events, sub(), NOW)
+    assert.equal(picks.length, MAX_EVENTS_PER_EMAIL) // never a 2-event email
+    const per = {}
+    for (const e of picks) per[e.organizations[0].id] = (per[e.organizations[0].id] ?? 0) + 1
+    assert.equal(Object.keys(per).length, 3)
+    assert.ok(Math.max(...Object.values(per)) - Math.min(...Object.values(per)) <= 1, JSON.stringify(per))
+  })
+
+  it('last resort: one organizer alone still fills the email', () => {
+    const events = []
+    for (let day = 0; day < 20; day++) events.push(ev(day, day, { org: 'ONLY', venue: 'One Room' }))
+    assert.equal(selectDigestEvents(events, sub(), NOW).picks.length, MAX_EVENTS_PER_EMAIL)
+  })
+
+  it('last resort: sends everything when fewer than a full email exists', () => {
+    const events = []
+    for (let day = 0; day < 5; day++) events.push(ev(day, day, { org: 'ONLY', venue: 'One Room' }))
+    assert.equal(selectDigestEvents(events, sub(), NOW).picks.length, 5)
+  })
+
+  it('libraries are a hard cap: the last resort never adds a third library pick', () => {
+    const events = []
+    let id = 0
+    // Three library systems with a program every day, and only 4 other events.
+    for (const city of ['Akron', 'Stow', 'Twinsburg']) {
+      for (let day = 0; day < 14; day++) events.push(lib(id++, day, city))
+    }
+    for (let day = 0; day < 4; day++) events.push(ev(id++, day))
+    const { picks } = selectDigestEvents(events, sub(), NOW)
+    assert.equal(count(picks, isLibraryEvent), MAX_PER_ORG)
+    assert.equal(picks.length, 4 + MAX_PER_ORG) // short, rather than padded with story times
+  })
+
+  it('libraries are a hard cap even when the other events repeat an organizer', () => {
+    const events = []
+    let id = 0
+    for (let day = 0; day < 14; day++) events.push(lib(id++, day, 'Akron'))
+    for (let day = 0; day < 14; day++) events.push(ev(id++, day, { org: 'Music Hall', venue: `Stage ${id}` }))
+    const { picks } = selectDigestEvents(events, sub(), NOW)
+    assert.equal(picks.length, MAX_EVENTS_PER_EMAIL)        // the hall's repeats fill it
+    assert.equal(count(picks, isLibraryEvent), MAX_PER_ORG)  // the library does not
+  })
+
+  it('a subscriber who chose specific venues or organizers is not held to the library cap', () => {
+    const events = []
+    for (let day = 0; day < 20; day++) events.push(lib(day, day, 'Stow'))
+    const follow = (prefs) => { const s = sub(); Object.assign(s.preferences, prefs); return s }
+    assert.equal(selectDigestEvents(events, follow({ venue_ids: ['v-stow'] }), NOW).picks.length, MAX_EVENTS_PER_EMAIL)
+    assert.equal(selectDigestEvents(events, follow({ org_ids: ['o-stow'] }), NOW).picks.length, MAX_EVENTS_PER_EMAIL)
+    assert.equal(selectDigestEvents(events, sub(), NOW).picks.length, MAX_PER_ORG)
+  })
+
+  it('a different organizer using a library room is not a library event', () => {
+    const clinic = ev('c', 1, { org: 'Community Legal Aid', venue: 'Main Library' })
+    assert.equal(isLibraryEvent(clinic), false)
+    assert.ok(!diversityKeys(clinic).includes(LIBRARY_GROUP))
+    // ...but an organizer-less event at a library venue is.
+    const bare = { ...ev('b', 1, { venue: 'Twinsburg Public Library' }), organizations: [] }
+    assert.equal(isLibraryEvent(bare), true)
+  })
+
+  it('every real library system name is recognized', () => {
+    for (const name of [
+      'Akron-Summit County Public Library', 'Barberton Public Library', 'Cuyahoga Falls Library',
+      'Hudson Library & Historical Society', 'Peninsula Library & Historical Society',
+      'Stow-Munroe Falls Public Library', 'Twinsburg Public Library',
+    ]) assert.equal(isLibraryEvent(ev('x', 1, { org: name })), true, name)
+    assert.equal(isLibraryEvent(ev('y', 1, { org: 'Librarium Board Game Cafe' })), false)
+  })
+
+  it('an event counts against its organizer, its venue and, for libraries, the group', () => {
+    assert.deepEqual(diversityKeys(lib('k', 1, 'Stow')), ['org:Stow Public Library', 'venue:Stow Branch k', LIBRARY_GROUP])
   })
 })
