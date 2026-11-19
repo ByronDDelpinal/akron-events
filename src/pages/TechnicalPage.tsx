@@ -86,6 +86,11 @@ const EVALUATED_SOURCES: EvaluatedSource[] = [
     reason: 'Evaluated November 2026. Direction Home lists its public events as "TBA"; the only dated entry is a paid training session for professionals. Northfield Center Township publishes recaps of events after they happen and has no calendar of upcoming ones.',
   },
   {
+    name:   'City of Macedonia (and other sites behind bot protection)',
+    url:    'https://www.macrec.com/parks/calendar',
+    reason: 'Retired November 2026. Macedonia\'s site refuses automated visitors, including ours when it identifies itself honestly. The scraper had been sending a web browser\'s headers to get through; that stopped working in August 2026, and it is not something this project should do. The same rule now applies everywhere: when a site puts up a bot challenge, we do not disguise the scraper, solve the challenge with a headless browser, or route around it. About two dozen venues and churches are out of reach for this reason. Their events still appear when they are ticketed through Eventbrite or Ticketmaster or submitted directly.',
+  },
+  {
     name:   'Church and school calendars',
     url:    'Planning Center and Church Center calendars, public Google Calendars, Finalsite school calendars',
     reason: 'Several congregations and school districts in the county publish calendars that are technically easy to read. Most entries are worship services, committee meetings, class schedules and closure days, not public events. They stay out until there is a clear rule for which entries count as open to the public, as there already is for Akron Public Schools.',

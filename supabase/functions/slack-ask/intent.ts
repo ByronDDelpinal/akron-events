@@ -754,7 +754,7 @@ export const SCRAPER_REGISTRY: ReadonlyMap<string, ScraperEntry> = new Map<strin
   ['leos_italian_social',        { label: "Leo's Italian Social",             active: true  }],
   ['peninsula_library',          { label: 'Peninsula Library',                active: true  }],
   ['lalas_in_the_lakes',         { label: "Lala's in the Lakes",              active: true  }],
-  ['city_of_macedonia',          { label: 'City of Macedonia',                active: true  }],
+  ['city_of_macedonia',          { label: 'City of Macedonia',                active: false }],
   ['peninsula_foundation',       { label: 'Peninsula Foundation (G.A.R. Hall)', active: true }],
   ['islamic_society_akron',      { label: 'Islamic Society of Akron & Kent',  active: true  }],
   ['peninsula_coffee_house',     { label: 'Peninsula Coffee House',           active: true  }],

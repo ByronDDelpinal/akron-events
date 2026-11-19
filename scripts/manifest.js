@@ -200,7 +200,10 @@ export const SCRAPERS = [
   { key: 'leos_italian_social',  script: 'scripts/scrape-leos-italian-social.js',     label: "Leo's Italian Social",         group: 'squarespace',    active: true, defaultCategory: 'music' },
   { key: 'peninsula_library',    script: 'scripts/scrape-peninsula-library.js',       label: 'Peninsula Library',            group: 'custom',         active: true  },
   { key: 'lalas_in_the_lakes',   script: 'scripts/scrape-lalas-in-the-lakes.js',      label: "Lala's in the Lakes",          group: 'api',            active: true, defaultCategory: 'music' },
-  { key: 'city_of_macedonia',    script: 'scripts/scrape-city-of-macedonia.js',       label: 'City of Macedonia',            group: 'custom',         active: true  },
+  // Retired 2026-11-19: macrec.com sits behind Akamai Bot Manager, which refuses our bot identity. The scraper only ever
+  // worked by sending browser headers, and that stopped working on 2026-08-06 (zero events nightly since). We do not
+  // disguise the scraper to get past a site's bot protection. Revisit if the city publishes a feed or lifts the block.
+  { key: 'city_of_macedonia',    script: 'scripts/scrape-city-of-macedonia.js',       label: 'City of Macedonia',            group: 'custom',         active: false },
   { key: 'peninsula_foundation', script: 'scripts/scrape-peninsula-foundation.js',    label: 'Peninsula Foundation (G.A.R. Hall)', group: 'wordpress', active: true, defaultCategory: 'music' },
   { key: 'islamic_society_akron', script: 'scripts/scrape-islamic-society-akron.js',  label: 'Islamic Society of Akron & Kent', group: 'wordpress',   active: true  },
   { key: 'peninsula_coffee_house', script: 'scripts/scrape-peninsula-coffee-house.js', label: 'Peninsula Coffee House',      group: 'wordpress',      active: true  },
