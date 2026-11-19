@@ -1,0 +1,33 @@
+{
+ "events": [
+  {
+   "id": 5161,
+   "title": "Beautify &#038; Boogie",
+   "description": "<p style=\"text-align: center;\" data-end=\"73\" data-start=\"0\">Hey girls, get ready for four hours of nonstop jams from the <strong>’60s, ’70s,</strong> <strong>’80s, ’90s, and 2000s</strong> at Beautify &amp; Boogie, a feel-good dance party for all women to hit the dance floor, celebrate our community, and support a cleaner, greener, more beautiful Akron!</p>\n<p style=\"text-align: center;\" data-end=\"73\" data-start=\"0\">We’re bringing the music, the memories, and the dance floor fun, all wrapped up before bedtime!</p>\n<p style=\"text-align: center;\" data-end=\"73\" data-start=\"0\">Join Keep Akron Beau",
+   "start_date": "2027-03-12 18:00:00",
+   "end_date": "2027-03-12 22:00:00",
+   "utc_start_date": "2027-03-12 23:00:00",
+   "utc_end_date": "2027-03-13 03:00:00",
+   "all_day": false,
+   "cost": "",
+   "cost_details": {
+    "currency_symbol": "",
+    "currency_code": "",
+    "currency_position": "",
+    "values": []
+   },
+   "url": "https://www.keepakronbeautiful.org/event/beautifyandboogie/",
+   "website": "https://secure.qgiv.com/for/beautifyboogie/event/beautifyandboogie/",
+   "image": false,
+   "venue": {
+    "venue": "The Carovillese Club",
+    "address": "570 E. Cuyahoga Falls Ave.",
+    "city": "Akron",
+    "stateprovince": "OH",
+    "zip": "44310"
+   }
+  }
+ ],
+ "total": 1,
+ "total_pages": 1
+}

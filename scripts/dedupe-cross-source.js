@@ -142,6 +142,9 @@ export const SOURCE_PRIORITY = [
   'summit_indoor_mx',        // first-party (the series' own race schedule)
   'astronomy_club_akron',    // first-party (the club's own meeting announcements)
   'richfield_historical',    // first-party (the society's own annual calendar)
+  'village_of_silver_lake',  // first-party (the village's own calendar)
+  'keep_akron_beautiful',    // first-party (the organization's own events)
+  'maps_air_museum',         // first-party (the museum's own public events)
   'blu_jazz',
   'city_of_akron_lock3',     // first-party source for city programming
   'cvfm',                    // first-party (Cuyahoga Valley Farmers Market, Summit venues)

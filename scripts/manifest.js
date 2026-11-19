@@ -244,6 +244,9 @@ export const SCRAPERS = [
   { key: 'summit_indoor_mx',     script: 'scripts/scrape-summit-indoor-mx.js',        label: 'Summit Indoor MX',             group: 'html',           active: true, defaultCategory: 'sports' },
   { key: 'astronomy_club_akron', script: 'scripts/scrape-astronomy-club-akron.js',    label: 'Astronomy Club of Akron',      group: 'html',           active: true, defaultCategory: 'learning' },
   { key: 'richfield_historical', script: 'scripts/scrape-richfield-historical.js',    label: 'Richfield Historical Society', group: 'html',           active: true, defaultCategory: 'learning' },
+  { key: 'village_of_silver_lake', script: 'scripts/scrape-village-of-silver-lake.js', label: 'Village of Silver Lake',     group: 'wordpress',      active: true, defaultCategory: 'civic' },
+  { key: 'keep_akron_beautiful', script: 'scripts/scrape-keep-akron-beautiful.js',    label: 'Keep Akron Beautiful',         group: 'wordpress',      active: true, defaultCategory: 'civic' },
+  { key: 'maps_air_museum',      script: 'scripts/scrape-maps-air-museum.js',         label: 'MAPS Air Museum',              group: 'wordpress',      active: true, defaultCategory: 'learning' },
 ]
 
 // Active scrapers only — what run-all.js iterates.

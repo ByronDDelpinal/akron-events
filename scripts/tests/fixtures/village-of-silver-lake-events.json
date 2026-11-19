@@ -1,0 +1,198 @@
+{
+ "events": [
+  {
+   "id": 17145,
+   "title": "Annual Christmas Tree Lighting",
+   "description": "",
+   "start_date": "2026-12-06 16:30:00",
+   "end_date": "2026-12-06 18:30:00",
+   "utc_start_date": "2026-12-06 21:30:00",
+   "utc_end_date": "2026-12-06 23:30:00",
+   "all_day": false,
+   "cost": "",
+   "cost_details": {
+    "currency_symbol": "$",
+    "currency_code": "USD",
+    "currency_position": "prefix",
+    "values": []
+   },
+   "url": "https://villageofsilverlake.com/event/annual-christmas-tree-lighting/",
+   "website": "",
+   "image": false,
+   "venue": {
+    "venue": "Gazebo on Silver Lake Blvd",
+    "address": null,
+    "city": "Silver Lake",
+    "stateprovince": null,
+    "zip": null
+   }
+  },
+  {
+   "id": 16975,
+   "title": "Craft Cafe &#8211; Flower Pens",
+   "description": "<p>Brought to you by the Cuyahoga Falls Library, Join us for Craft Cafe from 2-3. We will be making flower pens!</p>\n<p><a href=\"https://villageofsilverlake.com/wp-content/uploads/2026/08/Pens-Dec.png\"><img decoding=\"async\" class=\"alignnone size-medium wp-image-16976\" src=\"https://villageofsilverlake.com/wp-content/uploads/2026/08/Pens-Dec-300x300.png\" alt=\"\" width=\"300\" height=\"300\" srcset=\"https://villageofsilverlake.com/wp-content/uploads/2026/08/Pens-Dec-45x45.png 45w, https://villageofsilverlake.com/wp-content/uploads/2026/08/Pens-Dec-66x66.png 66w, https://villageofsilverlake.com/wp-cont",
+   "start_date": "2026-12-15 14:00:00",
+   "end_date": "2026-12-15 15:00:00",
+   "utc_start_date": "2026-12-15 19:00:00",
+   "utc_end_date": "2026-12-15 20:00:00",
+   "all_day": false,
+   "cost": "",
+   "cost_details": {
+    "currency_symbol": "$",
+    "currency_code": "USD",
+    "currency_position": "prefix",
+    "values": []
+   },
+   "url": "https://villageofsilverlake.com/event/craft-cafe-flower-pens/",
+   "website": "",
+   "image": false,
+   "venue": []
+  },
+  {
+   "id": 17164,
+   "title": "Free Seminar &#8211; Settling a loved one&#8217;s estate",
+   "description": "",
+   "start_date": "2027-01-14 19:00:00",
+   "end_date": "2027-01-14 21:00:00",
+   "utc_start_date": "2027-01-15 00:00:00",
+   "utc_end_date": "2027-01-15 02:00:00",
+   "all_day": false,
+   "cost": "",
+   "cost_details": {
+    "currency_symbol": "$",
+    "currency_code": "USD",
+    "currency_position": "prefix",
+    "values": []
+   },
+   "url": "https://villageofsilverlake.com/event/free-seminar-settling-a-loved-ones-estate/",
+   "website": "",
+   "image": false,
+   "venue": {
+    "venue": "Village Hall",
+    "address": null,
+    "city": "Silver Lake",
+    "stateprovince": "Ohio",
+    "zip": "44224"
+   }
+  },
+  {
+   "id": 17234,
+   "title": "Planning and Zoning Commission",
+   "description": "",
+   "start_date": "2026-11-23 18:00:00",
+   "end_date": "2026-11-23 20:00:00",
+   "utc_start_date": "2026-11-23 23:00:00",
+   "utc_end_date": "2026-11-24 01:00:00",
+   "all_day": false,
+   "cost": "",
+   "cost_details": {
+    "currency_symbol": "$",
+    "currency_code": "USD",
+    "currency_position": "prefix",
+    "values": []
+   },
+   "url": "https://villageofsilverlake.com/event/planning-and-zoning-commission-2/2026-11-23/",
+   "website": "",
+   "image": false,
+   "venue": []
+  },
+  {
+   "id": 17286,
+   "title": "Special Council Meeting",
+   "description": "",
+   "start_date": "2026-11-30 19:00:00",
+   "end_date": "2026-11-30 21:00:00",
+   "utc_start_date": "2026-12-01 00:00:00",
+   "utc_end_date": "2026-12-01 02:00:00",
+   "all_day": false,
+   "cost": "",
+   "cost_details": {
+    "currency_symbol": "$",
+    "currency_code": "USD",
+    "currency_position": "prefix",
+    "values": []
+   },
+   "url": "https://villageofsilverlake.com/event/special-council-meeting-2/",
+   "website": "",
+   "image": false,
+   "venue": []
+  },
+  {
+   "id": 15690,
+   "title": "Council Meeting",
+   "description": "<p>Council Meetings are held in the Robert W. Heydorn Chambers in Village Hall.</p>",
+   "start_date": "2026-12-07 19:00:00",
+   "end_date": "2026-12-07 21:00:00",
+   "utc_start_date": "2026-12-08 00:00:00",
+   "utc_end_date": "2026-12-08 02:00:00",
+   "all_day": false,
+   "cost": "",
+   "cost_details": {
+    "currency_symbol": "$",
+    "currency_code": "USD",
+    "currency_position": "prefix",
+    "values": []
+   },
+   "url": "https://villageofsilverlake.com/event/council-meeting/2026-12-07/",
+   "website": "",
+   "image": false,
+   "venue": []
+  },
+  {
+   "id": 15829,
+   "title": "Silver Lake Park Board Meeting",
+   "description": "",
+   "start_date": "2027-01-12 18:00:00",
+   "end_date": "2027-01-12 19:00:00",
+   "utc_start_date": "2027-01-12 23:00:00",
+   "utc_end_date": "2027-01-13 00:00:00",
+   "all_day": false,
+   "cost": "",
+   "cost_details": {
+    "currency_symbol": "$",
+    "currency_code": "USD",
+    "currency_position": "prefix",
+    "values": []
+   },
+   "url": "https://villageofsilverlake.com/event/silver-lake-park-board-meeting-2/2027-01-12/",
+   "website": "",
+   "image": false,
+   "venue": {
+    "venue": "Village Hall",
+    "address": null,
+    "city": "Silver Lake",
+    "stateprovince": "Ohio",
+    "zip": "44224"
+   }
+  },
+  {
+   "id": 17120,
+   "title": "Watershed Commission",
+   "description": "",
+   "start_date": "2027-02-03 18:00:00",
+   "end_date": "2027-02-03 19:30:00",
+   "utc_start_date": "2027-02-03 23:00:00",
+   "utc_end_date": "2027-02-04 00:30:00",
+   "all_day": false,
+   "cost": "",
+   "cost_details": {
+    "currency_symbol": "$",
+    "currency_code": "USD",
+    "currency_position": "prefix",
+    "values": []
+   },
+   "url": "https://villageofsilverlake.com/event/watershed-commission-2/",
+   "website": "",
+   "image": false,
+   "venue": {
+    "venue": "Village Hall",
+    "address": null,
+    "city": "Silver Lake",
+    "stateprovince": "Ohio",
+    "zip": "44224"
+   }
+  }
+ ],
+ "total": 8,
+ "total_pages": 1
+}

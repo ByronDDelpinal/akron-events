@@ -1,0 +1,66 @@
+{
+ "events": [
+  {
+   "id": 20366,
+   "title": "Cub Scout &#038; Girl Scout &#8220;Go See It&#8221; Day",
+   "description": "<p style=\"text-align: left;\">Maps Air Museum Presents: Cub Scout &amp; Girl Scout &#8220;Go See It&#8221; Day</p>\n<p>Saturday, November 21, 2026</p>\n<p>Scheduled Tours at 9:30 AM, 12:00 PM and 2:30 PM</p>\n<p>Reservations phone: 330-800-8063</p>\n<p>Please Provide: &nbsp;Contact name, e-mail and phone #</p>\n<p>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;Number of Scouts, Non-Scouts and Adults</p>\n<p>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;Pack or Troop#</p>\n<p>&nbsp; &nbsp; &nbsp; &nbsp;",
+   "start_date": "2026-11-21 00:00:00",
+   "end_date": "2026-11-21 23:59:59",
+   "utc_start_date": "2026-11-21 05:00:00",
+   "utc_end_date": "2026-11-22 04:59:59",
+   "all_day": true,
+   "cost": "$5",
+   "cost_details": {
+    "currency_symbol": "$",
+    "currency_code": "USD",
+    "currency_position": "prefix",
+    "values": [
+     "5"
+    ]
+   },
+   "url": "https://mapsairmuseum.org/events/scout-go-see-it-day/",
+   "website": "https://www.akroncantonoh.com/events/registration-open-for-the-2026-cub-scout-girl-scout-go-see-it-day",
+   "image": {
+    "url": "https://mapsairmuseum.org/wp-content/uploads/2018/11/cub-scout-girl-scout-combo.jpg"
+   },
+   "venue": {
+    "venue": "MAPS Air Museum",
+    "address": "2260 International Parkway",
+    "city": "North Canton",
+    "stateprovince": "OH",
+    "zip": "44720"
+   }
+  },
+  {
+   "id": 22151,
+   "title": "720 Dec MKT Shopping Party &#038; Santa Photos",
+   "description": "<div dir=\"ltr\">\n<div dir=\"ltr\">\n<div class=\"xdj266r x14z9mp xat24cr x1lziwak x1vvkbs\">Get ready for the 7th Annual 720 DEC MKT Holiday Shopping Party on Sunday December 6th from 9am-4pm. We are excited to fill MAPS Air Museum with some of Ohio’s best makers, bakers, brewers, and growers curated and brought to you by 720 Market.</div>\n<div>&nbsp;</div>\n<div class=\"x14z9mp xat24cr x1lziwak x1vvkbs xtlvy1s\">Enjoy a unique shopping experience and find everything you need for your Christmas shopping lists. Soak in all the festive, family-friendly shopping fun at Santa’s Workshop and Mrs. Claus’ Gif",
+   "start_date": "2026-12-06 09:00:00",
+   "end_date": "2026-12-06 16:00:00",
+   "utc_start_date": "2026-12-06 14:00:00",
+   "utc_end_date": "2026-12-06 21:00:00",
+   "all_day": false,
+   "cost": "",
+   "cost_details": {
+    "currency_symbol": "$",
+    "currency_code": "USD",
+    "currency_position": "prefix",
+    "values": []
+   },
+   "url": "https://mapsairmuseum.org/events/720-dec-mkt-shopping-party/",
+   "website": "https://eventsby720.com/event/720-dec-mkt-shopping-party-2026/",
+   "image": {
+    "url": "https://mapsairmuseum.org/wp-content/uploads/2026/09/720-DEC-MKT-ANNOUNCE-20262-scaled-1-scaled.webp"
+   },
+   "venue": {
+    "venue": "MAPS Air Museum",
+    "address": "2260 International Parkway",
+    "city": "North Canton",
+    "stateprovince": "OH",
+    "zip": "44720"
+   }
+  }
+ ],
+ "total": 2,
+ "total_pages": 1
+}

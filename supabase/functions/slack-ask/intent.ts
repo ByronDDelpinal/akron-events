@@ -793,6 +793,9 @@ export const SCRAPER_REGISTRY: ReadonlyMap<string, ScraperEntry> = new Map<strin
   ['summit_indoor_mx',           { label: 'Summit Indoor MX',                 active: true  }],
   ['astronomy_club_akron',       { label: 'Astronomy Club of Akron',          active: true  }],
   ['richfield_historical',       { label: 'Richfield Historical Society',     active: true  }],
+  ['village_of_silver_lake',     { label: 'Village of Silver Lake',           active: true  }],
+  ['keep_akron_beautiful',       { label: 'Keep Akron Beautiful',             active: true  }],
+  ['maps_air_museum',            { label: 'MAPS Air Museum',                  active: true  }],
 ])
 
 /** The single validation gate for the `scraper_name` slot. */

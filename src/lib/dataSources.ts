@@ -1359,6 +1359,30 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'village_of_silver_lake',
+    method:      'Tribe REST API',
+    methodDetail:'WordPress + The Events Calendar REST API, read through the shared lib/tribe-planned.js builder; local start and end times are read as Eastern',
+    venue:       'As the village names it — Village Hall, the Gazebo on Silver Lake Blvd',
+    notes:       'The Village of Silver Lake\'s calendar is mostly government business: council, planning and zoning, park board and watershed commission meetings. Those are left out by the same rule used for the city calendars, which leaves the community events such as the Christmas tree lighting, Craft Cafe sessions and free seminars. The venue is the one the calendar names; an entry with no venue is listed without one.',
+    status:      'active',
+  },
+  {
+    key:         'keep_akron_beautiful',
+    method:      'Tribe REST API',
+    methodDetail:'WordPress + The Events Calendar REST API, read through the shared lib/tribe-planned.js builder',
+    venue:       'As each event names it',
+    notes:       'Keep Akron Beautiful — the nonprofit behind the city\'s flowerscapes and litter cleanups — lists its volunteer days and its Beautify & Boogie fundraiser. The venue is the one the calendar names, and an event held outside Summit County is skipped. The calendar is quiet in winter and busier in spring, so an empty run is normal.',
+    status:      'active',
+  },
+  {
+    key:         'maps_air_museum',
+    method:      'Tribe REST API',
+    methodDetail:'WordPress + The Events Calendar REST API, read through the shared lib/tribe-planned.js builder',
+    venue:       'MAPS Air Museum — 2260 International Parkway, at Akron-Canton Airport',
+    notes:       'MAPS Air Museum is the volunteer-run aviation museum on the west side of Akron-Canton Airport. Its mailing address is North Canton, but the building is in Summit County (confirmed against OpenStreetMap), so its public events are in scope and every one is pinned to the museum itself. An all-day entry has no real start time, so it is listed at a noon placeholder with a note saying so.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -1973,6 +1997,9 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   summit_indoor_mx:        'html',
   astronomy_club_akron:    'html',
   richfield_historical:    'html',
+  village_of_silver_lake:  'api',
+  keep_akron_beautiful:    'api',
+  maps_air_museum:         'api',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',
