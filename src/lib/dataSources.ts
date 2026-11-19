@@ -1239,6 +1239,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'twinsburg_library',
+    method:      'JSON API',
+    methodDetail:'LibCal (Springshare): the calendar widget\'s own paginated JSON feed (/ajax/calendar/list?c=-1, every calendar), read through the shared scripts/lib/libcal.js. One id per occurrence, so source_id needs no date suffix',
+    venue:       'Twinsburg Public Library — 10050 Ravenna Rd, Twinsburg (+ bookmobile stops in Twinsburg and Reminderville)',
+    notes:       'The Twinsburg Public Library is its own library district, separate from Akron-Summit County Public Library. Its LibCal calendar lists about 240 programs at a time: story times, teen gaming afternoons, book groups, job-seeker workshops, local-history talks and bookmobile stops. A room or a blank location resolves to the library; a street address (a bookmobile stop, a program at Heritage Hall in Reminderville) becomes its own venue and is checked against Summit County by city; anything else is published without a venue and flagged rather than pinned to the library. Board of Trustees meetings are skipped as governance. A program the library cancels keeps its listing with a CANCELED title, which we read as a cancellation so a published copy comes down. All-day programs get the noon placeholder and are flagged.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -1838,6 +1846,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   jewish_akron:            'html',
   longwood_manor:          'html',
   west_side_gymnastics:    'ics',
+  twinsburg_library:       'libcal',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',

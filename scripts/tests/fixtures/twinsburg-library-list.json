@@ -1,0 +1,1037 @@
+{
+ "total_results": 242,
+ "perpage": 100,
+ "status": 1,
+ "results": [
+  {
+   "id": 17288723,
+   "title": "Magic: The Gathering & Trading Card Game Day",
+   "description": "<p>Play Magic: The Gathering and other trading card games with friends on Wednesdays after school. New AND experienced players are welcome! Register at the Teen Desk when you arrive and receive a 20-sided die and maybe some other freebies the first time you come to the program (while supplies last).&nbsp;For Magic players, Commander and Legacy formats are&nbsp;typically played. Grades 7 - 12.</p>\n",
+   "fromTime": "2:30pm Wednesday, November 18, 2026",
+   "toTime": "5:00pm Wednesday, November 18, 2026",
+   "more_info": "",
+   "shortdesc": "Play Magic: The Gathering and other trading card games with friends on Wednesdays after school. New AND experienced players are welcome! Register at the Teen Desk when you arrive and receive a...",
+   "shortdesc_was_truncated": true,
+   "registration_cost": "",
+   "start": "2:30pm",
+   "end": "5:00pm",
+   "all_day": false,
+   "startdt": "2026-11-18 14:30:00",
+   "enddt": "2026-11-18 17:00:00",
+   "date": "Wednesday, November 18, 2026",
+   "ymd": "20261118",
+   "year": "2026",
+   "monthnum": 11,
+   "day": "18",
+   "daypostfix": "th",
+   "dayfull": "Wednesday",
+   "dayshort": "Wed",
+   "monthfull": "November",
+   "monthshort": "Nov",
+   "url": "https://twinsburglibrary.libcal.com/event/17288723",
+   "color": "#BA8B55",
+   "locationCount": 1,
+   "location": "Story Time Room A",
+   "locations": [
+    {
+     "id": 153979,
+     "name": "Story Time Room A",
+     "map": "",
+     "mapId": 0,
+     "last": true
+    }
+   ],
+   "campus": "",
+   "presenter": "",
+   "featured_image": "https://lcimages.s3.amazonaws.com/data/feat_img/4446/12805/1657314002.jpg",
+   "featured_image_alt_text": "",
+   "audiences": [
+    {
+     "id": 2068,
+     "name": "Teens",
+     "color": "#3AD1B3"
+    }
+   ],
+   "categories": "Teen Afterschool Gaming, Teen Events",
+   "categories_arr": [
+    {
+     "cat_id": 62145,
+     "name": "Teen Afterschool Gaming",
+     "color": "#BA8B55"
+    },
+    {
+     "cat_id": 44475,
+     "name": "Teen Events",
+     "color": "#BDB7B7"
+    }
+   ],
+   "calendar": "Events Calendar",
+   "calendar_url": "https://twinsburglibrary.libcal.com/calendar/OnlineEvents?",
+   "calendar_id": 12805,
+   "online_event": false,
+   "online_registration": false,
+   "in_person_registration": false,
+   "org": "Library Staff",
+   "orgurl": "https://twinsburglibrary.libcal.com/profile/0",
+   "recurring_event": true,
+   "registration_enabled": false
+  },
+  {
+   "id": 17288896,
+   "title": "Dungeons & Dragons",
+   "description": "<p>Start your quest today! Dungeons &amp; Dragons is a fantasy role-playing game set in an imaginary world based loosely on medieval myth. It is the world&#39;s most popular pen &amp; paper Role-Playing Game (RPG). New AND experienced players are welcome! No prior experience playing D&amp;D is required.&nbsp;Just drop in! We meet every Thursday in person&nbsp;from 2:30 pm&nbsp;- 5:00 pm.&nbsp;Grades 7 - 12.</p>\n",
+   "fromTime": "2:30pm Thursday, November 19, 2026",
+   "toTime": "5:00pm Thursday, November 19, 2026",
+   "more_info": "",
+   "shortdesc": "Start your quest today! Dungeons & Dragons is a fantasy role-playing game set in an imaginary world based loosely on medieval myth. It is the world's most popular pen & paper Role-Playing Game (RPG)....",
+   "shortdesc_was_truncated": true,
+   "registration_cost": "",
+   "start": "2:30pm",
+   "end": "5:00pm",
+   "all_day": false,
+   "startdt": "2026-11-19 14:30:00",
+   "enddt": "2026-11-19 17:00:00",
+   "date": "Thursday, November 19, 2026",
+   "ymd": "20261119",
+   "year": "2026",
+   "monthnum": 11,
+   "day": "19",
+   "daypostfix": "th",
+   "dayfull": "Thursday",
+   "dayshort": "Thu",
+   "monthfull": "November",
+   "monthshort": "Nov",
+   "url": "https://twinsburglibrary.libcal.com/event/17288896",
+   "color": "#BA8B55",
+   "locationCount": 2,
+   "location": "Story Time Room A, Story Time Room B",
+   "locations": [
+    {
+     "id": 153979,
+     "name": "Story Time Room A",
+     "map": "",
+     "mapId": 0,
+     "last": false
+    },
+    {
+     "id": 169526,
+     "name": "Story Time Room B",
+     "map": "",
+     "mapId": 0,
+     "last": true
+    }
+   ],
+   "campus": "",
+   "presenter": "",
+   "featured_image": "https://d68g328n4ug0e.cloudfront.net/data/feat_img/4446/12805/1753905144.png",
+   "featured_image_alt_text": "",
+   "audiences": [
+    {
+     "id": 2068,
+     "name": "Teens",
+     "color": "#3AD1B3"
+    }
+   ],
+   "categories": "Teen Afterschool Gaming, Teen Events",
+   "categories_arr": [
+    {
+     "cat_id": 62145,
+     "name": "Teen Afterschool Gaming",
+     "color": "#BA8B55"
+    },
+    {
+     "cat_id": 44475,
+     "name": "Teen Events",
+     "color": "#BDB7B7"
+    }
+   ],
+   "calendar": "Events Calendar",
+   "calendar_url": "https://twinsburglibrary.libcal.com/calendar/OnlineEvents?",
+   "calendar_id": 12805,
+   "online_event": false,
+   "online_registration": false,
+   "in_person_registration": false,
+   "org": "Library Staff",
+   "orgurl": "https://twinsburglibrary.libcal.com/profile/0",
+   "recurring_event": true,
+   "registration_enabled": false
+  },
+  {
+   "id": 17230061,
+   "title": "Family Story Time",
+   "description": "<p>Families of all ages, shapes, and sizes are invited to listen to stories, songs, and fingerplays.</p>\n\n<p><strong>You must register for each week of Story Time individually.</strong> Class sizes are restricted.&nbsp;Please only register for one class per week.&nbsp;Registration begins two&nbsp;weeks prior, in person or over the phone.&nbsp;Online registration is not available.&nbsp;Please let us know if you cannot make it to allow other friends to attend.</p>\n\n<p>Please respect social distancing.</p>\n\n<p>Schedule, guidelines, and mask requirements are subject to change.&nbsp;We appreciate your flexibility.</p>",
+   "fromTime": "10:00am Thursday, November 19, 2026",
+   "toTime": "10:30am Thursday, November 19, 2026",
+   "more_info": "",
+   "shortdesc": "Families of all ages, shapes, and sizes are invited to listen to stories, songs, and fingerplays.\n\nYou must register for each week of Story Time individually. Class sizes are restricted. Please only...",
+   "shortdesc_was_truncated": true,
+   "registration_cost": "",
+   "start": "10:00am",
+   "end": "10:30am",
+   "all_day": false,
+   "startdt": "2026-11-19 10:00:00",
+   "enddt": "2026-11-19 10:30:00",
+   "date": "Thursday, November 19, 2026",
+   "ymd": "20261119",
+   "year": "2026",
+   "monthnum": 11,
+   "day": "19",
+   "daypostfix": "th",
+   "dayfull": "Thursday",
+   "dayshort": "Thu",
+   "monthfull": "November",
+   "monthshort": "Nov",
+   "url": "https://twinsburglibrary.libcal.com/event/17230061",
+   "color": "#FC8FD1",
+   "locationCount": 1,
+   "location": "Story Time Room B",
+   "locations": [
+    {
+     "id": 169526,
+     "name": "Story Time Room B",
+     "map": "",
+     "mapId": 0,
+     "last": true
+    }
+   ],
+   "campus": "",
+   "presenter": "",
+   "featured_image": "",
+   "featured_image_alt_text": "",
+   "audiences": [
+    {
+     "id": 2063,
+     "name": "Babies",
+     "color": "#3AD1B3"
+    },
+    {
+     "id": 2064,
+     "name": "Family",
+     "color": "#3AD1B3"
+    },
+    {
+     "id": 2065,
+     "name": "Preschool",
+     "color": "#3AD1B3"
+    },
+    {
+     "id": 2069,
+     "name": "Toddlers",
+     "color": "#3AD1B3"
+    }
+   ],
+   "categories": "Children Events, Story Times",
+   "categories_arr": [
+    {
+     "cat_id": 44460,
+     "name": "Children Events",
+     "color": "#AFFA96"
+    },
+    {
+     "cat_id": 44474,
+     "name": "Story Times",
+     "color": "#FC8FD1"
+    }
+   ],
+   "calendar": "Events Calendar",
+   "calendar_url": "https://twinsburglibrary.libcal.com/calendar/OnlineEvents?",
+   "calendar_id": 12805,
+   "online_event": false,
+   "online_registration": false,
+   "in_person_registration": false,
+   "org": "Library Staff",
+   "orgurl": "https://twinsburglibrary.libcal.com/profile/0",
+   "recurring_event": true,
+   "registration_enabled": false
+  },
+  {
+   "id": 17267291,
+   "title": "Cozy Crafters Movie Night",
+   "description": "<p>Calling all Crafters! Bring your crochet, knitting, needlepoint, etc., and enjoy a cozy evening of crafting and refreshments while watching a seasonal movie! This month, we will be showing <i>Little Women&nbsp;</i>(2019) starring Saoirse Ronan and Emma Watson. A simple craft will also be provided as a secondary option.</p>",
+   "fromTime": "5:30pm Thursday, November 19, 2026",
+   "toTime": "7:30pm Thursday, November 19, 2026",
+   "more_info": "",
+   "shortdesc": "Calling all Crafters! Bring your crochet, knitting, needlepoint, etc., and enjoy a cozy evening of crafting and refreshments while watching a seasonal movie! This month, we will be showing Little...",
+   "shortdesc_was_truncated": true,
+   "registration_cost": "",
+   "start": "5:30pm",
+   "end": "7:30pm",
+   "all_day": false,
+   "startdt": "2026-11-19 17:30:00",
+   "enddt": "2026-11-19 19:30:00",
+   "date": "Thursday, November 19, 2026",
+   "ymd": "20261119",
+   "year": "2026",
+   "monthnum": 11,
+   "day": "19",
+   "daypostfix": "th",
+   "dayfull": "Thursday",
+   "dayshort": "Thu",
+   "monthfull": "November",
+   "monthshort": "Nov",
+   "url": "https://twinsburglibrary.libcal.com/event/17267291",
+   "color": "#B3C8EF",
+   "locationCount": 1,
+   "location": "Meeting Rooms 1, 2, and 3",
+   "locations": [
+    {
+     "id": 105732,
+     "name": "Meeting Rooms 1, 2, and 3",
+     "map": "",
+     "mapId": 0,
+     "last": true
+    }
+   ],
+   "campus": "",
+   "presenter": "",
+   "featured_image": "",
+   "featured_image_alt_text": "",
+   "audiences": [
+    {
+     "id": 1003,
+     "name": "Adults",
+     "color": "#4039D1"
+    }
+   ],
+   "categories": "Adult Events",
+   "categories_arr": [
+    {
+     "cat_id": 44455,
+     "name": "Adult Events",
+     "color": "#B3C8EF"
+    }
+   ],
+   "calendar": "Events Calendar",
+   "calendar_url": "https://twinsburglibrary.libcal.com/calendar/OnlineEvents?",
+   "calendar_id": 12805,
+   "online_event": false,
+   "online_registration": false,
+   "in_person_registration": true,
+   "org": "Library Staff",
+   "orgurl": "https://twinsburglibrary.libcal.com/profile/0",
+   "recurring_event": false,
+   "registration_enabled": true,
+   "seats": 48,
+   "seatsleft": 36,
+   "seatsleft_multiple": true,
+   "seatsleft_text": "36 seats left"
+  },
+  {
+   "id": 17132187,
+   "title": "Thanksgiving Scavenger Hunt",
+   "description": "<p>Gobble your way around the Children&#39;s department to find our favorite Thanksgiving foods! Once you have found them all, stop by the Children&#39;s Desk for a prize!</p>\n\n<p>All ages. Younger children may need assistance from their grown-ups.&nbsp;</p>\n\n<p>No registration is required.</p>",
+   "fromTime": "Saturday, November 21, 2026",
+   "toTime": "Wednesday, November 25, 2026",
+   "more_info": "",
+   "shortdesc": "Gobble your way around the Children's department to find our favorite Thanksgiving foods! Once you have found them all, stop by the Children's Desk for a prize!\n\nAll ages. Younger children may need...",
+   "shortdesc_was_truncated": true,
+   "registration_cost": "",
+   "start": "All Day Event",
+   "end": "",
+   "all_day": true,
+   "startdt": "2026-11-21 00:00:00",
+   "enddt": "2026-11-25 23:59:59",
+   "date": "Saturday, November 21, 2026",
+   "ymd": "20261121",
+   "year": "2026",
+   "monthnum": 11,
+   "day": "21",
+   "daypostfix": "st",
+   "dayfull": "Saturday",
+   "dayshort": "Sat",
+   "monthfull": "November",
+   "monthshort": "Nov",
+   "multi_day_event": true,
+   "multi_day_end": {
+    "year": "2026",
+    "monthnum": 11,
+    "day": "25",
+    "daypostfix": "th",
+    "dayfull": "Wednesday",
+    "dayshort": "Wed",
+    "monthfull": "November",
+    "monthshort": "Nov"
+   },
+   "multi_day_end_date": "Wednesday, November 25, 2026",
+   "url": "https://twinsburglibrary.libcal.com/event/17132187",
+   "color": "#AFFA96",
+   "locationCount": 1,
+   "location": "Children's Place",
+   "locations": [
+    {
+     "id": 23456,
+     "name": "Children's Place",
+     "map": "",
+     "mapId": 0,
+     "last": true
+    }
+   ],
+   "campus": "",
+   "presenter": "",
+   "featured_image": "",
+   "featured_image_alt_text": "",
+   "audiences": [
+    {
+     "id": 2064,
+     "name": "Family",
+     "color": "#3AD1B3"
+    },
+    {
+     "id": 2065,
+     "name": "Preschool",
+     "color": "#3AD1B3"
+    },
+    {
+     "id": 2066,
+     "name": "School Aged Children",
+     "color": "#3AD1B3"
+    },
+    {
+     "id": 2069,
+     "name": "Toddlers",
+     "color": "#3AD1B3"
+    },
+    {
+     "id": 2070,
+     "name": "Tweens",
+     "color": "#3AD1B3"
+    }
+   ],
+   "categories": "Children Events",
+   "categories_arr": [
+    {
+     "cat_id": 44460,
+     "name": "Children Events",
+     "color": "#AFFA96"
+    }
+   ],
+   "calendar": "Events Calendar",
+   "calendar_url": "https://twinsburglibrary.libcal.com/calendar/OnlineEvents?",
+   "calendar_id": 12805,
+   "online_event": false,
+   "online_registration": false,
+   "in_person_registration": false,
+   "org": "Library Staff",
+   "orgurl": "https://twinsburglibrary.libcal.com/profile/0",
+   "recurring_event": false,
+   "registration_enabled": false
+  },
+  {
+   "id": 15738545,
+   "title": "Job Seeking Help with Express Employment Professionals",
+   "description": "<p>Join the staff from Express Employment Professionals in the Library for drop-in resume review and one-on-one job seeking assistance.</p>",
+   "fromTime": "3:30pm Tuesday, December 8, 2026",
+   "toTime": "5:00pm Tuesday, December 8, 2026",
+   "more_info": "",
+   "shortdesc": "Join the staff from Express Employment Professionals in the Library for drop-in resume review and one-on-one job seeking assistance.",
+   "shortdesc_was_truncated": false,
+   "registration_cost": "",
+   "start": "3:30pm",
+   "end": "5:00pm",
+   "all_day": false,
+   "startdt": "2026-12-08 15:30:00",
+   "enddt": "2026-12-08 17:00:00",
+   "date": "Tuesday, December 8, 2026",
+   "ymd": "20261208",
+   "year": "2026",
+   "monthnum": 12,
+   "day": "8",
+   "daypostfix": "th",
+   "dayfull": "Tuesday",
+   "dayshort": "Tue",
+   "monthfull": "December",
+   "monthshort": "Dec",
+   "url": "https://twinsburglibrary.libcal.com/event/15738545",
+   "color": "#B3C8EF",
+   "locationCount": 0,
+   "location": "",
+   "locations": [],
+   "campus": "",
+   "presenter": "",
+   "featured_image": "",
+   "featured_image_alt_text": "",
+   "audiences": [
+    {
+     "id": 1003,
+     "name": "Adults",
+     "color": "#4039D1"
+    }
+   ],
+   "categories": "Adult Events, Continuing Education, Job Seeker Workshop",
+   "categories_arr": [
+    {
+     "cat_id": 44455,
+     "name": "Adult Events",
+     "color": "#B3C8EF"
+    },
+    {
+     "cat_id": 44464,
+     "name": "Continuing Education",
+     "color": "#C9C3C3"
+    },
+    {
+     "cat_id": 44468,
+     "name": "Job Seeker Workshop",
+     "color": "#00A6C7"
+    }
+   ],
+   "calendar": "Events Calendar",
+   "calendar_url": "https://twinsburglibrary.libcal.com/calendar/OnlineEvents?",
+   "calendar_id": 12805,
+   "online_event": false,
+   "online_registration": false,
+   "in_person_registration": false,
+   "org": "Library Staff",
+   "orgurl": "https://twinsburglibrary.libcal.com/profile/0",
+   "recurring_event": true,
+   "registration_enabled": false
+  },
+  {
+   "id": 17272481,
+   "title": "Pinewood Gardens Bookmobile Stop",
+   "description": "<p>The Bookmobile will be parked at Pinewood Gardens and open for all residents and community members&nbsp;every&nbsp;Tuesday from 3:30 - 4:30pm. Services include materials for checkout, library card sign-ups and modification (bring an ID), tech help, and more!</p>\n\n<p>This stop may be cancelled for inclement weather, including temperatures below freezing.</p>",
+   "fromTime": "3:30pm Tuesday, November 24, 2026",
+   "toTime": "4:30pm Tuesday, November 24, 2026",
+   "more_info": "",
+   "shortdesc": "The Bookmobile will be parked at Pinewood Gardens and open for all residents and community members every Tuesday from 3:30 - 4:30pm. Services include materials for checkout, library card sign-ups and...",
+   "shortdesc_was_truncated": true,
+   "registration_cost": "",
+   "start": "3:30pm",
+   "end": "4:30pm",
+   "all_day": false,
+   "startdt": "2026-11-24 15:30:00",
+   "enddt": "2026-11-24 16:30:00",
+   "date": "Tuesday, November 24, 2026",
+   "ymd": "20261124",
+   "year": "2026",
+   "monthnum": 11,
+   "day": "24",
+   "daypostfix": "th",
+   "dayfull": "Tuesday",
+   "dayshort": "Tue",
+   "monthfull": "November",
+   "monthshort": "Nov",
+   "url": "https://twinsburglibrary.libcal.com/event/17272481",
+   "color": "#EBA4ED",
+   "locationCount": 1,
+   "location": "Pinewood Gardens, 8788 Ray Ct., Twinsburg, OH",
+   "locations": [
+    {
+     "id": 31050,
+     "name": "Pinewood Gardens, 8788 Ray Ct., Twinsburg, OH",
+     "map": "",
+     "mapId": 0,
+     "last": true
+    }
+   ],
+   "campus": "",
+   "presenter": "",
+   "featured_image": "https://lcimages.s3.amazonaws.com/data/feat_img/4446/12805/1670436951.jpg",
+   "featured_image_alt_text": "",
+   "audiences": [
+    {
+     "id": 1003,
+     "name": "Adults",
+     "color": "#4039D1"
+    },
+    {
+     "id": 2064,
+     "name": "Family",
+     "color": "#3AD1B3"
+    },
+    {
+     "id": 2065,
+     "name": "Preschool",
+     "color": "#3AD1B3"
+    },
+    {
+     "id": 2066,
+     "name": "School Aged Children",
+     "color": "#3AD1B3"
+    },
+    {
+     "id": 2067,
+     "name": "Seniors",
+     "color": "#3AD1B3"
+    },
+    {
+     "id": 2068,
+     "name": "Teens",
+     "color": "#3AD1B3"
+    },
+    {
+     "id": 2069,
+     "name": "Toddlers",
+     "color": "#3AD1B3"
+    },
+    {
+     "id": 2070,
+     "name": "Tweens",
+     "color": "#3AD1B3"
+    }
+   ],
+   "categories": "Bookmobile",
+   "categories_arr": [
+    {
+     "cat_id": 60552,
+     "name": "Bookmobile",
+     "color": "#EBA4ED"
+    }
+   ],
+   "calendar": "Events Calendar",
+   "calendar_url": "https://twinsburglibrary.libcal.com/calendar/OnlineEvents?",
+   "calendar_id": 12805,
+   "online_event": false,
+   "online_registration": false,
+   "in_person_registration": false,
+   "org": "Library Staff",
+   "orgurl": "https://twinsburglibrary.libcal.com/profile/0",
+   "recurring_event": true,
+   "registration_enabled": false
+  },
+  {
+   "id": 17272649,
+   "title": "Story Time Café in Reminderville",
+   "description": "<p>Families of all ages, shapes, and sizes are invited to story time&nbsp;from 10:30 - 11:00am followed by&nbsp;fun activities until 11:30am. Tea and coffee are available for caregivers to enjoy.</p>\n\n<p>No registration is required.&nbsp;</p>\n\n<p><strong>Join us at Heritage Hall in Reminderville, 3601 Glenwood Blvd.</strong></p>",
+   "fromTime": "10:30am Friday, November 20, 2026",
+   "toTime": "11:30am Friday, November 20, 2026",
+   "more_info": "",
+   "shortdesc": "Families of all ages, shapes, and sizes are invited to story time from 10:30 - 11:00am followed by fun activities until 11:30am. Tea and coffee are available for caregivers to enjoy.\n\nNo registration...",
+   "shortdesc_was_truncated": true,
+   "registration_cost": "",
+   "start": "10:30am",
+   "end": "11:30am",
+   "all_day": false,
+   "startdt": "2026-11-20 10:30:00",
+   "enddt": "2026-11-20 11:30:00",
+   "date": "Friday, November 20, 2026",
+   "ymd": "20261120",
+   "year": "2026",
+   "monthnum": 11,
+   "day": "20",
+   "daypostfix": "th",
+   "dayfull": "Friday",
+   "dayshort": "Fri",
+   "monthfull": "November",
+   "monthshort": "Nov",
+   "url": "https://twinsburglibrary.libcal.com/event/17272649",
+   "color": "#AFFA96",
+   "locationCount": 1,
+   "location": "Heritage Hall, 3601 Glenwood Blvd., Reminderville, OH",
+   "locations": [
+    {
+     "id": 27483,
+     "name": "Heritage Hall, 3601 Glenwood Blvd., Reminderville, OH",
+     "map": "",
+     "mapId": 0,
+     "last": true
+    }
+   ],
+   "campus": "",
+   "presenter": "",
+   "featured_image": "https://d68g328n4ug0e.cloudfront.net/data/feat_img/4446/12805/1770308052.jpg",
+   "featured_image_alt_text": "",
+   "audiences": [
+    {
+     "id": 2063,
+     "name": "Babies",
+     "color": "#3AD1B3"
+    },
+    {
+     "id": 2064,
+     "name": "Family",
+     "color": "#3AD1B3"
+    },
+    {
+     "id": 2065,
+     "name": "Preschool",
+     "color": "#3AD1B3"
+    },
+    {
+     "id": 2069,
+     "name": "Toddlers",
+     "color": "#3AD1B3"
+    }
+   ],
+   "categories": "Bookmobile, Children Events, Story Times",
+   "categories_arr": [
+    {
+     "cat_id": 60552,
+     "name": "Bookmobile",
+     "color": "#EBA4ED"
+    },
+    {
+     "cat_id": 44460,
+     "name": "Children Events",
+     "color": "#AFFA96"
+    },
+    {
+     "cat_id": 44474,
+     "name": "Story Times",
+     "color": "#FC8FD1"
+    }
+   ],
+   "calendar": "Events Calendar",
+   "calendar_url": "https://twinsburglibrary.libcal.com/calendar/OnlineEvents?",
+   "calendar_id": 12805,
+   "online_event": false,
+   "online_registration": false,
+   "in_person_registration": false,
+   "org": "Library Staff",
+   "orgurl": "https://twinsburglibrary.libcal.com/profile/0",
+   "recurring_event": true,
+   "registration_enabled": false
+  },
+  {
+   "id": 15644874,
+   "title": "Writers Group",
+   "description": "<p>The Writers Group gives you access to a network of support for your writing, monthly meetings where you can give and receive critiques on your projects, and opportunities to attend workshops on specific topics relevant to the writing and publishing community. The monthly meetings occur on&nbsp;Zoom on the 1st Tuesday of every month. Register to receive the Zoom invite and be added to the group&#39;s communication list.</p>",
+   "fromTime": "6:00pm Tuesday, December 1, 2026",
+   "toTime": "7:30pm Tuesday, December 1, 2026",
+   "more_info": "",
+   "shortdesc": "The Writers Group gives you access to a network of support for your writing, monthly meetings where you can give and receive critiques on your projects, and opportunities to attend workshops on...",
+   "shortdesc_was_truncated": true,
+   "registration_cost": "",
+   "start": "6:00pm",
+   "end": "7:30pm",
+   "all_day": false,
+   "startdt": "2026-12-01 18:00:00",
+   "enddt": "2026-12-01 19:30:00",
+   "date": "Tuesday, December 1, 2026",
+   "ymd": "20261201",
+   "year": "2026",
+   "monthnum": 12,
+   "day": "1",
+   "daypostfix": "st",
+   "dayfull": "Tuesday",
+   "dayshort": "Tue",
+   "monthfull": "December",
+   "monthshort": "Dec",
+   "url": "https://twinsburglibrary.libcal.com/event/15644874",
+   "color": "#B3C8EF",
+   "locationCount": 0,
+   "location": "",
+   "locations": [],
+   "campus": "",
+   "presenter": "",
+   "featured_image": "",
+   "featured_image_alt_text": "",
+   "audiences": [
+    {
+     "id": 1003,
+     "name": "Adults",
+     "color": "#4039D1"
+    }
+   ],
+   "categories": "Adult Events",
+   "categories_arr": [
+    {
+     "cat_id": 44455,
+     "name": "Adult Events",
+     "color": "#B3C8EF"
+    }
+   ],
+   "calendar": "Events Calendar",
+   "calendar_url": "https://twinsburglibrary.libcal.com/calendar/OnlineEvents?",
+   "calendar_id": 12805,
+   "online_event": true,
+   "online_registration": false,
+   "in_person_registration": true,
+   "org": "Library Staff",
+   "orgurl": "https://twinsburglibrary.libcal.com/profile/0",
+   "recurring_event": true,
+   "registration_enabled": true,
+   "seats": 20,
+   "seatsleft": 18,
+   "seatsleft_multiple": true,
+   "seatsleft_text": "18 seats left"
+  },
+  {
+   "id": 15682066,
+   "title": "Twinsburg Public Library Board of Trustees Meeting",
+   "description": "<p>Monthly public meeting of the Twinsburg Public Library&#39;s Board of Trustees</p>",
+   "fromTime": "6:00pm Wednesday, November 18, 2026",
+   "toTime": "8:00pm Wednesday, November 18, 2026",
+   "more_info": "",
+   "shortdesc": "Monthly public meeting of the Twinsburg Public Library&#39;s Board of Trustees",
+   "shortdesc_was_truncated": false,
+   "registration_cost": "",
+   "start": "6:00pm",
+   "end": "8:00pm",
+   "all_day": false,
+   "startdt": "2026-11-18 18:00:00",
+   "enddt": "2026-11-18 20:00:00",
+   "date": "Wednesday, November 18, 2026",
+   "ymd": "20261118",
+   "year": "2026",
+   "monthnum": 11,
+   "day": "18",
+   "daypostfix": "th",
+   "dayfull": "Wednesday",
+   "dayshort": "Wed",
+   "monthfull": "November",
+   "monthshort": "Nov",
+   "url": "https://twinsburglibrary.libcal.com/event/15682066",
+   "color": "#4CD4A5",
+   "locationCount": 1,
+   "location": "Bissell Local History Room",
+   "locations": [
+    {
+     "id": 56400,
+     "name": "Bissell Local History Room",
+     "map": "",
+     "mapId": 0,
+     "last": true
+    }
+   ],
+   "campus": "",
+   "presenter": "",
+   "featured_image": "",
+   "featured_image_alt_text": "",
+   "audiences": [
+    {
+     "id": 1003,
+     "name": "Adults",
+     "color": "#4039D1"
+    }
+   ],
+   "categories": "All Patrons, Board of Trustees Meeting",
+   "categories_arr": [
+    {
+     "cat_id": 44456,
+     "name": "All Patrons",
+     "color": "#9A93FA"
+    },
+    {
+     "cat_id": 57358,
+     "name": "Board of Trustees Meeting",
+     "color": "#4CD4A5"
+    }
+   ],
+   "calendar": "Events Calendar",
+   "calendar_url": "https://twinsburglibrary.libcal.com/calendar/OnlineEvents?",
+   "calendar_id": 12805,
+   "online_event": false,
+   "online_registration": false,
+   "in_person_registration": false,
+   "org": "Library Staff",
+   "orgurl": "https://twinsburglibrary.libcal.com/profile/0",
+   "recurring_event": true,
+   "registration_enabled": false
+  },
+  {
+   "id": 16806031,
+   "title": "Teen Advisory Board Meeting",
+   "description": "<p>Twinsburg Public Library&#39;s Teen Advisory Board wants you! Let your voice be heard and make your Library better and even more awesome than it already is. Join the meeting to brainstorm some great new ideas for what you want to see happen at TPL. Pizza and pop are on us!&nbsp;And you&#39;ll earn community service hours for attending, too. Grades 7 - 12.</p>",
+   "fromTime": "6:30pm Monday, December 7, 2026",
+   "toTime": "7:30pm Monday, December 7, 2026",
+   "more_info": "",
+   "shortdesc": "Twinsburg Public Library's Teen Advisory Board wants you! Let your voice be heard and make your Library better and even more awesome than it already is. Join the meeting to brainstorm some great new...",
+   "shortdesc_was_truncated": true,
+   "registration_cost": "",
+   "start": "6:30pm",
+   "end": "7:30pm",
+   "all_day": false,
+   "startdt": "2026-12-07 18:30:00",
+   "enddt": "2026-12-07 19:30:00",
+   "date": "Monday, December 7, 2026",
+   "ymd": "20261207",
+   "year": "2026",
+   "monthnum": 12,
+   "day": "7",
+   "daypostfix": "th",
+   "dayfull": "Monday",
+   "dayshort": "Mon",
+   "monthfull": "December",
+   "monthshort": "Dec",
+   "url": "https://twinsburglibrary.libcal.com/event/16806031",
+   "color": "#BDB7B7",
+   "locationCount": 1,
+   "location": "Bissell Local History Room",
+   "locations": [
+    {
+     "id": 56400,
+     "name": "Bissell Local History Room",
+     "map": "",
+     "mapId": 0,
+     "last": true
+    }
+   ],
+   "campus": "",
+   "presenter": "",
+   "featured_image": "https://d68g328n4ug0e.cloudfront.net/misc/4446/events/12805/2026_09_28_18_37_45.jpg",
+   "featured_image_alt_text": "",
+   "audiences": [
+    {
+     "id": 2068,
+     "name": "Teens",
+     "color": "#3AD1B3"
+    }
+   ],
+   "categories": "Teen Events",
+   "categories_arr": [
+    {
+     "cat_id": 44475,
+     "name": "Teen Events",
+     "color": "#BDB7B7"
+    }
+   ],
+   "calendar": "Events Calendar",
+   "calendar_url": "https://twinsburglibrary.libcal.com/calendar/OnlineEvents?",
+   "calendar_id": 12805,
+   "online_event": false,
+   "online_registration": false,
+   "in_person_registration": true,
+   "org": "Library Staff",
+   "orgurl": "https://twinsburglibrary.libcal.com/profile/0",
+   "recurring_event": true,
+   "registration_enabled": false,
+   "registration_msg": {
+    "msg": "Registrations open at  6:30pm Monday, November 23, 2026",
+    "class": "btn-info",
+    "status": 0
+   }
+  },
+  {
+   "id": 17567226,
+   "title": "Look Out Behind You! Book Group",
+   "description": "<p>Whether the scares come from a monster, a house, a cosmic entity, or are all just in your head, let&#39;s gather to discuss what keeps us up at night.</p>\n\n<p>This month&#39;s pick:<em>&nbsp;There is No Antimemetics Division&nbsp;</em>by qntm</p>\n\n<p>Copies of the book are available at the Reference Desk, or call (330) 425-4268 x2 to reserve one.</p>",
+   "fromTime": "6:45pm Thursday, November 19, 2026",
+   "toTime": "7:45pm Thursday, November 19, 2026",
+   "more_info": "",
+   "shortdesc": "Whether the scares come from a monster, a house, a cosmic entity, or are all just in your head, let's gather to discuss what keeps us up at night.\n\nThis month's pick: There is No Antimemetics Division...",
+   "shortdesc_was_truncated": true,
+   "registration_cost": "",
+   "start": "6:45pm",
+   "end": "7:45pm",
+   "all_day": false,
+   "startdt": "2026-11-19 18:45:00",
+   "enddt": "2026-11-19 19:45:00",
+   "date": "Thursday, November 19, 2026",
+   "ymd": "20261119",
+   "year": "2026",
+   "monthnum": 11,
+   "day": "19",
+   "daypostfix": "th",
+   "dayfull": "Thursday",
+   "dayshort": "Thu",
+   "monthfull": "November",
+   "monthshort": "Nov",
+   "url": "https://twinsburglibrary.libcal.com/event/17567226",
+   "color": "#FFB67A",
+   "locationCount": 1,
+   "location": "Bissell Local History Room",
+   "locations": [
+    {
+     "id": 56400,
+     "name": "Bissell Local History Room",
+     "map": "",
+     "mapId": 0,
+     "last": true
+    }
+   ],
+   "campus": "",
+   "presenter": "",
+   "featured_image": "",
+   "featured_image_alt_text": "",
+   "audiences": [
+    {
+     "id": 1003,
+     "name": "Adults",
+     "color": "#4039D1"
+    }
+   ],
+   "categories": "Adult Events, Book Groups",
+   "categories_arr": [
+    {
+     "cat_id": 44455,
+     "name": "Adult Events",
+     "color": "#B3C8EF"
+    },
+    {
+     "cat_id": 44458,
+     "name": "Book Groups",
+     "color": "#FFB67A"
+    }
+   ],
+   "calendar": "Events Calendar",
+   "calendar_url": "https://twinsburglibrary.libcal.com/calendar/OnlineEvents?",
+   "calendar_id": 12805,
+   "online_event": false,
+   "online_registration": false,
+   "in_person_registration": false,
+   "org": "Library Staff",
+   "orgurl": "https://twinsburglibrary.libcal.com/profile/0",
+   "recurring_event": false,
+   "registration_enabled": false
+  },
+  {
+   "id": 15720661,
+   "title": "Employment Coaching with OhioMeansJobs",
+   "description": "<p>Stop in to meet one-on-one with an OhioMeansJobs representative for help with job-seeking and employment resources. No registration is required. This walk-in event takes place every Monday from 9:30 - 11:30 am.</p>",
+   "fromTime": "9:30am Monday, November 23, 2026",
+   "toTime": "11:30am Monday, November 23, 2026",
+   "more_info": "",
+   "shortdesc": "Stop in to meet one-on-one with an OhioMeansJobs representative for help with job-seeking and employment resources. No registration is required. This walk-in event takes place every Monday from 9:30 -...",
+   "shortdesc_was_truncated": true,
+   "registration_cost": "",
+   "start": "9:30am",
+   "end": "11:30am",
+   "all_day": false,
+   "startdt": "2026-11-23 09:30:00",
+   "enddt": "2026-11-23 11:30:00",
+   "date": "Monday, November 23, 2026",
+   "ymd": "20261123",
+   "year": "2026",
+   "monthnum": 11,
+   "day": "23",
+   "daypostfix": "rd",
+   "dayfull": "Monday",
+   "dayshort": "Mon",
+   "monthfull": "November",
+   "monthshort": "Nov",
+   "url": "https://twinsburglibrary.libcal.com/event/15720661",
+   "color": "#00A6C7",
+   "locationCount": 1,
+   "location": "Bissell Local History Room",
+   "locations": [
+    {
+     "id": 56400,
+     "name": "Bissell Local History Room",
+     "map": "",
+     "mapId": 0,
+     "last": true
+    }
+   ],
+   "campus": "",
+   "presenter": "",
+   "featured_image": "https://d68g328n4ug0e.cloudfront.net/data/feat_img/4446/12805/1737651980.jpg",
+   "featured_image_alt_text": "",
+   "audiences": [
+    {
+     "id": 1003,
+     "name": "Adults",
+     "color": "#4039D1"
+    }
+   ],
+   "categories": "Job Seeker Workshop",
+   "categories_arr": [
+    {
+     "cat_id": 44468,
+     "name": "Job Seeker Workshop",
+     "color": "#00A6C7"
+    }
+   ],
+   "calendar": "Events Calendar",
+   "calendar_url": "https://twinsburglibrary.libcal.com/calendar/OnlineEvents?",
+   "calendar_id": 12805,
+   "online_event": false,
+   "online_registration": false,
+   "in_person_registration": false,
+   "org": "Library Staff",
+   "orgurl": "https://twinsburglibrary.libcal.com/profile/0",
+   "recurring_event": true,
+   "registration_enabled": false
+  }
+ ]
+}

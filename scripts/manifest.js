@@ -225,6 +225,8 @@ export const SCRAPERS = [
   { key: 'jewish_akron',         script: 'scripts/scrape-jewish-akron.js',            label: 'Jewish Akron',                 group: 'custom',         active: true  },
   { key: 'longwood_manor',       script: 'scripts/scrape-longwood-manor.js',          label: 'Longwood Manor Historical Society', group: 'custom',    active: true  },
   { key: 'west_side_gymnastics', script: 'scripts/scrape-west-side-gymnastics.js',    label: 'West Side Gymnastics',         group: 'ics',            active: true, defaultCategory: 'fitness' },
+  // ── First-party calendars added 2026-11-18 ─────────────────────────────
+  { key: 'twinsburg_library',    script: 'scripts/scrape-twinsburg-library.js',       label: 'Twinsburg Public Library',     group: 'libcal',         active: true, defaultCategory: 'learning' },
 ]
 
 // Active scrapers only — what run-all.js iterates.
