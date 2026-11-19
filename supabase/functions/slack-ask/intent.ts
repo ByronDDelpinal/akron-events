@@ -782,6 +782,7 @@ export const SCRAPER_REGISTRY: ReadonlyMap<string, ScraperEntry> = new Map<strin
   ['bounce_hub',                 { label: 'Bounce Innovation Hub',            active: true  }],
   ['akron_canton_foodbank',      { label: 'Akron-Canton Regional Foodbank',   active: true  }],
   ['summit_historical',          { label: 'Summit County Historical Society', active: true  }],
+  ['magical_theatre',            { label: 'Magical Theatre Company',          active: true  }],
 ])
 
 /** The single validation gate for the `scraper_name` slot. */

@@ -1271,6 +1271,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'magical_theatre',
+    method:      'HTML scrape',
+    methodDetail:'WordPress + Divi, hand-maintained pages: show pages are discovered from /upcoming-events/ and the linked season pages; each show page\'s "Public Performances" list gives one date and time per performance, plus the price line',
+    venue:       'Magical Theatre Company — 565 W Tuscarawas Ave, Barberton',
+    notes:       'Magical Theatre Company — the professional theatre for young audiences in downtown Barberton — lists each production with its run of public performances. Every performance is its own event with its own date, time and ticket link, priced from the page ("$23 and $25" becomes a $23–$25 range). Only the public list is read; school-day matinees are not public events. A performance whose date or time does not parse is skipped and counted, never defaulted. Between seasons the site lists no shows, so an empty run is normal for this source.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -1874,6 +1882,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   bounce_hub:              'html',
   akron_canton_foodbank:   'html',
   summit_historical:       'html',
+  magical_theatre:         'html',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',
