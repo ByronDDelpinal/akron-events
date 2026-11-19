@@ -1255,6 +1255,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'akron_canton_foodbank',
+    method:      'HTML scrape',
+    methodDetail:'Drupal view at /upcoming-events plus each listing\'s detail page for the full date; time and place are read from the description only when it states them unambiguously (scripts/lib/prose-time.js, scripts/lib/prose-venue.js)',
+    venue:       'Akron-Canton Regional Foodbank — 350 Opportunity Pkwy, Akron (+ rented halls in Summit County)',
+    notes:       'The Akron-Canton Regional Foodbank\'s own events: the Selfless Elf 5k, the Harvest for Hunger kickoff luncheon and similar fundraisers. The page publishes a date and no time, so a time is taken from the description only when it states exactly one; "6:30am registration, 8:00am race begins" states two, and that event keeps a flagged noon placeholder. The Foodbank also runs events at its Canton campus and at halls in Stark County, which are out of scope: a venue is asserted only when the description spells out a street address or names the Akron campus, a place in Canton is skipped, and anything else is published without a venue and flagged. Low volume by nature (two or three events at a time).',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -1856,6 +1864,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   west_side_gymnastics:    'ics',
   twinsburg_library:       'libcal',
   bounce_hub:              'html',
+  akron_canton_foodbank:   'html',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',
