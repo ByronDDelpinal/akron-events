@@ -7,7 +7,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'dummy-key'
 
 import { stripHtml } from '../lib/normalize.js'
 import { preloadSummitCountyBoundary } from '../lib/summit-county.js'
-import { classifySource, isAllDayEntry, resolveLocality, slugIdFromUrl, pickCanonicalEntry, fetchEvents, isStaleLastModified, LAST_MODIFIED_MAX_AGE_MS, MIN_EXPECTED_EVENTS, COMPLETE_RENDER_MIN_EVENTS, MAX_FETCH_ATTEMPTS } from '../scrape-uakron-calendar.js'
+import { parsePrice, classifySource, isAllDayEntry, resolveLocality, slugIdFromUrl, pickCanonicalEntry, fetchEvents, isStaleLastModified, LAST_MODIFIED_MAX_AGE_MS, MIN_EXPECTED_EVENTS, COMPLETE_RENDER_MIN_EVENTS, MAX_FETCH_ATTEMPTS } from '../scrape-uakron-calendar.js'
 import { EJ_THOMAS_EVENT, GENERAL_UAKRON_EVENT, LECTURE_EVENT, MISSING_TITLE, MISSING_DATE, PAID_EVENT, PERFORMANCE_CONCERT, MYERS_ART_EVENT, CHP_EVENT, NUMERIC_COST_EVENT, TIERED_COST_EVENT, OBJECT_COST_EVENT, WAYNE_ORRVILLE_COORDS_EVENT, WAYNE_NO_COORDS_EVENT, SOPA_ORIGINAL_26852, LIVE_COPY_26855, CHP_ORIGINAL_26863, CHP_LIVE_COPY_26864, ALL_FIXTURES } from './fixtures/uakron-events.js'
 
 // resolveLocality's coordinate branch needs the county polygon loaded — same
@@ -37,32 +37,9 @@ function parseTags(ev) {
   return [...new Set([...tags, 'university', 'uakron'])]
 }
 
-function parsePrice(costStr) {
-  // Mirror of scrape-uakron-calendar.js parsePrice(). Never assume free:
-  // unknown/unparseable cost stays null; only an explicit number or
-  // "free"/"no charge" resolves to 0.
-  if (costStr == null || costStr === '' || costStr === false) return null
-
-  if (typeof costStr === 'number') {
-    return Number.isFinite(costStr) && costStr >= 0 ? costStr : null
-  }
-
-  if (Array.isArray(costStr)) {
-    const nums = costStr
-      .map(v => typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.]/g, '')))
-      .filter(n => Number.isFinite(n) && n >= 0)
-    return nums.length ? Math.min(...nums) : null
-  }
-
-  if (typeof costStr !== 'string') return null
-
-  const s = costStr.trim().toLowerCase()
-  if (!s) return null
-  if (s === 'free' || s === 'no charge') return 0
-  const m = s.match(/\d+(\.\d+)?/)
-  return m ? parseFloat(m[0]) : null
-}
-
+// parsePrice is the scraper's real export. It used to be a hand-copied
+// mirror here, which is how the $330 area-code bug passed every test: the
+// copy and the original were wrong in the same way.
 function normalizeEvent(ev) {
   if (!ev.title || !ev.date_iso) return null
 
@@ -509,6 +486,52 @@ const deps = (fetchImpl, sleepCalls = []) => ({
   fetchImpl,
   now: () => NOW,
   sleepImpl: async (ms) => { sleepCalls.push(ms) },
+})
+
+describe('UAkron: parsePrice reads the cost field as prose, not as a number', () => {
+  // The exact strings the live feed carried on 2026-11-18 (HTML included).
+  const PARKING = ' All parking at UA is PAID. For more information, please visit <a href="https://www.uakronpark.com/">www.uakronpark.com</a> Or contact UAkronPark at 330-972-7213 / <a href="mailto:info@uakronpark.com">info@uakronpark.com</a></p>'
+
+  it('a phone number is not a price: "ADMISSION IS FREE ... 330-972-7213" is free, not $330', () => {
+    assert.equal(parsePrice('<p><em><strong>ADMISSION IS FREE.</strong></em>' + PARKING), 0)
+  })
+
+  it('parking boilerplate alone, or "tickets on sale soon", is unknown', () => {
+    assert.equal(parsePrice('<p>' + PARKING), null)
+    assert.equal(parsePrice('<p>TICKETS ON SALE SOON.' + PARKING), null)
+    assert.equal(parsePrice('<p>TICKET INFORMATION COMING SOON.' + PARKING), null)
+    assert.equal(parsePrice('<p>Tickets on sale soon! <a href="https://tix.example/27">Buy Tickets Here</a>.' + PARKING), null)
+  })
+
+  it('"pay-what-you-can to $30" has no honest floor: unknown', () => {
+    assert.equal(parsePrice('<p>Ticket prices range from pay-what-you-can to $30 + fees.' + PARKING), null)
+  })
+
+  it('a marked amount wins over the boilerplate', () => {
+    assert.equal(parsePrice('<p>Tickets are $12 for adults and $8 for students.' + PARKING), 8)
+    assert.equal(parsePrice('Admission is 10 dollars at the door'), 10)
+    assert.equal(parsePrice('75'), 75)
+    assert.equal(parsePrice('$12.50'), 12.5)
+  })
+
+  it('free is recognised in a sentence, in any case', () => {
+    assert.equal(parsePrice('FREE'), 0)
+    assert.equal(parsePrice('Ensemble registration is FREE'), 0)
+    assert.equal(parsePrice('CONCERT ADMISSION and PARKING are FREE! We gratefully accept cash, checks, and digital donations during the show.'), 0)
+    assert.equal(parsePrice('REGISTRATION REQUIRED. INFORMATION COMING SOON. PUBLIC CONCERT IS FREE.' + PARKING), 0)
+    assert.equal(parsePrice('There is no cost to attend.'), 0)
+  })
+
+  it('"free parking" says nothing about admission', () => {
+    assert.equal(parsePrice('Free parking in Lot 9'), null)
+    assert.equal(parsePrice('Free parking. Tickets $20.'), 20)
+  })
+
+  it('a number the text does not mark as money is never a price', () => {
+    assert.equal(parsePrice('Doors at 7. Call 330.972.7895 for information.'), null)
+    assert.equal(parsePrice('Room 245, Guzzetta Hall'), null)
+    assert.equal(parsePrice('Ages 18 and up'), null)
+  })
 })
 
 describe('UAkron: isStaleLastModified', () => {

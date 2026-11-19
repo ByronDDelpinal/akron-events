@@ -155,7 +155,7 @@ function parseTags(ev) {
   return [...new Set(all)]
 }
 
-function parsePrice(costStr) {
+export function parsePrice(costStr) {
   // LiveWhale's JSON API v2 serialises the `cost` field as whatever type
   // matches the admin's entry — string, number, or array (multiple tiers).
   // See: docs.livewhale.com — "response values will be formatted as various
@@ -164,7 +164,7 @@ function parsePrice(costStr) {
   // Never assume free. An absent, empty, or unparseable cost is UNKNOWN and
   // must stay null — showing $0 for an event that actually charges would send
   // someone to the door with no money. Only an explicit numeric price (incl. a
-  // genuine 0) or the words "free"/"no charge" may resolve to 0.
+  // genuine 0) or an explicit statement that it is free may resolve to 0.
   if (costStr == null || costStr === '' || costStr === false) return null
 
   if (typeof costStr === 'number') {
@@ -181,11 +181,51 @@ function parsePrice(costStr) {
 
   if (typeof costStr !== 'string') return null  // objects, booleans → unknown
 
-  const s = costStr.trim().toLowerCase()
+  // The field is free-form HTML, not a price. The School of Performing Arts
+  // appends the same parking boilerplate to every entry:
+  //   "ADMISSION IS FREE. All parking at UA is PAID. ... contact UAkronPark
+  //    at 330-972-7213 / info@uakronpark.com"
+  // The old parser took the first run of digits anywhere in the string, so
+  // every one of those events — free ones included — was priced at $330, the
+  // area code (41 upcoming events on 2026-11-18). A number is a price only
+  // when the text says so.
+  const s = costStr
+    .replace(/<[^>]*>/g, ' ')                                  // markup
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .toLowerCase()
+    .replace(/\b(?:https?:\/\/|www\.)\S+/g, ' ')               // links
+    .replace(/\S+@\S+/g, ' ')                                  // email addresses
+    .replace(/\(?\b\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b/g, ' ')    // phone numbers
+    .replace(/\s+/g, ' ')
+    .trim()
   if (!s) return null
-  if (s === 'free' || s === 'no charge') return 0
-  const m = s.match(/\d+(\.\d+)?/)
-  return m ? parseFloat(m[0]) : null
+
+  // A bare amount: "75", "$12.50".
+  const bare = s.match(/^\$?\s*(\d+(?:\.\d{1,2})?)$/)
+  if (bare) return parseFloat(bare[1])
+
+  // Amounts the text marks as money: "$30", "10 dollars".
+  const amounts = [
+    ...[...s.matchAll(/\$\s*(\d+(?:\.\d{1,2})?)/g)].map(m => parseFloat(m[1])),
+    ...[...s.matchAll(/\b(\d+(?:\.\d{1,2})?)\s*dollars?\b/g)].map(m => parseFloat(m[1])),
+  ].filter(n => Number.isFinite(n) && n >= 0)
+
+  if (amounts.length) {
+    // "pay-what-you-can to $30": there is no honest single floor. Unknown,
+    // so the card says "See tickets" rather than "$30" or "Free".
+    if (/pay[\s-]what[\s-]you[\s-](?:can|wish|want)/.test(s)) return null
+    return Math.min(...amounts)
+  }
+
+  // No amount at all. Free only if the text says so about the event itself —
+  // "free parking" on its own says nothing about admission.
+  const withoutFreeParking = s.replace(/\bfree\s+parking\b/g, ' ')
+  if (/\b(?:free|no charge|no cost)\b/.test(withoutFreeParking)) return 0
+
+  // "Tickets on sale soon", "Ticket information coming soon", parking
+  // boilerplate alone: unknown.
+  return null
 }
 
 // ── Venue cache ────────────────────────────────────────────────────────────
