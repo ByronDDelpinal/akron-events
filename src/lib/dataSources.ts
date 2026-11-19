@@ -1383,6 +1383,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'city_of_munroe_falls',
+    method:      'iCal feed',
+    methodDetail:'CivicPlus (CivicEngage) iCalendar module, Main Calendar (catID=14), via the shared lib/civicplus.js runner',
+    venue:       'Munroe Falls City Hall — 43 Munroe Falls Ave, and other places as each entry names them',
+    notes:       'City of Munroe Falls — the Summit County city between Stow and Tallmadge. Its Main Calendar is mostly council, planning, zoning and park board meetings and office-closure notices, which the shared filter leaves out, keeping community events such as the Annual Tree Lighting and Sparkle in the Park. The Guise Park Lodge feed is rental bookings and is not read.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -2000,6 +2008,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   village_of_silver_lake:  'api',
   keep_akron_beautiful:    'api',
   maps_air_museum:         'api',
+  city_of_munroe_falls:    'civicplus',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',

@@ -1,0 +1,149 @@
+BEGIN:VCALENDAR
+PRODID:iCalendar-Ruby
+VERSION:2.0
+X-WR-TIMEZONE:America/New_York
+BEGIN:VTIMEZONE
+TZID:America/New_York
+X-LIC-LOCATION:America/New_York
+BEGIN:STANDARD
+DTSTART:20241103T020000
+RRULE:FREQ=YEARLY;BYDAY=1SU;BYMONTH=11
+TZNAME:EST
+TZOFFSETFROM:-0400
+TZOFFSETTO:-0500
+END:STANDARD
+BEGIN:DAYLIGHT
+DTSTART:20250309T020000
+RRULE:FREQ=YEARLY;BYDAY=2SU;BYMONTH=3
+TZNAME:EDT
+TZOFFSETFROM:-0500
+TZOFFSETTO:-0400
+END:DAYLIGHT
+END:VTIMEZONE
+BEGIN:VEVENT
+DESCRIPTION: https://www.munroefalls.com/calendar.aspx?EID=1667
+DTEND;VALUE=DATE:20261225
+DTSTAMP;TZID=America/New_York:20261106T113256
+DTSTART;VALUE=DATE:20261225
+LAST-MODIFIED;TZID=America/New_York:20261106T113256
+LOCATION: - 43 Munroe Falls Ave  Munroe Falls OH 44262
+SEQUENCE:0
+SUMMARY:Christmas Day - City Offices Closed
+UID:1667
+URL:/common/modules/iCalendar/iCalendar.aspx?feed=calendar&catID=14
+END:VEVENT
+BEGIN:VEVENT
+DESCRIPTION: https://www.munroefalls.com/calendar.aspx?EID=1662
+DTEND;VALUE=DATE:20261224
+DTSTAMP;TZID=America/New_York:20261106T113214
+DTSTART;VALUE=DATE:20261224
+LAST-MODIFIED;TZID=America/New_York:20261106T113214
+LOCATION: - 43 Munroe Falls Ave  Munroe Falls OH 44262
+SEQUENCE:0
+SUMMARY:Christmas Eve - City Offices Closed
+UID:1662
+URL:/common/modules/iCalendar/iCalendar.aspx?feed=calendar&catID=14
+END:VEVENT
+BEGIN:VEVENT
+DESCRIPTION:BZA meets the 4th Tuesday of each month https://www.munroefalls
+ .com/calendar.aspx?EID=1566
+DTEND;TZID=America/New_York:20261222T210000
+DTSTAMP;TZID=America/New_York:20261106T110602
+DTSTART;TZID=America/New_York:20261222T190000
+LAST-MODIFIED;TZID=America/New_York:20261106T110602
+LOCATION:City Hall\, upstairs  - 43 Munroe Falls Ave  Munroe Falls OH 44262
+SEQUENCE:0
+SUMMARY:Board of Zoning Appeals Meeting
+UID:1566
+URL:/common/modules/iCalendar/iCalendar.aspx?feed=calendar&catID=14
+END:VEVENT
+BEGIN:VEVENT
+DESCRIPTION:Planning Commission meets the 4th Wednesday of each month https
+ ://www.munroefalls.com/calendar.aspx?EID=1516
+DTEND;TZID=America/New_York:20261216T210000
+DTSTAMP;TZID=America/New_York:20261106T110357
+DTSTART;TZID=America/New_York:20261216T190000
+LAST-MODIFIED;TZID=America/New_York:20261106T110357
+LOCATION:City Hall\, upstairs  - 43 Munroe Falls Ave  Munroe Falls OH 44262
+SEQUENCE:0
+SUMMARY:Planning Commission Meeting - changed due to holiday
+UID:1516
+URL:/common/modules/iCalendar/iCalendar.aspx?feed=calendar&catID=14
+END:VEVENT
+BEGIN:VEVENT
+DESCRIPTION: https://www.munroefalls.com/calendar.aspx?EID=850
+DTEND;TZID=America/New_York:20261204T203000
+DTSTAMP;TZID=America/New_York:20261119T074852
+DTSTART;TZID=America/New_York:20261204T183000
+LAST-MODIFIED;TZID=America/New_York:20261119T074852
+LOCATION:Tree Lighting in front of City Hall \nSparkle in the Park in Guise
+  Park - 43 Munroe Falls Ave  Munroe Falls OH 44262
+SEQUENCE:0
+SUMMARY:Annual Tree Lighting and Sparkle in the Park Kickoff Event
+UID:850
+URL:/common/modules/iCalendar/iCalendar.aspx?feed=calendar&catID=14
+END:VEVENT
+BEGIN:VEVENT
+DESCRIPTION: https://www.munroefalls.com/calendar.aspx?EID=904
+DTEND;TZID=America/New_York:20261203T200000
+DTSTAMP;TZID=America/New_York:20250602T134150
+DTSTART;TZID=America/New_York:20261203T190000
+LAST-MODIFIED;TZID=America/New_York:20250602T134150
+LOCATION:City Hall Council Chambers - 43 Munroe Falls Ave  Munroe Falls OH 
+ 44262
+SEQUENCE:0
+SUMMARY:Park Board Meeting
+UID:904
+URL:/common/modules/iCalendar/iCalendar.aspx?feed=calendar&catID=14
+END:VEVENT
+BEGIN:VEVENT
+DESCRIPTION:Council Committee Meeting prior to each Council Meeting https:/
+ /www.munroefalls.com/calendar.aspx?EID=1250
+DTEND;TZID=America/New_York:20261201T190000
+DTSTAMP;TZID=America/New_York:20250626T083043
+DTSTART;TZID=America/New_York:20261201T183000
+LAST-MODIFIED;TZID=America/New_York:20250626T083043
+LOCATION:City Hall\, upstairs  - 43 Munroe Falls Ave  Munroe Falls OH 44262
+SEQUENCE:0
+SUMMARY:City Council Committee Meeting
+UID:1250
+URL:/common/modules/iCalendar/iCalendar.aspx?feed=calendar&catID=14
+END:VEVENT
+BEGIN:VEVENT
+DESCRIPTION: https://www.munroefalls.com/calendar.aspx?EID=1657
+DTEND;VALUE=DATE:20261127
+DTSTAMP;TZID=America/New_York:20261106T113117
+DTSTART;VALUE=DATE:20261127
+LAST-MODIFIED;TZID=America/New_York:20261106T113117
+LOCATION: - 43 Munroe Falls Ave  Munroe Falls OH 44262
+SEQUENCE:0
+SUMMARY:Thanksgiving Holiday - City Offices Closed
+UID:1657
+URL:/common/modules/iCalendar/iCalendar.aspx?feed=calendar&catID=14
+END:VEVENT
+BEGIN:VEVENT
+DESCRIPTION: https://www.munroefalls.com/calendar.aspx?EID=1652
+DTEND;VALUE=DATE:20261126
+DTSTAMP;TZID=America/New_York:20261106T112953
+DTSTART;VALUE=DATE:20261126
+LAST-MODIFIED;TZID=America/New_York:20261106T112953
+LOCATION: - 43 Munroe Falls Ave  Munroe Falls OH 44262
+SEQUENCE:0
+SUMMARY:Thanksgiving Day - City Offices Closed
+UID:1652
+URL:/common/modules/iCalendar/iCalendar.aspx?feed=calendar&catID=14
+END:VEVENT
+BEGIN:VEVENT
+DESCRIPTION:BZA meets the 4th Tuesday of each month https://www.munroefalls
+ .com/calendar.aspx?EID=1565
+DTEND;TZID=America/New_York:20261124T210000
+DTSTAMP;TZID=America/New_York:20261106T110602
+DTSTART;TZID=America/New_York:20261124T190000
+LAST-MODIFIED;TZID=America/New_York:20261106T110602
+LOCATION:City Hall\, upstairs  - 43 Munroe Falls Ave  Munroe Falls OH 44262
+SEQUENCE:0
+SUMMARY:Board of Zoning Appeals Meeting
+UID:1565
+URL:/common/modules/iCalendar/iCalendar.aspx?feed=calendar&catID=14
+END:VEVENT
+END:VCALENDAR

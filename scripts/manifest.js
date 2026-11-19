@@ -247,6 +247,7 @@ export const SCRAPERS = [
   { key: 'village_of_silver_lake', script: 'scripts/scrape-village-of-silver-lake.js', label: 'Village of Silver Lake',     group: 'wordpress',      active: true, defaultCategory: 'civic' },
   { key: 'keep_akron_beautiful', script: 'scripts/scrape-keep-akron-beautiful.js',    label: 'Keep Akron Beautiful',         group: 'wordpress',      active: true, defaultCategory: 'civic' },
   { key: 'maps_air_museum',      script: 'scripts/scrape-maps-air-museum.js',         label: 'MAPS Air Museum',              group: 'wordpress',      active: true, defaultCategory: 'learning' },
+  { key: 'city_of_munroe_falls', script: 'scripts/scrape-city-of-munroe-falls.js',    label: 'City of Munroe Falls',         group: 'civicplus',      active: true  },
 ]
 
 // Active scrapers only — what run-all.js iterates.
