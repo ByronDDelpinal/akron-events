@@ -86,6 +86,21 @@ const EVALUATED_SOURCES: EvaluatedSource[] = [
     reason: 'Evaluated November 2026. Direction Home lists its public events as "TBA"; the only dated entry is a paid training session for professionals. Northfield Center Township publishes recaps of events after they happen and has no calendar of upcoming ones.',
   },
   {
+    name:   'Government meetings (council, trustees, zoning, boards and commissions)',
+    url:    'Every city, village and township calendar we read',
+    reason: 'Left off on purpose, as of November 2026. Municipal calendars are mostly public meetings: one village\'s calendar had 52 entries, of which 49 were council, zoning, park board and watershed meetings. Listing them would bury the community events those same calendars carry. Every municipal source applies one shared rule that skips meetings, office closures and facility rentals and counts what it skipped. Meetings are public and worth attending, so they may return later on a page of their own.',
+  },
+  {
+    name:   'Rubber City Theatre',
+    url:    'https://www.rubbercitytheatre.com/shows-tickets',
+    reason: 'Evaluated November 2026. The site gives each production a date range but no performance times, and its ticket site refuses automated requests. Its productions are staged at the University of Akron and already arrive, with times, through the university calendar.',
+  },
+  {
+    name:   'Inn at Brandywine Falls, Eddy\'s Bike Shop, Center Ice Sports',
+    url:    'https://www.theinnatbrandywinefalls.com/high-tea-pop-up · https://www.eddys.com/events/shop-rides-events-pg1243.htm · https://www.centericesports.com/',
+    reason: 'Evaluated November 2026. The inn\'s High Tea is a daily reservation seating over several weeks, not a set of events. Eddy\'s events page was stale: its one Akron clinic had passed and the rest were at a store outside Summit County. Center Ice lists its theme nights only as page names in a menu, with no year, time or event data behind them.',
+  },
+  {
     name:   'City of Macedonia (and other sites behind bot protection)',
     url:    'https://www.macrec.com/parks/calendar',
     reason: 'Retired November 2026. Macedonia\'s site refuses automated visitors, including ours when it identifies itself honestly. The scraper had been sending a web browser\'s headers to get through; that stopped working in August 2026, and it is not something this project should do. The same rule now applies everywhere: when a site puts up a bot challenge, we do not disguise the scraper, solve the challenge with a headless browser, or route around it. About two dozen venues and churches are out of reach for this reason. Their events still appear when they are ticketed through Eventbrite or Ticketmaster or submitted directly.',
