@@ -1311,6 +1311,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'coventry_township',
+    method:      'HTML scrape',
+    methodDetail:'Wix blog: the RSS feed lists the 20 newest posts; a post whose title ends with a date ("Zoning Commission Board Meeting - NOV 17") is treated as an event and its page is read for the time and place',
+    venue:       'Coventry Community Center — 335 E Willow View Dr, Akron (township meetings); other places as the post names them',
+    notes:       'Coventry Township has no calendar; it announces meetings and community events as blog posts mixed in with ordinary news. Only posts whose title ends with a date are listed. The start time is the one time or time range the post states; a post that gives no time, or several different ones, is skipped and counted rather than guessed. The year comes from the post itself or from when it was published, and a title dated before its own post (a press release about something that already happened) is not treated as an event. Cancelled meetings are skipped. A week with only news in the feed is a normal empty run.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -1919,6 +1927,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   western_reserve_community_band: 'ics',
   hudson_players:          'html',
   hudson_heritage:         'api',
+  coventry_township:       'html',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',

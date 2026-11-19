@@ -235,6 +235,7 @@ export const SCRAPERS = [
   { key: 'western_reserve_community_band', script: 'scripts/scrape-western-reserve-community-band.js', label: 'Western Reserve Community Band', group: 'ics', active: true, defaultCategory: 'music' },
   { key: 'hudson_players',       script: 'scripts/scrape-hudson-players.js',          label: 'Hudson Players',               group: 'html',           active: true, defaultCategory: 'theater' },
   { key: 'hudson_heritage',      script: 'scripts/scrape-hudson-heritage.js',         label: 'Hudson Heritage Association',  group: 'wordpress',      active: true, defaultCategory: 'learning' },
+  { key: 'coventry_township',    script: 'scripts/scrape-coventry-township.js',       label: 'Coventry Township',            group: 'html',           active: true, defaultCategory: 'civic' },
 ]
 
 // Active scrapers only — what run-all.js iterates.

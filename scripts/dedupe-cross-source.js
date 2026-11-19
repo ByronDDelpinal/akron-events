@@ -136,6 +136,7 @@ export const SOURCE_PRIORITY = [
   'western_reserve_community_band', // first-party (the band's own public calendar)
   'hudson_players',          // first-party (per-performance listings for its own productions)
   'hudson_heritage',         // first-party (the association's own season calendar)
+  'coventry_township',       // first-party (the township's own announcements)
   'blu_jazz',
   'city_of_akron_lock3',     // first-party source for city programming
   'cvfm',                    // first-party (Cuyahoga Valley Farmers Market, Summit venues)
