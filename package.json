@@ -32,6 +32,7 @@
     "scrape:zips": "node scripts/scrape-akron-zips.js",
     "scrape:nightlight": "node scripts/scrape-nightlight.js",
     "scrape:library": "node scripts/scrape-akron-library.js",
+    "scrape:akron-library:dry-run": "node scripts/scrape-akron-library.js --dry-run",
     "scrape:cuyahoga-falls-library": "node scripts/scrape-cuyahoga-falls-library.js",
     "scrape:jillys": "node scripts/scrape-jillys.js",
     "scrape:blu-jazz": "node scripts/scrape-blu-jazz.js",

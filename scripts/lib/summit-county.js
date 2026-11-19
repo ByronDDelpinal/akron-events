@@ -134,6 +134,11 @@ export const NOT_SUMMIT_COUNTY_CITIES = new Set([
   'newton falls', 'mcdonald', 'mineral ridge', 'howland', 'vienna',
 ])
 
+// Allowlisted cities whose postal area straddles the county line (see the
+// SUMMIT_COUNTY_CITIES note). A city-only 'in' for one of these is a guess,
+// so a source that has no coordinate can downgrade it to 'unknown' (review).
+export const COUNTY_LINE_CITIES = new Set(['mogadore', 'uniontown'])
+
 // NOTE: 'uniontown' straddles the county line and is deliberately in the
 // ALLOWLIST (see SUMMIT_COUNTY_CITIES above), so it must never appear here.
 

@@ -14,7 +14,7 @@
  *   node --test scripts/tests/test-akron-library.js
  */
 
-import { describe, it } from 'node:test'
+import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 
 // ── Set dummy env vars before any imports ────────────────────────────────────
@@ -45,7 +45,13 @@ import {
 
 // ── Import shared utilities (pure functions) ─────────────────────────────────
 import { stripHtml } from '../lib/normalize.js'
-import { BRANCH_INFO as SCRAPER_BRANCH_INFO, libnetStatus, libnetTimes } from '../scrape-akron-library.js'
+import {
+  BRANCH_INFO as SCRAPER_BRANCH_INFO, libnetStatus, libnetTimes, parseLibraryVenue, libraryVenueLocality,
+  OFFSITE_VENUE_INFO, planGatedCancel, cancelGatedRows, GATED_CANCEL_MAX_ROWS,
+} from '../scrape-akron-library.js'
+import {
+  preloadSummitCountyBoundary, COUNTY_LINE_CITIES, SUMMIT_COUNTY_CITIES, NOT_SUMMIT_COUNTY_CITIES,
+} from '../lib/summit-county.js'
 import { resolveNeighborhoodSlug } from '../lib/neighborhood-resolver.js'
 
 // Recognized Summit County places that map to a city hub or a regional rollup
@@ -995,5 +1001,116 @@ describe('Library: all-day times (SANCTIONED-DEFAULT-TIME)', () => {
     assert.equal(row.time_inferred, true)
     assert.equal(row.description, 'Can you escape before time runs out?')
     assert.equal(row.needs_review, undefined)
+  })
+})
+
+// ── Summit County locality gate ──────────────────────────────────────────────
+describe('libraryVenueLocality — Summit County gate', () => {
+  before(async () => { await preloadSummitCountyBoundary() })
+
+  const offsite = (city) => libraryVenueLocality({ name: `Somewhere in ${city}`, state: 'OH', city })
+
+  it('puts every BRANCH_INFO branch inside the county polygon', () => {
+    for (const name of Object.keys(SCRAPER_BRANCH_INFO)) {
+      assert.equal(libraryVenueLocality({ name, state: 'OH' }), 'in', `${name} coordinate is outside Summit`)
+    }
+  })
+
+  it('holds the Mogadore meadery (county-line city, no coordinate) for review', () => {
+    const name = 'Crafted Artisan Meadery'
+    const parsed = parseLibraryVenue({ venue_name: name, location: name,
+      venue_description: '<p>Crafted Artisan Meadery</p>\n<p>1292 Waterloo Rd</p>\n<p>Mogadore, OH 44260</p>' })
+    assert.equal(libraryVenueLocality(parsed), 'unknown')
+  })
+
+  it('holds an off-site Uniontown venue for review', () => {
+    assert.equal(offsite('Uniontown'), 'unknown')
+  })
+
+  it('accepts off-site venues in allowlisted Summit cities', () => {
+    for (const city of ['Tallmadge', 'Macedonia', 'Northfield']) assert.equal(offsite(city), 'in', city)
+  })
+
+  it('gates out off-site venues in known non-Summit cities', () => {
+    for (const city of ['Kent', 'Ravenna']) assert.equal(offsite(city), 'out', city)
+  })
+
+  it('holds a city-less off-site venue for review', () => {
+    assert.equal(libraryVenueLocality({ name: 'Mystery Hall', state: 'OH' }), 'unknown')
+  })
+
+  it('treats an online-only program (null venue) as in-county', () => {
+    assert.equal(libraryVenueLocality(null), 'in')
+  })
+
+  it('resolves every recurring city-less OFFSITE_VENUE_INFO venue to in-county', () => {
+    for (const name of Object.keys(OFFSITE_VENUE_INFO)) {
+      assert.equal(libraryVenueLocality({ name, state: 'OH' }), 'in', name)
+    }
+  })
+
+  it('keeps COUNTY_LINE_CITIES on the allowlist and off every blocklist', () => {
+    for (const c of COUNTY_LINE_CITIES) {
+      assert.ok(SUMMIT_COUNTY_CITIES.has(c), `${c} must be allowlisted`)
+      assert.ok(!NOT_SUMMIT_COUNTY_CITIES.has(c), `${c} must not be blocklisted`)
+    }
+  })
+
+  it('plans gated cancels only for published rows without a status pin', () => {
+    const rows = [
+      { id: 'a', status: 'published' },
+      { id: 'b', status: 'published', manual_overrides: { status: 'published' } },
+      { id: 'c', status: 'pending_review' },
+      { id: 'd', status: 'cancelled' },
+      { id: 'e', status: 'published', manual_overrides: { title: 'x' } },
+    ]
+    assert.deepEqual(planGatedCancel(rows).map((r) => r.id), ['a', 'e'])
+    assert.deepEqual(planGatedCancel(null), [])
+  })
+
+  // Fake client: records calls; select resolves to `rows`, update to no error.
+  const fakeClient = (rows) => {
+    const calls = []
+    const chain = (op, result) => {
+      const q = { eq: () => q, in: () => q, then: (res, rej) => Promise.resolve(result).then(res, rej) }
+      calls.push(op)
+      return q
+    }
+    return {
+      calls,
+      from: () => ({
+        select: () => chain('select', { data: rows, error: null }),
+        update: () => chain('update', { error: null }),
+      }),
+    }
+  }
+  const ids = (n) => Array.from({ length: n }, (_, i) => String(i))
+
+  it('skips gated cancel over the cap before querying, with a degraded note', async () => {
+    const client = fakeClient([])
+    const r = await cancelGatedRows(ids(GATED_CANCEL_MAX_ROWS + 1), { client })
+    assert.equal(r.cancelled, 0)
+    assert.equal(r.note, `gated-cancel skipped: ${GATED_CANCEL_MAX_ROWS + 1} rows over cap ${GATED_CANCEL_MAX_ROWS}`)
+    assert.deepEqual(client.calls, [])
+  })
+
+  it('skips the update when published rows exceed the cap after planning', async () => {
+    // Defensive second check: the write is guarded on what the SELECT returned.
+    const rows = ids(GATED_CANCEL_MAX_ROWS + 2).map((id) => ({ id, status: 'published' }))
+    const client = fakeClient(rows)
+    const r = await cancelGatedRows(ids(3), { client })
+    assert.equal(r.cancelled, 0)
+    assert.match(r.note, /over cap/)
+    assert.deepEqual(client.calls, ['select'])
+  })
+
+  it('cancels in one batched update under the cap; dry run only reads', async () => {
+    const rows = [{ id: 'a', status: 'published' }, { id: 'b', status: 'cancelled' }]
+    const live = fakeClient(rows)
+    assert.deepEqual(await cancelGatedRows(['1', '2'], { client: live }), { cancelled: 1, wouldCancel: 0, note: null })
+    assert.deepEqual(live.calls, ['select', 'update'])
+    const dry = fakeClient(rows)
+    assert.deepEqual(await cancelGatedRows(['1', '2'], { client: dry, dryRun: true }), { cancelled: 0, wouldCancel: 1, note: null })
+    assert.deepEqual(dry.calls, ['select'])
   })
 })

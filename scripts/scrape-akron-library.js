@@ -6,6 +6,7 @@
  *
  * Usage:
  *   node scripts/scrape-akron-library.js
+ *   node scripts/scrape-akron-library.js --dry-run   # fetch + parse + gate, no DB writes
  *
  * Required .env vars:
  *   VITE_SUPABASE_URL         — Supabase project URL
@@ -31,10 +32,17 @@ import {
   venueNameKey,
   easternToIso,
   easternTodayIso,
+  hasStatusOverride,
 } from './lib/normalize.js'
+import {
+  preloadSummitCountyBoundary,
+  classifySummitLocation,
+  COUNTY_LINE_CITIES,
+} from './lib/summit-county.js'
 
 const API_BASE   = 'https://services.akronlibrary.org/eeventcaldata'
 const DAYS_AHEAD = 180  // fetch 6 months at a time
+const DRY_RUN    = process.argv.includes('--dry-run') || process.env.DRY_RUN === '1'
 
 // ── Known branch library addresses ───────────────────────────────────────
 // Used to pre-populate venue records. Branches not listed here get name-only records.
@@ -104,6 +112,19 @@ export const BRANCH_INFO = {
   // Address corrected from '90 North Ave': the branch is at 90 Community Rd.
   'Tallmadge Branch Library':         { address: '90 Community Rd', city: 'Tallmadge',            zip: '44278', lat: 41.103898, lng: -81.433631, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
   'Odom Boulevard Branch Library':    { address: '600 Vernon Odom Blvd',    zip: '44307', lat: 41.071137, lng: -81.544269, parking_type: 'lot',     parking_notes: 'Free on-site parking lot.' },
+}
+
+// Recurring OFF-SITE venues whose feed description omits the city (or writes
+// "Akron OH 44312" with no comma, which the parser rightly refuses to guess
+// from). City only — no coordinates until one is geocoded and checked, same
+// rule as BRANCH_INFO. Center on the Lake's city/zip match the Springfield
+// Township scraper's default venue (2491 Canfield Rd, Akron 44312).
+export const OFFSITE_VENUE_INFO = {
+  'Tallmadge Recreation Center': { city: 'Tallmadge' },
+  'Macedonia City Center':       { city: 'Macedonia' },
+  'Macedonia City Hall':         { city: 'Macedonia' },
+  'Ellet Community Center':      { city: 'Akron' },
+  'Center on the Lake':          { city: 'Akron' },
 }
 
 // Feed venue names that are a DEPARTMENT inside a branch, not a place of their
@@ -398,8 +419,9 @@ export function parseLibraryVenue(ev) {
   // ensureLibraryVenue gets the BRANCH_INFO address and coordinate.
   const name = ROOM_BRANCH_BY_KEY.get(venueNameKey(cleaned)) ?? cleaned
 
-  // Every venue in this feed is a Summit-County-area library program site; the
-  // state is the one field the source never varies and never states wrongly.
+  // The state is the one field the source never varies and never states
+  // wrongly. County is NOT assumed: off-site programs can sit outside Summit,
+  // and libraryVenueLocality() gates each row on it.
   const venue = { name, state: 'OH' }
 
   const segments = htmlToText(ev?.venue_description || '')
@@ -455,8 +477,75 @@ export function parseLibraryVenue(ev) {
   return venue
 }
 
-async function ensureLibraryVenue(ev, organizerId) {
-  const parsed = parseLibraryVenue(ev)
+/**
+ * Summit County locality of a parsed venue: 'in' | 'out' | 'unknown'.
+ * Pure (requires preloadSummitCountyBoundary() first). Exported for tests.
+ *
+ * - null (online-only program) → 'in': there is no place to be outside of.
+ * - Known branch → polygon check on its geocoded BRANCH_INFO coordinate.
+ * - Off-site → the feed gives no coordinate, so city only (the feed's, else
+ *   OFFSITE_VENUE_INFO's). A city-only 'in'
+ *   for a county-line city (Mogadore, Uniontown) is downgraded to 'unknown'
+ *   so the row goes to review instead of publishing on a guess.
+ */
+export function libraryVenueLocality(parsed) {
+  if (parsed === null) return 'in'
+  const b = BRANCH_INFO[parsed.name]
+  if (b) return classifySummitLocation({ lat: b.lat, lng: b.lng, city: b.city ?? 'Akron' })
+  const city = parsed.city ?? OFFSITE_VENUE_INFO[parsed.name]?.city
+  const r = classifySummitLocation({ city })
+  if (r === 'in' && COUNTY_LINE_CITIES.has(String(city).toLowerCase().trim())) return 'unknown'
+  return r
+}
+
+// Ceiling on rows one run may retire via the locality gate (mirrors
+// barberton's CANCEL_FLIP_MAX_ROWS). Dozens at once means the parser, the city
+// lists or the feed changed, and a status sweep is the wrong response.
+export const GATED_CANCEL_MAX_ROWS = 25
+
+/** Over-cap note for the run's `degraded:` disclosure, or null. Pure. */
+export function gatedCancelCapNote(n) {
+  return n > GATED_CANCEL_MAX_ROWS ? `gated-cancel skipped: ${n} rows over cap ${GATED_CANCEL_MAX_ROWS}` : null
+}
+
+/** Rows to retire after their venue gated 'out': published and not
+ *  status-pinned in manual_overrides (a pin is a human decision). Pure. */
+export function planGatedCancel(rows = []) {
+  return (rows ?? []).filter((r) => r?.status === 'published' && !hasStatusOverride(r))
+}
+
+/**
+ * Cancel already-published rows whose venue now gates out-of-county. One
+ * SELECT + one batched status-only UPDATE (source and status repeated in the
+ * WHERE so a row that changed in between is never touched). Returns
+ * { cancelled, note } — note is a short reason when the step failed.
+ */
+export async function cancelGatedRows(sourceIds, { client = null, dryRun = false } = {}) {
+  if (!sourceIds.length) return { cancelled: 0, wouldCancel: 0, note: null }
+  const preCap = gatedCancelCapNote(sourceIds.length)
+  if (preCap) return { cancelled: 0, wouldCancel: 0, note: preCap }
+  const supabaseAdmin = client ?? (await import('./lib/supabase-admin.js')).supabaseAdmin
+  const { data, error } = await supabaseAdmin
+    .from('events')
+    .select('id, title, source_id, status, manual_overrides')
+    .eq('source', 'akron_library')
+    .in('source_id', sourceIds)
+  if (error) return { cancelled: 0, wouldCancel: 0, note: `gated-cancel query failed (${error.message})` }
+  const ids = planGatedCancel(data).map((r) => r.id)
+  const postCap = gatedCancelCapNote(ids.length)
+  if (postCap) return { cancelled: 0, wouldCancel: 0, note: postCap }
+  if (dryRun || !ids.length) return { cancelled: 0, wouldCancel: ids.length, note: null }
+  const { error: upErr } = await supabaseAdmin
+    .from('events')
+    .update({ status: 'cancelled' })
+    .in('id', ids)
+    .eq('source', 'akron_library')
+    .eq('status', 'published')
+  if (upErr) return { cancelled: 0, wouldCancel: 0, note: `gated-cancel update failed (${upErr.message})` }
+  return { cancelled: ids.length, wouldCancel: 0, note: null }
+}
+
+async function ensureLibraryVenue(parsed, organizerId) {
   if (!parsed) return null   // online-only program: there is no venue to link
 
   const cacheKey = libraryVenueCacheKey(parsed)
@@ -494,8 +583,9 @@ async function ensureLibraryVenue(ev, organizerId) {
     // and nothing more. No library website/description (it is not a library
     // building) and no organization link (it is not a library venue).
     const details = { state: parsed.state }
+    const city = parsed.city ?? OFFSITE_VENUE_INFO[parsed.name]?.city
     if (parsed.address) details.address = parsed.address
-    if (parsed.city)    details.city    = parsed.city
+    if (city)           details.city    = city
     if (parsed.zip)     details.zip     = parsed.zip
     venueId = await ensureVenue(parsed.name, details)
   }
@@ -538,15 +628,35 @@ export async function fetchEvents() {
 // ── Process ───────────────────────────────────────────────────────────────
 
 async function processEvents(rawEvents, organizerId) {
-  let inserted = 0, skipped = 0
+  let inserted = 0, skipped = 0, review = 0, wouldUpsert = 0
+  const gatedOutIds = []
 
   for (const ev of rawEvents) {
     try {
+      const title    = stripHtml(ev.title || '')
+      // Gate BEFORE ensureLibraryVenue so an out-of-county row never mints a venue.
+      const parsed   = parseLibraryVenue(ev)
+      const locality = libraryVenueLocality(parsed)
+      if (locality === 'out') {
+        console.log(`  ⛔ gated out-of-county: ${title} (${parsed?.city ?? '?'})`)
+        gatedOutIds.push(String(ev.id))
+        skipped++
+        continue
+      }
+      if (DRY_RUN) {
+        if (!libnetTimes(ev).startAt) { skipped++; continue }
+        if (locality === 'unknown') {
+          review++
+          console.log(`  [dry] unknown | ${title} | ${parsed?.name} | ${parsed?.city ?? ''}`)
+        }
+        wouldUpsert++
+        continue
+      }
+
       // May be null — an online-only program, or a name the venue guards
       // refuse to mint. The event is still worth publishing without a venue.
-      const venueId = await ensureLibraryVenue(ev, organizerId)
+      const venueId = await ensureLibraryVenue(parsed, organizerId)
 
-      const title    = stripHtml(ev.title || '')
       const category = parseCategory(ev.tags, title)
       // Feed field is `ages` (PLURAL) — `ev.age` does not exist. The singular
       // read shipped silently and disabled the authoritative audience signal
@@ -594,6 +704,13 @@ async function processEvents(rawEvents, organizerId) {
         time_inferred:   timeInferred ? true : undefined,
         featured:        false,
       }
+      // Unconfirmed county (county-line city, or no/unrecognized city): hold
+      // for review. A library-cancelled row stays cancelled.
+      if (locality === 'unknown') {
+        review++
+        if (row.status !== 'cancelled') row.status = 'pending_review'
+        row.needs_review = true
+      }
 
       const enrichedRow = await enrichWithImageDimensions(row)
       const { data: upserted, error } = await upsertEventSafe(enrichedRow)
@@ -614,7 +731,7 @@ async function processEvents(rawEvents, organizerId) {
       skipped++
     }
   }
-  return { inserted, skipped }
+  return { inserted, skipped, review, wouldUpsert, gatedOutIds }
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────
@@ -623,14 +740,31 @@ async function main() {
   console.log('🚀  Starting Akron-Summit County Library ingestion…')
   const start = Date.now()
 
+  if (DRY_RUN) console.log('   [dry-run mode — fetch + parse + gate only, no DB writes]')
+
   try {
-    const organizerId = await ensureOrganizer()
+    await preloadSummitCountyBoundary()
+    const organizerId = DRY_RUN ? null : await ensureOrganizer()
     const rawEvents   = await fetchEvents()
     console.log(`\n📥  Processing ${rawEvents.length} events…`)
-    const { inserted, skipped } = await processEvents(rawEvents, organizerId)
+    const { inserted, skipped, review, wouldUpsert, gatedOutIds } = await processEvents(rawEvents, organizerId)
+    const gatedOut = gatedOutIds.length
+    console.log(`  Locality gate: ${gatedOut} out-of-county skipped, ${review} held for review`)
+    if (DRY_RUN) {
+      // Read-only: SELECT + planGatedCancel, never the UPDATE.
+      const dry = await cancelGatedRows(gatedOutIds, { dryRun: true })
+      console.log(`  [dry] would cancel ${dry.wouldCancel} published row(s) among ${gatedOut} gated${dry.note ? ` (${dry.note})` : ''}`)
+      console.log(`\n🧪  Dry-run totals: ${rawEvents.length} fetched, ${wouldUpsert} would upsert (${review} pending_review), ${skipped} skipped (${gatedOut} out-of-county); nothing written.`)
+      return
+    }
+    const { cancelled, note } = await cancelGatedRows(gatedOutIds)
+    if (cancelled) console.log(`  ✖ cancelled ${cancelled} published row(s) now gated out-of-county`)
+    if (note) console.warn(`  ⚠ ${note}`)
     await logUpsertResult('akron_library', inserted, 0, skipped, {
       eventsFound: rawEvents.length,
       durationMs:  Date.now() - start,
+      // Health checks look for `degraded:%` (same convention as barberton).
+      ...(note ? { errorMessage: `degraded: ${note}` } : {}),
     })
     console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s`)
   } catch (err) {
