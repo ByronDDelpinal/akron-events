@@ -1279,6 +1279,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'stow_players',
+    method:      'HTML scrape',
+    methodDetail:'WordPress + Elementor: productions are discovered from the season cards on the home page; each /production/ page has a "Showtimes" block of prose lines ("November 20 and 21 at 7:30 PM") that is expanded into one date and time per performance',
+    venue:       'The Heritage Barn — 5238 Young Road, Stow',
+    notes:       'Stow Players — the community theatre at the Heritage Barn in Silver Springs Park — lists each production of its season with its showtimes. Every performance is its own event with its own date and time and a link to the box office. The year comes from the opening date on the season card, so a run that crosses New Year lands in the right year. The site publishes no ticket price, so none is shown. A showtime line that does not parse is skipped and counted, never defaulted. Improv nights are filed under comedy.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -1883,6 +1891,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   akron_canton_foodbank:   'html',
   summit_historical:       'html',
   magical_theatre:         'html',
+  stow_players:            'html',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',

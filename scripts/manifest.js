@@ -231,6 +231,7 @@ export const SCRAPERS = [
   { key: 'akron_canton_foodbank', script: 'scripts/scrape-akron-canton-foodbank.js',  label: 'Akron-Canton Regional Foodbank', group: 'html',         active: true, defaultCategory: 'civic' },
   { key: 'summit_historical',    script: 'scripts/scrape-summit-historical.js',       label: 'Summit County Historical Society', group: 'html',       active: true, defaultCategory: 'learning' },
   { key: 'magical_theatre',      script: 'scripts/scrape-magical-theatre.js',         label: 'Magical Theatre Company',      group: 'html',           active: true, defaultCategory: 'theater' },
+  { key: 'stow_players',         script: 'scripts/scrape-stow-players.js',            label: 'Stow Players',                 group: 'html',           active: true, defaultCategory: 'theater' },
 ]
 
 // Active scrapers only — what run-all.js iterates.
