@@ -374,8 +374,8 @@ Deno.test('normalizeQuestion drops channel refs, broadcasts and masked links', (
 // in scripts/tests/ alongside test-slack-agent-identities.js and is tracked as
 // a follow-up in README.md, "Known gaps".
 Deno.test('SCRAPER_REGISTRY has the expected shape and gates the slot', () => {
-  assertEquals(SCRAPER_REGISTRY.size, 156)
-  assertEquals([...SCRAPER_REGISTRY.values()].filter((e) => e.active).length, 150)
+  assertEquals(SCRAPER_REGISTRY.size, 183)
+  assertEquals([...SCRAPER_REGISTRY.values()].filter((e) => e.active).length, 176)
   assertEquals(isKnownScraper('eventbrite'), true)
   assertEquals(isKnownScraper('kent_stage'), true) // retired but still registered
   assertEquals(isKnownScraper('not_a_scraper'), false)
