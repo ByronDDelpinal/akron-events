@@ -1247,6 +1247,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'bounce_hub',
+    method:      'HTML scrape',
+    methodDetail:'Drupal view at /events (server-rendered list: title, series label, image) plus each listing\'s detail page for the full date line ("Nov 18, 2026 10:00 - 11:30 AM"), which is the only place the year and time exist',
+    venue:       'Bounce Innovation Hub — 526 S Main St, Akron',
+    notes:       'Bounce Innovation Hub — Akron\'s startup and small-business hub in the former B.F. Goodrich complex — publishes founder workshops (the Beyond Startup series), free coworking days, networking nights and fundraisers on its own calendar. The date line is parsed strictly and a listing that does not parse is skipped rather than dated from the list\'s year-less "Nov 18". A recurring listing (the monthly Free Coworking Day is one page whose date line lists every date) becomes one event per date. Titles that say virtual or webinar get no venue. Price is never on the page, so it stays unknown.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -1847,6 +1855,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   longwood_manor:          'html',
   west_side_gymnastics:    'ics',
   twinsburg_library:       'libcal',
+  bounce_hub:              'html',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',

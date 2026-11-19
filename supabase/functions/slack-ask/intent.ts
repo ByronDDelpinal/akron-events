@@ -779,6 +779,7 @@ export const SCRAPER_REGISTRY: ReadonlyMap<string, ScraperEntry> = new Map<strin
   ['longwood_manor',             { label: 'Longwood Manor Historical Society', active: true }],
   ['west_side_gymnastics',       { label: 'West Side Gymnastics',             active: true  }],
   ['twinsburg_library',          { label: 'Twinsburg Public Library',         active: true  }],
+  ['bounce_hub',                 { label: 'Bounce Innovation Hub',            active: true  }],
 ])
 
 /** The single validation gate for the `scraper_name` slot. */
