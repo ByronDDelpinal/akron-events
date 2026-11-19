@@ -1295,6 +1295,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'hudson_players',
+    method:      'HTML scrape',
+    methodDetail:'Strikingly, server-rendered: the /now-playing page gives the current production as a line of dates ("October 30,31 November 6,7,8*…, 2026") plus weekday time rules ("Friday and Saturday performances @ 7:30pm"); each date is matched to the rule for the weekday it falls on',
+    venue:       'Barlow Community Center — 41 S Oviatt St, Hudson',
+    notes:       'Hudson Players — the volunteer community theatre at the Barlow Community Center — lists its current production with every performance date. Each performance is its own event. The start time is never assumed: it comes from the page\'s own weekday rules, and a date on a weekday the page gives no time for is skipped and counted. Tickets are sold on Ludus, which refuses automated requests, so no price is shown. Between productions the page has no dated run, so an empty run is normal for this source.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -1901,6 +1909,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   magical_theatre:         'html',
   stow_players:            'html',
   western_reserve_community_band: 'ics',
+  hudson_players:          'html',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',

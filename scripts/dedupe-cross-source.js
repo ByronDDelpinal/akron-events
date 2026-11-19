@@ -134,6 +134,7 @@ export const SOURCE_PRIORITY = [
   'magical_theatre',         // first-party (per-performance listings for its own productions)
   'stow_players',            // first-party (per-performance listings for its own productions)
   'western_reserve_community_band', // first-party (the band's own public calendar)
+  'hudson_players',          // first-party (per-performance listings for its own productions)
   'blu_jazz',
   'city_of_akron_lock3',     // first-party source for city programming
   'cvfm',                    // first-party (Cuyahoga Valley Farmers Market, Summit venues)

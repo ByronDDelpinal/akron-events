@@ -233,6 +233,7 @@ export const SCRAPERS = [
   { key: 'magical_theatre',      script: 'scripts/scrape-magical-theatre.js',         label: 'Magical Theatre Company',      group: 'html',           active: true, defaultCategory: 'theater' },
   { key: 'stow_players',         script: 'scripts/scrape-stow-players.js',            label: 'Stow Players',                 group: 'html',           active: true, defaultCategory: 'theater' },
   { key: 'western_reserve_community_band', script: 'scripts/scrape-western-reserve-community-band.js', label: 'Western Reserve Community Band', group: 'ics', active: true, defaultCategory: 'music' },
+  { key: 'hudson_players',       script: 'scripts/scrape-hudson-players.js',          label: 'Hudson Players',               group: 'html',           active: true, defaultCategory: 'theater' },
 ]
 
 // Active scrapers only — what run-all.js iterates.
