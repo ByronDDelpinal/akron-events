@@ -1351,6 +1351,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'richfield_historical',
+    method:      'HTML scrape',
+    methodDetail:'Hand-typed static page: the year\'s events as one list laid out in columns with runs of no-break spaces (date, title, place, time), with talk titles and presenters on the lines beneath',
+    venue:       'Historical Museum of Richfield — 3907 Broadview Road, Richfield; other places are named in the description',
+    notes:       'The Richfield Historical Society posts its whole year once, around February: TakeMeBack history talks, tours, the garden tour, Community Day and more. The list prints month and day only, so the year is never guessed. It is taken from the page: a year printed in the introduction, and the Memorial Day entry the society lists every year, whose date differs from year to year and so identifies the year. If the two disagree, or neither is there, nothing is published. This stops a list left up over the winter from being read as next year\'s. An entry is listed only when its last column is a clock time; "All Afternoon" or "Various Locations and Times" is skipped and counted. Only the museum has an address on the page, so other places are named in the description without creating a venue. By autumn the whole list is in the past, so an empty run is normal. Built and tested against the 2025 and 2026 lists.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -1964,6 +1972,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   one_of_a_kind_pets:      'api',
   summit_indoor_mx:        'html',
   astronomy_club_akron:    'html',
+  richfield_historical:    'html',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',
