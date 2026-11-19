@@ -1335,6 +1335,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'summit_indoor_mx',
+    method:      'HTML scrape',
+    methodDetail:'GoDaddy site builder, server-rendered home page: a "<year> Race Schedule" heading, each race day\'s gate, practice and racing times, and the round dates with their weekdays ("Jan 9th - Fri")',
+    venue:       'Summit Indoor MX — 800 North Ave, Tallmadge',
+    notes:       'Summit Indoor MX runs a two-round indoor motocross series each winter in Tallmadge and posts the schedule on its home page a few weeks ahead. Each Friday and Saturday race night is one event, starting at that day\'s posted racing time; Thursday open practice is for riders and is not listed. The year comes only from the schedule heading, and every date must fall on the weekday the page names for it, so last year\'s dates can never be published under a new heading. The gate fee is shown only as the page prints it. For most of the year the posted schedule is already over, so an empty run is normal for this source. Built and tested against the 2025 and 2026 schedules.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -1946,6 +1954,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   coventry_township:       'html',
   boston_township:         'html',
   one_of_a_kind_pets:      'api',
+  summit_indoor_mx:        'html',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',
