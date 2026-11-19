@@ -31,6 +31,7 @@ import { htmlToText, clampChars, easternToIso } from './lib/normalize.js'
 import { fetchWithRetry } from './lib/http.js'
 import { inferYearForMonthDay } from './lib/year-inference.js'
 import { runPlannedScraper, isDryRun } from './lib/planned-run.js'
+import { MONTHS, MONTH_RE, parseClockTime } from './lib/clock-time.js'
 
 export const SOURCE_KEY = 'stow_players'
 const ORIGIN = 'https://stowplayers.net'
@@ -56,12 +57,6 @@ export const MAIN_VENUE = {
     parking_type: 'lot',
   },
 }
-
-const MONTHS = {
-  january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
-  july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
-}
-const MONTH_RE = Object.keys(MONTHS).join('|')
 
 /**
  * Production pages linked from the home page, with the opening date printed
@@ -89,17 +84,8 @@ export function findProductions(html = '') {
   return out
 }
 
-/** "7:30 PM" / "7:30pm" / "2 PM" → { time: '7:30 pm', hhmm: '1930' } or null. */
-export function parseTime(text = '') {
-  const m = String(text).trim().match(/^(\d{1,2})(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?)$/i)
-  if (!m) return null
-  const hour = Number(m[1])
-  if (hour < 1 || hour > 12) return null
-  const minute = m[2] ?? '00'
-  const mer = /^p/i.test(m[3]) ? 'pm' : 'am'
-  const hour24 = (hour % 12) + (mer === 'pm' ? 12 : 0)
-  return { time: `${hour}:${minute} ${mer}`, hhmm: `${String(hour24).padStart(2, '0')}${minute}` }
-}
+/** Kept as this module's name for the shared strict clock-time parser. */
+export const parseTime = parseClockTime
 
 /**
  * One showtimes line → [{ month, day, time, hhmm }].
