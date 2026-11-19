@@ -21,6 +21,7 @@ process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL         ||
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key'
 
 import {
+  canonicalHref, parseItem,
   parseDate,
   parseStartTime,
   parseLocation,
@@ -78,6 +79,37 @@ describe('parseEventsHtml (real fixture)', () => {
     assert.equal(stow.startTime, '9:00 am')
     assert.equal(stow.location.city, 'Stow')
     assert.match(stow.href, /stow-municipal-court/)
+  })
+})
+
+describe('one event, one identity — whichever link form the CMS emits', () => {
+  // 2026-11-18: the list page served /index%2ephp/events/<slug> for one night
+  // and every listing it touched was published a second time.
+  const item = (href) => parseItem(`<div class="item"><a class="wrap" href="${href}">
+    <div class="title">Legal Aid at: Akron Canton Foodbank Akron Campus</div>
+    <div class="date">November 25, 2026</div><div class="time">9:00 am</div>
+    <div class="location">Akron-Canton Regional Foodbank, 350 Opportunity Pkwy., Akron, Ohio 44307</div></a></div>`)
+
+  it('strips the front-controller segment, encoded or not, relative or absolute', () => {
+    assert.equal(canonicalHref('/index%2ephp/events/legal-aid-x'), '/events/legal-aid-x')
+    assert.equal(canonicalHref('/index%2Ephp/events/legal-aid-x'), '/events/legal-aid-x')
+    assert.equal(canonicalHref('/index.php/events/legal-aid-x'), '/events/legal-aid-x')
+    assert.equal(canonicalHref('https://www.communitylegalaid.org/index.php/events/legal-aid-x'), 'https://www.communitylegalaid.org/events/legal-aid-x')
+    assert.equal(canonicalHref('/events/legal-aid-x'), '/events/legal-aid-x')
+    assert.equal(canonicalHref(null), null)
+  })
+
+  it('leaves a slug that merely contains "index" alone', () => {
+    assert.equal(canonicalHref('/events/index-of-resources'), '/events/index-of-resources')
+  })
+
+  it('both link forms produce the same slug, so the same source_id', () => {
+    const plain = item('/events/legal-aid-akron-canton-foodbank-akron-campus')
+    const viaController = item('/index%2ephp/events/legal-aid-akron-canton-foodbank-akron-campus')
+    assert.ok(plain && viaController, 'fixture block must parse')
+    assert.equal(viaController.slug, plain.slug)
+    assert.equal(plain.slug, 'events-legal-aid-akron-canton-foodbank-akron-campus')
+    assert.equal(viaController.href, plain.href)
   })
 })
 

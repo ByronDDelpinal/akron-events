@@ -141,6 +141,20 @@ export function parseLocation(raw) {
 }
 
 /**
+ * The site's CMS sometimes serves the same detail link through its front
+ * controller: `/index%2ephp/events/<slug>` (or `/index.php/events/<slug>`)
+ * instead of `/events/<slug>`. Both reach the same page. The source_id is
+ * built from this path, so on 2026-11-18 one night of the long form minted a
+ * second row for every listing it appeared on. Drop the controller segment so
+ * one event keeps one identity whichever form the page happens to emit.
+ * Exported for tests.
+ */
+export function canonicalHref(href) {
+  if (!href) return href
+  return href.replace(/^(https?:\/\/[^/]+)?\/index(?:\.|%2e)php(?=\/)/i, '$1')
+}
+
+/**
  * Parse one `class="item"` block into a raw event, or null. Exported for tests.
  */
 export function parseItem(block) {
@@ -150,7 +164,7 @@ export function parseItem(block) {
   const startTime = parseStartTime(field(block, 'time'))
   const location = parseLocation(field(block, 'location'))
   const hrefM = block.match(/<a[^>]+class="wrap"[^>]*href="([^"]+)"/i) || block.match(/href="([^"]+)"/i)
-  const href = hrefM ? hrefM[1] : null
+  const href = hrefM ? canonicalHref(hrefM[1]) : null
   const slug = href ? href.replace(/^https?:\/\/[^/]+/, '').replace(/^\/+|\/+$/g, '').replace(/[^a-z0-9]+/gi, '-').toLowerCase() : null
   return { title, dateStr, startTime, location, href, slug }
 }
