@@ -149,6 +149,7 @@ export const SOURCE_PRIORITY = [
   'hudson_community_first',  // first-party (the coalition's own calendar)
   'akron_roundtable',        // first-party (the series' own season list)
   'akron_womans_city_club',  // first-party (the club's own events list)
+  'summit_choral_society',   // first-party (the society's own ticketed concerts)
   'blu_jazz',
   'city_of_akron_lock3',     // first-party source for city programming
   'cvfm',                    // first-party (Cuyahoga Valley Farmers Market, Summit venues)

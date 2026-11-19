@@ -1415,6 +1415,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'summit_choral_society',
+    method:      'HTML scrape',
+    methodDetail:'Ticket links are discovered on the society\'s season pages; each links to a Purplepass ticket page whose schema.org Event data (JSON-LD) supplies the name, start and end with UTC offset, venue with address, and price',
+    venue:       'Varies — Akron-Summit County Public Library auditorium, First Congregational Church of Akron and others, as each ticket page gives them',
+    notes:       'Summit Choral Society — Akron\'s children\'s choir program and the adult Metropolitan Chorus. Its own season page mixes public concerts with private and invitation-only dates and puts some titles in images, so it is used only to find the ticket link for each public concert. Every fact in a listing comes from the ticket page\'s structured data. A concert with no ticket link is not listed, which is also what keeps private dates out. The organizer named in the data must be the society, and a cancelled concert or one outside Summit County is skipped.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -2036,6 +2044,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   hudson_community_first:  'ics',
   akron_roundtable:        'html',
   akron_womans_city_club:  'html',
+  summit_choral_society:   'html',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',

@@ -251,6 +251,7 @@ export const SCRAPERS = [
   { key: 'hudson_community_first', script: 'scripts/scrape-hudson-community-first.js', label: 'Hudson Community First',     group: 'ics',            active: true, defaultCategory: 'learning' },
   { key: 'akron_roundtable',     script: 'scripts/scrape-akron-roundtable.js',        label: 'Akron Roundtable',             group: 'html',           active: true, defaultCategory: 'learning' },
   { key: 'akron_womans_city_club', script: 'scripts/scrape-akron-womans-city-club.js', label: "Akron Woman's City Club",   group: 'html',           active: true },
+  { key: 'summit_choral_society', script: 'scripts/scrape-summit-choral-society.js',  label: 'Summit Choral Society',        group: 'html',           active: true, defaultCategory: 'music' },
 ]
 
 // Active scrapers only — what run-all.js iterates.
