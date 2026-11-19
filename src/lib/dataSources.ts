@@ -1303,6 +1303,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'hudson_heritage',
+    method:      'REST API',
+    methodDetail:'WordPress REST API: the season post ("Our 2026-2027 Program Calendar") is found by its slug pattern, and each program paragraph ("February 11 – Introducing the Akron History Museum" over the room name) becomes one event',
+    venue:       'Varies — Barlow Community Center, Hudson Library & Historical Society, Western Reserve Academy, Laurel Lake',
+    notes:       'Hudson Heritage Association — Hudson\'s volunteer historic-preservation society — hosts a free public history program each month from September to May and publishes the season as one post. The year of each date comes from the season in the post\'s address, so winter and spring programs land in the right year. A month whose program is still "to be announced" is left out until it is named; the May annual meeting is members-only and is not listed. When the post prints no start time, the association\'s usual 7:00 PM is used and the listing says the time is a placeholder. In July and August no season is current, so an empty run is normal for this source.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -1910,6 +1918,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   stow_players:            'html',
   western_reserve_community_band: 'ics',
   hudson_players:          'html',
+  hudson_heritage:         'api',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',
