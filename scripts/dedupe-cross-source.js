@@ -138,6 +138,7 @@ export const SOURCE_PRIORITY = [
   'hudson_heritage',         // first-party (the association's own season calendar)
   'coventry_township',       // first-party (the township's own announcements)
   'boston_township',         // first-party (the township's own calendar)
+  'one_of_a_kind_pets',      // first-party (the rescue's own event posts)
   'blu_jazz',
   'city_of_akron_lock3',     // first-party source for city programming
   'cvfm',                    // first-party (Cuyahoga Valley Farmers Market, Summit venues)

@@ -789,6 +789,7 @@ export const SCRAPER_REGISTRY: ReadonlyMap<string, ScraperEntry> = new Map<strin
   ['hudson_heritage',            { label: 'Hudson Heritage Association',      active: true  }],
   ['coventry_township',          { label: 'Coventry Township',                active: true  }],
   ['boston_township',            { label: 'Boston Township',                  active: true  }],
+  ['one_of_a_kind_pets',         { label: 'One of A Kind Pet Rescue',         active: true  }],
 ])
 
 /** The single validation gate for the `scraper_name` slot. */

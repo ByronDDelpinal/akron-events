@@ -1327,6 +1327,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'one_of_a_kind_pets',
+    method:      'REST API',
+    methodDetail:'WordPress REST API, posts in the "calendar" category (built in Divi): with the layout shortcodes removed each event post has a date line ("Saturday, November 21st // 12pm-3pm"), a three-line address block and a description',
+    venue:       'One of A Kind Pet Rescue Spay & Neuter Clinic — 1700 W Exchange St, Akron; other places as each post gives them',
+    notes:       'One of A Kind Pet Rescue — the cat and dog rescue in West Akron — posts its public events (photos with Santa, adoption days, fundraisers) as blog posts. The date line carries no year, so the year is the one that puts the date on the weekday the post names; if neither this year nor next fits, the post is skipped. The time is the one time or range on the date line and is never assumed. Fundraisers held outside Summit County are skipped. Standing offers in the same category, such as corporate puppy parties, have no date and are not events. Between events the category holds only those offers, so an empty run is normal.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -1937,6 +1945,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   hudson_heritage:         'api',
   coventry_township:       'html',
   boston_township:         'html',
+  one_of_a_kind_pets:      'api',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',
