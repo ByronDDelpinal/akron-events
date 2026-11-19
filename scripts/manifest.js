@@ -250,6 +250,7 @@ export const SCRAPERS = [
   { key: 'city_of_munroe_falls', script: 'scripts/scrape-city-of-munroe-falls.js',    label: 'City of Munroe Falls',         group: 'civicplus',      active: true  },
   { key: 'hudson_community_first', script: 'scripts/scrape-hudson-community-first.js', label: 'Hudson Community First',     group: 'ics',            active: true, defaultCategory: 'learning' },
   { key: 'akron_roundtable',     script: 'scripts/scrape-akron-roundtable.js',        label: 'Akron Roundtable',             group: 'html',           active: true, defaultCategory: 'learning' },
+  { key: 'akron_womans_city_club', script: 'scripts/scrape-akron-womans-city-club.js', label: "Akron Woman's City Club",   group: 'html',           active: true },
 ]
 
 // Active scrapers only — what run-all.js iterates.

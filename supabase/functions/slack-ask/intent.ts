@@ -799,6 +799,7 @@ export const SCRAPER_REGISTRY: ReadonlyMap<string, ScraperEntry> = new Map<strin
   ['city_of_munroe_falls',       { label: 'City of Munroe Falls',             active: true  }],
   ['hudson_community_first',     { label: 'Hudson Community First',           active: true  }],
   ['akron_roundtable',           { label: 'Akron Roundtable',                 active: true  }],
+  ['akron_womans_city_club',     { label: "Akron Woman's City Club",          active: true  }],
 ])
 
 /** The single validation gate for the `scraper_name` slot. */

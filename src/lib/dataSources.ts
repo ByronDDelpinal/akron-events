@@ -1407,6 +1407,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'akron_womans_city_club',
+    method:      'HTML scrape',
+    methodDetail:'Drupal events list: each event has a title link and a machine-readable date (dc:date); the site publishes no time and no description',
+    venue:       'Akron Woman\'s City Club (Grey Lodge) — 732 W Exchange St, Akron',
+    notes:       'Akron Woman\'s City Club at Grey Lodge is also home to Coach House Theatre, the Town Hall Series and Gallery 732. Its events list gives a date for each event but no time, so each is listed at a noon placeholder with a note saying the time is not published, and flagged for review. Everything is at the club.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -2027,6 +2035,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   city_of_munroe_falls:    'civicplus',
   hudson_community_first:  'ics',
   akron_roundtable:        'html',
+  akron_womans_city_club:  'html',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',
