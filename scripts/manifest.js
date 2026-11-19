@@ -229,6 +229,7 @@ export const SCRAPERS = [
   { key: 'twinsburg_library',    script: 'scripts/scrape-twinsburg-library.js',       label: 'Twinsburg Public Library',     group: 'libcal',         active: true, defaultCategory: 'learning' },
   { key: 'bounce_hub',           script: 'scripts/scrape-bounce-hub.js',              label: 'Bounce Innovation Hub',        group: 'html',           active: true, defaultCategory: 'learning' },
   { key: 'akron_canton_foodbank', script: 'scripts/scrape-akron-canton-foodbank.js',  label: 'Akron-Canton Regional Foodbank', group: 'html',         active: true, defaultCategory: 'civic' },
+  { key: 'summit_historical',    script: 'scripts/scrape-summit-historical.js',       label: 'Summit County Historical Society', group: 'html',       active: true, defaultCategory: 'learning' },
 ]
 
 // Active scrapers only — what run-all.js iterates.

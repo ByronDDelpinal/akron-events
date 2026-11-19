@@ -1263,6 +1263,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'summit_historical',
+    method:      'HTML scrape',
+    methodDetail:'Drupal 7 list at /events (machine-readable dc:date day per listing) plus each detail page for the description; start time and off-site venue are read from the description (scripts/lib/prose-time.js, scripts/lib/prose-venue.js)',
+    venue:       'Perkins Stone Mansion — 550 Copley Rd, Akron; John Brown House — 514 Diagonal Rd, Akron (+ per-event venues)',
+    notes:       'The Summit County Historical Society\'s lectures, holiday tours and open houses at the Perkins Stone Mansion and the John Brown House. The site records a day, not a time, so the start comes from the description: an explicit "the program will start at 6 p.m." wins over "doors open at 5 p.m.", and a list of tour slots ("tours at 1 p.m., 2 p.m. and 3 p.m.") starts at the first. With no readable time the event keeps a flagged noon placeholder. A venue is asserted only when the description spells out a place with its street address or names one of the Society\'s own houses. Members-only events are skipped.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -1865,6 +1873,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   twinsburg_library:       'libcal',
   bounce_hub:              'html',
   akron_canton_foodbank:   'html',
+  summit_historical:       'html',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',

@@ -130,6 +130,7 @@ export const SOURCE_PRIORITY = [
   'twinsburg_library',       // first-party (library programs, bookmobile stops)
   'bounce_hub',              // first-party (Bounce's own calendar; organizers also post to Eventbrite)
   'akron_canton_foodbank',   // first-party (the Foodbank's own events; visit_akron_cvb may republish the luncheon)
+  'summit_historical',       // first-party (Society lectures and tours; its ticketing is on Eventbrite)
   'blu_jazz',
   'city_of_akron_lock3',     // first-party source for city programming
   'cvfm',                    // first-party (Cuyahoga Valley Farmers Market, Summit venues)
