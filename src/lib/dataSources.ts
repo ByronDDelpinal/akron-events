@@ -1399,6 +1399,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'akron_roundtable',
+    method:      'HTML scrape',
+    methodDetail:'Server-rendered home page: one block per speaker with the name, a line giving time, weekday, full date and place, the presentation title, and a link whose numeric id identifies the luncheon',
+    venue:       'As the series announces it; many dates are listed before a location is set',
+    notes:       'Akron Roundtable has brought speakers to a monthly luncheon since 1976 and posts the whole season on its home page. Each luncheon is one event titled with the speaker. The date is printed in full and checked against the weekday printed beside it. A luncheon whose location is still to be determined is listed without a venue and picks it up when announced; a month whose speaker is not yet named is left out until it is. Luncheons the Roundtable also sends by email are matched to these rather than listed twice.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -2018,6 +2026,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   maps_air_museum:         'api',
   city_of_munroe_falls:    'civicplus',
   hudson_community_first:  'ics',
+  akron_roundtable:        'html',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',

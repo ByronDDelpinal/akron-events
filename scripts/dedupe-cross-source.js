@@ -147,6 +147,7 @@ export const SOURCE_PRIORITY = [
   'maps_air_museum',         // first-party (the museum's own public events)
   'city_of_munroe_falls',    // first-party (the city's own calendar)
   'hudson_community_first',  // first-party (the coalition's own calendar)
+  'akron_roundtable',        // first-party (the series' own season list)
   'blu_jazz',
   'city_of_akron_lock3',     // first-party source for city programming
   'cvfm',                    // first-party (Cuyahoga Valley Farmers Market, Summit venues)
