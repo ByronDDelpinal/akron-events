@@ -97,7 +97,7 @@ export function statedTime(text = '') {
 
 /**
  * Program paragraphs of one season post →
- *   { programs: [{ month, day, title, place }], time, unparsed }
+ *   { programs: [{ month, day, title, place, year?, speaker? }], time, unparsed }
  * `unparsed` counts paragraphs that begin with a month and day but do not fit.
  */
 export function parseSeasonPost(html = '') {
@@ -108,14 +108,32 @@ export function parseSeasonPost(html = '') {
   const datedRe = new RegExp(`^(?:${MONTH_RE})\\s+\\d{1,2}\\b`, 'i')
   const programs = []
   let unparsed = 0
+  // The 2025-2026 post used a second layout: the date with its year on a line
+  // of its own, then the speaker, then the title, with one sentence giving the
+  // place for the whole season ("…all meetings are held at Barlow Community
+  // Center…"). Both layouts are read; `year` is set only by this one.
+  const stackedRe = new RegExp(`^(${MONTH_RE})\\s+(\\d{1,2}),\\s*(20\\d{2})$`, 'i')
+  const text = htmlToText(html)
+  const seasonPlace = clean(text.match(/all meetings are held at ([^.,\n]+?)(?:\s+and\b|[.,\n]|$)/i)?.[1] ?? '')
   for (const lines of paragraphs) {
     const m = lines[0].match(lineRe)
+    const stacked = !m && lines[0].match(stackedRe)
+    if (stacked) {
+      const day = Number(stacked[2])
+      const rest = lines.slice(1)
+      if (day < 1 || day > 31 || !rest.length) { unparsed++; continue }
+      programs.push({
+        month: monthNumber(stacked[1]), day, year: Number(stacked[3]),
+        title: rest[rest.length - 1], speaker: rest.length > 1 ? rest.slice(0, -1).join(', ') : null, place: seasonPlace,
+      })
+      continue
+    }
     if (!m) { if (datedRe.test(lines[0])) unparsed++; continue }
     const day = Number(m[2])
     if (day < 1 || day > 31) { unparsed++; continue }
     programs.push({ month: monthNumber(m[1]), day, title: clean(m[3]), place: lines.slice(1).join(', ') })
   }
-  return { programs, time: statedTime(htmlToText(html)), unparsed }
+  return { programs, time: statedTime(text), unparsed }
 }
 
 /** One program → { row, venue } or { skip }. */
@@ -126,13 +144,15 @@ export function buildRow(program, season, { link, time } = {}) {
   const place = resolvePlace(program.place)
   if (!place) return { skip: 'no_place' }
   const year = program.month >= 7 ? season.startYear : season.endYear
+  // A year printed on the program must be the one its season implies.
+  if (program.year && program.year !== year) return { skip: 'year_mismatch' }
   const dateStr = `${year}-${String(program.month).padStart(2, '0')}-${String(program.day).padStart(2, '0')}`
   const startAt = easternToIso(dateStr, (time ?? USUAL_TIME).time)
   if (!startAt) return { skip: 'undatable' }
   const where = place.room ? ` Held in the ${place.room}.` : ''
   const row = {
     title: program.title,
-    description: `A Hudson Heritage Association monthly program. Free and open to the public.${where}`,
+    description: `A Hudson Heritage Association monthly program. Free and open to the public.${program.speaker ? ` Speaker: ${program.speaker}.` : ''}${where}`,
     start_at: startAt,
     end_at: null,
     categories: ['learning'],

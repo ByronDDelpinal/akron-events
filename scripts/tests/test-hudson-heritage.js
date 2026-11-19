@@ -84,6 +84,45 @@ describe('the season post', () => {
   })
 })
 
+describe('last season\'s layout (date, speaker and title on separate lines)', () => {
+  const parsed = parseSeasonPost(LAST.content.rendered)
+  const season = { startYear: 2025, endYear: 2026 }
+
+  it('reads every dated program with its speaker, title and the season-wide place', () => {
+    assert.deepEqual(parsed.programs.map((p) => [p.month, p.day, p.year, p.speaker, p.title, p.place]), [
+      [9, 11, 2025, 'Archivist Gwendolyn Mayer', "The Science, Art and Slugs of Hudson, Ohio's Alfred Pettingell", 'Barlow Community Center'],
+      [10, 9, 2025, 'Author Jon Miller', 'Akron at 200: A Bicentennial History by Jon Miller and Dave Lieberth', 'Barlow Community Center'],
+      [11, 13, 2025, 'Archeologist Megan Shaeffer, Summit Metro Parks', 'The History and Archaeology of Wood Hollow Metro Park', 'Barlow Community Center'],
+      [1, 8, 2026, 'John Debo', '50 years of Cuyahoga Valley National Park', 'Barlow Community Center'],
+      [2, 12, 2026, 'Authors Peg Bobel and Linda Whitman', 'Native Americans of the Cuyahoga Valley', 'Barlow Community Center'],
+      [3, 12, 2026, 'Joe Fenicle, Ohio & Michigan Professional Surveyor', 'History of the Ohio-Michigan State Line', 'Barlow Community Center'],
+      [4, 9, 2026, "Diccon Ong, a longtime member of Western Reserve Academy's faculty", 'The 200-year history of Western Reserve Academy', 'Barlow Community Center'],
+      [5, 14, 2026, null, 'Annual Meeting for HHA Members', 'Barlow Community Center'],
+    ])
+    assert.equal(parsed.unparsed, 0) // "December 2025 (NO PROGRAM)" has no day and is not a program
+  })
+
+  it('builds a row at the printed 7 PM with the speaker, unflagged', () => {
+    const { row, venue } = buildRow(parsed.programs[4], season, { link: LAST.link, time: parsed.time })
+    assert.equal(row.title, 'Native Americans of the Cuyahoga Valley')
+    assert.equal(row.start_at, '2026-02-13T00:00:00.000Z') // Feb 12, 7:00 PM EST
+    assert.equal('time_inferred' in row, false)
+    assert.match(row.description, /Speaker: Authors Peg Bobel and Linda Whitman\.$/)
+    assert.equal(venue.name, 'Barlow Community Center')
+  })
+
+  it('still leaves out the members-only meeting, and rejects a year that contradicts the season', () => {
+    assert.deepEqual(buildRow(parsed.programs[7], season), { skip: 'members_only' })
+    assert.deepEqual(buildRow({ ...parsed.programs[4], year: 2027 }, season), { skip: 'year_mismatch' })
+  })
+
+  it('replayed in September 2025, the whole season is planned except the annual meeting', async () => {
+    const result = await run({ dryRun: true, fetchImpl: fetchJson([LAST]), now: () => Date.parse('2025-09-01T15:00:00Z') })
+    assert.equal(result.found, 8)
+    assert.equal(result.planned, 7)
+  })
+})
+
 describe('places', () => {
   it('maps the rooms the association uses to their buildings and keeps the room', () => {
     assert.deepEqual(resolvePlace('Barlow Community Center'), {
