@@ -1319,6 +1319,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'boston_township',
+    method:      'HTML scrape',
+    methodDetail:'Hand-built PHP month grid at /calendar.php; this month and the next two are read, and each entry (a link to calnote.php with a time, a title and a place) becomes one event',
+    venue:       'Boston Township Hall — 1775 Main St, Peninsula',
+    notes:       'Boston Township — the township around Peninsula in the Cuyahoga Valley — posts its trustee, zoning commission and zoning appeals meetings on a simple month calendar. Titles are prefixed with the township\'s name ("Trustees Meeting" alone says nothing in a county-wide list). The calendar\'s own note id identifies each event, so a meeting that is moved or retitled is updated, not duplicated. The month and year are read from the grid\'s heading and must match the month that was requested. An entry with no clock time is skipped and counted. The grid is filled in a month or two ahead, so an empty month is normal.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -1928,6 +1936,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   hudson_players:          'html',
   hudson_heritage:         'api',
   coventry_township:       'html',
+  boston_township:         'html',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',

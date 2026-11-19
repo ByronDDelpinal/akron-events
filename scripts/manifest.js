@@ -236,6 +236,7 @@ export const SCRAPERS = [
   { key: 'hudson_players',       script: 'scripts/scrape-hudson-players.js',          label: 'Hudson Players',               group: 'html',           active: true, defaultCategory: 'theater' },
   { key: 'hudson_heritage',      script: 'scripts/scrape-hudson-heritage.js',         label: 'Hudson Heritage Association',  group: 'wordpress',      active: true, defaultCategory: 'learning' },
   { key: 'coventry_township',    script: 'scripts/scrape-coventry-township.js',       label: 'Coventry Township',            group: 'html',           active: true, defaultCategory: 'civic' },
+  { key: 'boston_township',      script: 'scripts/scrape-boston-township.js',         label: 'Boston Township',              group: 'html',           active: true, defaultCategory: 'civic' },
 ]
 
 // Active scrapers only — what run-all.js iterates.

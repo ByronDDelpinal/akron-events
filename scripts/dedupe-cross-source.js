@@ -137,6 +137,7 @@ export const SOURCE_PRIORITY = [
   'hudson_players',          // first-party (per-performance listings for its own productions)
   'hudson_heritage',         // first-party (the association's own season calendar)
   'coventry_township',       // first-party (the township's own announcements)
+  'boston_township',         // first-party (the township's own calendar)
   'blu_jazz',
   'city_of_akron_lock3',     // first-party source for city programming
   'cvfm',                    // first-party (Cuyahoga Valley Farmers Market, Summit venues)
