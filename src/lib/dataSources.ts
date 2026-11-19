@@ -1391,6 +1391,14 @@ const RAW_DATA_SOURCES: (Omit<DataSource, 'label'> & { label?: string })[] = [
     status:      'active',
   },
   {
+    key:         'hudson_community_first',
+    method:      'ICS feed',
+    methodDetail:'Public Google Calendar embedded on hudsoncommunityfirst.com, read through the shared lib/ics.js pipeline and filtered by title',
+    venue:       'Varies — Hudson schools and community venues, as each entry names them',
+    notes:       'Hudson Community First — the Hudson coalition for youth and families — keeps one calendar that mixes community events with the school calendars it tracks for parents. School breaks, no-school days, the coalition\'s own board meetings and deadlines are left out. What remains are events such as the Holiday Shoppe & Community Craft Fair, Toast to Hudson, parent presentations and career panels. An entry with no time is listed at a noon placeholder with a note saying so. No price is assumed.',
+    status:      'active',
+  },
+  {
     key:         'southgate_farm',
     method:      'HTML scrape',
     methodDetail:'Wix Events — parses the #wix-warmup-data JSON blob on /events (scheduling.config start/end, location, slug), shared lib/wix-events.js',
@@ -2009,6 +2017,7 @@ export const SOURCE_GROUP_BY_KEY: Record<string, string> = {
   keep_akron_beautiful:    'api',
   maps_air_museum:         'api',
   city_of_munroe_falls:    'civicplus',
+  hudson_community_first:  'ics',
 
   // Custom HTML scrapers
   akron_art_museum:       'html',
