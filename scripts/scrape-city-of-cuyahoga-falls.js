@@ -603,6 +603,40 @@ export function planRetirement({
   }
 }
 
+/**
+ * Decide which of THIS scraper's own retirements to undo — pure, so testable.
+ *
+ * A row retired by retireUnresolved carries manual_overrides.status, and
+ * upsertEventSafe strips every pinned key regardless of who pinned it, so a
+ * re-listed event could never come back through the upsert alone. Worse, the
+ * retirement does not change content_hash, so the upsert may skip the row as
+ * unchanged. The reinstate therefore sets status itself.
+ *
+ * Qualifies ONLY when all hold: the source re-listed it this run, it is still
+ * cancelled, and the status pin is exactly our own stamp (strict equality — a
+ * human, a data-pipeline sweep or another scraper's stamp is never lifted).
+ * Returned manual_overrides drops `status` and keeps every other key; null when
+ * nothing else remains.
+ */
+export function planReinstatement({ rows = [], resolvedSourceIds = new Set(), stampBy = RETIREMENT_STAMP_BY } = {}) {
+  const reinstate = []
+  const list = Array.isArray(rows) ? rows : []
+  for (const row of list) {
+    if (!row || !resolvedSourceIds.has(row.source_id)) continue
+    if (row.status !== 'cancelled') continue
+    const ov = row.manual_overrides
+    if (!ov || typeof ov !== 'object' || Array.isArray(ov)) continue
+    if (ov.status?.by !== stampBy) continue
+    const { status: _dropped, ...rest } = ov
+    reinstate.push({
+      id: row.id,
+      source_id: row.source_id,
+      manual_overrides: Object.keys(rest).length ? rest : null,
+    })
+  }
+  return { reinstate, examined: list.length }
+}
+
 // ── Detail page enrichment ───────────────────────────────────────────────────
 
 function metaContent(html, prop) {
@@ -850,6 +884,47 @@ async function retireUnresolved({ win, resolvedSourceIds, health }) {
   return retired
 }
 
+/**
+ * Re-publish rows this scraper retired that the source has listed again.
+ * Runs BEFORE the upsert loop. Status-only mutation, never deletes; each update
+ * re-checks status and the stamp so a concurrent human edit is never clobbered.
+ * supabase-admin is lazily imported, like retireUnresolved.
+ */
+async function reinstateRelisted({ resolvedSourceIds }) {
+  if (!resolvedSourceIds?.size) return 0
+  const { supabaseAdmin } = await import('./lib/supabase-admin.js')
+
+  const { data: rows, error } = await supabaseAdmin
+    .from('events')
+    .select('id, source_id, status, manual_overrides')
+    .eq('source', SOURCE_KEY)
+    .eq('status', 'cancelled')
+    .eq('manual_overrides->status->>by', RETIREMENT_STAMP_BY)
+    .limit(RETIREMENT_QUERY_LIMIT)
+  if (error) {
+    console.warn(`  ⚠ Reinstatement query failed: ${error.message} — reinstating nothing.`)
+    return 0
+  }
+
+  const plan = planReinstatement({ rows: rows ?? [], resolvedSourceIds })
+  let reinstated = 0
+  for (const row of plan.reinstate) {
+    const { error: upErr } = await supabaseAdmin
+      .from('events')
+      .update({ status: 'published', manual_overrides: row.manual_overrides })
+      .eq('id', row.id)
+      .eq('status', 'cancelled')
+      .eq('manual_overrides->status->>by', RETIREMENT_STAMP_BY)
+    if (upErr) {
+      console.warn(`  ⚠ Reinstatement failed for ${row.source_id}: ${upErr.message}`)
+      continue
+    }
+    console.log(`     + reinstated ${row.source_id}`)
+    reinstated++
+  }
+  return reinstated
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -959,6 +1034,10 @@ async function main() {
     // retiring it because of our own write error would be the worst kind of
     // false positive.
     const resolvedSourceIds = new Set(publicFuture.map(o => `${o.slug}-${o.dateStr}`))
+    // Undo our own earlier retirements for events the source lists again,
+    // before the upsert (which strips pinned keys and may skip unchanged rows).
+    const reinstated = await reinstateRelisted({ resolvedSourceIds })
+    console.log(`  ♻️  ${reinstated} row(s) reinstated (status → published)`)
     let inserted = 0, skipped = 0
     for (const occ of publicFuture) {
       try {

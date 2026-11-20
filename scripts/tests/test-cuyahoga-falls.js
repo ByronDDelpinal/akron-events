@@ -48,6 +48,8 @@ import {
   horizonWindow,
   yearsForWindow,
   planRetirement,
+  planReinstatement,
+  RETIREMENT_STAMP_BY,
   hasStatusOverride,
   fullRetirementAllowed,
   dayViewUrl,
@@ -1107,5 +1109,67 @@ describe('parseTimeFromTextDetailed — "noon" is a clock time (2026-09-23)', ()
 
   it('"Doors 7 p.m." is unchanged', () => {
     assert.deepEqual(parseTimeFromTextDetailed('Doors 7 p.m.'), { time: '19:00:00', inferred: false })
+  })
+})
+
+describe('planReinstatement — undo only our own retirement of a re-listed event', () => {
+  const stamp = (by, extra = {}) => ({ ...extra, status: { at: '2026-11-01T00:00:00Z', by, reason: 'x' } })
+  const row = (over = {}) => ({
+    id: 1, source_id: 'cruise-in-2026-11-30', status: 'cancelled',
+    manual_overrides: stamp(RETIREMENT_STAMP_BY), ...over,
+  })
+  const resolved = new Set(['cruise-in-2026-11-30'])
+  const plan = (rows) => planReinstatement({ rows, resolvedSourceIds: resolved })
+
+  it('reinstates a re-listed row carrying our own stamp (positive case)', () => {
+    const out = plan([row()])
+    assert.equal(out.examined, 1)
+    assert.deepEqual(out.reinstate, [{ id: 1, source_id: 'cruise-in-2026-11-30', manual_overrides: null }])
+  })
+
+  it('leaves a human pin untouched', () => {
+    assert.deepEqual(plan([row({ manual_overrides: stamp('jane@example.org') })]).reinstate, [])
+  })
+
+  it('leaves a nightly-data-pipeline-* pin untouched', () => {
+    assert.deepEqual(plan([row({ manual_overrides: stamp('nightly-data-pipeline-2026-11-06') })]).reinstate, [])
+  })
+
+  it("leaves another scraper's retirement stamp untouched", () => {
+    assert.deepEqual(plan([row({ manual_overrides: stamp('scrape-jillys:retirement') })]).reinstate, [])
+  })
+
+  it('keeps a stamped row cancelled when the source did not re-list it', () => {
+    assert.deepEqual(plan([row({ source_id: 'cruise-in-2026-12-07' })]).reinstate, [])
+  })
+
+  it('ignores stamped rows whose status is not cancelled', () => {
+    assert.deepEqual(plan([row({ status: 'published' }), row({ status: 'pending_review' })]).reinstate, [])
+  })
+
+  it('removes only status and keeps other override keys', () => {
+    const out = plan([row({ manual_overrides: stamp(RETIREMENT_STAMP_BY, { title: 'Pinned', venue_id: 7 }) })])
+    assert.deepEqual(out.reinstate[0].manual_overrides, { title: 'Pinned', venue_id: 7 })
+  })
+
+  it('does not mutate the input row', () => {
+    const r = row({ manual_overrides: stamp(RETIREMENT_STAMP_BY, { title: 'Pinned' }) })
+    plan([r])
+    assert.equal(r.manual_overrides.status.by, RETIREMENT_STAMP_BY)
+  })
+
+  it('treats null / non-object manual_overrides as not qualified, without throwing', () => {
+    for (const mo of [null, undefined, 'status', 42, [], { status: null }, { status: 'cancelled' }]) {
+      assert.deepEqual(plan([row({ manual_overrides: mo })]).reinstate, [], `manual_overrides=${JSON.stringify(mo)}`)
+    }
+  })
+
+  it('returns null manual_overrides when the bag is empty after removal', () => {
+    assert.equal(plan([row()]).reinstate[0].manual_overrides, null)
+  })
+
+  it('tolerates missing/garbage input', () => {
+    assert.deepEqual(planReinstatement({}), { reinstate: [], examined: 0 })
+    assert.deepEqual(planReinstatement({ rows: [null], resolvedSourceIds: resolved }).reinstate, [])
   })
 })
