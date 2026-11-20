@@ -20,6 +20,7 @@ import {
   venueFromDescription,
   loadExistingByKey,
   processEvents,
+  planDateOnlyRuns,
   AMBIGUOUS_KEY,
 } from '../scrape-akron-public-schools.js'
 import { __setClientForTests } from '../lib/supabase-admin.js'
@@ -739,5 +740,175 @@ describe('Akron Public Schools — processEvents dry run', () => {
     const board = dateOnly('u1', 'Board Meeting', '20261109', { DESCRIPTION: 'Administration Building, 10 N. Main St.' })
     await processEvents([board], { dryRun: false, organizationId: 'org', writers })
     assert.deepEqual(writes, ['ensureVenue', 'enrichWithImageDimensions', 'upsertEventSafe', 'linkEventVenue', 'linkEventOrganization'])
+  })
+})
+
+// ── Multi-day runs of date-only rows ──────────────────────────────────────
+
+// 'YYYYMMDD' n days after a 'YYYYMMDD' (UTC civil arithmetic; test-only).
+const plusDays = (ymd, n) => {
+  const d = new Date(Date.UTC(+ymd.slice(0, 4), +ymd.slice(4, 6) - 1, +ymd.slice(6, 8) + n))
+  return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`
+}
+const runOf = (prefix, summary, firstYmd, days, extra = {}) =>
+  Array.from({ length: days }, (_, i) =>
+    dateOnly(`${prefix}${String(i).padStart(2, '0')}`, summary, plusDays(firstYmd, i), extra))
+const shuffle = (arr) => {
+  const a = [...arr]
+  let seed = 7
+  for (let i = a.length - 1; i > 0; i--) {
+    seed = (seed * 9301 + 49297) % 233280
+    const j = Math.floor((seed / 233280) * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+describe('Akron Public Schools — planDateOnlyRuns', () => {
+  it('28 consecutive same-title days → 1 head (first UID, lastYmd 20270131) + 27 members', () => {
+    const evs = runOf('u', 'Winter Book Fair', '20270104', 28)
+    const plan = planDateOnlyRuns(evs)
+    assert.equal(plan.size, 28)
+    assert.deepEqual(plan.get('u00'), { role: 'head', lastYmd: '20270131', length: 28 })
+    for (const ev of evs.slice(1)) assert.deepEqual(plan.get(ev.UID), { role: 'member', headUid: 'u00' })
+  })
+
+  it('a 2-day run is not in the map; a 3-day run is (minRun default 3)', () => {
+    assert.equal(planDateOnlyRuns(runOf('a', 'Book Fair', '20261012', 2)).size, 0)
+    assert.equal(planDateOnlyRuns(runOf('a', 'Book Fair', '20261012', 3)).size, 3)
+    assert.equal(planDateOnlyRuns(runOf('a', 'Book Fair', '20261012', 3), { minRun: 4 }).size, 0)
+  })
+
+  it('a gap splits the run into two heads', () => {
+    const evs = [...runOf('a', 'Book Fair', '20261012', 3), ...runOf('b', 'Book Fair', '20261019', 4)]
+    const plan = planDateOnlyRuns(evs)
+    assert.deepEqual(plan.get('a00'), { role: 'head', lastYmd: '20261014', length: 3 })
+    assert.deepEqual(plan.get('b00'), { role: 'head', lastYmd: '20261022', length: 4 })
+    assert.deepEqual(plan.get('b03'), { role: 'member', headUid: 'b00' })
+  })
+
+  it('timed and VALUE=DATE-with-clock events are never grouped', () => {
+    const evs = [
+      dateOnly('d1', 'Spirit Week', '20261012'),
+      timed('t1', 'Spirit Week', '20261013'),
+      { UID: 'c1', SUMMARY: 'Spirit Week', DTSTART: { value: '20261014T180000', params: { VALUE: 'DATE' } } },
+      dateOnly('d2', 'Spirit Week', '20261015'),
+    ]
+    assert.equal(planDateOnlyRuns(evs).size, 0)
+    const allTimed = [0, 1, 2, 3].map(i => timed(`t${i}`, 'Spirit Week', plusDays('20261012', i)))
+    assert.equal(planDateOnlyRuns(allTimed).size, 0)
+  })
+
+  it('case/punctuation variants group; "Begins" and "Ends" stay separate', () => {
+    const evs = [
+      dateOnly('x1', 'Spirit Week!', '20261012'),
+      dateOnly('x2', 'spirit week', '20261013'),
+      dateOnly('x3', 'SPIRIT-WEEK', '20261014'),
+      dateOnly('b1', 'Winter Break Begins', '20261221'),
+      dateOnly('e1', 'Winter Break Ends', '20261222'),
+      dateOnly('b2', 'Winter Break Begins', '20261223'),
+    ]
+    const plan = planDateOnlyRuns(evs)
+    assert.deepEqual([...plan.keys()].sort(), ['x1', 'x2', 'x3'])
+    assert.equal(plan.get('x1').role, 'head')
+  })
+
+  it('shuffled input yields the same plan, across a month/year boundary (Dec 30 → Jan 2)', () => {
+    const evs = [...runOf('y', 'Holiday Camp', '20261230', 4), ...runOf('z', 'Other Camp', '20270301', 3)]
+    const plan = planDateOnlyRuns(evs)
+    assert.deepEqual(plan.get('y00'), { role: 'head', lastYmd: '20270102', length: 4 })
+    const shuffled = planDateOnlyRuns(shuffle(evs))
+    assert.deepEqual([...shuffled.entries()].sort(), [...plan.entries()].sort())
+    assert.deepEqual(planDateOnlyRuns([...evs].reverse()).get('y00'), plan.get('y00'))
+  })
+
+  it('a duplicate UID on an already-present day is a member and does not extend the run', () => {
+    const evs = [...runOf('a', 'Book Fair', '20261012', 3), dateOnly('a99', 'Book Fair', '20261014')]
+    const plan = planDateOnlyRuns(evs)
+    assert.deepEqual(plan.get('a00'), { role: 'head', lastYmd: '20261014', length: 3 })
+    assert.deepEqual(plan.get('a99'), { role: 'member', headUid: 'a00' })
+    // Two same-day UIDs plus one more day: only 2 distinct days, so no run.
+    const short = [dateOnly('p', 'Book Fair', '20261012'), dateOnly('q', 'Book Fair', '20261012'), dateOnly('r', 'Book Fair', '20261013')]
+    assert.equal(planDateOnlyRuns(short).size, 0)
+    // Same-day tie on the first day: the lowest UID string is the head.
+    const tie = [dateOnly('m', 'Book Fair', '20261012'), dateOnly('k', 'Book Fair', '20261012'), ...runOf('n', 'Book Fair', '20261013', 2)]
+    assert.equal(planDateOnlyRuns(tie).get('k').role, 'head')
+  })
+
+  it('dropping day 1 makes day 2 the head', () => {
+    const evs = runOf('u', 'Winter Book Fair', '20270104', 28).slice(1)
+    const plan = planDateOnlyRuns(evs)
+    assert.deepEqual(plan.get('u01'), { role: 'head', lastYmd: '20270131', length: 27 })
+    assert.equal(plan.has('u00'), false)
+  })
+})
+
+describe('Akron Public Schools — processEvents with a run plan', () => {
+  const spyWriters = (upserts) => ({
+    ensureVenue:               async () => 'venue',
+    enrichWithImageDimensions: async (row) => row,
+    upsertEventSafe:           async (row) => { upserts.push({ ...row }); return { data: { id: row.source_id } } },
+    linkEventVenue:            async () => {},
+    linkEventOrganization:     async () => {},
+  })
+
+  it('head end_at is 11:59 pm ET on the last day, across the 2027-03-14 DST change', async () => {
+    const evs = [...runOf('s', 'Spring Book Fair', '20270310', 7), ...runOf('w', 'Winter Book Fair', '20270301', 3)]
+    const upserts = []
+    const counts = await processEvents(evs, { runPlan: planDateOnlyRuns(evs), writers: spyWriters(upserts) })
+    const head = upserts.find(r => r.source_id === 's00')
+    // 2027-03-16 is EDT (UTC-4): 23:59 local = 03:59Z next day.
+    assert.equal(Date.parse(head.end_at), Date.parse('2027-03-17T03:59:00Z'))
+    // 2027-03-03 is EST (UTC-5): 23:59 local = 04:59Z next day.
+    assert.equal(Date.parse(upserts.find(r => r.source_id === 'w00').end_at), Date.parse('2027-03-04T04:59:00Z'))
+    assert.equal(counts.ranged, 2)
+    assert.equal(counts.held, 8)
+  })
+
+  it('live run: head upserted with end_at + published; members upserted pending_review', async () => {
+    const evs = [...runOf('u', 'Winter Book Fair', '20270104', 28), dateOnly('solo', 'Board Meeting', '20270105')]
+    const upserts = []
+    const counts = await processEvents(evs, { runPlan: planDateOnlyRuns(evs), writers: spyWriters(upserts) })
+    assert.equal(upserts.length, 29)
+    const head = upserts.find(r => r.source_id === 'u00')
+    assert.equal(head.status, 'published')
+    assert.equal(head.needs_review, true)
+    assert.equal(Date.parse(head.end_at), Date.parse('2027-02-01T04:59:00Z'))
+    const members = upserts.filter(r => r.source_id.startsWith('u') && r.source_id !== 'u00')
+    assert.equal(members.length, 27)
+    assert.ok(members.every(r => r.status === 'pending_review'))
+    const solo = upserts.find(r => r.source_id === 'solo')
+    assert.equal(solo.status, 'published')
+    assert.ok(!solo.end_at || Date.parse(solo.end_at) < Date.parse('2027-01-06T05:00:00Z'))
+    assert.equal(counts.ranged, 1)
+    assert.equal(counts.held, 27)
+    assert.equal(counts.inserted, 29)
+  })
+
+  it('dry run with a run plan calls no writer but still counts ranged/held', async () => {
+    const writes = []
+    const writers = Object.fromEntries(
+      ['ensureVenue', 'enrichWithImageDimensions', 'upsertEventSafe', 'linkEventVenue', 'linkEventOrganization']
+        .map(n => [n, async () => { writes.push(n); return { data: { id: 'x' } } }]),
+    )
+    const evs = runOf('u', 'Winter Book Fair', '20270104', 28)
+    const counts = await processEvents(evs, { dryRun: true, runPlan: planDateOnlyRuns(evs), organizationId: 'org', writers })
+    assert.deepEqual(writes, [])
+    assert.equal(counts.ranged, 1)
+    assert.equal(counts.held, 27)
+    assert.equal(counts.inserted, 28)
+  })
+
+  it('a member under a re-issued UID still adopts the stored source_id', async () => {
+    const evs = runOf('new', 'Winter Book Fair', '20270104', 5)
+    const memberRow = normaliseIcsEvent(evs[2], { source: 'akron_public_schools' })
+    const existingByKey = new Map([[naturalKey(memberRow), 'old-02']])
+    const upserts = []
+    const counts = await processEvents(evs, { runPlan: planDateOnlyRuns(evs), existingByKey, writers: spyWriters(upserts) })
+    const adopted = upserts.find(r => r.source_id === 'old-02')
+    assert.ok(adopted)
+    assert.equal(adopted.status, 'pending_review')
+    assert.equal(counts.adopted, 1)
+    assert.equal(counts.held, 4)
   })
 })

@@ -51,6 +51,7 @@ import {
   isDateOnlyIcsEvent, applyNeedsReviewHook, DATE_ONLY_TIME_NOTE,
 } from './lib/ics.js'
 import { supabaseAdmin } from './lib/supabase-admin.js'
+import { addDaysYmd } from '../src/lib/recurrence.js'
 
 const SOURCE_KEY = 'akron_public_schools'
 const DRY_RUN = process.argv.includes('--dry-run') || process.env.DRY_RUN === '1'
@@ -169,6 +170,72 @@ export function collapseDateOnlyTwins(events) {
  */
 function hasBareDateStart(ev) {
   return /^\d{8}$/.test(String(ev?.DTSTART?.value || '').trim())
+}
+
+// ── Multi-day runs of date-only rows ──────────────────────────────────────
+//
+// The district feed expresses a multi-day event (a school-wide window, a book
+// fair week) as one bare-date VEVENT per day, each under its own UID and the
+// same SUMMARY. Published as-is they flood the calendar with N noon rows.
+// A run of >= minRun consecutive days becomes one ranged head row; the other
+// days are still upserted (so a stable UID keeps updating its own row) but
+// held as pending_review instead of published.
+
+const ymdDash = (ymd) => `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`
+const ymdBare = (dash) => dash.replace(/-/g, '')
+
+/**
+ * Pure — exported for tests. Plans consecutive-day runs of bare-date VEVENTs
+ * (hasBareDateStart) that share a squashed SUMMARY. Within a title, days are
+ * sorted (ties by UID string) and split wherever the next day is not exactly
+ * +1 calendar day. A second UID on a day already in the run is a member and
+ * does not extend it. Only runs spanning >= minRun distinct days appear in
+ * the result. The head is the earliest day's lowest UID, so the plan does not
+ * depend on input order. Timed and VALUE=DATE-with-clock VEVENTs, blank
+ * titles and repeated UIDs (first occurrence wins) are never grouped.
+ *
+ * @returns {Map<string, {role:'head', lastYmd:string, length:number}
+ *   | {role:'member', headUid:string}>}
+ */
+export function planDateOnlyRuns(events, { minRun = 3 } = {}) {
+  const byTitle = new Map()
+  const seenUids = new Set()
+  for (const ev of events || []) {
+    if (!hasBareDateStart(ev)) continue
+    const uid = String(ev.UID ?? '')
+    const title = squashTitle(ev.SUMMARY)
+    if (!uid || !title || seenUids.has(uid)) continue
+    seenUids.add(uid)
+    const ymd = String(ev.DTSTART.value).trim()
+    if (!byTitle.has(title)) byTitle.set(title, [])
+    byTitle.get(title).push({ uid, ymd })
+  }
+
+  const plan = new Map()
+  const flush = (run) => {
+    if (!run || run.length < minRun) return
+    const [head, ...members] = run.uids
+    plan.set(head, { role: 'head', lastYmd: run.lastYmd, length: run.length })
+    for (const uid of members) plan.set(uid, { role: 'member', headUid: head })
+  }
+  for (const items of byTitle.values()) {
+    items.sort((a, b) => (a.ymd < b.ymd ? -1 : a.ymd > b.ymd ? 1 : a.uid < b.uid ? -1 : a.uid > b.uid ? 1 : 0))
+    let run = null
+    for (const { uid, ymd } of items) {
+      if (run && ymd === run.lastYmd) {
+        run.uids.push(uid)
+      } else if (run && ymd === ymdBare(addDaysYmd(ymdDash(run.lastYmd), 1))) {
+        run.uids.push(uid)
+        run.lastYmd = ymd
+        run.length++
+      } else {
+        flush(run)
+        run = { uids: [uid], lastYmd: ymd, length: 1 }
+      }
+    }
+    flush(run)
+  }
+  return plan
 }
 
 // Words that introduce a deadline, an end, or a bound rather than a start
@@ -349,8 +416,11 @@ const DEFAULT_WRITERS = {
  */
 export async function processEvents(publicEvents, {
   dryRun = false, existingByKey = new Map(), organizationId = null, writers = DEFAULT_WRITERS,
+  runPlan = new Map(),
 } = {}) {
-  const counts = { inserted: 0, skipped: 0, retimed: 0, adopted: 0, venueLinks: 0, flagged: 0 }
+  const counts = {
+    inserted: 0, skipped: 0, retimed: 0, adopted: 0, venueLinks: 0, flagged: 0, ranged: 0, held: 0,
+  }
   const venueCache = new Map()
 
   for (const ev of publicEvents) {
@@ -370,6 +440,18 @@ export async function processEvents(publicEvents, {
       if (applyExplicitTime(row, ev)) counts.retimed++
       applyNeedsReviewHook(row, ev, isDateOnlyIcsEvent)
       if (row.needs_review === true) counts.flagged++
+      // Multi-day run (planDateOnlyRuns): the head spans the whole run and
+      // stays published; every other day is still upserted under its own
+      // UID, but held for review. A manual_overrides.status pin still wins
+      // (upsertEventSafe strips pinned fields).
+      const runRole = runPlan.get(String(ev.UID ?? ''))
+      if (runRole?.role === 'head') {
+        const endAt = easternToIso(ymdDash(runRole.lastYmd), '11:59 pm')
+        if (endAt) { row.end_at = endAt; counts.ranged++ }
+      } else if (runRole?.role === 'member') {
+        row.status = 'pending_review'
+        counts.held++
+      }
       if (adoptExistingSourceId(row, existingByKey)) counts.adopted++
 
       // LOCATION wins; otherwise only the Administration Building
@@ -448,6 +530,7 @@ async function main() {
     console.log(`  Filtered to ${filtered.length} public-facing events (dropped ${allEvents.length - filtered.length})`)
     const { events: publicEvents, dropped: twinsDropped } = collapseDateOnlyTwins(filtered)
     console.log(`  Collapsed ${twinsDropped} date-only twins of timed events`)
+    const runPlan = planDateOnlyRuns(publicEvents)
 
     if (publicEvents.length === 0) {
       if (DRY_RUN) { console.log('  [dry-run] 0 public-facing events; would log an error run'); process.exit(0) }
@@ -469,14 +552,15 @@ async function main() {
     console.log(`  Loaded ${existing.map.size} existing upcoming ${SOURCE_KEY} keys for UID adoption (${existing.ambiguous} ambiguous)`)
 
     console.log(`\n📥  Processing ${publicEvents.length} events…`)
-    const { inserted, skipped, retimed, adopted, venueLinks, flagged } = await processEvents(publicEvents, {
-      dryRun: DRY_RUN, existingByKey: existing.map, organizationId,
+    const { inserted, skipped, retimed, adopted, venueLinks, flagged, ranged, held } = await processEvents(publicEvents, {
+      dryRun: DRY_RUN, existingByKey: existing.map, organizationId, runPlan,
     })
     const summary = `adopted ${adopted}, venue links ${venueLinks}, needs_review ${flagged}, ambiguous keys ${existing.ambiguous}`
 
     if (DRY_RUN) {
       console.log(`\n[dry-run] ${inserted} rows would upsert, ${skipped} skipped`)
       console.log(`[dry-run] would adopt ${adopted}, would link venue ${venueLinks}, would flag needs_review ${flagged}, ambiguous keys ${existing.ambiguous}`)
+      console.log(`[dry-run] would range ${ranged} heads, hold ${held} run members pending_review`)
       if (existing.readFailed) console.log(`[dry-run] would log errorMessage "degraded: existing-row read failed …"`)
       return
     }
@@ -492,6 +576,7 @@ async function main() {
     })
     console.log(`  Re-issued UIDs: ${summary}`)
     console.log(`  Date-only twins dropped: ${twinsDropped}; date-only rows re-timed from description: ${retimed}`)
+    console.log(`  Multi-day runs: ranged ${ranged} heads, held ${held} run members pending_review`)
     console.log(`\n✅  Done in ${((Date.now() - start) / 1000).toFixed(1)}s`)
   } catch (err) {
     if (DRY_RUN) { console.error('  [dry-run] failed:', err.message); process.exit(1) }
